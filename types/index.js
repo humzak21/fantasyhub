@@ -1,0 +1,428 @@
+// Data models and types for fantasy football power rankings system
+
+export const PLAYOFF_TYPES = {
+  PLAYOFF: 'playoff',
+  CHAMPIONSHIP: 'championship',
+  CONSOLATION: 'consolation'
+};
+
+export const GAME_TYPES = {
+  REGULAR: 'regular',
+  PLAYOFF: 'playoff',
+  CHAMPIONSHIP: 'championship'
+};
+
+// Player data structure within roster
+export const createPlayer = (playerId, playerName, position) => ({
+  playerId,
+  playerName,
+  position,
+  proTeam: null,
+  proTeamName: '',
+  rosterSlot: null,
+  acquisitionType: null,
+  isActive: false,
+  
+  // Points data
+  projectedPoints: 0,
+  actualPoints: 0,
+  seasonProjectedPoints: 0,
+  seasonActualPoints: 0,
+  gamesPlayed: 0,
+  averagePointsPerGame: 0,
+  projectedAverage: 0,
+  
+  // Additional player info
+  injuryStatus: 'ACTIVE',
+  percentOwned: 0,
+  percentStarted: 0,
+  
+  // Sync tracking
+  lastStatsSync: null,
+  updatedAt: new Date().toISOString()
+});
+
+// Division data structure
+export const createDivision = (id, seasonId, name = 'Division', displayOrder = 1) => ({
+  id,
+  seasonId,
+  name,
+  displayOrder,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+});
+
+// Team data structure
+export const createTeam = (id, name, owner = '') => ({
+  id,
+  name,
+  owner,
+  createdAt: new Date().toISOString(),
+  // Division assignment
+  divisionId: null,
+  division: null, // Will be populated when fetched with division data
+  // ESPN integration
+  espnTeamId: null,
+  roster: [],
+  lastRosterSync: null,
+  // Season stats (calculated from games)
+  wins: 0,
+  losses: 0,
+  ties: 0,
+  pointsFor: 0,
+  pointsAgainst: 0,
+  // Advanced metrics (calculated)
+  winPercentage: 0,
+  pointDifferential: 0,
+  averagePointsFor: 0,
+  averagePointsAgainst: 0,
+  strengthOfSchedule: 0,
+  opponentWinPercentage: 0,
+  // Quality metrics
+  qualityWins: 0,
+  badLosses: 0,
+  blowoutWins: 0,
+  closeWins: 0,
+  closeLosses: 0,
+  // Form and streaks
+  recentForm: 0, // Rolling 4-week score
+  currentStreak: { type: 'none', length: 0 }, // win/loss streak
+  // Power ranking specific
+  powerRating: 0,
+  previousRank: null,
+  rankChange: 0,
+  // Roster analytics (calculated from player data)
+  rosterTotalProjectedPoints: 0,
+  rosterTotalActualPoints: 0,
+  starterProjectedPoints: 0,
+  starterActualPoints: 0,
+  benchProjectedPoints: 0,
+  benchActualPoints: 0,
+  // Position group strengths (QB, RB, WR, TE, K, DST)
+  positionStrengths: {
+    QB: { projected: 0, actual: 0, rank: 0 },
+    RB: { projected: 0, actual: 0, rank: 0 },
+    WR: { projected: 0, actual: 0, rank: 0 },
+    TE: { projected: 0, actual: 0, rank: 0 },
+    K: { projected: 0, actual: 0, rank: 0 },
+    'D/ST': { projected: 0, actual: 0, rank: 0 }
+  }
+});
+
+// Game/matchup data structure
+export const createGame = (week, team1Id, team2Id, team1Score = null, team2Score = null, type = GAME_TYPES.REGULAR) => ({
+  id: `${week}-${team1Id}-${team2Id}`,
+  week,
+  team1Id,
+  team2Id,
+  team1Score,
+  team2Score,
+  type,
+  isCompleted: team1Score !== null && team2Score !== null,
+  winnerTeamId: null,
+  loserTeamId: null,
+  isTie: false,
+  pointDifferential: 0,
+  isBlowout: false, // >30 point difference
+  isClose: false, // <5 point difference
+  completedAt: null
+});
+
+// Week data structure
+export const createWeek = (weekNumber, seasonId) => ({
+  id: `${seasonId}-week-${weekNumber}`,
+  weekNumber,
+  seasonId,
+  isCompleted: false,
+  games: [],
+  completedAt: null,
+  powerRankings: [], // Snapshot of rankings after this week
+  weeklyStats: {
+    highestScore: { teamId: null, score: 0 },
+    lowestScore: { teamId: null, score: 999 },
+    averageScore: 0,
+    totalPoints: 0,
+    blowouts: 0,
+    upsets: 0 // Lower ranked team beating higher ranked
+  }
+});
+
+// Season data structure
+export const createSeason = (year, name = '', leagueSize = 14, regularSeasonWeeks = 14, playoffWeeks = 3) => ({
+  id: `season-${year}`,
+  year,
+  name: name || `${year} Season`,
+  leagueSize,
+  regularSeasonWeeks,
+  playoffWeeks,
+  totalWeeks: regularSeasonWeeks + playoffWeeks,
+  isActive: false,
+  isCompleted: false,
+  createdAt: new Date().toISOString(),
+  completedAt: null,
+  teams: [],
+  weeks: [],
+  schedule: [], // All games for the season
+  // Season stats
+  stats: {
+    totalGames: 0,
+    completedGames: 0,
+    totalPoints: 0,
+    averageGameScore: 0,
+    highestWeeklyScore: { teamId: null, score: 0, week: 0 },
+    lowestWeeklyScore: { teamId: null, score: 999, week: 0 },
+    mostBlowouts: { teamId: null, count: 0 },
+    biggestBlowout: { winnerTeamId: null, loserTeamId: null, differential: 0, week: 0 }
+  },
+  // Playoff bracket (if applicable)
+  playoffBracket: null
+});
+
+// ENHANCED Power ranking weights - Heavy emphasis on record and key metrics
+export const POWER_RANKING_WEIGHTS = {
+  // Core components (used in enhanced formula)
+  recordWeight: 0.35,           // Win-loss record with quality adjustments
+  sosAdjustedWeight: 0.20,      // SOS-adjusted record
+  momentumFormWeight: 0.15,     // Recent form and momentum
+  qualityWeight: 0.10,          // Quality wins/losses differential
+  projectionWeight: 0.10,       // Roster strength and projections
+  currentFormWeight: 0.05,      // Last 3 games performance
+  pointDiffWeight: 0.05,        // Total point differential
+
+  // Legacy component weights (for backward compatibility)
+  performanceScore: 0.25,
+  teamStrength: 0.20,
+  strengthOfSchedule: 0.15,
+  momentumScore: 0.15,
+  consistencyScore: 0.10,
+  injuryScore: 0.10,
+  clutchScore: 0.05,
+  
+  // Legacy weights for backward compatibility (deprecated)
+  winPercentage: 0.20,
+  pointDifferential: 0.15,
+  recentForm: 0.12,
+  qualityWins: 0.08,
+  averagePointsFor: 0.08,
+  rosterProjectedStrength: 0.15,
+  positionGroupBalance: 0.05,
+  injuryResistance: 0.05,
+  badLosses: -0.05
+};
+
+// Position weights for PPR scoring (Team Strength calculation)
+export const POSITION_WEIGHTS = {
+  QB: 0.18,
+  RB1: 0.16,
+  RB2: 0.12,
+  WR1: 0.16,
+  WR2: 0.13,
+  TE: 0.10,
+  FLEX: 0.10,
+  'D/ST': 0.03,
+  K: 0.02
+};
+
+// Thresholds for various calculations
+export const THRESHOLDS = {
+  blowout: 25, // Point difference for blowout (lowered for more sensitivity)
+  close: 7,    // Point difference for close game (tightened)
+  qualityWinRankThreshold: 5, // Beating a team ranked this or higher
+  badLossRankThreshold: 10,   // Losing to a team ranked this or lower
+  recentFormWeeks: 3,         // Number of weeks for recent form calculation (last 3 games)
+  upsetRankDifference: 3,     // Rank difference needed for upset
+  
+  // Performance Score thresholds
+  momentumThreshold: 0.10,    // L3W > L5W threshold for momentum bonus
+  consistencyThreshold: 0.15, // CV threshold for consistency bonus
+  
+  // Consistency/Variance thresholds
+  eliteConsistency: 0.20,     // CV threshold for elite consistency
+  highVariance: 0.35,         // CV threshold for high variance penalty
+  
+  // Injury/Health scoring
+  healthScores: {
+    ACTIVE: 1.0,
+    QUESTIONABLE: 0.75,
+    DOUBTFUL: 0.25,
+    OUT: 0.1,
+    IR: 0.0,
+    SUSPENDED: 0.0,
+    PUP: 0.0
+  }
+};
+
+// Helper functions for data validation
+export const validateTeam = (team) => {
+  return team && 
+         typeof team.id !== 'undefined' && 
+         typeof team.name === 'string' && 
+         team.name.length > 0;
+};
+
+export const validateGame = (game) => {
+  return game &&
+         typeof game.week === 'number' &&
+         game.week > 0 &&
+         game.team1Id !== game.team2Id &&
+         (game.team1Score === null || typeof game.team1Score === 'number') &&
+         (game.team2Score === null || typeof game.team2Score === 'number');
+};
+
+export const validateSeason = (season) => {
+  return season &&
+         typeof season.year === 'number' &&
+         season.year > 2000 &&
+         season.leagueSize >= 4 &&
+         season.regularSeasonWeeks > 0 &&
+         season.playoffWeeks >= 0;
+};
+
+export const validateDivision = (division) => {
+  return division &&
+         typeof division.seasonId !== 'undefined' &&
+         typeof division.name === 'string' &&
+         division.name.length > 0 &&
+         typeof division.displayOrder === 'number' &&
+         division.displayOrder > 0;
+};
+
+// Pick'ems types and constants
+export const PICK_EM_STATUS = {
+  UPCOMING: 'upcoming',
+  OPEN: 'open',
+  CLOSED: 'closed',
+  COMPLETED: 'completed'
+};
+
+// Pick'em week data structure
+export const createPickEmWeek = (seasonId, weekNumber, submissionOpensAt, submissionClosesAt, resultsRevealAt) => ({
+  id: null,
+  seasonId,
+  weekNumber,
+  submissionOpensAt,
+  submissionClosesAt,
+  resultsRevealAt,
+  isActive: false,
+  isClosed: false,
+  isCompleted: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+});
+
+// Pick'em submission data structure
+export const createPickEmSubmission = (pickEmWeekId, gameId, predictedWinnerTeamId) => ({
+  id: null,
+  pickEmWeekId,
+  gameId,
+  predictedWinnerTeamId,
+  confidenceLevel: 1, // Always 1 point per pick
+  submittedAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
+});
+
+// Pick'em result data structure
+export const createPickEmResult = (pickEmWeekId, submissionId, isCorrect, pointsEarned, actualWinnerTeamId) => ({
+  id: null,
+  pickEmWeekId,
+  submissionId,
+  isCorrect,
+  pointsEarned,
+  actualWinnerTeamId,
+  calculatedAt: new Date().toISOString()
+});
+
+// Pick'em weekly score data structure
+export const createPickEmWeeklyScore = (pickEmWeekId, totalPicks, correctPicks, totalPoints, weeklyRank) => ({
+  id: null,
+  pickEmWeekId,
+  totalPicks,
+  correctPicks,
+  totalPoints,
+  accuracyPercentage: totalPicks > 0 ? (correctPicks / totalPicks) * 100 : 0,
+  weeklyRank,
+  calculatedAt: new Date().toISOString()
+});
+
+// Pick'em season standings data structure
+export const createPickEmSeasonStandings = (seasonId, totalWeeksParticipated, totalPicks, totalCorrectPicks, totalPoints, seasonRank) => ({
+  id: null,
+  seasonId,
+  totalWeeksParticipated,
+  totalPicks,
+  totalCorrectPicks,
+  totalPoints,
+  overallAccuracyPercentage: totalPicks > 0 ? (totalCorrectPicks / totalPicks) * 100 : 0,
+  seasonRank,
+  currentStreak: 0,
+  longestStreak: 0,
+  perfectWeeks: 0,
+  lastUpdated: new Date().toISOString()
+});
+
+// Validation functions for pick'ems
+export const validatePickEmWeek = (pickEmWeek) => {
+  return pickEmWeek &&
+         typeof pickEmWeek.seasonId !== 'undefined' &&
+         typeof pickEmWeek.weekNumber === 'number' &&
+         pickEmWeek.weekNumber > 0 &&
+         pickEmWeek.submissionOpensAt &&
+         pickEmWeek.submissionClosesAt &&
+         pickEmWeek.resultsRevealAt &&
+         new Date(pickEmWeek.submissionOpensAt) < new Date(pickEmWeek.submissionClosesAt) &&
+         new Date(pickEmWeek.submissionClosesAt) < new Date(pickEmWeek.resultsRevealAt);
+};
+
+export const validatePickEmSubmission = (submission) => {
+  return submission &&
+         typeof submission.pickEmWeekId !== 'undefined' &&
+         typeof submission.gameId !== 'undefined' &&
+         typeof submission.predictedWinnerTeamId !== 'undefined';
+};
+
+// Pick'ems time utilities
+export const getPickEmTimeStatus = (submissionOpensAt, submissionClosesAt, resultsRevealAt) => {
+  const now = new Date();
+  const opensAt = new Date(submissionOpensAt);
+  const closesAt = new Date(submissionClosesAt);
+  const revealsAt = new Date(resultsRevealAt);
+
+  if (now < opensAt) {
+    return PICK_EM_STATUS.UPCOMING;
+  } else if (now >= opensAt && now <= closesAt) {
+    return PICK_EM_STATUS.OPEN;
+  } else if (now > closesAt && now < revealsAt) {
+    return PICK_EM_STATUS.CLOSED;
+  } else {
+    return PICK_EM_STATUS.COMPLETED;
+  }
+};
+
+// Calculate default pick'em schedule based on fantasy week system
+export const calculatePickEmSchedule = (weekNumber) => {
+  // Week 1 starts September 2nd, 2025 at 3AM EST
+  const SEASON_START_DATE = new Date('2025-09-02T03:00:00-05:00'); // EST timezone
+
+  // Calculate the start of the fantasy week
+  const weekStartDate = new Date(SEASON_START_DATE);
+  weekStartDate.setDate(SEASON_START_DATE.getDate() + (weekNumber - 1) * 7);
+
+  // Pick'ems open when the fantasy week opens (same time as WeekNavigator)
+  const submissionOpens = new Date(weekStartDate); // Same as week start: 3AM EST
+
+  // Pick'ems close Thursday 8PM EST of that week
+  const submissionCloses = new Date(weekStartDate);
+  submissionCloses.setDate(weekStartDate.getDate() + 2); // Thursday of that week
+  submissionCloses.setHours(20, 0, 0, 0); // 8PM EST
+
+  // Results reveal following Tuesday 12PM EST (next week's Tuesday)
+  const resultsReveal = new Date(weekStartDate);
+  resultsReveal.setDate(weekStartDate.getDate() + 7); // Following Tuesday
+  resultsReveal.setHours(12, 0, 0, 0); // 12PM EST
+
+  return {
+    submissionOpensAt: submissionOpens.toISOString(),
+    submissionClosesAt: submissionCloses.toISOString(),
+    resultsRevealAt: resultsReveal.toISOString()
+  };
+};

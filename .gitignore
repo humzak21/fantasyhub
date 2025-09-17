@@ -1,0 +1,206 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.kiro
+
+# Environment variables - ALL variants
+.env*
+!.env.example
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.staging
+.env.staging.local
+
+# Railway deployment files
+.railway/
+
+# Sensitive configuration files
+config/local.js
+config/production.js
+config/development.js
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*-key.json
+service-account*.json
+firebase-adminsdk*.json
+
+# Database files and dumps
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+database.json
+db-backup*
+*.sql.gz
+dump.sql
+backup.sql
+
+# API keys and secrets
+secrets/
+.secrets/
+credentials/
+.credentials/
+api-keys.json
+.api-keys
+auth-keys.json
+
+# Authentication tokens
+.auth
+token.json
+access_token
+refresh_token
+.token
+jwt-secret*
+oauth-*
+
+# Build artifacts
+build/
+dist/
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# NYC test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/
+dump/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Compiled binary addons (https://nodejs.org/api/addons.html)
+build/Release
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Security and sensitive files
+*.security
+security.json
+.htaccess
+.htpasswd
+wp-config.php
+
+# IDE and editor sensitive files
+.vscode/settings.json
+.vscode/launch.json
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dataSources/
+.idea/dataSources.ids
+.idea/dataSources.local.xml
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+
+# Log files with potential sensitive data
+*.access.log
+auth.log
+error.log
+access_log
+error_log
+
+# SSH keys
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+known_hosts
+authorized_keys
+*.ppk
