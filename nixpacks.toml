@@ -5,7 +5,7 @@ NODE_ENV = "production"
 nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["npm ci --no-cache"]
+cmds = ["npm ci"]
 
 [phases.build]
 cmds = ["npm run build"]
