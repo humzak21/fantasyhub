@@ -1,9 +1,16 @@
-import React, { useMemo } from 'react';
-import { TrendingUp, TrendingDown, Target, Zap, Shield, Heart, Award, BarChart3 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { TrendingUp, TrendingDown, Target, Zap, Shield, Heart, Award, BarChart3, ChevronDown, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from './ui/dropdown-menu';
 
 const PowerRankingsVisualization = ({ rankings = [], currentWeek = 1 }) => {
+  const [showAllTeams, setShowAllTeams] = useState(false);
   const visualizationData = useMemo(() => {
     if (!rankings.length || !rankings[0]?.powerRatingComponents) return null;
 
@@ -14,7 +21,6 @@ const PowerRankingsVisualization = ({ rankings = [], currentWeek = 1 }) => {
       strengthOfSchedule: 0,
       momentumScore: 0,
       consistencyScore: 0,
-      injuryScore: 0,
       clutchScore: 0
     };
 
@@ -42,8 +48,6 @@ const PowerRankingsVisualization = ({ rankings = [], currentWeek = 1 }) => {
         (team.powerRatingComponents?.momentumScore || 0) > (best?.powerRatingComponents?.momentumScore || 0) ? team : best, rankings[0]),
       mostConsistent: rankings.reduce((best, team) => 
         (team.powerRatingComponents?.consistencyScore || 0) > (best?.powerRatingComponents?.consistencyScore || 0) ? team : best, rankings[0]),
-      healthiest: rankings.reduce((best, team) => 
-        (team.powerRatingComponents?.injuryScore || 0) > (best?.powerRatingComponents?.injuryScore || 0) ? team : best, rankings[0]),
       mostClutch: rankings.reduce((best, team) => 
         (team.powerRatingComponents?.clutchScore || 0) > (best?.powerRatingComponents?.clutchScore || 0) ? team : best, rankings[0])
     };
@@ -68,12 +72,12 @@ const PowerRankingsVisualization = ({ rankings = [], currentWeek = 1 }) => {
   const { componentAverages, standouts } = visualizationData;
 
   const ComponentChart = ({ title, icon: Icon, teams, componentKey, color, formatValue }) => {
-    const sortedTeams = [...teams]
+    const allSortedTeams = [...teams]
       .filter(team => team.powerRatingComponents?.[componentKey] !== undefined)
-      .sort((a, b) => (b.powerRatingComponents[componentKey] || 0) - (a.powerRatingComponents[componentKey] || 0))
-      .slice(0, 5);
+      .sort((a, b) => (b.powerRatingComponents[componentKey] || 0) - (a.powerRatingComponents[componentKey] || 0));
 
-    const maxValue = Math.max(...sortedTeams.map(team => team.powerRatingComponents[componentKey] || 0));
+    const displayTeams = showAllTeams ? allSortedTeams : allSortedTeams.slice(0, 5);
+    const maxValue = Math.max(...allSortedTeams.map(team => team.powerRatingComponents[componentKey] || 0));
     const average = componentAverages[componentKey];
 
     return (
@@ -85,7 +89,7 @@ const PowerRankingsVisualization = ({ rankings = [], currentWeek = 1 }) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {sortedTeams.map((team, index) => {
+          {displayTeams.map((team, index) => {
             const value = team.powerRatingComponents[componentKey] || 0;
             const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
             const isAboveAverage = value > average;
@@ -209,23 +213,39 @@ const PowerRankingsVisualization = ({ rankings = [], currentWeek = 1 }) => {
             color="text-indigo-600"
             description="Lowest scoring variance"
           />
-          <StandoutCard
-            title="🏥 Healthiest Roster"
-            team={standouts.healthiest}
-            metric={`${standouts.healthiest?.powerRatingComponents?.injuryScore?.toFixed(2) || 0}`}
-            icon={Heart}
-            color="text-red-600"
-            description="Best injury status and depth"
-          />
         </div>
       </div>
 
       {/* Component Charts */}
       <div>
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <BarChart3 className="text-blue-600" size={20} />
-          Component Analysis
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold flex items-center gap-2">
+            <BarChart3 className="text-blue-600" size={20} />
+            Component Analysis
+          </h3>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2 rounded-md border">
+                {showAllTeams ? `All Teams` : `Top 5 Teams`}
+                <ChevronDown className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setShowAllTeams(false)}
+                className={!showAllTeams ? "bg-accent" : ""}
+              >
+                Top 5 Teams
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setShowAllTeams(true)}
+                className={showAllTeams ? "bg-accent" : ""}
+              >
+                All Teams
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           <ComponentChart
             title="Performance Score"
@@ -262,71 +282,129 @@ const PowerRankingsVisualization = ({ rankings = [], currentWeek = 1 }) => {
             componentKey="consistencyScore"
             color="text-indigo-600"
           />
-          <ComponentChart
-            title="Health & Depth"
-            icon={Heart}
-            teams={rankings}
-            componentKey="injuryScore"
-            color="text-red-600"
-          />
         </div>
       </div>
 
-      {/* Algorithm Insights */}
+
+      {/* Component Explanations */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            <BarChart3 className="text-blue-600" size={20} />
-            Algorithm Insights - Week {currentWeek}
+            <Info className="text-blue-600" size={20} />
+            Component Calculation Guide
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-3">Key Trends</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-start gap-2">
-                  <TrendingUp className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <strong>Performance Leaders:</strong> Teams with strong recent scoring are dominating the Performance Score component (25% weight).
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Target className="h-4 w-4 text-orange-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <strong>Schedule Impact:</strong> Strength of Schedule varies significantly, affecting 15% of each team&apos;s rating.
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Zap className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <strong>Talent Matters:</strong> Team Strength based on projected points makes up 20% of the algorithm.
-                  </div>
-                </div>
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-blue-600" />
+                  Performance Score (25% weight)
+                </h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Measures recent scoring trends and overall production effectiveness.
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                  <li>• Recent 3-week scoring average vs season average</li>
+                  <li>• Points per game relative to league average</li>
+                  <li>• Scoring trend momentum and consistency</li>
+                  <li>• Bonus for teams exceeding projections</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-green-600" />
+                  Team Strength (20% weight)
+                </h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Evaluates roster talent based on projected player performance.
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                  <li>• Total projected points for starting lineup</li>
+                  <li>• Bench depth and backup strength</li>
+                  <li>• Position group balance and reliability</li>
+                  <li>• Player injury risk and availability</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Target className="h-4 w-4 text-orange-600" />
+                  Schedule Difficulty (15% weight)
+                </h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Measures the difficulty of opponents faced and remaining.
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                  <li>• Average opponent win percentage</li>
+                  <li>• Quality of opponents' scoring averages</li>
+                  <li>• Strength of upcoming matchups</li>
+                  <li>• Adjustments for division vs non-division games</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-purple-600" />
+                  Momentum Score (15% weight)
+                </h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Captures recent hot streaks and building momentum.
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                  <li>• Last 3 games performance vs season average</li>
+                  <li>• Win/loss streak consideration</li>
+                  <li>• Recent scoring improvements</li>
+                  <li>• Clutch performance in close games</li>
+                </ul>
               </div>
             </div>
-            
-            <div>
-              <h4 className="font-semibold mb-3">Component Balance</h4>
-              <div className="space-y-2">
-                {Object.entries(componentAverages).map(([key, value]) => {
-                  const labels = {
-                    performanceScore: 'Performance (25%)',
-                    teamStrength: 'Team Strength (20%)',
-                    strengthOfSchedule: 'Schedule (15%)',
-                    momentumScore: 'Momentum (15%)',
-                    consistencyScore: 'Consistency (10%)',
-                    injuryScore: 'Health (10%)',
-                    clutchScore: 'Clutch (5%)'
-                  };
-                  
-                  return (
-                    <div key={key} className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{labels[key]}</span>
-                      <span className="font-mono font-semibold">{value.toFixed(2)}</span>
-                    </div>
-                  );
-                })}
+
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-indigo-600" />
+                  Consistency Score (10% weight)
+                </h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Rewards teams with reliable, predictable scoring patterns.
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                  <li>• Coefficient of variation in weekly scores</li>
+                  <li>• Frequency of boom/bust weeks</li>
+                  <li>• Standard deviation from scoring average</li>
+                  <li>• Bonus for consistent top-half finishes</li>
+                </ul>
+              </div>
+
+
+              <div>
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Award className="h-4 w-4 text-yellow-600" />
+                  Clutch Performance (5% weight)
+                </h4>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Rewards teams that perform well in high-pressure situations.
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
+                  <li>• Performance in games decided by ≤7 points</li>
+                  <li>• Monday Night Football and primetime scoring</li>
+                  <li>• Comeback victories and late-game execution</li>
+                  <li>• Performance against higher-ranked opponents</li>
+                </ul>
+              </div>
+
+              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+                <h4 className="font-semibold mb-2 text-sm">Calculation Notes</h4>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• All components are normalized to 0-100 scale</li>
+                  <li>• League averages shown as reference lines</li>
+                  <li>• Historical data weighted more heavily than projections</li>
+                  <li>• Algorithm adapts weights based on weeks completed</li>
+                  <li>• Quality wins/losses provide additional context</li>
+                </ul>
               </div>
             </div>
           </div>

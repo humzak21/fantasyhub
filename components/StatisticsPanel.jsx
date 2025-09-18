@@ -19,7 +19,6 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
       strengthOfSchedule: 0,
       momentumScore: 0,
       consistencyScore: 0,
-      injuryScore: 0,
       clutchScore: 0
     };
 
@@ -379,8 +378,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
                     teamStrength: 'Team Strength (20%)',
                     strengthOfSchedule: 'Schedule (15%)',
                     momentumScore: 'Momentum (15%)',
-                    consistencyScore: 'Consistency (10%)',
-                    injuryScore: 'Health (10%)',
+                    consistencyScore: 'Consistency (15%)',
                     clutchScore: 'Clutch (5%)'
                   };
 
@@ -390,7 +388,6 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
                     strengthOfSchedule: 'text-orange-600',
                     momentumScore: 'text-purple-600',
                     consistencyScore: 'text-indigo-600',
-                    injuryScore: 'text-red-600',
                     clutchScore: 'text-amber-600'
                   };
 
@@ -427,28 +424,6 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
       )}
       */}
 
-      {/* Season Progress */}
-      <div className="bg-gray-50 p-4 rounded-lg">
-        <h4 className="font-semibold text-gray-900 mb-3">Season Progress</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div>
-            <span className="text-gray-600">Current Week:</span>
-            <span className="ml-2 font-medium">{currentWeek}</span>
-          </div>
-          <div>
-            <span className="text-gray-600">Regular Season:</span>
-            <span className="ml-2 font-medium">{Math.min(currentWeek, season.regularSeasonWeeks || 14)}/{season.regularSeasonWeeks || 14}</span>
-          </div>
-          <div>
-            <span className="text-gray-600">Teams:</span>
-            <span className="ml-2 font-medium">{(season.teams || []).length}/{season.leagueSize || season.league_size || 14}</span>
-          </div>
-          <div>
-            <span className="text-gray-600">Active Teams:</span>
-            <span className="ml-2 font-medium">{activeRankings.length}</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
