@@ -227,7 +227,6 @@ export const LoginDropdown = () => {
                   Got it!
                 </Button>
               </div>
-              </>
             ) : (
               <>
                 <form onSubmit={handleSubmit} className="space-y-3">
