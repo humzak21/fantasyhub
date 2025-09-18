@@ -47,7 +47,6 @@ export function extractOwnerInfo(espnTeamData, members = []) {
 export function findMatchingTeam(espnTeam, existingTeams, members = []) {
     // Safety check for existingTeams
     if (!existingTeams || !Array.isArray(existingTeams)) {
-        console.warn('No existing teams provided for matching');
         return null;
     }
     

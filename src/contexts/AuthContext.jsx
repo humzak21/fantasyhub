@@ -23,12 +23,10 @@ export const AuthProvider = ({ children }) => {
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) {
-          console.error('Error getting session:', error)
         } else if (session?.user) {
           setUser(session.user)
         }
       } catch (error) {
-        console.error('Error initializing auth:', error)
       } finally {
         setLoading(false)
       }
@@ -39,7 +37,6 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event)
         setLoading(false)
         
         if (session?.user) {
@@ -69,7 +66,6 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, user: data.user }
     } catch (error) {
-      console.error('Sign in error:', error)
       return { success: false, error: error.message }
     } finally {
       setLoading(false)
@@ -91,7 +87,6 @@ export const AuthProvider = ({ children }) => {
         throw error
       }
       
-      console.log('Supabase signUp data:', { data, hasUser: !!data.user, hasSession: !!data.session }) // Debug logging
 
       // Check if user needs to confirm email
       if (data.user && !data.session) {
@@ -104,7 +99,6 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user: data.user }
     } catch (error) {
-      console.error('Sign up error:', error)
       return { success: false, error: error.message }
     } finally {
       setLoading(false)
@@ -123,7 +117,6 @@ export const AuthProvider = ({ children }) => {
       setUser(null)
       return { success: true }
     } catch (error) {
-      console.error('Sign out error:', error)
       return { success: false, error: error.message }
     } finally {
       setLoading(false)
@@ -142,7 +135,6 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, message: 'Password reset email sent' }
     } catch (error) {
-      console.error('Password reset error:', error)
       return { success: false, error: error.message }
     }
   }
@@ -159,7 +151,6 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true }
     } catch (error) {
-      console.error('Password update error:', error)
       return { success: false, error: error.message }
     }
   }

@@ -15,7 +15,8 @@ const PickEmsManager = ({
   currentWeek,
   dataManager,
   loading = false,
-  isAuthenticated = false
+  isAuthenticated = false,
+  isAdmin = false
 }) => {
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
@@ -52,9 +53,7 @@ const PickEmsManager = ({
 
       // Load user picks if pick'em week exists
       if (pickEmWeekData) {
-        console.log('📥 Loading user picks for pickEmWeekId:', pickEmWeekData.id);
         const userPicksData = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
-        console.log('📊 Loaded user picks data:', userPicksData);
         setUserPicks(userPicksData || []);
 
         // Load results data if available
@@ -74,7 +73,6 @@ const PickEmsManager = ({
         }
       }
     } catch (err) {
-      console.error('Error loading pick\'em data:', err);
       setError(err.message || 'Failed to load pick\'em data');
     } finally {
       setDataLoading(false);
@@ -100,7 +98,7 @@ const PickEmsManager = ({
 
   // Handle creating pick'em week (admin only)
   const handleCreatePickEmWeek = useCallback(async () => {
-    if (!isAuthenticated || !season) return;
+    if (!isAdmin || !season) return;
 
     setDataLoading(true);
     try {
@@ -111,11 +109,11 @@ const PickEmsManager = ({
     } finally {
       setDataLoading(false);
     }
-  }, [isAuthenticated, season, currentWeek, dataManager, loadPickEmData]);
+  }, [isAdmin, season, currentWeek, dataManager, loadPickEmData]);
 
   // Handle calculating results (admin only)
   const handleCalculateResults = useCallback(async () => {
-    if (!isAuthenticated || !pickEmWeek) return;
+    if (!isAdmin || !pickEmWeek) return;
 
     setDataLoading(true);
     try {
@@ -127,7 +125,7 @@ const PickEmsManager = ({
     } finally {
       setDataLoading(false);
     }
-  }, [isAuthenticated, pickEmWeek, dataManager, loadPickEmData]);
+  }, [isAdmin, pickEmWeek, dataManager, loadPickEmData]);
 
   const getStatusBadge = () => {
     if (!pickEmStatus) return null;
@@ -190,7 +188,7 @@ const PickEmsManager = ({
         </CardHeader>
 
         {/* Admin controls */}
-        {isAuthenticated && (
+        {isAdmin && (
           <CardContent>
             <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2">
@@ -242,7 +240,7 @@ const PickEmsManager = ({
             <h3 className="text-lg font-semibold mb-2">Pick&apos;ems Not Available</h3>
             <p className="text-muted-foreground">
               Pick&apos;ems have not been set up for week {currentWeek} yet.
-              {isAuthenticated && ' Use the admin controls above to create a pick&apos;em week.'}
+              {isAdmin && ' Use the admin controls above to create a pick&apos;em week.'}
             </p>
           </CardContent>
         </Card>

@@ -102,7 +102,6 @@ export const useSupabaseFantasyData = () => {
 
         // If no divisions exist, create default ones
         if (!seasonDivisions || seasonDivisions.length === 0) {
-          console.log('No divisions found, creating default divisions...');
           try {
             await dataManager.createDivision(active.id, 'Donkeys', 1);
             await dataManager.createDivision(active.id, 'Ninjas', 2);
@@ -110,7 +109,6 @@ export const useSupabaseFantasyData = () => {
             const newDivisions = await dataManager.getDivisionsForSeason(active.id);
             setDivisions(newDivisions || []);
           } catch (err) {
-            console.error('Error creating default divisions:', err);
             setDivisions([]);
           }
         } else {
@@ -466,8 +464,6 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) return [];
 
     try {
-      console.log('Getting power rankings for week:', week, 'viewingWeek:', viewingWeek);
-
       // ALWAYS use live calculations - no more snapshots
       // Get all necessary data for the calculator
       const [teams, games, players] = await Promise.all([
@@ -481,13 +477,6 @@ export const useSupabaseFantasyData = () => {
           .eq('season_id', activeSeason.id),
         dataManager.getAllPlayers(activeSeason.id)
       ]);
-
-      console.log('Data loaded:', {
-        teams: teams.data?.length,
-        games: games.data?.length,
-        players: players?.length,
-        sampleGame: games.data?.[0]
-      });
 
       // Create calculator with viewingWeek parameter for historical accuracy
       const calculator = new PowerRankingCalculator(
@@ -506,23 +495,8 @@ export const useSupabaseFantasyData = () => {
       );
 
       const rankings = calculator.getRankings();
-      console.log('Calculated rankings:', rankings?.length, 'teams');
-      if (rankings.length > 0) {
-        console.log('Sample ranking data:', {
-          name: rankings[0].name,
-          powerRating: rankings[0].powerRating,
-          pointsFor: rankings[0].pointsFor,
-          pointsAgainst: rankings[0].pointsAgainst,
-          pointDifferential: rankings[0].pointDifferential,
-          wins: rankings[0].wins,
-          losses: rankings[0].losses,
-          gamesPlayed: rankings[0].gamesPlayed
-        });
-      }
-
       return rankings;
     } catch (err) {
-      console.error('Error getting power rankings for week:', err);
       setError(err.message);
       return [];
     }
@@ -533,16 +507,15 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) {
       throw new Error('No active season');
     }
-    
+
     setLoading(true);
     setError(null);
     try {
       const result = await dataManager.saveWeeklyPowerRankingsSnapshot(
-        activeSeason.id, 
-        weekNumber, 
+        activeSeason.id,
+        weekNumber,
         snapshotType
       );
-      console.log(`Saved ${result} team rankings for week ${weekNumber}`);
       return result;
     } catch (err) {
       setError(err.message);
@@ -556,7 +529,6 @@ export const useSupabaseFantasyData = () => {
     try {
       return await dataManager.checkWeeklySnapshotStatus(activeSeason?.year || 2025);
     } catch (err) {
-      console.warn('Error checking weekly snapshot status:', err.message);
       return { should_trigger: false, reason: 'Error checking status' };
     }
   }, [dataManager, activeSeason]);
@@ -565,7 +537,6 @@ export const useSupabaseFantasyData = () => {
     try {
       return await dataManager.executeWeeklySnapshotIfNeeded(activeSeason?.year || 2025);
     } catch (err) {
-      console.error('Error executing weekly snapshot:', err.message);
       setError(err.message);
       return { status: 'error', error_message: err.message };
     }
@@ -575,18 +546,16 @@ export const useSupabaseFantasyData = () => {
     try {
       return await dataManager.getCurrentNFLWeek(activeSeason?.year || 2025);
     } catch (err) {
-      console.warn('Error getting current NFL week:', err.message);
       return 1;
     }
   }, [dataManager, activeSeason]);
 
   const getAvailableSnapshotWeeks = useCallback(async () => {
     if (!activeSeason) return [];
-    
+
     try {
       return await dataManager.getAvailableSnapshotWeeks(activeSeason.id);
     } catch (err) {
-      console.error('Error getting available snapshot weeks:', err.message);
       return [];
     }
   }, [dataManager, activeSeason]);
@@ -598,16 +567,12 @@ export const useSupabaseFantasyData = () => {
     }
 
     try {
-      console.log('Refreshing power rankings for viewing week:', viewingWeek);
-
       // Use the viewing week or current week for live calculations
       const weekToUse = viewingWeek || currentWeek || activeSeason.current_week || 1;
       const rankings = await getPowerRankingsForWeek(weekToUse, viewingWeek);
 
-      console.log('Setting power rankings:', rankings);
       setPowerRankings(rankings);
     } catch (err) {
-      console.error('Error calculating power rankings:', err);
       setPowerRankings([]);
     }
   }, [activeSeason, getPowerRankingsForWeek, currentWeek]);
@@ -684,7 +649,6 @@ export const useSupabaseFantasyData = () => {
     try {
       return await dataManager.getAllPlayers(seasonId || activeSeason?.id);
     } catch (err) {
-      console.error('Error getting all players:', err);
       setError(err.message);
       return [];
     }

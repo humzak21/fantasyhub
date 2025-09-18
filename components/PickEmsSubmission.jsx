@@ -27,7 +27,6 @@ const PickEmsSubmission = ({
 
   // Initialize picks from existing user picks
   useEffect(() => {
-    console.log('🎯 PickEmsSubmission received userPicks:', userPicks);
     if (userPicks && userPicks.length > 0) {
       const existingPicks = {};
       userPicks.forEach(pick => {
@@ -170,16 +169,6 @@ const PickEmsSubmission = ({
   const totalPicks = Object.keys(picks).length;
   const availableGames = games.filter(game => !game.isCompleted);
 
-  // Debug logging
-  console.log('Pickems Debug:', {
-    totalPicks,
-    availableGamesCount: availableGames.length,
-    canSubmit,
-    submitting,
-    hasChanges,
-    status: status.status,
-    picks: Object.keys(picks)
-  });
 
   return (
     <div className="space-y-6">

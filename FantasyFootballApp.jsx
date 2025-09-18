@@ -74,13 +74,8 @@ const FantasyFootballApp = () => {
   useEffect(() => {
     // Set initial week
     const calendarWeek = getCurrentWeek();
-    console.log('=== FantasyFootballApp Week Init ===');
-    console.log('Calendar week from getCurrentWeek():', calendarWeek);
-    console.log('Current week state:', currentWeek);
-    console.log('Will update?', calendarWeek !== currentWeek);
     
     if (calendarWeek !== currentWeek) {
-      console.log('Setting current week to:', calendarWeek);
       setCurrentWeek(calendarWeek);
     }
 
@@ -88,7 +83,6 @@ const FantasyFootballApp = () => {
     const weekCheckInterval = setInterval(() => {
       const newCalendarWeek = getCurrentWeek();
       if (newCalendarWeek !== currentWeek) {
-        console.log('Week changed via interval from', currentWeek, 'to', newCalendarWeek);
         setCurrentWeek(newCalendarWeek);
       }
     }, 60 * 60 * 1000); // Check every hour
@@ -101,12 +95,8 @@ const FantasyFootballApp = () => {
   useEffect(() => {
     if (activeSeason && !loading) {
       const calendarWeek = getCurrentWeek();
-      console.log('=== Post-Load Week Sync ===');
-      console.log('Active season loaded, calendar week:', calendarWeek);
-      console.log('Current week state:', currentWeek);
       
       if (calendarWeek !== currentWeek) {
-        console.log('Forcing calendar week after data load:', calendarWeek);
         setCurrentWeek(calendarWeek);
       }
     }
@@ -127,7 +117,6 @@ const FantasyFootballApp = () => {
         const rankings = await getPowerRankingsForWeek(currentWeek, currentWeek);
         setWeeklyRankings(rankings);
       } catch (err) {
-        console.error('Error fetching weekly rankings:', err);
         setWeeklyRankings([]);
       } finally {
         setRankingsLoading(false);
@@ -164,13 +153,11 @@ const FantasyFootballApp = () => {
     try {
       await addGame(week, team1Id, team2Id, team1Score, team2Score);
     } catch (error) {
-      console.error('Error updating game:', error);
       throw error;
     }
   };
 
   const handleGameDelete = async (gameId) => {
-    console.log('Delete game:', gameId);
     alert('Game deletion not yet implemented');
   };
 
@@ -607,7 +594,8 @@ const FantasyFootballApp = () => {
               currentWeek={currentWeek}
               dataManager={dataManager}
               loading={loading}
-              isAuthenticated={isAdmin}
+              isAuthenticated={isAuthenticated}
+              isAdmin={isAdmin}
             />
             </div>
           )}

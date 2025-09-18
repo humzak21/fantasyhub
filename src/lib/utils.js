@@ -23,7 +23,6 @@ export const storage = {
       const item = localStorage.getItem(key)
       return item ? JSON.parse(item) : defaultValue
     } catch (error) {
-      console.error('Error reading from localStorage:', error)
       return defaultValue
     }
   },
@@ -33,7 +32,6 @@ export const storage = {
       localStorage.setItem(key, JSON.stringify(value))
       return true
     } catch (error) {
-      console.error('Error writing to localStorage:', error)
       return false
     }
   },
@@ -43,7 +41,6 @@ export const storage = {
       localStorage.removeItem(key)
       return true
     } catch (error) {
-      console.error('Error removing from localStorage:', error)
       return false
     }
   },
@@ -53,7 +50,6 @@ export const storage = {
       localStorage.clear()
       return true
     } catch (error) {
-      console.error('Error clearing localStorage:', error)
       return false
     }
   }
@@ -102,14 +98,12 @@ export const analytics = {
   track: (event, properties = {}) => {
     if (env.enableAnalytics && env.isProduction) {
       // Add your analytics tracking here
-      console.log('Analytics event:', event, properties)
     }
   },
   
   page: (pageName, properties = {}) => {
     if (env.enableAnalytics && env.isProduction) {
       // Add your page tracking here
-      console.log('Page view:', pageName, properties)
     }
   }
 }

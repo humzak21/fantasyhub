@@ -10,17 +10,6 @@ export class PowerRankingCalculator {
     // If viewing week 3, we only consider games from weeks 1-2
     this.viewingWeek = viewingWeek || currentWeek;
 
-    console.log('PowerRankingCalculator constructor:', {
-      teamsType: typeof teams,
-      teamsIsArray: Array.isArray(teams),
-      teamsLength: this.teams.length,
-      gamesType: typeof games,
-      gamesIsArray: Array.isArray(games),
-      gamesLength: this.games.length,
-      playersLength: this.players.length,
-      currentWeek,
-      viewingWeek: this.viewingWeek
-    });
 
     this.leagueStats = this.calculateLeagueStats();
     this.teamRosterMetrics = this.calculateAllTeamRosterMetrics();

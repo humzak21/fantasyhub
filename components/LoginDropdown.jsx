@@ -28,14 +28,6 @@ export const LoginDropdown = () => {
     return ''
   })
 
-  // Debug logging for state variables
-  console.log('LoginDropdown state:', {
-    showLoginForm,
-    isSignUp,
-    showSuccessMessage,
-    successMessage,
-    hasUser: !!user
-  })
 
   // Refs for form fields
   const nameInputRef = useRef(null)
@@ -68,22 +60,16 @@ export const LoginDropdown = () => {
         ? await signUp(formData.email, formData.password)
         : await signIn(formData.email, formData.password)
 
-      console.log('Auth result:', result) // Debug logging
-
       if (result.success) {
         if (isSignUp) {
-          console.log('Sign up successful, checking for message:', result.message) // Debug logging
-
           // Set success message immediately
           const message = result.message || 'Account created successfully! You can now sign in.'
-          console.log('Setting success message:', message)
           setSuccessMessage(message)
           setShowSuccessMessage(true)
 
           // Persist to localStorage in case of page refresh
           localStorage.setItem('signUpSuccessMessage', message)
           localStorage.setItem('showSignUpSuccess', 'true')
-          console.log('Set showSuccessMessage to true and saved to localStorage')
 
           // Small delay to ensure popup renders before other state changes
           setTimeout(() => {
@@ -218,9 +204,6 @@ export const LoginDropdown = () => {
           
           <CardContent className="space-y-4">
             {showSuccessMessage ? (
-              <>
-                {console.log('Rendering success popup with message:', successMessage)}
-                <div>DEBUG: Success message should show here</div>
               <div className="text-center space-y-4 py-4">
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
                 <div className="space-y-2">

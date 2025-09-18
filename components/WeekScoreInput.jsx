@@ -138,7 +138,6 @@ const WeekScoreInput = ({
 
       await onSaveWeek(week, scores);
     } catch (error) {
-      console.error('Error saving week:', error);
       alert('Error saving week scores. Please try again.');
     } finally {
       setWeekLoading(false);

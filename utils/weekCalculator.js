@@ -14,34 +14,21 @@ const TOTAL_WEEKS = 18;
  */
 export const getCurrentWeek = () => {
   const now = new Date();
-  
-  console.log('=== Week Calculator Debug ===');
-  console.log('Current date:', now.toString());
-  console.log('Season start date:', SEASON_START_DATE.toString());
-  console.log('Is before season start?', now < SEASON_START_DATE);
-  
+
   // If before season starts, return week 1
   if (now < SEASON_START_DATE) {
-    console.log('Returning week 1 (before season start)');
     return 1;
   }
-  
+
   // Calculate milliseconds since season start
   const timeDiff = now.getTime() - SEASON_START_DATE.getTime();
-  
+
   // Convert to days and calculate week
   const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
   const weekNumber = Math.floor(daysDiff / 7) + 1;
-  
-  console.log('Time diff (ms):', timeDiff);
-  console.log('Days diff:', daysDiff);
-  console.log('Calculated week (before cap):', weekNumber);
-  console.log('Total weeks allowed:', TOTAL_WEEKS);
-  
+
   const finalWeek = Math.min(weekNumber, TOTAL_WEEKS);
-  console.log('Final week returned:', finalWeek);
-  console.log('=== End Debug ===');
-  
+
   // Cap at week 18
   return finalWeek;
 };

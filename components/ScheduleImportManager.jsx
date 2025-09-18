@@ -6,7 +6,6 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useSupabaseFantasyData } from '../hooks/useSupabaseFantasyData';
 
 const ScheduleImportManager = () => {
-  console.log('🚀 ScheduleImportManager component initializing');
   const {
     dataManager,
     initialized,
@@ -16,8 +15,6 @@ const ScheduleImportManager = () => {
     rejectScheduleImport,
     seasons
   } = useSupabaseFantasyData();
-  console.log('🔧 Hook initialized:', initialized);
-  console.log('🔧 DataManager available:', !!dataManager);
   const [pendingImports, setPendingImports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedImport, setSelectedImport] = useState(null);
@@ -26,45 +23,25 @@ const ScheduleImportManager = () => {
   const [selectedSeason, setSelectedSeason] = useState('');
 
   useEffect(() => {
-    console.log('🎯 ScheduleImportManager useEffect triggered');
-    console.log('📊 initialized:', initialized);
-    console.log('📊 dataManager in effect:', !!dataManager);
     if (initialized) {
       loadData();
     }
   }, [initialized]);
 
   const loadData = async () => {
-    console.log('🔄 ScheduleImportManager: loadData called');
-    console.log('📊 initialized:', initialized);
-    console.log('📊 dataManager exists:', !!dataManager);
-    
     if (!initialized || !dataManager) {
-      console.log('❌ Not initialized or no dataManager available');
       return;
     }
-    
+
     try {
       setLoading(true);
-      console.log('📡 Fetching pending imports...');
-      
+
       const importsData = await getPendingScheduleImports();
-      
-      console.log('✅ Pending imports received:', importsData);
-      console.log('✅ Seasons from hook:', seasons);
-      
+
       setPendingImports(importsData || []);
-      
-      console.log('✅ State updated successfully');
     } catch (error) {
-      console.error('❌ Error loading schedule import data:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack,
-        cause: error.cause
-      });
+      // Error handling can be added here if needed
     } finally {
-      console.log('🏁 Loading complete, setting loading to false');
       setLoading(false);
     }
   };
@@ -75,7 +52,7 @@ const ScheduleImportManager = () => {
       setImportDetails(details);
       setSelectedImport(importId);
     } catch (error) {
-      console.error('Error loading import details:', error);
+      // Error handling can be added here if needed
     }
   };
 
@@ -94,7 +71,6 @@ const ScheduleImportManager = () => {
         alert(`Assignment failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('Error assigning schedule:', error);
       alert('Error assigning schedule to season');
     }
   };
@@ -108,7 +84,6 @@ const ScheduleImportManager = () => {
       setAssignmentNotes('');
       alert('Schedule import rejected');
     } catch (error) {
-      console.error('Error rejecting import:', error);
       alert('Error rejecting schedule import');
     }
   };
