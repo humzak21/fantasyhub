@@ -37,15 +37,15 @@ What this migration adds:
 
 async function runMigration() {
   try {
-    // Validate environment variables
-    const supabaseUrl = process.env.SUPABASE_URL;
+    // Validate environment variables - support both Railway and local formats
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceRoleKey) {
       console.error('❌ Missing required environment variables:');
-      if (!supabaseUrl) console.error('  - SUPABASE_URL');
+      if (!supabaseUrl) console.error('  - SUPABASE_URL or VITE_SUPABASE_URL');
       if (!serviceRoleKey) console.error('  - SUPABASE_SERVICE_ROLE_KEY');
-      console.error('\nPlease check your .env.local file.');
+      console.error('\nPlease check your .env.local file or Railway environment variables.');
       process.exit(1);
     }
 
