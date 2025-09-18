@@ -1,15 +1,26 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Support both Vite (browser) and Node.js environments
-const supabaseUrl = typeof import.meta !== 'undefined' && import.meta.env 
-  ? import.meta.env.VITE_SUPABASE_URL 
-  : process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = typeof import.meta !== 'undefined' && import.meta.env 
-  ? import.meta.env.VITE_SUPABASE_ANON_KEY 
-  : process.env.VITE_SUPABASE_ANON_KEY;
+// Support multiple environment variable sources for Railway compatibility
+const supabaseUrl =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
+  (typeof __SUPABASE_URL__ !== 'undefined' && __SUPABASE_URL__) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env?.SUPABASE_URL);
+
+const supabaseAnonKey =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof __SUPABASE_ANON_KEY__ !== 'undefined' && __SUPABASE_ANON_KEY__) ||
+  (typeof process !== 'undefined' && process.env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && process.env?.SUPABASE_ANON_KEY);
 const supabaseServiceRoleKey = typeof process !== 'undefined' ? process.env.SUPABASE_SERVICE_ROLE_KEY : null;
 
-console.log('Supabase environment check:', {
+// Enhanced debugging for Railway deployment
+console.log('Supabase environment debug:', {
+  hasImportMeta: typeof import.meta !== 'undefined',
+  hasImportMetaEnv: typeof import.meta !== 'undefined' && !!import.meta.env,
+  hasProcess: typeof process !== 'undefined',
+  importMetaEnvKeys: typeof import.meta !== 'undefined' && import.meta.env ? Object.keys(import.meta.env).filter(k => k.startsWith('VITE_')) : [],
+  processEnvKeys: typeof process !== 'undefined' ? Object.keys(process.env).filter(k => k.startsWith('VITE_')) : [],
   url: supabaseUrl ? 'present' : 'missing',
   key: supabaseAnonKey ? 'present' : 'missing',
   fullUrl: supabaseUrl,
