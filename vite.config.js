@@ -47,6 +47,9 @@ export default defineConfig({
   define: {
     // Environment variables for client-side
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    // Ensure Supabase env vars are available at build time for Railway
+    __SUPABASE_URL__: JSON.stringify(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL),
+    __SUPABASE_ANON_KEY__: JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY),
   },
   // Ensure proper handling of environment variables
   envPrefix: ['VITE_', 'REACT_APP_'],
