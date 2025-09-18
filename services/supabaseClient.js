@@ -21,15 +21,26 @@ console.log('Supabase environment debug:', {
   hasProcess: typeof process !== 'undefined',
   importMetaEnvKeys: typeof import.meta !== 'undefined' && import.meta.env ? Object.keys(import.meta.env).filter(k => k.startsWith('VITE_')) : [],
   processEnvKeys: typeof process !== 'undefined' ? Object.keys(process.env).filter(k => k.startsWith('VITE_')) : [],
+  // Check build-time injected constants
+  hasBuildTimeUrl: typeof __SUPABASE_URL__ !== 'undefined',
+  hasBuildTimeKey: typeof __SUPABASE_ANON_KEY__ !== 'undefined',
+  buildTimeUrl: typeof __SUPABASE_URL__ !== 'undefined' ? __SUPABASE_URL__ : 'undefined',
+  buildTimeKey: typeof __SUPABASE_ANON_KEY__ !== 'undefined' ? (__SUPABASE_ANON_KEY__ ? 'present' : 'empty') : 'undefined',
+  // Final resolved values
   url: supabaseUrl ? 'present' : 'missing',
   key: supabaseAnonKey ? 'present' : 'missing',
   fullUrl: supabaseUrl,
   keyLength: supabaseAnonKey?.length
 });
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'undefined' || supabaseAnonKey === 'undefined') {
+  console.error('❌ Environment Variable Troubleshooting:');
+  console.error('1. Check Railway dashboard environment variables are set');
+  console.error('2. Ensure variables are named exactly: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
+  console.error('3. Try also setting SUPABASE_URL and SUPABASE_ANON_KEY (without VITE_ prefix)');
+  console.error('4. Redeploy after setting environment variables');
   throw new Error(
-    'Missing Supabase environment variables. Please check your .env file and ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.'
+    `Missing Supabase environment variables. URL: ${supabaseUrl || 'undefined'}, Key: ${supabaseAnonKey ? 'present' : 'undefined'}`
   );
 }
 
