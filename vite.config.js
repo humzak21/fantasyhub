@@ -42,7 +42,7 @@ export default defineConfig({
   preview: {
     port: process.env.PORT || 4173,
     host: '0.0.0.0',
-    allowedHosts: ['healthcheck.railway.app'],
+    allowedHosts: ['healthcheck.railway.app', 'www.squaredstudios.net', 'squaredstudios.net', 'fantasyhub-production.up.railway.app'],
   },
   define: {
     // Environment variables for client-side
