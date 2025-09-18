@@ -37,6 +37,7 @@ const FantasyFootballApp = () => {
     currentWeek,
     loading,
     error,
+    initialized,
     powerRankings,
     rosters,
     divisions,
@@ -188,7 +189,7 @@ const FantasyFootballApp = () => {
               {/* Logo and Title */}
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                  <img src="/og jits logo.jpg" alt="og jits logo" className="w-full h-full object-cover" />
+                  <img src="og jits logo.jpg" alt="og jits logo" className="w-full h-full object-cover" />
                 </div>
                 <div>
                   <h1 className="text-xl font-bold tracking-tight">
@@ -374,7 +375,14 @@ const FantasyFootballApp = () => {
         <div className="space-y-6">
           {activeTab === 'rankings' && (
             <div className="space-y-6">
-            {!activeSeason ? (
+            {!initialized || (loading && !activeSeason) ? (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <span>Loading...</span>
+                </div>
+              </div>
+            ) : /* !activeSeason ? (
               <Card>
                 <CardContent className="p-8">
                   <div className="text-center space-y-4">
@@ -391,7 +399,7 @@ const FantasyFootballApp = () => {
                   </div>
                 </CardContent>
               </Card>
-            ) : (
+            ) : */ (
               <div className="space-y-6">
                 <Card>
                   <CardHeader>
@@ -466,7 +474,14 @@ const FantasyFootballApp = () => {
 
           {activeTab === 'statistics' && (
             <div className="space-y-6">
-            {!activeSeason ? (
+            {!initialized || (loading && !activeSeason) ? (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <span>Loading...</span>
+                </div>
+              </div>
+            ) : /* !activeSeason ? (
               <Card>
                 <CardContent className="p-8">
                   <div className="text-center space-y-4">
@@ -483,7 +498,7 @@ const FantasyFootballApp = () => {
                   </div>
                 </CardContent>
               </Card>
-            ) : (
+            ) : */ (
               <Card>
                 <CardHeader>
                   <CardTitle>League Analytics</CardTitle>
@@ -506,7 +521,14 @@ const FantasyFootballApp = () => {
 
           {activeTab === 'schedule' && (
             <div className="space-y-6">
-            {!activeSeason ? (
+            {!initialized || (loading && !activeSeason) ? (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <span>Loading...</span>
+                </div>
+              </div>
+            ) : /* !activeSeason ? (
               <Card>
                 <CardContent className="p-8">
                   <div className="text-center space-y-4">
@@ -523,7 +545,7 @@ const FantasyFootballApp = () => {
                   </div>
                 </CardContent>
               </Card>
-            ) : (
+            ) : */ (
               <ScheduleManager
                 season={activeSeason}
                 schedule={activeSeason?.schedule || []}
@@ -539,7 +561,14 @@ const FantasyFootballApp = () => {
 
           {activeTab === 'teams' && (
             <div className="space-y-6">
-            {!activeSeason ? (
+            {!initialized || (loading && !activeSeason) ? (
+              <div className="flex items-center justify-center min-h-[400px]">
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <span>Loading...</span>
+                </div>
+              </div>
+            ) : /* !activeSeason ? (
               <Card>
                 <CardContent className="p-8">
                   <div className="text-center space-y-4">
@@ -556,7 +585,7 @@ const FantasyFootballApp = () => {
                   </div>
                 </CardContent>
               </Card>
-            ) : (
+            ) : */ (
               <TeamsAndRosters
                 teams={activeSeason?.teams || []}
                 rosters={rosters}

@@ -208,11 +208,10 @@ export class PowerRankingCalculator {
         positionWeight = POSITION_WEIGHTS[position] || 0;
       }
 
-      // Player valuation: Base on projected points with health factor
+      // Player valuation: Base on projected points
       const baseValue = playerData.season_projected_points || playerData.seasonProjectedPoints || 0;
-      const healthFactor = THRESHOLDS.healthScores[playerData.injury_status || playerData.injuryStatus] || 1.0;
-      
-      totalStrength += baseValue * positionWeight * healthFactor;
+
+      totalStrength += baseValue * positionWeight;
     });
 
     return totalStrength;
@@ -309,6 +308,7 @@ export class PowerRankingCalculator {
     return slope / 10; // Normalize slope
   }
 
+
   // 5. Consistency/Variance (CV) - 10% Weight
   calculateConsistencyScore(teamId) {
     const teamGames = this.games.filter(game =>
@@ -345,31 +345,6 @@ export class PowerRankingCalculator {
     return Math.max(0, Math.min(1, consistencyScore));
   }
 
-  // 6. Injury/Availability Score (IS) - 10% Weight
-  calculateInjuryScore(teamId) {
-    const team = this.teams.find(t => t.id === teamId);
-    if (!team || !team.roster || team.roster.length === 0) return 0.5;
-
-    let totalHealthScore = 0;
-    let totalPlayers = 0;
-
-    team.roster.forEach(player => {
-      const playerData = this.players.find(p => p.id === player.playerId || p.espn_player_id === player.playerId);
-      if (!playerData) return;
-
-      const injuryStatus = playerData.injury_status || playerData.injuryStatus || 'ACTIVE';
-      const healthScore = THRESHOLDS.healthScores[injuryStatus] || 1.0;
-      
-      // Weight by player importance (projected points)
-      const playerValue = playerData.season_projected_points || playerData.seasonProjectedPoints || 0;
-      const positionScarcity = this.getPositionScarcity(playerData.position);
-      
-      totalHealthScore += healthScore * playerValue * positionScarcity;
-      totalPlayers += playerValue * positionScarcity;
-    });
-
-    return totalPlayers > 0 ? totalHealthScore / totalPlayers : 0.5;
-  }
 
   getPositionScarcity(position) {
     // Position scarcity multipliers (higher = more scarce)
@@ -510,13 +485,6 @@ export class PowerRankingCalculator {
     const positionGroupBalance = totalRosterProjected > 0 ? 
       1 - (maxPositionPoints / totalRosterProjected) : 0;
 
-    // Calculate injury resistance
-    const injuredPlayers = team.roster.filter(player => {
-      const playerData = this.players.find(p => p.id === player.playerId || p.espn_player_id === player.playerId);
-      const injuryStatus = playerData?.injury_status || playerData?.injuryStatus;
-      return injuryStatus && injuryStatus !== 'ACTIVE';
-    }).length;
-    const injuryResistance = Math.max(0, 1 - (injuredPlayers / Math.max(team.roster.length, 1)));
 
     const benchDepthScore = totalRosterProjected > 0 ? 
       benchProjectedPoints / totalRosterProjected : 0;
@@ -524,7 +492,6 @@ export class PowerRankingCalculator {
     return {
       rosterProjectedStrength: totalRosterProjected,
       positionGroupBalance,
-      injuryResistance,
       starterProjectedPoints,
       benchDepthScore
     };
@@ -541,7 +508,6 @@ export class PowerRankingCalculator {
     const sos = this.calculateStrengthOfSchedule(teamId);
     const ms = this.calculateMomentumScore(teamId);
     const cv = this.calculateConsistencyScore(teamId);
-    const is = this.calculateInjuryScore(teamId);
     const cs = this.calculateClutchScore(teamId);
     const allPlay = this.calculateAllPlayWinPercentage(teamId);
 
@@ -565,8 +531,6 @@ export class PowerRankingCalculator {
     // Consistency score - use coefficient of variation of scores
     const normalizedCV = cv > 0 ? Math.min(100, Math.max(0, cv * 100)) : 50;
     
-    // Injury score - default to 75 if no roster data
-    const normalizedIS = is > 0 ? Math.min(100, Math.max(0, is * 100)) : 75;
     
     // Clutch score normalization
     const normalizedCS = cs > 0 ? Math.min(100, Math.max(0, cs * 100)) : 50;
@@ -588,7 +552,7 @@ export class PowerRankingCalculator {
     const qualityScore = (normalizedCS * 0.5) + (normalizedCV * 0.3) + (qualityDifferential * 2);
 
     // 5. Roster Projection Score (10% weight) - Future potential
-    const projectionScore = (normalizedTS * 0.7) + (normalizedIS * 0.3);
+    const projectionScore = normalizedTS;
 
     // 6. Current Form Score (15% weight) - Last 3 games performance
     const last3Games = this.getLastNGames(teamId, 3);
@@ -616,7 +580,6 @@ export class PowerRankingCalculator {
         strengthOfSchedule: normalizedSOS,
         momentumScore: normalizedMS,
         consistencyScore: normalizedCV,
-        injuryScore: normalizedIS,
         clutchScore: normalizedCS,
         allPlayWinPct: normalizedAllPlay,
         recordScore: Math.min(100, Math.max(0, recordScore)),

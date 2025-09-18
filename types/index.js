@@ -194,8 +194,7 @@ export const POWER_RANKING_WEIGHTS = {
   teamStrength: 0.20,
   strengthOfSchedule: 0.15,
   momentumScore: 0.15,
-  consistencyScore: 0.10,
-  injuryScore: 0.10,
+  consistencyScore: 0.15,
   clutchScore: 0.05,
   
   // Legacy weights for backward compatibility (deprecated)
@@ -205,8 +204,7 @@ export const POWER_RANKING_WEIGHTS = {
   qualityWins: 0.08,
   averagePointsFor: 0.08,
   rosterProjectedStrength: 0.15,
-  positionGroupBalance: 0.05,
-  injuryResistance: 0.05,
+  positionGroupBalance: 0.10,
   badLosses: -0.05
 };
 
@@ -238,18 +236,7 @@ export const THRESHOLDS = {
   
   // Consistency/Variance thresholds
   eliteConsistency: 0.20,     // CV threshold for elite consistency
-  highVariance: 0.35,         // CV threshold for high variance penalty
-  
-  // Injury/Health scoring
-  healthScores: {
-    ACTIVE: 1.0,
-    QUESTIONABLE: 0.75,
-    DOUBTFUL: 0.25,
-    OUT: 0.1,
-    IR: 0.0,
-    SUSPENDED: 0.0,
-    PUP: 0.0
-  }
+  highVariance: 0.35          // CV threshold for high variance penalty
 };
 
 // Helper functions for data validation

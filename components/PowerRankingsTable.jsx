@@ -79,8 +79,7 @@ const PowerRankingsTable = ({
       { key: 'teamStrength', label: 'Team Strength', weight: '20%', color: 'text-green-600' },
       { key: 'strengthOfSchedule', label: 'Strength of Schedule', weight: '15%', color: 'text-orange-600' },
       { key: 'momentumScore', label: 'Momentum Score', weight: '15%', color: 'text-purple-600' },
-      { key: 'consistencyScore', label: 'Consistency Score', weight: '10%', color: 'text-indigo-600' },
-      { key: 'injuryScore', label: 'Injury Score', weight: '10%', color: 'text-red-600' },
+      { key: 'consistencyScore', label: 'Consistency Score', weight: '15%', color: 'text-indigo-600' },
       { key: 'clutchScore', label: 'Clutch Score', weight: '5%', color: 'text-amber-600' },
       { key: 'allPlayWinPct', label: 'All-Play Win %', weight: '*', color: 'text-teal-600' }
     ];
@@ -151,9 +150,6 @@ const PowerRankingsTable = ({
                     )}
                     {team.powerRatingComponents.consistencyScore > 80 && (
                       <div>• <strong>Reliable Scorer:</strong> Low variance in weekly point totals</div>
-                    )}
-                    {team.powerRatingComponents.injuryScore < 60 && (
-                      <div>• <strong>Injury Concerns:</strong> Key players dealing with health issues</div>
                     )}
                     {team.powerRatingComponents.clutchScore > 70 && (
                       <div>• <strong>Clutch Performer:</strong> Excels in close games and high-pressure situations</div>
@@ -291,7 +287,8 @@ const PowerRankingsTable = ({
               </TableCell>
               
               <TableCell className={`text-center font-mono font-semibold ${
-                (team.winPercentage || 0) >= 0.5 ? 'text-green-600' : 'text-red-600'
+                (team.winPercentage || 0) >= 0.7 ? 'text-green-600' :
+                (team.winPercentage || 0) >= 0.35 ? 'text-black' : 'text-red-600'
               }`}>
                 {((team.winPercentage || 0) * 100).toFixed(2)}%
               </TableCell>
@@ -410,7 +407,7 @@ const PowerRankingsTable = ({
           <CardContent className="p-4">
             <h4 className="font-semibold mb-3 flex items-center gap-2">
               <Trophy className="h-4 w-4" />
-              Advanced Power Rankings Legend
+              Legend
             </h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -439,21 +436,14 @@ const PowerRankingsTable = ({
               
               {/* New Algorithm Components */}
               <div>
-                <h5 className="font-medium mb-2 text-sm">7-Component Algorithm</h5>
+                <h5 className="font-medium mb-2 text-sm">Components</h5>
                 <div className="space-y-1 text-xs text-muted-foreground">
-                  <div><strong className="text-blue-600">Performance (25%):</strong> Recent scoring trends and consistency</div>
-                  <div><strong className="text-green-600">Team Strength (20%):</strong> Roster talent based on projections</div>
-                  <div><strong className="text-orange-600">Schedule (15%):</strong> Past and future opponent difficulty</div>
-                  <div><strong className="text-purple-600">Momentum (15%):</strong> Win streaks and point trends</div>
-                  <div><strong className="text-indigo-600">Consistency (10%):</strong> Week-to-week variance</div>
-                  <div><strong className="text-red-600">Health (10%):</strong> Injury status and depth</div>
-                  <div><strong className="text-amber-600">Clutch (5%):</strong> Performance in close games</div>
-                </div>
-                
-                <div className="mt-3 p-2 bg-muted/50 rounded-lg">
-                  <div className="text-xs text-muted-foreground">
-                    <strong>💡 Pro Tip:</strong> Click the chevron next to power ratings to see detailed component breakdowns and insights.
-                  </div>
+                  <div><strong className="text-black">Performance (25%):</strong> Recent scoring trends and consistency</div>
+                  <div><strong className="text-black">Team Strength (20%):</strong> Roster talent based on projections</div>
+                  <div><strong className="text-black">Schedule (15%):</strong> Past and future opponent difficulty</div>
+                  <div><strong className="text-black">Momentum (15%):</strong> Win streaks and point trends</div>
+                  <div><strong className="text-black">Consistency (15%):</strong> Week-to-week variance</div>
+                  <div><strong className="text-black">Clutch (5%):</strong> Performance in close games</div>
                 </div>
               </div>
             </div>
