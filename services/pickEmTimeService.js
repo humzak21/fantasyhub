@@ -21,7 +21,7 @@ export class PickEmTimeService {
       try {
         await this.checkAndUpdateStatus(pickEmWeekId);
       } catch (error) {
-        console.error('Error checking pick\'em status:', error);
+        // Silently handle errors in background checks
       }
     }, 60000); // Check every minute
 
@@ -89,7 +89,6 @@ export class PickEmTimeService {
             newStatus = { is_active: false, is_closed: true, is_completed: true };
             shouldUpdate = true;
           } catch (error) {
-            console.warn('Could not auto-calculate pick\'em results:', error.message);
             // Just mark as time for results without calculating
             newStatus = { is_active: false, is_closed: true };
             shouldUpdate = true;
@@ -105,9 +104,7 @@ export class PickEmTimeService {
           .eq('id', pickEmWeekId);
 
         if (updateError) {
-          console.error('Error updating pick\'em week status:', updateError);
-        } else {
-          console.log('Auto-updated pick\'em week status:', pickEmWeekId, newStatus);
+          // Handle update error silently
         }
       }
 
@@ -119,7 +116,7 @@ export class PickEmTimeService {
       }
 
     } catch (error) {
-      console.error('Error in checkAndUpdateStatus:', error);
+      // Handle errors silently
     }
   }
 

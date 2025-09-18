@@ -9,9 +9,11 @@
 import { RScriptExecutor } from '../services/rScriptExecutor.js';
 
 async function demonstrateRScriptExecutor() {
-  console.log('🔬 RScriptExecutor Demo\n');
+  console.log('🚀 Starting RScriptExecutor demonstration...');
+  console.log('=' .repeat(50));
 
   // Create executor instance
+  console.log('📝 Creating RScriptExecutor instance...');
   const executor = new RScriptExecutor({
     enableLogging: true,
     timeout: 30000, // 30 seconds
@@ -20,74 +22,82 @@ async function demonstrateRScriptExecutor() {
 
   try {
     // Test R environment
-    console.log('1. Testing R environment...');
+    console.log('\n🔍 Testing R environment...');
     const envTest = await executor.testEnvironment();
     
     if (envTest.success) {
-      console.log('✅ R environment is ready');
-      console.log(`   R Version: ${envTest.rVersion}`);
-      console.log(`   ffanalytics available: ${envTest.ffanalyticsAvailable}`);
+      console.log('✅ R environment test passed!');
+      console.log('📊 R Version:', envTest.rVersion);
+      console.log('📦 Required packages available:', envTest.packagesAvailable);
     } else {
-      console.log('❌ R environment test failed');
-      console.log(`   Error: ${envTest.error}`);
+      console.error('❌ R environment test failed!');
+      console.error('⚠️  Issues found:', envTest.issues);
       return;
     }
 
-    console.log('\n2. Demonstrating ffanalytics methods...');
-    
+
     // Example: Scrape projections (this would work if R and ffanalytics are properly set up)
+    console.log('\n📈 Attempting to scrape fantasy projections...');
     try {
-      console.log('   Attempting to scrape weekly projections...');
       const projections = await executor.scrapeProjections(
         ['ESPN', 'CBS'], // sources
         ['QB', 'RB'],    // positions
         2024,            // season
         1                // week
       );
-      
-      console.log('✅ Projections scraped successfully');
-      console.log(`   Data size: ${JSON.stringify(projections.data || {}).length} characters`);
-      
+
+      if (projections.success) {
+        console.log('✅ Projections scraped successfully!');
+        console.log('📊 Number of players found:', projections.data?.length || 0);
+        console.log('🏈 Sample projection:', projections.data?.[0] || 'No data');
+        console.log('⏱️  Execution time:', projections.executionTime, 'ms');
+      } else {
+        console.warn('⚠️  Projection scraping failed:', projections.error);
+      }
+
     } catch (error) {
-      console.log('⚠️  Projection scraping failed (expected if ffanalytics not fully configured)');
-      console.log(`   Error: ${error.message}`);
+      console.error('❌ Error during projection scraping:', error.message);
     }
 
     // Show execution statistics
-    console.log('\n3. Execution Statistics:');
+    console.log('\n📈 Execution Statistics:');
     const stats = executor.getExecutionStats();
-    console.log(`   Total executions: ${stats.totalExecutions}`);
-    console.log(`   Success rate: ${stats.successRate.toFixed(1)}%`);
-    console.log(`   Average execution time: ${stats.averageExecutionTime.toFixed(0)}ms`);
+    console.log('📊 Total executions:', stats.totalExecutions);
+    console.log('✅ Successful executions:', stats.successfulExecutions);
+    console.log('❌ Failed executions:', stats.failedExecutions);
+    console.log('⏱️  Average execution time:', stats.averageExecutionTime, 'ms');
+    console.log('🔄 Total retry attempts:', stats.totalRetries);
 
     // Demonstrate configuration management
-    console.log('\n4. Configuration Management:');
+    console.log('\n⚙️  Current Configuration:');
     const config = executor.getConfig();
-    console.log(`   Current timeout: ${config.timeout}ms`);
-    console.log(`   Max retries: ${config.maxRetries}`);
-    console.log(`   Scripts path: ${config.scriptsPath}`);
+    console.log('🔧 Config:', JSON.stringify(config, null, 2));
 
     // Update configuration
+    console.log('\n🔄 Updating configuration...');
     executor.updateConfig({ timeout: 60000 });
-    console.log(`   Updated timeout to: ${executor.getConfig().timeout}ms`);
+    console.log('✅ Configuration updated - timeout set to 60 seconds');
+    console.log('🔧 New config:', JSON.stringify(executor.getConfig(), null, 2));
 
   } catch (error) {
-    console.error('❌ Demo failed:', error.message);
-    if (error.details) {
-      console.error('   Details:', error.details);
-    }
+    console.error('❌ Demonstration failed with error:', error.message);
+    console.error('📋 Error details:', error);
   }
+
+  console.log('\n' + '=' .repeat(50));
+  console.log('🏁 RScriptExecutor demonstration completed!');
 }
 
 // Run the demo
 if (import.meta.url === `file://${process.argv[1]}`) {
   demonstrateRScriptExecutor()
     .then(() => {
-      console.log('\n🎉 RScriptExecutor demo completed!');
+      console.log('\n🎉 Demo completed successfully!');
       process.exit(0);
     })
     .catch((error) => {
-      console.error('\n💥 Demo failed:', error);
+      console.error('\n💥 Demo failed:', error.message);
+      console.error('📋 Full error:', error);
       process.exit(1);
     });
 }

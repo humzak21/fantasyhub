@@ -42,16 +42,8 @@ const StandingsTable = ({
 
   // Calculate standings data
   const calculateStandings = () => {
-    // Debug logging
-    console.log('StandingsTable - Calculate standings:', {
-      standings,
-      teams: teams?.length,
-      divisions: divisions?.length
-    });
-
     // If we have pre-calculated standings from the database, use those
     if (standings && (standings.divisions?.length > 0 || standings.unassigned?.length > 0)) {
-      console.log('Using pre-calculated standings:', standings);
       // Merge the pre-calculated standings with division info
       const divisionStandings = divisions.map(division => {
         const standingDivision = standings.divisions.find(d => d.divisionId === division.id);
@@ -71,12 +63,9 @@ const StandingsTable = ({
     // Fallback: calculate from teams data if no pre-calculated standings
     if (!teams || teams.length === 0) return { divisions: [], unassigned: [] };
 
-    console.log('Using fallback calculation from teams:', teams);
-
     // Group teams by division - check multiple potential division field names
     const groupedTeams = teams.reduce((acc, team) => {
       const divisionId = team.divisionId || team.division_id || 'unassigned';
-      console.log(`Team ${team.name} assigned to division ${divisionId}:`, team);
       if (!acc[divisionId]) {
         acc[divisionId] = [];
       }

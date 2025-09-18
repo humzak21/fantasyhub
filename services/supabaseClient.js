@@ -5,14 +5,6 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabaseServiceRoleKey = typeof process !== 'undefined' ? process.env.SUPABASE_SERVICE_ROLE_KEY : null;
 
-console.log('Supabase Config Check:');
-console.log('- URL:', supabaseUrl ? 'Set' : 'Missing');
-console.log('- Anon Key:', supabaseAnonKey ? 'Set' : 'Missing');
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase configuration missing. Please check Railway environment variables.');
-  console.warn('Required: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
-}
 
 // Create Supabase client only if we have valid configuration
 export const supabase = supabaseUrl && supabaseAnonKey
@@ -33,25 +25,6 @@ export const supabase = supabaseUrl && supabaseAnonKey
     })
   : null;
 
-// Test connectivity if client is available
-if (supabase) {
-  console.log('Supabase client created successfully');
-
-  // Simple connectivity test
-  supabase.auth.getSession()
-    .then(({ data, error }) => {
-      if (error) {
-        console.warn('Supabase connectivity test failed:', error.message);
-      } else {
-        console.log('Supabase connectivity test passed');
-      }
-    })
-    .catch(err => {
-      console.error('Supabase connectivity test error:', err);
-    });
-} else {
-  console.error('Supabase client could not be created - missing environment variables');
-}
 
 // Admin client for server-side operations (Node.js scripts)
 // Uses service role key which bypasses RLS and has full access
@@ -72,24 +45,22 @@ export const supabaseAdmin = supabaseServiceRoleKey ? createClient(supabaseUrl, 
 
 // Helper function to handle database errors consistently
 export const handleSupabaseError = (error, operation = 'Database operation') => {
-  console.error(`${operation} failed:`, error);
-  
   if (error?.code === 'PGRST116') {
     throw new Error('No data found');
   }
-  
+
   if (error?.code === '23505') {
     throw new Error('Duplicate data - this item already exists');
   }
-  
+
   if (error?.code === '23503') {
     throw new Error('Invalid reference - related data not found');
   }
-  
+
   if (error?.message?.includes('JWT')) {
     throw new Error('Authentication required - please log in');
   }
-  
+
   throw new Error(error?.message || 'An unexpected database error occurred');
 };
 

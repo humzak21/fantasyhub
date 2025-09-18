@@ -55,7 +55,6 @@ export class ESPNScheduleFetcher {
 
       return await response.json();
     } catch (error) {
-      console.error('Error fetching league schedule from ESPN:', error);
       throw error;
     }
   }
@@ -90,7 +89,6 @@ export class ESPNScheduleFetcher {
 
       return await response.json();
     } catch (error) {
-      console.error(`Error fetching week ${weekNumber} schedule from ESPN:`, error);
       throw error;
     }
   }
@@ -181,7 +179,6 @@ export class ESPNScheduleFetcher {
 
   async getFullSeasonSchedule() {
     try {
-      console.log(`Fetching full season schedule for league ${this.leagueId} (${this.seasonYear})...`);
       
       const leagueData = await this.fetchLeagueSchedule();
       
@@ -252,7 +249,6 @@ export class ESPNScheduleFetcher {
 
       return scheduleData;
     } catch (error) {
-      console.error('Error fetching full season schedule:', error);
       throw error;
     }
   }
@@ -261,7 +257,6 @@ export class ESPNScheduleFetcher {
     try {
       await this.initializeDataManager();
       
-      console.log('Saving schedule data to database...');
       
       // Create schedule import record
       const importData = {
@@ -284,7 +279,6 @@ export class ESPNScheduleFetcher {
 
       if (importError) throw importError;
       
-      console.log('✓ Created schedule import record:', importRecord.id);
 
       // Save teams
       const teamInserts = scheduleData.teams.map(team => {
@@ -312,7 +306,6 @@ export class ESPNScheduleFetcher {
 
       if (teamsError) throw teamsError;
       
-      console.log(`✓ Saved ${savedTeams.length} teams`);
 
       // Create team mapping for matchup references
       const teamMapping = {};
@@ -362,7 +355,6 @@ export class ESPNScheduleFetcher {
 
       if (matchupsError) throw matchupsError;
       
-      console.log(`✓ Saved ${savedMatchups.length} matchups`);
 
       return {
         importId: importRecord.id,
@@ -371,7 +363,6 @@ export class ESPNScheduleFetcher {
         success: true
       };
     } catch (error) {
-      console.error('Error saving schedule to database:', error);
       throw error;
     }
   }
@@ -383,7 +374,6 @@ export class ESPNScheduleFetcher {
       const queryLeagueId = leagueId || this.leagueId;
       const querySeasonYear = seasonYear || this.seasonYear;
       
-      console.log(`Loading schedule from database for league ${queryLeagueId} (${querySeasonYear})...`);
       
       // Get the most recent import for this league/season
       const { data: importRecord, error: importError } = await this.dataManager.client
@@ -485,14 +475,12 @@ export class ESPNScheduleFetcher {
         fromDatabase: true
       };
     } catch (error) {
-      console.error('Error loading schedule from database:', error);
       throw error;
     }
   }
 
   async getScheduleByWeekRange(startWeek, endWeek) {
     try {
-      console.log(`Fetching schedule for weeks ${startWeek}-${endWeek}...`);
       
       const weeklyData = [];
       for (let week = startWeek; week <= endWeek; week++) {
@@ -507,27 +495,18 @@ export class ESPNScheduleFetcher {
             });
           }
         } catch (weekError) {
-          console.warn(`Warning: Could not fetch week ${week}:`, weekError.message);
         }
       }
 
       return weeklyData;
     } catch (error) {
-      console.error('Error fetching week range schedule:', error);
       throw error;
     }
   }
 
   async validateConnection() {
     try {
-      console.log('Testing connection to ESPN Fantasy League...');
       const leagueData = await this.fetchLeagueSchedule();
-      
-      console.log(`✓ Successfully connected to league: ${leagueData.settings?.name || 'Unnamed League'}`);
-      console.log(`✓ Found ${leagueData.teams?.length || 0} teams`);
-      console.log(`✓ Found ${leagueData.schedule?.length || 0} total matchups`);
-      console.log(`✓ League ID: ${this.leagueId}`);
-      console.log(`✓ Season Year: ${this.seasonYear}`);
       
       return {
         success: true,
@@ -536,7 +515,6 @@ export class ESPNScheduleFetcher {
         matchupCount: leagueData.schedule?.length || 0
       };
     } catch (error) {
-      console.error('❌ Failed to connect to ESPN league:', error);
       return {
         success: false,
         error: error.message

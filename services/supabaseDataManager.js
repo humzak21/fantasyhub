@@ -21,28 +21,22 @@ export class SupabaseDataManager {
     if (this._initialized) return;
     
     try {
-      console.log(`Initializing Supabase data manager... (${this.isAdminMode ? 'Admin Mode' : 'User Mode'})`);
       
       if (!this.isAdminMode) {
         // Check if user is authenticated (browser mode) - but allow read-only access for non-authenticated users
         const { data: { user }, error } = await this.client.auth.getUser();
-        console.log('Auth check result:', { user: user?.id, error });
         
         // Store auth state but don't throw error - allow read-only access
         this.isAuthenticated = !!(user && !error);
-        console.log('User authentication status:', this.isAuthenticated);
       } else {
-        console.log('Using service role authentication for Node.js script');
         this.isAuthenticated = true;
       }
       
       // Test database connection by checking if seasons table exists
-      console.log('Testing database connection...');
       const { data: tableTest, error: tableError } = await this.client
         .from('seasons')
         .select('count', { count: 'exact', head: true });
       
-      console.log('Database table check:', { data: tableTest, error: tableError });
       
       if (tableError) {
         if (tableError.code === '42P01') {
@@ -51,22 +45,18 @@ export class SupabaseDataManager {
         throw tableError;
       }
       
-      console.log('Supabase data manager initialized successfully');
       this._initialized = true;
     } catch (error) {
-      console.error('Initialization failed:', error);
       handleSupabaseError(error, 'Initialization');
     }
   }
 
   // Season management
   async createSeason(year, name = '', leagueSize = 14, regularSeasonWeeks = 14, playoffWeeks = 3) {
-    console.log('createSeason called:', { year, name, leagueSize, regularSeasonWeeks, playoffWeeks });
     
     await this.initialize();
     
     const season = createSeason(year, name, leagueSize, regularSeasonWeeks, playoffWeeks);
-    console.log('Created season object:', season);
     
     if (!validateSeason(season)) {
       throw new Error('Invalid season data');
@@ -86,7 +76,6 @@ export class SupabaseDataManager {
         playoffBracket: season.playoffBracket
       });
 
-      console.log('Inserting season data:', seasonData);
       
       const { data: insertedSeason, error: seasonError } = await this.client
         .from('seasons')
@@ -94,7 +83,6 @@ export class SupabaseDataManager {
         .select()
         .single();
 
-      console.log('Insert result:', { data: insertedSeason, error: seasonError });
       
       if (seasonError) throw seasonError;
 
@@ -133,7 +121,6 @@ export class SupabaseDataManager {
 
       return formattedSeason;
     } catch (error) {
-      console.error('Create season error:', error);
       handleSupabaseError(error, 'Create season');
       throw error; // Ensure the error is re-thrown
     }
@@ -175,11 +162,9 @@ export class SupabaseDataManager {
   }
 
   async getAllSeasons() {
-    console.log('getAllSeasons called');
     await this.initialize();
     
     try {
-      console.log('Querying seasons table with teams...');
       const { data, error } = await supabase
         .from('seasons')
         .select(`
@@ -188,7 +173,6 @@ export class SupabaseDataManager {
         `)
         .order('year', { ascending: false });
 
-      console.log('getAllSeasons query result:', { data, error });
       if (error) throw error;
 
       const seasons = data.map(season => {
@@ -362,7 +346,6 @@ export class SupabaseDataManager {
       // Update team record (if there are non-roster fields to update)
       let updatedTeam = null;
       if (Object.keys(teamUpdates).length > 0) {
-        console.log(`Updating team ${teamId} with:`, JSON.stringify(teamUpdates, null, 2));
         const formattedUpdates = formatForDatabase(teamUpdates);
         
         const { data, error } = await this.client
@@ -383,7 +366,6 @@ export class SupabaseDataManager {
       
       // Handle roster data using the database function
       if (roster && Array.isArray(roster)) {
-        console.log(`Syncing roster for team ${teamId} with ${roster.length} players`);
         const currentWeek = updates.currentWeek || 1; // Default to week 1 if not provided
         await this.syncTeamRosterFromESPN(teamId, roster, currentWeek);
       }
@@ -411,13 +393,11 @@ export class SupabaseDataManager {
       if (teamError) throw teamError;
       if (!teamData) throw new Error(`Team not found: ${teamId}`);
       
-      console.log(`Team ${teamId} user_id:`, teamData.user_id);
       
       // Since the database function doesn't handle user_id properly with service role,
       // let's do a manual sync instead
       await this.manualSyncTeamRoster(teamId, teamData.user_id, rosterData, currentWeek);
       
-      console.log(`✓ Synced ${rosterData.length} players for team ${teamId}`);
       return rosterData.length;
     } catch (error) {
       handleSupabaseError(error, 'Sync team roster from ESPN');
@@ -471,15 +451,12 @@ export class SupabaseDataManager {
         });
       }
       
-      console.log(`Inserting ${rosterInserts.length} roster entries...`);
       
       // Try disabling trigger temporarily for service role
-      console.log('Attempting to disable trigger temporarily...');
       
       const { error: disableError } = await this.client.rpc('disable_roster_trigger');
       
       if (disableError) {
-        console.log('❌ Could not disable trigger, trying insert with trigger...');
         
         const { data, error } = await this.client
           .from('rosters')
@@ -487,11 +464,9 @@ export class SupabaseDataManager {
           .select();
           
         if (error) {
-          console.log('❌ Bulk insert failed, trying individual inserts...');
           return await this.insertRosterOneByOne(rosterInserts);
         }
         
-        console.log(`✅ Successfully inserted ${data?.length || rosterInserts.length} roster entries`);
         return data || rosterInserts;
       } else {
         // Trigger disabled, now insert
@@ -504,11 +479,9 @@ export class SupabaseDataManager {
         await this.client.rpc('enable_roster_trigger');
         
         if (error) {
-          console.log('❌ Bulk insert failed even with trigger disabled');
           return await this.insertRosterOneByOne(rosterInserts);
         }
         
-        console.log(`✅ Successfully inserted ${data?.length || rosterInserts.length} roster entries (trigger disabled)`);
         return data || rosterInserts;
       }
 
@@ -519,7 +492,6 @@ export class SupabaseDataManager {
   }
 
   async fallbackRosterInsert(rosterEntries) {
-    console.log('Using fallback bulk insert...');
     
     try {
       // Build values for bulk insert
@@ -549,27 +521,21 @@ export class SupabaseDataManager {
         });
         
       if (error) {
-        console.log('❌ Fallback also failed:', error.message);
         // Last resort: Insert one by one with minimal error handling
         return await this.insertRosterOneByOne(rosterEntries);
       }
       
-      console.log(`✅ Fallback insert succeeded: ${data?.length || 0} entries`);
       return data || rosterEntries;
     } catch (error) {
-      console.log('❌ Fallback exception:', error.message);
       return await this.insertRosterOneByOne(rosterEntries);
     }
   }
   
   async insertRosterOneByOne(rosterEntries) {
-    console.log('Last resort: inserting entries one by one...');
     const inserted = [];
     
     for (let i = 0; i < rosterEntries.length; i++) {
       const entry = rosterEntries[i];
-      console.log(`\n--- Attempting insert ${i + 1}/${rosterEntries.length} ---`);
-      console.log('Entry:', JSON.stringify(entry, null, 2));
       
       try {
         const { data, error } = await this.client
@@ -579,19 +545,14 @@ export class SupabaseDataManager {
           .single();
           
         if (error) {
-          console.log('❌ Insert error:', JSON.stringify(error, null, 2));
         } else if (data) {
-          console.log('✅ Insert succeeded');
           inserted.push(data);
         } else {
-          console.log('⚠️ No error but no data returned');
         }
       } catch (exception) {
-        console.log('💥 Insert exception:', exception.message);
       }
     }
     
-    console.log(`\n📊 One-by-one results: ${inserted.length}/${rosterEntries.length} succeeded`);
     return inserted;
   }
 
@@ -1369,7 +1330,6 @@ export class SupabaseDataManager {
 
       return data.map(formatFromDatabase);
     } catch (error) {
-      console.error('Get games for week error:', error);
       // For games queries, just return empty array instead of throwing
       return [];
     }
@@ -1395,7 +1355,6 @@ export class SupabaseDataManager {
 
       return data.map(formatFromDatabase);
     } catch (error) {
-      console.error('Get completed games error:', error);
       // For games queries, just return empty array instead of throwing
       return [];
     }
@@ -1521,7 +1480,6 @@ export class SupabaseDataManager {
       })).sort((a, b) => b.powerRating - a.powerRating);
       
     } catch (error) {
-      console.error('Error calculating live power rankings:', error);
       handleSupabaseError(error, 'Calculate live power rankings');
       return [];
     }
@@ -1579,7 +1537,6 @@ export class SupabaseDataManager {
       // If no historical data, calculate live using JavaScript PowerRankingCalculator
       return await this.calculateLivePowerRankings(seasonId, weekNumber);
     } catch (error) {
-      console.error('Error getting power rankings for week:', error);
       handleSupabaseError(error, 'Get power rankings for week');
       return [];
     }
@@ -1621,7 +1578,6 @@ export class SupabaseDataManager {
       const powerRankings = await this.calculateLivePowerRankings(seasonId, weekNumber);
       
       if (!powerRankings || powerRankings.length === 0) {
-        console.warn(`No power rankings calculated for season ${seasonId}, week ${weekNumber}`);
         return 0;
       }
 
@@ -1633,7 +1589,6 @@ export class SupabaseDataManager {
         .eq('week_number', weekNumber);
 
       if (deleteError) {
-        console.warn('Error deleting existing rankings:', deleteError);
       }
 
       // Get previous week rankings for rank change calculation
@@ -1682,10 +1637,8 @@ export class SupabaseDataManager {
 
       if (error) throw error;
 
-      console.log(`Saved power rankings snapshot for season ${seasonId}, week ${weekNumber}: ${data.length} teams`);
       return data.length;
     } catch (error) {
-      console.error('Error saving power rankings snapshot:', error);
       handleSupabaseError(error, 'Save power rankings snapshot');
       return 0;
     }
@@ -1720,7 +1673,6 @@ export class SupabaseDataManager {
 
       if (error) throw error;
 
-      console.log('Weekly snapshot execution result:', data);
       return data;
     } catch (error) {
       handleSupabaseError(error, 'Execute weekly snapshot');
@@ -1741,7 +1693,6 @@ export class SupabaseDataManager {
 
       return data || 1;
     } catch (error) {
-      console.warn('Could not get current NFL week, defaulting to 1:', error.message);
       return 1;
     }
   }
@@ -1838,35 +1789,26 @@ export class SupabaseDataManager {
 
   // ESPN Schedule Management Functions
   async getPendingScheduleImports() {
-    console.log('🔍 getPendingScheduleImports called');
     await this.initialize();
-    console.log('✅ Supabase client initialized');
     
     try {
       // Check all ESPN tables to see if any data exists
-      console.log('🔍 Checking espn_schedule_imports table...');
       const importsCheck = await this.client
         .from('espn_schedule_imports')
         .select('*')
         .limit(5);
-      console.log('📋 espn_schedule_imports:', importsCheck);
       
-      console.log('🔍 Checking espn_teams table...');
       const teamsCheck = await this.client
         .from('espn_teams')
         .select('*')
         .limit(5);
-      console.log('📋 espn_teams:', teamsCheck);
       
-      console.log('🔍 Checking espn_matchups table...');
       const matchupsCheck = await this.client
         .from('espn_matchups')
         .select('*')
         .limit(5);
-      console.log('📋 espn_matchups:', matchupsCheck);
       
       // Skip RLS by using direct query without user_id filtering
-      console.log('📡 Querying espn_schedule_imports directly (ignoring user_id)...');
       const { data, error } = await this.client
         .from('espn_schedule_imports')
         .select(`
@@ -1882,10 +1824,8 @@ export class SupabaseDataManager {
         .eq('assignment_status', 'PENDING')
         .order('imported_at', { ascending: false });
       
-      console.log('📊 Direct query result:', { data, error });
       
       if (error) {
-        console.error('❌ Direct query failed:', error);
         throw error;
       }
       
@@ -1895,10 +1835,8 @@ export class SupabaseDataManager {
         import_id: item.id
       }));
       
-      console.log('✅ Returning formatted data:', formattedData);
       return formattedData;
     } catch (error) {
-      console.error('❌ getPendingScheduleImports error:', error);
       handleSupabaseError(error, 'Get pending schedule imports');
       return []; // Return empty array on error
     }
@@ -2152,16 +2090,13 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      console.log('🔑 getUserPicksForWeek called with:', { pickEmWeekId, userId });
 
       // Get current user session
       const { data: { session } } = await this.client.auth.getSession();
       const currentUserId = session?.user?.id;
-      console.log('👤 Current session:', currentUserId);
 
       // Use current user ID if none provided
       const targetUserId = userId || currentUserId;
-      console.log('🎯 Using userId:', targetUserId);
 
       const { data, error } = await this.client.rpc('get_user_picks_for_week', {
         p_pick_em_week_id: pickEmWeekId,
@@ -2170,7 +2105,6 @@ export class SupabaseDataManager {
 
       if (error) throw error;
 
-      console.log('🔍 getUserPicksForWeek raw data:', data);
 
       // Transform snake_case to camelCase for frontend
       const transformedData = (data || []).map(pick => ({
@@ -2189,11 +2123,9 @@ export class SupabaseDataManager {
         submittedAt: pick.submitted_at
       }));
 
-      console.log('🔄 getUserPicksForWeek transformed data:', transformedData);
 
       return transformedData;
     } catch (error) {
-      console.error('❌ Error in getUserPicksForWeek:', error);
       handleSupabaseError(error, 'Get user picks for week');
       return [];
     }
@@ -2368,7 +2300,6 @@ export class SupabaseDataManager {
           const pickEmWeekId = await this.createPickEmWeek(seasonId, week);
           createdWeeks.push({ week, pickEmWeekId });
         } catch (error) {
-          console.warn(`Failed to create pick'em week ${week}:`, error.message);
         }
       }
 
