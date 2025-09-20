@@ -110,7 +110,6 @@ function useMobileIntersectionObserver(options) {
 function useProgressiveImage(src, placeholder, options) {
   const opts = options || {};
   const delay = opts.delay || 0;
-  const quality = opts.quality || 'auto';
   const enableWebP = opts.enableWebP !== false;
 
   const [imageSrc, setImageSrc] = React.useState(placeholder);
@@ -326,7 +325,6 @@ const mobilePrefetch = {
    */
   data: function(dataFetcher, options) {
     const opts = options || {};
-    const cache = opts.cache !== false;
     const timeout = opts.timeout || 5000;
 
     if ('requestIdleCallback' in window) {
@@ -441,7 +439,7 @@ function useMobileErrorBoundary() {
  * Mobile-optimized error boundary component
  */
 function MobileErrorBoundary(props) {
-  const { error, resetError } = useMobileErrorBoundary();
+  const { error } = useMobileErrorBoundary();
 
   if (error) {
     return (
@@ -451,7 +449,7 @@ function MobileErrorBoundary(props) {
         </div>
         <h3 className="text-lg font-semibold mb-2">Something went wrong</h3>
         <p className="text-muted-foreground text-sm mb-4 max-w-sm">
-          We're sorry, but something went wrong. Please try refreshing the page.
+          We&apos;re sorry, but something went wrong. Please try refreshing the page.
         </p>
         <button
           onClick={() => window.location.reload()}

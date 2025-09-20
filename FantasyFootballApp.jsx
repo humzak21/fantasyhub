@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, ChevronDown, RefreshCw } from 'lucide-react';
 import { useAuth } from './src/contexts/AuthContext';
 import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
@@ -161,11 +161,7 @@ const FantasyFootballApp = () => {
 
 
   const handleGameUpdate = async (week, team1Id, team2Id, team1Score, team2Score) => {
-    try {
-      await addGame(week, team1Id, team2Id, team1Score, team2Score);
-    } catch (error) {
-      throw error;
-    }
+    await addGame(week, team1Id, team2Id, team1Score, team2Score);
   };
 
   const handleGameDelete = async (gameId) => {
