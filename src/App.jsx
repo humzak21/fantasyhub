@@ -1,10 +1,32 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import FantasyFootballApp from '../FantasyFootballApp.jsx'
+import MobileFantasyFootballApp from './components/mobile/MobileFantasyFootballApp.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
+import { useMobileDetection, setMobileViewport, getMobileClasses } from '../utils/mobileDetection.js'
 
 function App() {
   const { loading } = useAuth()
+  const { isMobile, deviceInfo } = useMobileDetection()
+
+  // Set up mobile viewport and meta tags
+  useEffect(() => {
+    if (isMobile) {
+      setMobileViewport()
+      
+      // Add mobile-specific classes to body
+      const mobileClasses = getMobileClasses(deviceInfo)
+      document.body.className = `${document.body.className} ${mobileClasses}`.trim()
+      
+      return () => {
+        // Cleanup mobile classes on unmount or when switching to desktop
+        const classesToRemove = getMobileClasses(deviceInfo).split(' ')
+        classesToRemove.forEach(className => {
+          document.body.classList.remove(className)
+        })
+      }
+    }
+  }, [isMobile, deviceInfo])
 
   // Show loading screen while auth is initializing
   if (loading) {
@@ -18,12 +40,15 @@ function App() {
     )
   }
 
+  // Conditional rendering based on mobile detection
+  const AppComponent = isMobile ? MobileFantasyFootballApp : FantasyFootballApp
+
   return (
     <Routes>
-      {/* Main route - show fantasy app directly */}
+      {/* Main route - show appropriate app version based on device */}
       <Route 
         path="/" 
-        element={<FantasyFootballApp />} 
+        element={<AppComponent />} 
       />
       
       {/* Legacy routes - redirect to main */}

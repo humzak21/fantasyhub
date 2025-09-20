@@ -1,7 +1,7 @@
 import { THRESHOLDS, POSITION_WEIGHTS } from '../types/index.js';
 
 export class PowerRankingCalculator {
-  constructor(teams, games, currentWeek = 1, players = [], viewingWeek = null) {
+  constructor(teams, games, currentWeek = 1, players = [], viewingWeek = null, analyticsService = null) {
     this.teams = Array.isArray(teams) ? teams : [];
     this.games = Array.isArray(games) ? games : [];
     this.players = Array.isArray(players) ? players : [];
@@ -10,6 +10,9 @@ export class PowerRankingCalculator {
     // If viewing week 3, we only consider games from weeks 1-2
     this.viewingWeek = viewingWeek || currentWeek;
 
+    // Analytics integration - optional for backward compatibility
+    this.analyticsService = analyticsService;
+    this.analyticsEnabled = analyticsService !== null;
 
     this.leagueStats = this.calculateLeagueStats();
     this.teamRosterMetrics = this.calculateAllTeamRosterMetrics();
@@ -171,18 +174,18 @@ export class PowerRankingCalculator {
     return totalPossibleWins > 0 ? totalActualWins / totalPossibleWins : 0;
   }
 
-  // 2. Team Strength (TS) - 20% Weight
-  calculateTeamStrength(teamId) {
+  // 2. Team Strength (TS) - 20% Weight - ENHANCED with analytics integration
+  async calculateTeamStrength(teamId) {
     const team = this.teams.find(t => t.id === teamId);
     if (!team || !team.roster || team.roster.length === 0) return 0;
 
     let totalStrength = 0;
     const positionCounts = {};
 
-    // Calculate position-weighted team value
-    team.roster.forEach(player => {
+    // Calculate position-weighted team value with analytics enhancement
+    for (const player of team.roster) {
       const playerData = this.players.find(p => p.id === player.playerId || p.espn_player_id === player.playerId);
-      if (!playerData) return;
+      if (!playerData) continue;
 
       const position = playerData.position || player.position;
       positionCounts[position] = (positionCounts[position] || 0) + 1;
@@ -197,13 +200,66 @@ export class PowerRankingCalculator {
         positionWeight = POSITION_WEIGHTS[position] || 0;
       }
 
-      // Player valuation: Base on projected points
-      const baseValue = playerData.season_projected_points || playerData.seasonProjectedPoints || 0;
+      // Base player valuation from projected points
+      let baseValue = playerData.season_projected_points || playerData.seasonProjectedPoints || 0;
+
+      // ANALYTICS ENHANCEMENT: Incorporate ffanalytics data if available
+      if (this.analyticsEnabled && this.analyticsService) {
+        try {
+          const analyticsData = await this.analyticsService.getPlayerAnalytics(
+            playerData.id,
+            this.viewingWeek - 1, // Get analytics for the week we're calculating
+            new Date().getFullYear()
+          );
+
+          if (analyticsData) {
+            // Apply analytics-based adjustments to base value
+            const analyticsMultiplier = this.calculateAnalyticsMultiplier(analyticsData);
+            baseValue *= analyticsMultiplier;
+          }
+        } catch (error) {
+          // Graceful degradation - continue with base value if analytics fail
+          console.warn(`Analytics data unavailable for player ${playerData.id}:`, error.message);
+        }
+      }
 
       totalStrength += baseValue * positionWeight;
-    });
+    }
 
     return totalStrength;
+  }
+
+  /**
+   * Calculate analytics multiplier for player strength adjustment
+   * @private
+   */
+  calculateAnalyticsMultiplier(analyticsData) {
+    let multiplier = 1.0;
+
+    // Trend score adjustment (±10% based on trending performance)
+    if (analyticsData.trend_score !== null && analyticsData.trend_score !== undefined) {
+      const trendAdjustment = (analyticsData.trend_score - 0.5) * 0.2; // -0.1 to +0.1
+      multiplier += trendAdjustment;
+    }
+
+    // Consistency rating adjustment (±5% based on consistency)
+    if (analyticsData.consistency_rating !== null && analyticsData.consistency_rating !== undefined) {
+      const consistencyAdjustment = (analyticsData.consistency_rating - 0.5) * 0.1; // -0.05 to +0.05
+      multiplier += consistencyAdjustment;
+    }
+
+    // Position rank adjustment (better rank = higher multiplier)
+    if (analyticsData.position_rank && analyticsData.position_rank > 0) {
+      // Top 10 at position get bonus, bottom performers get penalty
+      if (analyticsData.position_rank <= 10) {
+        multiplier += 0.05; // 5% bonus for top 10
+      } else if (analyticsData.position_rank > 50) {
+        multiplier -= 0.05; // 5% penalty for rank 50+
+      }
+    }
+
+    // Ensure multiplier stays within reasonable bounds (0.8 to 1.2)
+    return Math.max(0.8, Math.min(1.2, multiplier));
   }
 
   // 3. Strength of Schedule (SOS) - ENHANCED with opponent record analysis
@@ -486,19 +542,40 @@ export class PowerRankingCalculator {
     };
   }
 
-  // ENHANCED power rating calculation with heavy emphasis on record and key metrics
-  calculatePowerRating(teamId) {
+  // ENHANCED power rating calculation with analytics integration and backward compatibility
+  async calculatePowerRating(teamId) {
     // Get basic team stats first
     const teamStats = this.calculateTeamStats(teamId);
 
     // Calculate all components with enhancements
     const ps = this.calculatePerformanceScore(teamId);
-    const ts = this.calculateTeamStrength(teamId);
+    const ts = await this.calculateTeamStrength(teamId); // Now async for analytics
     const sos = this.calculateStrengthOfSchedule(teamId);
     const ms = this.calculateMomentumScore(teamId);
     const cv = this.calculateConsistencyScore(teamId);
     const cs = this.calculateClutchScore(teamId);
     const allPlay = this.calculateAllPlayWinPercentage(teamId);
+
+    // ANALYTICS ENHANCEMENT: Get team analytics metrics if available
+    let analyticsMetrics = null;
+    let analyticsBonus = 0;
+    
+    if (this.analyticsEnabled && this.analyticsService) {
+      try {
+        analyticsMetrics = await this.getTeamAnalyticsMetrics(teamId);
+        
+        // Calculate analytics bonus based on trending players and consistency
+        const trendingBonus = (analyticsMetrics.trendingUpPlayers - analyticsMetrics.trendingDownPlayers) * 0.5;
+        const consistencyBonus = analyticsMetrics.consistencyRating * 2;
+        const strengthBonus = analyticsMetrics.analyticsStrengthScore * 0.1;
+        
+        analyticsBonus = trendingBonus + consistencyBonus + strengthBonus;
+        analyticsBonus = Math.max(-5, Math.min(5, analyticsBonus)); // Cap at ±5 points
+      } catch (error) {
+        console.warn(`Analytics enhancement failed for team ${teamId}:`, error.message);
+        // Continue with standard calculation
+      }
+    }
 
     // Calculate quality win/loss differential
     const qualityDifferential = (teamStats.qualityWins || 0) - (teamStats.badLosses || 0);
@@ -520,12 +597,11 @@ export class PowerRankingCalculator {
     // Consistency score - use coefficient of variation of scores
     const normalizedCV = cv > 0 ? Math.min(100, Math.max(0, cv * 100)) : 50;
     
-    
     // Clutch score normalization
     const normalizedCS = cs > 0 ? Math.min(100, Math.max(0, cs * 100)) : 50;
     const normalizedAllPlay = allPlay * 100; // Already 0-1 scale
 
-    // NEW ENHANCED FORMULA with heavy emphasis on record and key metrics
+    // NEW ENHANCED FORMULA with analytics integration
     // 1. Base Record Score (35% weight) - Win percentage with quality adjustments
     const winPercentageScore = teamStats.winPercentage * 100;
     const recordScore = winPercentageScore + (qualityDifferential * 2); // Boost/penalize for quality
@@ -540,8 +616,12 @@ export class PowerRankingCalculator {
     // 4. Quality Performance Score (5% weight) - Quality wins/losses and consistency
     const qualityScore = (normalizedCS * 0.5) + (normalizedCV * 0.3) + (qualityDifferential * 2);
 
-    // 5. Roster Projection Score (10% weight) - Future potential
-    const projectionScore = normalizedTS;
+    // 5. Roster Projection Score (10% weight) - Future potential with analytics enhancement
+    let projectionScore = normalizedTS;
+    if (analyticsMetrics && analyticsMetrics.analyticsStrengthScore > 0) {
+      // Blend traditional projection with analytics strength
+      projectionScore = (projectionScore * 0.7) + (analyticsMetrics.analyticsStrengthScore * 0.3);
+    }
 
     // 6. Current Form Score (15% weight) - Last 3 games performance
     const last3Games = this.getLastNGames(teamId, 3);
@@ -550,9 +630,8 @@ export class PowerRankingCalculator {
     // 7. Point Differential (5% weight) - Total cumulative differential
     const pointDiffScore = Math.min(100, Math.max(0, 50 + (teamStats.pointDifferential / 10)));
 
-    // Calculate weighted power rating with updated emphasis
-    // 35% record, 20% SOS, 15% last 3 games, 10% momentum/form, 10% roster, 5% quality, 5% point diff
-    const powerRating =
+    // Calculate base weighted power rating
+    let powerRating =
       (Math.min(100, Math.max(0, recordScore)) * 0.35) +
       (Math.min(100, Math.max(0, sosAdjustedRecord)) * 0.20) +
       (currentFormScore * 0.15) +
@@ -560,6 +639,9 @@ export class PowerRankingCalculator {
       (projectionScore * 0.10) +
       (qualityScore * 0.05) +
       (pointDiffScore * 0.05);
+
+    // Apply analytics bonus if available
+    powerRating += analyticsBonus;
 
     return {
       powerRating: Math.max(0, Math.min(100, powerRating)),
@@ -578,7 +660,10 @@ export class PowerRankingCalculator {
         projectionScore,
         currentFormScore,
         pointDiffScore,
-        qualityDifferential
+        qualityDifferential,
+        // Analytics components (null if analytics disabled)
+        analyticsBonus,
+        analyticsMetrics
       }
     };
   }
@@ -732,10 +817,10 @@ export class PowerRankingCalculator {
     return recentAverage - this.leagueStats.averageScore;
   }
 
-  calculateAllTeamStats() {
-    return this.teams.map(team => {
+  async calculateAllTeamStats() {
+    const teamStatsPromises = this.teams.map(async team => {
       const stats = this.calculateTeamStats(team.id);
-      const { powerRating, components } = this.calculatePowerRating(team.id);
+      const { powerRating, components } = await this.calculatePowerRating(team.id);
       const rosterMetrics = this.teamRosterMetrics[team.id] || {};
       
       return {
@@ -746,10 +831,12 @@ export class PowerRankingCalculator {
         powerRatingComponents: components
       };
     });
+
+    return Promise.all(teamStatsPromises);
   }
 
-  getRankings(previousRankings = null) {
-    const teamStats = this.calculateAllTeamStats();
+  async getRankings(previousRankings = null) {
+    const teamStats = await this.calculateAllTeamStats();
     
     const rankings = teamStats.sort((a, b) => b.powerRating - a.powerRating);
     
@@ -844,5 +931,219 @@ export class PowerRankingCalculator {
     });
 
     return Math.max(0, Math.min(100, formPoints));
+  }
+
+  /**
+   * Calculate player trend score based on weekly rankings and projections
+   * Requirements: 3.2 - Implement player trend scoring
+   */
+  async calculatePlayerTrendScore(playerId) {
+    if (!this.analyticsEnabled || !this.analyticsService) {
+      return 0; // Neutral score when analytics unavailable
+    }
+
+    try {
+      // Get last 3 weeks of analytics data for trend analysis
+      const weeks = [this.viewingWeek - 3, this.viewingWeek - 2, this.viewingWeek - 1];
+      const analyticsHistory = [];
+
+      for (const week of weeks) {
+        if (week > 0) {
+          const data = await this.analyticsService.getPlayerAnalytics(
+            playerId,
+            week,
+            new Date().getFullYear()
+          );
+          if (data) {
+            analyticsHistory.push({ week, ...data });
+          }
+        }
+      }
+
+      if (analyticsHistory.length < 2) {
+        return 0; // Need at least 2 data points for trend
+      }
+
+      // Calculate trend based on weekly rank improvement/decline
+      let trendScore = 0;
+      const weights = [0.2, 0.3, 0.5]; // More recent weeks weighted higher
+
+      for (let i = 1; i < analyticsHistory.length; i++) {
+        const current = analyticsHistory[i];
+        const previous = analyticsHistory[i - 1];
+        const weight = weights[i - 1] || 0.1;
+
+        // Weekly rank trend (lower rank is better, so improvement = negative change)
+        if (current.weekly_rank && previous.weekly_rank) {
+          const rankChange = previous.weekly_rank - current.weekly_rank;
+          trendScore += (rankChange * weight * 0.01); // Scale rank changes
+        }
+
+        // Projected points trend
+        if (current.projected_points && previous.projected_points) {
+          const pointsChange = current.projected_points - previous.projected_points;
+          trendScore += (pointsChange * weight * 0.1); // Scale points changes
+        }
+
+        // Position rank trend
+        if (current.position_rank && previous.position_rank) {
+          const posRankChange = previous.position_rank - current.position_rank;
+          trendScore += (posRankChange * weight * 0.02); // Scale position rank changes
+        }
+      }
+
+      // Normalize trend score to -1 to +1 range
+      return Math.max(-1, Math.min(1, trendScore));
+    } catch (error) {
+      console.warn(`Failed to calculate trend score for player ${playerId}:`, error.message);
+      return 0; // Graceful degradation
+    }
+  }
+
+  /**
+   * Get analytics-enhanced team metrics
+   * Requirements: 3.1, 3.3 - Add analytics-enhanced team metrics
+   */
+  async getTeamAnalyticsMetrics(teamId) {
+    if (!this.analyticsEnabled || !this.analyticsService) {
+      return this.getDefaultAnalyticsMetrics();
+    }
+
+    try {
+      const team = this.teams.find(t => t.id === teamId);
+      if (!team || !team.roster || team.roster.length === 0) {
+        return this.getDefaultAnalyticsMetrics();
+      }
+
+      const metrics = {
+        trendingUpPlayers: 0,
+        trendingDownPlayers: 0,
+        totalCeilingScore: 0,
+        totalFloorScore: 0,
+        avgPlayerRank: null,
+        avgTrendScore: 0,
+        consistencyRating: 0,
+        analyticsStrengthScore: 0
+      };
+
+      const activeRoster = team.roster.filter(p => p.isActive);
+      let validPlayerCount = 0;
+      let totalRanks = 0;
+      let totalTrendScores = 0;
+      let totalConsistency = 0;
+
+      // Analyze each active roster player
+      for (const rosterPlayer of activeRoster) {
+        const playerData = this.players.find(p => 
+          p.id === rosterPlayer.playerId || p.espn_player_id === rosterPlayer.playerId
+        );
+        
+        if (!playerData) continue;
+
+        try {
+          const analyticsData = await this.analyticsService.getPlayerAnalytics(
+            playerData.id,
+            this.viewingWeek - 1,
+            new Date().getFullYear()
+          );
+
+          if (analyticsData) {
+            validPlayerCount++;
+
+            // Ceiling and floor scores
+            metrics.totalCeilingScore += analyticsData.ceiling_score || 0;
+            metrics.totalFloorScore += analyticsData.floor_score || 0;
+
+            // Player rankings
+            if (analyticsData.weekly_rank && analyticsData.weekly_rank > 0) {
+              totalRanks += analyticsData.weekly_rank;
+            }
+
+            // Trend analysis
+            const trendScore = await this.calculatePlayerTrendScore(playerData.id);
+            totalTrendScores += trendScore;
+
+            if (trendScore > 0.1) {
+              metrics.trendingUpPlayers++;
+            } else if (trendScore < -0.1) {
+              metrics.trendingDownPlayers++;
+            }
+
+            // Consistency
+            if (analyticsData.consistency_rating !== null) {
+              totalConsistency += analyticsData.consistency_rating;
+            }
+          }
+        } catch (error) {
+          console.warn(`Failed to get analytics for player ${playerData.id}:`, error.message);
+        }
+      }
+
+      // Calculate averages
+      if (validPlayerCount > 0) {
+        metrics.avgPlayerRank = totalRanks > 0 ? totalRanks / validPlayerCount : null;
+        metrics.avgTrendScore = totalTrendScores / validPlayerCount;
+        metrics.consistencyRating = totalConsistency / validPlayerCount;
+        
+        // Calculate analytics strength score
+        metrics.analyticsStrengthScore = this.calculateTeamAnalyticsStrength(
+          metrics.totalCeilingScore,
+          metrics.totalFloorScore,
+          metrics.avgTrendScore,
+          metrics.consistencyRating,
+          validPlayerCount
+        );
+      }
+
+      return metrics;
+    } catch (error) {
+      console.warn(`Failed to get team analytics metrics for team ${teamId}:`, error.message);
+      return this.getDefaultAnalyticsMetrics();
+    }
+  }
+
+  /**
+   * Calculate team analytics strength score
+   * @private
+   */
+  calculateTeamAnalyticsStrength(ceilingScore, floorScore, avgTrendScore, consistencyRating, playerCount) {
+    if (playerCount === 0) return 0;
+
+    // Weight different components
+    const ceilingWeight = 0.4;
+    const floorWeight = 0.2;
+    const trendWeight = 0.25;
+    const consistencyWeight = 0.15;
+
+    // Normalize scores
+    const normalizedCeiling = Math.min(100, ceilingScore / playerCount);
+    const normalizedFloor = Math.min(100, floorScore / playerCount);
+    const normalizedTrend = (avgTrendScore + 1) * 50; // Convert -1 to +1 range to 0-100
+    const normalizedConsistency = consistencyRating * 100;
+
+    const strengthScore = 
+      (normalizedCeiling * ceilingWeight) +
+      (normalizedFloor * floorWeight) +
+      (normalizedTrend * trendWeight) +
+      (normalizedConsistency * consistencyWeight);
+
+    return Math.max(0, Math.min(100, strengthScore));
+  }
+
+  /**
+   * Get default analytics metrics when analytics unavailable
+   * @private
+   */
+  getDefaultAnalyticsMetrics() {
+    return {
+      trendingUpPlayers: 0,
+      trendingDownPlayers: 0,
+      totalCeilingScore: 0,
+      totalFloorScore: 0,
+      avgPlayerRank: null,
+      avgTrendScore: 0,
+      consistencyRating: 0,
+      analyticsStrengthScore: 0
+    };
   }
 }

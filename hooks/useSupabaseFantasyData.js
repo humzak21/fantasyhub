@@ -26,7 +26,7 @@ export const useSupabaseFantasyData = () => {
   // Initialize the data manager
   const initialize = useCallback(async () => {
     if (initialized) return;
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -41,7 +41,7 @@ export const useSupabaseFantasyData = () => {
 
   const refreshData = useCallback(async () => {
     if (!initialized) return;
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -49,14 +49,14 @@ export const useSupabaseFantasyData = () => {
         dataManager.getAllSeasons(),
         dataManager.getActiveSeason()
       ]);
-      
+
       setSeasons(allSeasons);
-      
+
       // If we have an active season, load its games as schedule
       if (active) {
         const [week, games, teams, seasonRosters, seasonDivisions, seasonStandings] = await Promise.all([
           dataManager.getCurrentWeek(active.id),
-          // Get ALL games for this season (both completed and upcoming)
+          // Get games for this season (both completed and upcoming)
           dataManager.client
             .from('games')
             .select('*')
@@ -67,7 +67,7 @@ export const useSupabaseFantasyData = () => {
               if (error) throw error;
               return data || [];
             }),
-          // Get ALL teams for this season
+          // Get teams for this season
           dataManager.client
             .from('teams')
             .select('*')
@@ -84,8 +84,8 @@ export const useSupabaseFantasyData = () => {
           // Get standings with divisions
           dataManager.getStandingsByDivision(active.id)
         ]);
-        
-        // Format games to match expected structure
+
+        // Format games to match structure
         const formattedGames = games.map(game => ({
           ...game,
           team1Id: game.team1_id,  // Map database field to expected frontend field
@@ -93,7 +93,7 @@ export const useSupabaseFantasyData = () => {
           winnerTeamId: game.winner_team_id,  // Map winner field
           isCompleted: game.team1_score !== null && game.team2_score !== null
         }));
-        
+
         // Attach games as schedule and teams to the active season
         active.schedule = formattedGames;
         active.teams = teams;
@@ -117,7 +117,7 @@ export const useSupabaseFantasyData = () => {
 
         setStandings(seasonStandings || { divisions: [], unassigned: [] });
       }
-      
+
       setActiveSeason(active);
     } catch (err) {
       setError(err.message);
@@ -187,7 +187,7 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) {
       throw new Error('No active season');
     }
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -206,7 +206,7 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) {
       throw new Error('No active season');
     }
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -225,7 +225,7 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) {
       throw new Error('No active season');
     }
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -318,7 +318,7 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) {
       throw new Error('No active season');
     }
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -337,7 +337,7 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) {
       throw new Error('No active season');
     }
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -356,26 +356,26 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) {
       throw new Error('No active season');
     }
-    
+
     setLoading(true);
     setError(null);
     try {
       const games = [];
-      
+
       // Convert scores object to games
       for (const [matchupKey, matchup] of Object.entries(scores)) {
         const { team1Id, team2Id, team1Score, team2Score } = matchup;
         const game = await dataManager.addGame(
-          activeSeason.id, 
-          week, 
-          team1Id, 
-          team2Id, 
-          team1Score, 
+          activeSeason.id,
+          week,
+          team1Id,
+          team2Id,
+          team1Score,
           team2Score
         );
         games.push(game);
       }
-      
+
       // Complete the week if all games are done
       await dataManager.completeWeek(activeSeason.id, week);
       await refreshData();
@@ -393,7 +393,7 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) {
       throw new Error('No active season');
     }
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -431,12 +431,12 @@ export const useSupabaseFantasyData = () => {
 
   // Power rankings calculation (using database function)
   const [powerRankings, setPowerRankings] = useState([]);
-  
-  
+
+
 
   const getPowerRankingsFromDatabase = useCallback(async (weekNumber = null) => {
     if (!activeSeason) return [];
-    
+
     setLoading(true);
     try {
       const rankings = await dataManager.calculatePowerRankings(activeSeason.id, weekNumber);
@@ -451,7 +451,7 @@ export const useSupabaseFantasyData = () => {
 
   const getPowerRankingsHistory = useCallback(async (weekNumber = null) => {
     if (!activeSeason) return [];
-    
+
     try {
       return await dataManager.getPowerRankingsHistory(activeSeason.id, weekNumber);
     } catch (err) {
@@ -464,7 +464,6 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) return [];
 
     try {
-      // ALWAYS use live calculations - no more snapshots
       // Get all necessary data for the calculator
       const [teams, games, players] = await Promise.all([
         dataManager.client
@@ -502,7 +501,7 @@ export const useSupabaseFantasyData = () => {
     }
   }, [activeSeason, dataManager, currentWeek]);
 
-  // New functions for enhanced power rankings management
+  // Functions for power rankings management
   const saveWeeklySnapshot = useCallback(async (weekNumber, snapshotType = 'manual') => {
     if (!activeSeason) {
       throw new Error('No active season');
@@ -567,7 +566,7 @@ export const useSupabaseFantasyData = () => {
     }
 
     try {
-      // Use the viewing week or current week for live calculations
+      // Use the viewing week or current week for calculations
       const weekToUse = viewingWeek || currentWeek || activeSeason.current_week || 1;
       const rankings = await getPowerRankingsForWeek(weekToUse, viewingWeek);
 
@@ -576,7 +575,7 @@ export const useSupabaseFantasyData = () => {
       setPowerRankings([]);
     }
   }, [activeSeason, getPowerRankingsForWeek, currentWeek]);
-  
+
   // Effect to refresh power rankings when active season or current week changes
   useEffect(() => {
     if (activeSeason) {
@@ -586,7 +585,7 @@ export const useSupabaseFantasyData = () => {
 
   // Utility functions
   const clearAllData = useCallback(async () => {
-    // Since we're using Supabase, we'll just clear the cache and reset state
+    // Clear the cache and reset state
     setSeasons([]);
     setActiveSeason(null);
     setCurrentWeek(1);
@@ -607,7 +606,6 @@ export const useSupabaseFantasyData = () => {
     setLoading(true);
     setError(null);
     try {
-      // For now, importing will need to be handled differently with Supabase
       // This would require creating a new season and populating it with the imported data
       throw new Error('Import functionality needs to be implemented for Supabase');
     } catch (err) {
@@ -628,7 +626,7 @@ export const useSupabaseFantasyData = () => {
       return [];
     }
   }, [dataManager, initialized]);
-  
+
   const syncRosterFromESPN = useCallback(async (teamId, rosterData, currentWeek) => {
     if (!initialized) throw new Error('Not initialized');
     setLoading(true);
@@ -653,7 +651,7 @@ export const useSupabaseFantasyData = () => {
       return [];
     }
   }, [dataManager, activeSeason?.id]);
-  
+
   const getAllRostersForSeason = useCallback(async (seasonId) => {
     if (!initialized) return {};
     try {
@@ -716,10 +714,7 @@ export const useSupabaseFantasyData = () => {
     }
   }, [dataManager, initialized]);
 
-  // ================================
   // PICK'EMS OPERATIONS
-  // ================================
-
   // Pick'em week management
   const createPickEmWeek = useCallback(async (seasonId, weekNumber, customSchedule = null) => {
     if (!initialized) throw new Error('Not initialized');
@@ -877,7 +872,7 @@ export const useSupabaseFantasyData = () => {
     rosterStats,
     divisions,
     standings,
-    dataManager, // Expose dataManager for direct access
+    dataManager,
 
     // Season operations
     createSeason,
@@ -894,15 +889,15 @@ export const useSupabaseFantasyData = () => {
     assignTeamToDivision,
     createDivision,
     deleteDivision,
-    
+
     // Game operations
     addGame,
     updateGameScore,
     addWeekScores,
-    
+
     // Schedule operations
     generateSchedule,
-    
+
     // Data retrieval
     getGamesForWeek,
     getCompletedGames,
@@ -910,20 +905,20 @@ export const useSupabaseFantasyData = () => {
     getPowerRankingsFromDatabase,
     getPowerRankingsHistory,
     refreshPowerRankings,
-    
+
     // Enhanced power rankings management
     saveWeeklySnapshot,
     checkWeeklySnapshotStatus,
     executeWeeklySnapshotIfNeeded,
     getCurrentNFLWeek,
     getAvailableSnapshotWeeks,
-    
+
     // Roster operations
     getRosterForTeam,
     syncRosterFromESPN,
     getAllRostersForSeason,
     getAllPlayers,
-    
+
     // ESPN Schedule Import operations
     getPendingScheduleImports,
     getScheduleImportDetails,

@@ -24,10 +24,48 @@ export default defineConfig({
     target: 'esnext',
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          icons: ['lucide-react'],
+        manualChunks: (id) => {
+          // Core vendor libraries
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/react-router-dom')) {
+            return 'vendor-router';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'vendor-icons';
+          }
+          if (id.includes('node_modules/@supabase')) {
+            return 'vendor-supabase';
+          }
+          if (id.includes('node_modules/@radix-ui')) {
+            return 'vendor-ui';
+          }
+
+          // Mobile-specific bundles
+          if (id.includes('MobileFantasyFootballApp') ||
+              id.includes('MobileNavigation') ||
+              id.includes('MobilePowerRankings') ||
+              id.includes('MobileStatistics') ||
+              id.includes('mobile.css') ||
+              id.includes('mobileDetection')) {
+            return 'mobile-bundle';
+          }
+
+          // Desktop-specific bundles
+          if (id.includes('FantasyFootballApp') && !id.includes('Mobile')) {
+            return 'desktop-bundle';
+          }
+
+          // Shared utilities and services
+          if (id.includes('services/') || id.includes('hooks/') || id.includes('utils/')) {
+            return 'shared-services';
+          }
+
+          // Other node_modules
+          if (id.includes('node_modules')) {
+            return 'vendor-misc';
+          }
         },
       },
     },

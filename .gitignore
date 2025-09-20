@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+docs/
+examples/
 
 # Editor directories and files
 .vscode/*
@@ -98,6 +100,9 @@ coverage/
 
 # NYC test coverage
 .nyc_output
+
+# Test directories
+**/__tests__/
 
 # Dependency directories
 jspm_packages/

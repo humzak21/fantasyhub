@@ -21,7 +21,7 @@ You need to set up your ESPN league details in one of these ways:
 
 1. Edit this file and set the config object:
    leagueId: Your ESPN league ID (found in ESPN URL)
-   seasonYear: Current season year (e.g., 2024)
+   seasonYear: Current season year (e.g., 2025)
    
 2. For private leagues, also set:
    espnS2: ESPN S2 cookie value

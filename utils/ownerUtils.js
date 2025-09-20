@@ -1,11 +1,4 @@
 /**
- * Utility functions for handling owner/manager information across seasons
- * Extracted from analyze_complete_stats.js for reuse in roster updater
- */
-
-
-
-/**
  * Extract owner name from ESPN team data with fallback logic
  * @param {Object} espnTeamData - ESPN team data object
  * @param {Array} members - Current season members array
