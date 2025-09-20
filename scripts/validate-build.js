@@ -35,6 +35,34 @@ async function validateBuild() {
       stdio: 'pipe'
     });
 
+    let validationResult = null;
+
+    // Set up cleanup function
+    const cleanup = () => {
+      log.info('Cleaning up preview server...');
+      try {
+        if (previewProcess.pid) {
+          process.kill(-previewProcess.pid, 'SIGTERM');
+          // Force kill after 2 seconds if still running
+          setTimeout(() => {
+            try {
+              process.kill(-previewProcess.pid, 'SIGKILL');
+            } catch (e) {
+              // Process already dead
+            }
+          }, 2000);
+        }
+      } catch (error) {
+        // Process may already be dead
+        log.warn('Preview process cleanup: ' + error.message);
+      }
+    };
+
+    // Handle process termination
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+    process.on('exit', cleanup);
+
     // Wait for server to start
     await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -42,13 +70,15 @@ async function validateBuild() {
     try {
       await testBuiltApplication();
       log.success('Build validation passed!');
-      process.exit(0);
+      validationResult = true;
     } catch (error) {
       log.error(`Build validation failed: ${error.message}`);
-      process.exit(1);
+      validationResult = false;
     } finally {
-      // Clean up preview server
-      process.kill(-previewProcess.pid);
+      cleanup();
+      // Give cleanup time to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      process.exit(validationResult ? 0 : 1);
     }
 
   } catch (error) {

@@ -11,6 +11,10 @@ export default defineConfig({
       'react-dom',
       'react/jsx-runtime',
       'react-dom/client',
+      'scheduler',
+      'use-sync-external-store',
+      'use-sync-external-store/shim',
+      'use-callback-ref',
       '@floating-ui/react',
       '@floating-ui/react-dom',
       '@radix-ui/react-dropdown-menu',
@@ -22,11 +26,10 @@ export default defineConfig({
       '@radix-ui/react-separator',
       '@radix-ui/react-progress',
       '@radix-ui/react-label',
-      '@radix-ui/react-avatar',
-      'use-callback-ref',
-      'use-sync-external-store'
+      '@radix-ui/react-avatar'
     ],
-    force: true
+    force: true,
+    exclude: []
   },
   resolve: {
     alias: {
@@ -38,13 +41,20 @@ export default defineConfig({
       '@/services': path.resolve(__dirname, './services'),
       '@/hooks': path.resolve(__dirname, './hooks'),
       '@/styles': path.resolve(__dirname, './styles'),
+      // Force React singleton
+      'react': path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
+      'use-sync-external-store': path.resolve(__dirname, './node_modules/use-sync-external-store'),
+      'use-callback-ref': path.resolve(__dirname, './node_modules/use-callback-ref')
     },
     dedupe: [
       'react',
       'react-dom',
       'react/jsx-runtime',
       'react-dom/client',
-      'use-sync-external-store'
+      'use-sync-external-store',
+      'use-callback-ref',
+      'scheduler'
     ]
   },
   build: {
@@ -53,10 +63,15 @@ export default defineConfig({
     minify: 'esbuild',
     target: 'esnext',
     rollupOptions: {
+      external: [],
       output: {
         manualChunks: (id) => {
-          // Core vendor libraries
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+          // Core vendor libraries - keep ALL React-related in same chunk
+          if (id.includes('node_modules/react') ||
+              id.includes('node_modules/react-dom') ||
+              id.includes('node_modules/use-sync-external-store') ||
+              id.includes('node_modules/use-callback-ref') ||
+              id.includes('node_modules/scheduler')) {
             return 'vendor-react';
           }
           if (id.includes('node_modules/react-router-dom')) {
