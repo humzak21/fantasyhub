@@ -9,6 +9,8 @@ export default defineConfig({
     include: [
       'react',
       'react-dom',
+      'react/jsx-runtime',
+      'react-dom/client',
       '@floating-ui/react',
       '@floating-ui/react-dom',
       '@radix-ui/react-dropdown-menu',
@@ -16,7 +18,13 @@ export default defineConfig({
       '@radix-ui/react-alert-dialog',
       '@radix-ui/react-dialog',
       '@radix-ui/react-tabs',
-      'use-callback-ref'
+      '@radix-ui/react-slot',
+      '@radix-ui/react-separator',
+      '@radix-ui/react-progress',
+      '@radix-ui/react-label',
+      '@radix-ui/react-avatar',
+      'use-callback-ref',
+      'use-sync-external-store'
     ],
     force: true
   },
@@ -31,7 +39,13 @@ export default defineConfig({
       '@/hooks': path.resolve(__dirname, './hooks'),
       '@/styles': path.resolve(__dirname, './styles'),
     },
-    dedupe: ['react', 'react-dom']
+    dedupe: [
+      'react',
+      'react-dom',
+      'react/jsx-runtime',
+      'react-dom/client',
+      'use-sync-external-store'
+    ]
   },
   build: {
     outDir: 'dist',
