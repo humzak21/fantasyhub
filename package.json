@@ -27,6 +27,7 @@
     "lint:fix": "eslint . --ext js,jsx --fix",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist node_modules/.vite",
+    "validate-build": "node scripts/validate-build.js",
     "postbuild": "echo 'Build completed successfully!'",
     "db:setup": "echo 'Run the SQL files in database/ folder in your Supabase SQL editor'",
     "db:reset": "echo 'Reset database by running schema.sql then functions.sql in Supabase'",
