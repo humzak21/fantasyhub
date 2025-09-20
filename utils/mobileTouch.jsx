@@ -371,7 +371,7 @@ function usePullToRefresh(onRefresh, options) {
 /**
  * Touch-optimized button component
  */
-function MobileTouchButton(props, ref) {
+function MobileTouchButton(props) {
   const children = props.children;
   const onPress = props.onPress;
   const onLongPress = props.onLongPress;
@@ -427,15 +427,11 @@ function MobileTouchButton(props, ref) {
   return React.createElement('button', {
     ...buttonProps,
     ...touchHandlers,
-    ref: ref,
     className: buttonClassName,
     disabled: disabled,
     style: buttonStyle
   }, children);
 }
-
-const MobileTouchButtonWithRef = React.forwardRef(MobileTouchButton);
-MobileTouchButtonWithRef.displayName = 'MobileTouchButton';
 
 /**
  * Touch-optimized swipeable card component
@@ -579,7 +575,7 @@ export {
   useMobileTouch,
   useMobileScroll,
   usePullToRefresh,
-  MobileTouchButtonWithRef as MobileTouchButton,
+  MobileTouchButton,
   MobileSwipeCard,
   useMobileDragDrop
 };
