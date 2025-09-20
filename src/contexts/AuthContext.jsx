@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const signUp = async (email, password) => {
+  const signUp = async (email, password, name = '') => {
     try {
       setLoading(true)
       const { data, error } = await supabase.auth.signUp({
@@ -80,13 +80,16 @@ export const AuthProvider = ({ children }) => {
         password,
         options: {
           emailRedirectTo: undefined, // Prevent redirect
+          data: {
+            name: name.trim()
+          }
         }
       })
-      
+
       if (error) {
         throw error
       }
-      
+
 
       // Check if user needs to confirm email
       if (data.user && !data.session) {

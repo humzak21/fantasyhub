@@ -1,0 +1,284 @@
+import React, { useState, useEffect } from 'react';
+import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, X, ChevronRight, LogIn, LogOut, User } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { useAuth } from '../../../src/contexts/AuthContext.jsx';
+import { MobileLoginForm } from './MobileLoginForm.jsx';
+
+/**
+ * Mobile Navigation System
+ * Provides mobile-native navigation patterns with smooth transitions
+ */
+const MobileNavigation = ({
+  isOpen,
+  onClose,
+  activeTab,
+  onTabChange,
+  isAuthenticated,
+  isAdmin,
+  activeSeason,
+  currentWeek
+}) => {
+  const { user, signOut } = useAuth();
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [navigationHistory, setNavigationHistory] = useState(['rankings']);
+  const [showLoginForm, setShowLoginForm] = useState(false);
+
+  // Navigation tabs configuration
+  const mainTabs = [
+    { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
+    { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
+    { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
+    { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
+    { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false }
+  ];
+
+  const adminTabs = [
+    { id: 'seasons', label: 'Season Management', icon: Settings, requiresAuth: true },
+    { id: 'import', label: 'Import Schedule', icon: Download, requiresAuth: true }
+  ];
+
+  // Handle navigation with history tracking
+  const handleNavigation = (tabId) => {
+    setIsAnimating(true);
+    
+    // Update navigation history
+    setNavigationHistory(prev => {
+      const newHistory = prev.filter(id => id !== tabId);
+      return [tabId, ...newHistory].slice(0, 5); // Keep last 5 items
+    });
+    
+    // Smooth transition
+    setTimeout(() => {
+      onTabChange(tabId);
+      setIsAnimating(false);
+      onClose();
+    }, 150);
+  };
+
+  // Handle overlay click
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  // Prevent body scroll when menu is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    }
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="mobile-nav-overlay fixed inset-0 z-40 bg-black/50"
+      onClick={handleOverlayClick}
+      style={{
+        animation: 'mobile-backdrop-in 0.2s ease-out'
+      }}
+    >
+      <div 
+        className="mobile-nav-menu fixed top-16 right-0 w-80 h-full bg-background shadow-xl"
+        style={{
+          animation: 'mobile-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          maxWidth: 'calc(100vw - 32px)'
+        }}
+      >
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b">
+            <h2 className="text-lg font-semibold">Navigation</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="touch-target"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Scrollable Content */}
+          <div
+            className="flex-1 overflow-y-auto"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+              overscrollBehavior: 'contain',
+              touchAction: 'pan-y'
+            }}
+          >
+            {showLoginForm ? (
+              <MobileLoginForm
+                onBack={() => setShowLoginForm(false)}
+                onSuccess={() => {
+                  setShowLoginForm(false);
+                  onClose();
+                }}
+              />
+            ) : (
+              <div className="p-4 space-y-6">
+              {/* User Info Section */}
+              <div className="pb-4 border-b">
+                {user ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">
+                          {isAdmin ? 'Administrator' : 'User'}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {user.email}
+                        </p>
+                        {user.user_metadata?.name && (
+                          <p className="text-xs text-muted-foreground/80 truncate">
+                            {user.user_metadata.name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={signOut}
+                      className="w-full touch-target"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-muted/30 flex items-center justify-center">
+                        <User className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Guest User</p>
+                        <p className="text-xs text-muted-foreground">View Only Mode</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowLoginForm(true)}
+                      className="w-full touch-target"
+                    >
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Sign In / Sign Up
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Main Navigation */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground px-2">
+                  Main Sections
+                </h3>
+                <div className="space-y-1">
+                  {mainTabs
+                    .filter(tab => !tab.requiresAuth || isAdmin)
+                    .map(tab => {
+                      const isDisabled = isAdmin && tab.requiresSeason && !activeSeason;
+                      const Icon = tab.icon;
+                      const isActive = activeTab === tab.id;
+                      const wasRecentlyVisited = navigationHistory.includes(tab.id) && !isActive;
+                      
+                      return (
+                        <Button
+                          key={tab.id}
+                          variant={isActive ? "default" : "ghost"}
+                          size="sm"
+                          disabled={isDisabled || isAnimating}
+                          onClick={() => handleNavigation(tab.id)}
+                          className={`
+                            w-full justify-start mobile-nav-item touch-target
+                            ${isAnimating ? 'opacity-50' : ''}
+                            ${wasRecentlyVisited ? 'bg-muted/50' : ''}
+                          `}
+                        >
+                          <Icon className="h-4 w-4 mr-3 flex-shrink-0" />
+                          <span className="flex-1 text-left">{tab.label}</span>
+                          <div className="flex items-center space-x-2">
+                            {!isActive && !isDisabled && (
+                              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                            )}
+                          </div>
+                        </Button>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* Admin Navigation */}
+              {isAdmin && (
+                <div className="space-y-3 pt-2 border-t">
+                  <h3 className="text-sm font-semibold text-muted-foreground px-2">
+                    Administration
+                  </h3>
+                  <div className="space-y-1">
+                    {adminTabs.map(tab => {
+                      const Icon = tab.icon;
+                      const isActive = activeTab === tab.id;
+                      const wasRecentlyVisited = navigationHistory.includes(tab.id) && !isActive;
+                      
+                      return (
+                        <Button
+                          key={tab.id}
+                          variant={isActive ? "default" : "ghost"}
+                          size="sm"
+                          disabled={isAnimating}
+                          onClick={() => handleNavigation(tab.id)}
+                          className={`
+                            w-full justify-start mobile-nav-item touch-target
+                            ${isAnimating ? 'opacity-50' : ''}
+                            ${wasRecentlyVisited ? 'bg-muted/50' : ''}
+                          `}
+                        >
+                          <Icon className="h-4 w-4 mr-3 flex-shrink-0" />
+                          <span className="flex-1 text-left">{tab.label}</span>
+                          <div className="flex items-center space-x-2">
+                            {!isActive && (
+                              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                            )}
+                          </div>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t bg-muted/20">
+            <p className="text-xs text-muted-foreground text-center">
+              Mobile-optimized fantasy football experience
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default MobileNavigation;

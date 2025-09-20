@@ -54,6 +54,7 @@
   * {
     @apply border-border;
   }
+  
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
@@ -106,6 +107,8 @@
     left: 100%;
   }
 }
+
+
 
 @keyframes backdrop-in {
   from {
@@ -166,6 +169,7 @@
 }
 
 @layer utilities {
+  
   .gradient-bg {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   }
@@ -509,4 +513,110 @@
       perspective: 1000px;
     }
   }
+
+  /* Mobile-specific foundation styles */
+  .mobile-optimized {
+    /* Touch interaction optimizations */
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    
+    /* Performance optimizations */
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    
+    /* Text rendering optimizations */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Re-enable text selection for inputs */
+  .mobile-optimized input,
+  .mobile-optimized textarea,
+  .mobile-optimized [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+
+  /* Touch-friendly button base styles */
+  .mobile-optimized button,
+  .mobile-optimized [role="button"] {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Mobile viewport optimizations */
+  .mobile-optimized {
+    /* Prevent horizontal scrolling */
+    overflow-x: hidden;
+    
+    /* Optimize for mobile performance */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+
+  /* Device-specific optimizations */
+  .ios-device {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+  }
+
+  .android-device {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .touch-device {
+    /* Touch-specific optimizations */
+    touch-action: manipulation;
+  }
+
+  /* Mobile breakpoint utilities */
+  @media (max-width: 767px) {
+    .desktop-only {
+      display: none !important;
+    }
+    
+    .mobile-only {
+      display: block !important;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .mobile-only {
+      display: none !important;
+    }
+    
+    .desktop-only {
+      display: block !important;
+    }
+  }
+
+  /* Mobile-specific focus styles */
+  .mobile-optimized *:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Prevent zoom on input focus (iOS) */
+  .mobile-optimized input[type="text"],
+  .mobile-optimized input[type="email"],
+  .mobile-optimized input[type="number"],
+  .mobile-optimized input[type="password"],
+  .mobile-optimized input[type="search"],
+  .mobile-optimized input[type="tel"],
+  .mobile-optimized input[type="url"],
+  .mobile-optimized select,
+  .mobile-optimized textarea {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+
 }

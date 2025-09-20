@@ -1,31 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, ChevronDown } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, ChevronDown, RefreshCw } from 'lucide-react';
 import { useAuth } from './src/contexts/AuthContext';
 import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
 import { getCurrentWeek } from './utils/weekCalculator.js';
-import { Button } from './components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
+import { Button } from './src/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src/components/ui/card';
 
-import { Badge } from './components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './components/ui/dropdown-menu';
-import { LoginDropdown } from './components/LoginDropdown.jsx';
+import { Badge } from './src/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './src/components/ui/dropdown-menu';
+import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
 
 // Import global styles
 import './globals.css';
 
 // Components
-import PowerRankingsTable from './components/PowerRankingsTable.jsx';
+import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTable.jsx';
+import useAnalyticsData from './hooks/useAnalyticsData.js';
 
-import SeasonManager from './components/SeasonManager.jsx';
-import StatisticsPanel from './components/StatisticsPanel.jsx';
-import InlineWeekNavigator from './components/InlineWeekNavigator.jsx';
-import ScheduleManager from './components/ScheduleManager.jsx';
-import ScheduleImportManager from './components/ScheduleImportManager.jsx';
-import TeamsAndRosters from './components/TeamsAndRosters.jsx';
-import PowerRankingsVisualization from './components/PowerRankingsVisualization.jsx';
+import SeasonManager from './src/components/admin/SeasonManager.jsx';
+import StatisticsPanel from './src/components/dashboard/StatisticsPanel.jsx';
+import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
+import ScheduleManager from './src/components/schedule/ScheduleManager.jsx';
+import ScheduleImportManager from './src/components/schedule/ScheduleImportManager.jsx';
+import TeamsAndRosters from './src/components/teams/TeamsAndRosters.jsx';
+import PowerRankingsVisualization from './src/components/power-rankings/PowerRankingsVisualization.jsx';
 
-import StandingsDrawer from './components/StandingsDrawer.jsx';
-import PickEmsManager from './components/PickEmsManager.jsx';
+import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
+import PickEmsManager from './src/components/pickems/PickEmsManager.jsx';
 
 const FantasyFootballApp = () => {
   const { isAuthenticated, isAdmin } = useAuth();
@@ -69,6 +70,16 @@ const FantasyFootballApp = () => {
   // Week-specific power rankings state
   const [weeklyRankings, setWeeklyRankings] = useState([]);
   const [rankingsLoading, setRankingsLoading] = useState(false);
+
+  // Analytics data integration
+  const {
+    analyticsData,
+    hasAnalyticsData,
+    loading: analyticsLoading,
+    refreshAnalytics,
+    exportAnalyticsData,
+    isEnabled: analyticsEnabled
+  } = useAnalyticsData(weeklyRankings, currentWeek, true);
 
   // Initialize current week based on calendar date and keep it updated
   useEffect(() => {
@@ -167,7 +178,7 @@ const FantasyFootballApp = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header */}
+      {/* Header - Responsive Design */}
       <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
@@ -291,6 +302,8 @@ const FantasyFootballApp = () => {
                 </div>
               )}
 
+              <LoginDropdown />
+
               {/* Mobile Navigation Menu */}
               <div className="md:hidden">
                 <DropdownMenu>
@@ -338,8 +351,6 @@ const FantasyFootballApp = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-
-              <LoginDropdown />
             </div>
           </div>
         </div>
@@ -401,17 +412,44 @@ const FantasyFootballApp = () => {
                       {/* View Switcher */}
                       <div className="flex items-center gap-4">
                         {rankingsView === 'table' && (
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="advanced-stats"
-                              checked={showAdvancedStats}
-                              onChange={(e) => setShowAdvancedStats(e.target.checked)}
-                              className="rounded border-gray-300"
-                            />
-                            <label htmlFor="advanced-stats" className="text-sm font-medium">
-                              Advanced Stats
-                            </label>
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id="advanced-stats"
+                                checked={showAdvancedStats}
+                                onChange={(e) => setShowAdvancedStats(e.target.checked)}
+                                className="rounded border-gray-300"
+                              />
+                              <label htmlFor="advanced-stats" className="text-sm font-medium">
+                                Advanced Stats
+                              </label>
+                            </div>
+                            
+                            {analyticsEnabled && (
+                              <div className="flex items-center space-x-2">
+                                {(analyticsLoading || hasAnalyticsData) && (
+                                  <Badge
+                                    variant={hasAnalyticsData ? "default" : "secondary"}
+                                    className="text-xs"
+                                  >
+                                    {analyticsLoading ? "Loading..." : "Analytics Active"}
+                                  </Badge>
+                                )}
+                                {hasAnalyticsData && (
+                                  <Button
+                                    onClick={refreshAnalytics}
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={analyticsLoading}
+                                    className="text-xs flex items-center gap-1"
+                                  >
+                                    <RefreshCw className={`h-3 w-3 ${analyticsLoading ? 'animate-spin' : ''}`} />
+                                    Refresh
+                                  </Button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
                         
@@ -442,13 +480,18 @@ const FantasyFootballApp = () => {
                         rankings={weeklyRankings}
                         currentWeek={currentWeek}
                         showAdvanced={showAdvancedStats}
-                        loading={rankingsLoading}
+                        loading={rankingsLoading || analyticsLoading}
+                        showAnalytics={analyticsEnabled && hasAnalyticsData}
+                        analyticsData={analyticsData}
+                        onExportAnalytics={exportAnalyticsData}
                       />
                     ) : (
                       <PowerRankingsVisualization
                         rankings={weeklyRankings}
                         currentWeek={currentWeek}
-                        loading={rankingsLoading}
+                        loading={rankingsLoading || analyticsLoading}
+                        showAnalyticsSection={analyticsEnabled && hasAnalyticsData}
+                        analyticsData={analyticsData}
                       />
                     )}
                   </CardContent>
