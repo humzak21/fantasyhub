@@ -40,8 +40,8 @@ export const LoginPage = () => {
           setError(result.error || 'Failed to send reset email')
         }
       } else {
-        result = isSignUp 
-          ? await signUp(formData.email, formData.password)
+        result = isSignUp
+          ? await signUp(formData.email, formData.password, formData.name)
           : await signIn(formData.email, formData.password)
 
         if (result.success) {

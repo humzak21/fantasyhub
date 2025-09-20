@@ -3,6 +3,7 @@ import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, X, Chev
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
+import { MobileLoginForm } from './MobileLoginForm.jsx';
 
 /**
  * Mobile Navigation System
@@ -137,22 +138,17 @@ const MobileNavigation = ({
                         <User className="h-5 w-5 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">
-                          {isAdmin ? 'Administrator' : 'User'}
+                        <p className="text-sm font-medium truncate">
+                          {user.user_metadata?.full_name || user.user_metadata?.name || 'No Display Name Set'}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">
                           {user.email}
                         </p>
-                        {user.user_metadata?.name && (
-                          <p className="text-xs text-muted-foreground/80 truncate">
-                            {user.user_metadata.name}
-                          </p>
-                        )}
                       </div>
                     </div>
                     <div className="space-y-2">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => handleNavigation('settings')}
                         className="w-full touch-target"
