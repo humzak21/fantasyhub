@@ -5,10 +5,11 @@ import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
-import { Target, Trophy, Settings, AlertCircle, Clock } from 'lucide-react';
+import { Target, Trophy, Settings, AlertCircle, Clock, UserCheck } from 'lucide-react';
 
 import PickEmsSubmission from './PickEmsSubmission';
 import PickEmsResults from './PickEmsResults';
+import PickEmsAdminSubmissions from './PickEmsAdminSubmissions';
 
 const PickEmsManager = ({
   season,
@@ -246,7 +247,7 @@ const PickEmsManager = ({
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="picks" className="flex items-center gap-2">
               <Target className="h-4 w-4" />
               Make Picks
@@ -255,6 +256,12 @@ const PickEmsManager = ({
               <Trophy className="h-4 w-4" />
               Results
             </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="admin" className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4" />
+                Submissions
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="picks">
@@ -284,6 +291,17 @@ const PickEmsManager = ({
               resultsAvailable={pickEmStatus?.resultsAvailable || false}
             />
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="admin">
+              <PickEmsAdminSubmissions
+                currentWeek={currentWeek}
+                pickEmWeek={pickEmWeek}
+                dataManager={dataManager}
+                loading={dataLoading}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       )}
 

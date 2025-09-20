@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, Menu, X } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, Menu, X, User, Save, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
 import { useSupabaseFantasyData } from '../../../hooks/useSupabaseFantasyData.js';
+import { supabase } from '../../../services/supabaseClient.js';
 import { getCurrentWeek } from '../../../utils/weekCalculator.js';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -13,6 +14,9 @@ import MobileSchedule from './MobileSchedule.jsx';
 import MobileTeamsAndRosters from './MobileTeamsAndRosters.jsx';
 import MobileWeekSelector from './MobileWeekSelector.jsx';
 import MobilePickEms from './MobilePickEms.jsx';
+import MobileUserSettingsPage from './MobileUserSettingsPage.jsx';
+import { MobileInput } from './MobileInput.jsx';
+import MobileButton from './MobileButton.jsx';
 import {
   MobileLoadingState,
   MobileErrorBoundary,
@@ -283,6 +287,7 @@ const MobileFantasyFootballApp = () => {
                       {activeTab === 'rankings' && <><Trophy className="h-5 w-5 text-primary" /><span>Power Rankings</span></>}
                       {activeTab === 'teams' && <><Users className="h-5 w-5 text-primary" /><span>Teams & Rosters</span></>}
                       {activeTab === 'pickems' && <><Target className="h-5 w-5 text-primary" /><span>Pick'ems</span></>}
+                      {activeTab === 'settings' && <><Settings className="h-5 w-5 text-primary" /><span>Settings</span></>}
                       {activeTab === 'seasons' && <><Settings className="h-5 w-5 text-primary" /><span>Season Management</span></>}
                       {activeTab === 'import' && <><Download className="h-5 w-5 text-primary" /><span>Import Schedule</span></>}
                     </CardTitle>
@@ -384,8 +389,16 @@ const MobileFantasyFootballApp = () => {
                       />
                     )}
 
+                    {/* Mobile Settings */}
+                    {activeTab === 'settings' && (
+                      <div className="space-y-4">
+                        {/* Settings content inline */}
+                        <MobileSettingsContent />
+                      </div>
+                    )}
+
                     {/* Placeholder for other tabs */}
-                    {!['rankings', 'statistics', 'schedule', 'teams', 'pickems'].includes(activeTab) && (
+                    {!['rankings', 'statistics', 'schedule', 'teams', 'pickems', 'settings'].includes(activeTab) && (
                       <div className="text-center py-12">
                         <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
                           {activeTab === 'pickems' && <Target className="h-8 w-8 text-primary" />}
@@ -438,6 +451,212 @@ const MobileFantasyFootballApp = () => {
         )}
       </div>
     </MobileErrorBoundary>
+  );
+};
+
+// Inline Settings Content Component
+const MobileSettingsContent = () => {
+  const { user } = useAuth();
+  const [displayName, setDisplayName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState({ type: '', text: '' });
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // Initialize display name from user metadata
+  useEffect(() => {
+    if (user) {
+      const currentDisplayName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+      setDisplayName(currentDisplayName);
+      setHasChanges(false);
+    }
+  }, [user]);
+
+  // Clear message after a few seconds
+  useEffect(() => {
+    if (message.text) {
+      const timer = setTimeout(() => {
+        setMessage({ type: '', text: '' });
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
+
+  const handleDisplayNameChange = (value) => {
+    setDisplayName(value);
+    const currentDisplayName = user?.user_metadata?.full_name || user?.user_metadata?.name || '';
+    setHasChanges(value.trim() !== currentDisplayName);
+    setMessage({ type: '', text: '' });
+  };
+
+  const handleSave = async () => {
+    if (!displayName.trim()) {
+      setMessage({ type: 'error', text: 'Full name cannot be empty' });
+      return;
+    }
+
+    setLoading(true);
+    setMessage({ type: '', text: '' });
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: displayName.trim(),
+          name: displayName.trim()
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setMessage({
+        type: 'success',
+        text: 'Full name updated successfully!'
+      });
+      setHasChanges(false);
+    } catch (err) {
+      setMessage({
+        type: 'error',
+        text: err.message || 'Failed to update full name.'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  if (!user) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600 mb-4">Please sign in to access settings.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Profile Settings */}
+      <div className="bg-white rounded-lg p-4 border border-gray-100">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+            <User className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Profile Information</h3>
+            <p className="text-sm text-gray-600">Update your profile details</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <MobileInput
+              label="Full Name (First Last)"
+              placeholder="Enter your full name"
+              value={displayName}
+              onChange={(e) => handleDisplayNameChange(e.target.value)}
+              clearable
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              We use your full name to match you with your team in the league.
+            </p>
+          </div>
+
+          <div>
+            <MobileInput
+              label="Email Address"
+              value={user?.email || ''}
+              disabled
+              type="email"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Email cannot be changed from here.
+            </p>
+          </div>
+
+          {message.text && (
+            <div className={`p-3 rounded-lg border text-sm ${
+              message.type === 'error'
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-green-50 border-green-200 text-green-700'
+            }`}>
+              <div className="flex items-center space-x-2">
+                {message.type === 'error' ? (
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                ) : (
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                )}
+                <span>{message.text}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex space-x-2">
+            <MobileButton
+              onClick={handleSave}
+              disabled={loading || !hasChanges}
+              loading={loading}
+              variant="primary"
+              className="flex-1"
+              icon={Save}
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </MobileButton>
+            {hasChanges && (
+              <MobileButton
+                onClick={() => {
+                  const currentDisplayName = user?.user_metadata?.full_name || user?.user_metadata?.name || '';
+                  setDisplayName(currentDisplayName);
+                  setHasChanges(false);
+                  setMessage({ type: '', text: '' });
+                }}
+                variant="secondary"
+                className="flex-1"
+              >
+                Cancel
+              </MobileButton>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Account Information */}
+      <div className="bg-white rounded-lg p-4 border border-gray-100">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+            <Shield className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">Account Information</h3>
+            <p className="text-sm text-gray-600">View your account details</p>
+          </div>
+        </div>
+
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between py-2 border-b border-gray-100">
+            <span className="text-gray-600">Account Created</span>
+            <span className="font-medium">{formatDate(user?.created_at)}</span>
+          </div>
+          <div className="flex justify-between py-2 border-b border-gray-100">
+            <span className="text-gray-600">Last Sign In</span>
+            <span className="font-medium">{formatDate(user?.last_sign_in_at)}</span>
+          </div>
+          <div className="flex justify-between py-2">
+            <span className="text-gray-600">Email Verified</span>
+            <span className={`font-medium ${user?.email_confirmed_at ? 'text-green-600' : 'text-orange-600'}`}>
+              {user?.email_confirmed_at ? 'Yes' : 'No'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 

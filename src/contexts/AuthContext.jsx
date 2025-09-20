@@ -81,7 +81,8 @@ export const AuthProvider = ({ children }) => {
         options: {
           emailRedirectTo: undefined, // Prevent redirect
           data: {
-            name: name.trim()
+            name: name.trim(),
+            full_name: name.trim() // Keep both for consistency
           }
         }
       })
@@ -147,11 +148,27 @@ export const AuthProvider = ({ children }) => {
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       })
-      
+
       if (error) {
         throw error
       }
-      
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error.message }
+    }
+  }
+
+  const updateProfile = async (profileData) => {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: profileData
+      })
+
+      if (error) {
+        throw error
+      }
+
       return { success: true }
     } catch (error) {
       return { success: false, error: error.message }
@@ -172,6 +189,7 @@ export const AuthProvider = ({ children }) => {
     signOut,
     resetPassword,
     updatePassword,
+    updateProfile,
   }
 
   return (

@@ -72,8 +72,8 @@ export const useMobileTouch = (options = {}) => {
       }, longPressDelay);
     }
 
-    // Prevent default to avoid double-tap zoom
-    if (e.touches.length === 1) {
+    // Prevent default to avoid double-tap zoom (only if cancelable)
+    if (e.touches.length === 1 && e.cancelable) {
       e.preventDefault();
     }
   }, [onLongPress, longPressDelay]);
@@ -108,7 +108,9 @@ export const useMobileTouch = (options = {}) => {
       }
     }
 
-    e.preventDefault();
+    if (e.cancelable) {
+      e.preventDefault();
+    }
   }, [onPinch, pinchThreshold]);
 
   const handleTouchEnd = useCallback((e) => {
@@ -281,7 +283,9 @@ export const usePullToRefresh = (onRefresh, options = {}) => {
     const deltaY = touch.clientY - containerRef.current.startY;
 
     if (deltaY > 0 && containerRef.current.scrollTop === 0) {
-      e.preventDefault();
+      if (e.cancelable) {
+        e.preventDefault();
+      }
 
       const pullDistance = Math.min(deltaY / resistance, threshold * 1.2);
       const canRefresh = pullDistance >= threshold;

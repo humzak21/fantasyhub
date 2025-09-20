@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import FantasyFootballApp from '../FantasyFootballApp.jsx'
 import MobileFantasyFootballApp from './components/mobile/MobileFantasyFootballApp.jsx'
+import { UserSettingsPage } from './components/auth/UserSettingsPage.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
 import { useMobileDetection, setMobileViewport, getMobileClasses } from '../utils/mobileDetection.js'
 
@@ -46,21 +47,27 @@ function App() {
   return (
     <Routes>
       {/* Main route - show appropriate app version based on device */}
-      <Route 
-        path="/" 
-        element={<AppComponent />} 
+      <Route
+        path="/"
+        element={<AppComponent />}
       />
-      
+
+      {/* User Settings Page */}
+      <Route
+        path="/settings"
+        element={<UserSettingsPage />}
+      />
+
       {/* Legacy routes - redirect to main */}
-      <Route 
-        path="/overview" 
-        element={<Navigate to="/" replace />} 
+      <Route
+        path="/overview"
+        element={<Navigate to="/" replace />}
       />
-      <Route 
-        path="/fantasy" 
-        element={<Navigate to="/" replace />} 
+      <Route
+        path="/fantasy"
+        element={<Navigate to="/" replace />}
       />
-      
+
       {/* Catch all - redirect to home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

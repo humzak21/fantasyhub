@@ -82,5 +82,5 @@ This fantasy football module integrates with:
 - Supabase provides real-time data synchronization
 - ESPN integration allows automatic data import
 - Responsive design with mobile-first approach
-- This project has 1 authenticated user. All other users are visualizing the public data. RLS policies should reflect this. Only authenticated users can change this data, but the general public (anyone visiting the page) can view the data.
+- This project has 1 admin user. All other users are authenticated to create pick'ems, but any user can visualize the data (without logging in). RLS policies should reflect this. Only authenticated users can change their own pickems, but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
 - Owner names eg: "Humza Khalil" are stored in the database and should be the first thing to check against when looking for data for a team. Team names often change but owner names are consistent.

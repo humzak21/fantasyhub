@@ -2164,6 +2164,82 @@ export class SupabaseDataManager {
     }
   }
 
+  async getAdminSubmissionsForWeek(pickEmWeekId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('pick_em_submissions')
+        .select(`
+          *,
+          games(
+            week,
+            team1:teams!games_team1_id_fkey(id, name, owner),
+            team2:teams!games_team2_id_fkey(id, name, owner)
+          ),
+          predicted_team:teams!pick_em_submissions_predicted_winner_team_id_fkey(name)
+        `)
+        .eq('pick_em_week_id', pickEmWeekId)
+        .order('submitted_at', { ascending: false });
+
+      if (error) throw error;
+
+      const submissions = (data || []).map(formatFromDatabase);
+
+      // Get user details for each unique user ID
+      const userIds = [...new Set(submissions.map(s => s.userId))];
+      const userDetails = {};
+
+      // Try to get user details using the RPC function first
+      try {
+        const { data: usersData, error: usersError } = await this.client.rpc('get_users_for_admin', {
+          user_ids: userIds
+        });
+
+        if (!usersError && usersData && Array.isArray(usersData)) {
+          usersData.forEach(user => {
+            if (user && user.id) {
+              userDetails[user.id] = {
+                email: user.email || `user-${user.id.slice(0, 8)}@unknown.com`,
+                displayName: user.display_name || user.email || `User ${user.id.slice(0, 8)}`
+              };
+            }
+          });
+        } else {
+          console.warn('RPC function get_users_for_admin failed or returned no data:', usersError);
+        }
+      } catch (rpcError) {
+        console.warn('RPC function get_users_for_admin not available. Please run the database migration in /database/admin_user_details_migration.sql');
+        console.warn('Error details:', rpcError);
+      }
+
+      // Fallback: get current user details for comparison
+      try {
+        const { data: currentUserData } = await this.client.auth.getUser();
+        if (currentUserData?.user?.id) {
+          userDetails[currentUserData.user.id] = {
+            email: currentUserData.user.email,
+            displayName: currentUserData.user.user_metadata?.name || currentUserData.user.email
+          };
+        }
+      } catch (authError) {
+        console.warn('Could not get current user details:', authError);
+      }
+
+      // Apply user details to submissions with fallbacks
+      return submissions.map(submission => ({
+        ...submission,
+        userDetails: userDetails[submission.userId] || {
+          email: `user-${submission.userId?.slice(0, 8) || 'unknown'}@needs-migration.com`,
+          displayName: `User ${submission.userId?.slice(0, 8) || 'Unknown'} (Run DB Migration)`
+        }
+      }));
+    } catch (error) {
+      handleSupabaseError(error, 'Get admin submissions for week');
+      return [];
+    }
+  }
+
   // Pick'em results and scoring
   async calculatePickEmResults(pickEmWeekId) {
     await this.initialize();
