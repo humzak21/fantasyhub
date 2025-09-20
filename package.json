@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm config set cache /tmp/.npm-cache && vite build",
+    "build": "npm config set cache /tmp/.npm-cache && rm -rf node_modules/.vite && vite build",
     "preview": "vite preview",
     "start": "vite preview --port $PORT --host 0.0.0.0",
     "server": "node server.js",
@@ -28,6 +28,7 @@
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist node_modules/.vite",
     "validate-build": "node scripts/validate-build.js",
+    "kill-preview": "npx kill-port 4173 || pkill -f 'vite preview' || echo 'No preview server running'",
     "postbuild": "echo 'Build completed successfully!'",
     "db:setup": "echo 'Run the SQL files in database/ folder in your Supabase SQL editor'",
     "db:reset": "echo 'Reset database by running schema.sql then functions.sql in Supabase'",
