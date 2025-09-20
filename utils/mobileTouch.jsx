@@ -10,16 +10,15 @@ import React, { useRef, useCallback, useEffect } from 'react';
  * @param {Object} options - Touch handling options
  * @returns {Object} Touch event handlers and state
  */
-export const useMobileTouch = (options = {}) => {
-  const {
-    onTap = null,
-    onLongPress = null,
-    onSwipe = null,
-    onPinch = null,
-    longPressDelay = 500,
-    swipeThreshold = 50,
-    pinchThreshold = 10
-  } = options;
+function useMobileTouch(options) {
+  const opts = options || {};
+  const onTap = opts.onTap || null;
+  const onLongPress = opts.onLongPress || null;
+  const onSwipe = opts.onSwipe || null;
+  const onPinch = opts.onPinch || null;
+  const longPressDelay = opts.longPressDelay || 500;
+  const swipeThreshold = opts.swipeThreshold || 50;
+  const pinchThreshold = opts.pinchThreshold || 10;
 
   const touchRef = useRef(null);
   const gestureState = useRef({
@@ -44,15 +43,21 @@ export const useMobileTouch = (options = {}) => {
     const now = Date.now();
 
     gestureState.current = {
-      ...gestureState.current,
       startTime: now,
       startX: touch.clientX,
       startY: touch.clientY,
+      startDistance: 0,
       isLongPress: false,
+      longPressTimer: null,
       touches: Array.from(e.touches)
     };
 
-    setTouchState(prev => ({ ...prev, isTouching: true }));
+    setTouchState(prev => ({
+      isTouching: true,
+      isLongPressing: prev.isLongPressing,
+      swipeDirection: prev.swipeDirection,
+      scale: prev.scale
+    }));
 
     // Handle multi-touch for pinch gestures
     if (e.touches.length === 2 && onPinch) {
@@ -67,7 +72,12 @@ export const useMobileTouch = (options = {}) => {
     if (onLongPress) {
       gestureState.current.longPressTimer = setTimeout(() => {
         gestureState.current.isLongPress = true;
-        setTouchState(prev => ({ ...prev, isLongPressing: true }));
+        setTouchState(prev => ({
+          isTouching: prev.isTouching,
+          isLongPressing: true,
+          swipeDirection: prev.swipeDirection,
+          scale: prev.scale
+        }));
         onLongPress(e);
       }, longPressDelay);
     }
@@ -103,7 +113,12 @@ export const useMobileTouch = (options = {}) => {
       const scale = currentDistance / gestureState.current.startDistance;
 
       if (Math.abs(scale - 1) > pinchThreshold / 100) {
-        setTouchState(prev => ({ ...prev, scale }));
+        setTouchState(prev => ({
+          isTouching: prev.isTouching,
+          isLongPressing: prev.isLongPressing,
+          swipeDirection: prev.swipeDirection,
+          scale: scale
+        }));
         onPinch({ scale, delta: scale - 1 });
       }
     }
@@ -144,22 +159,33 @@ export const useMobileTouch = (options = {}) => {
         direction = deltaY > 0 ? 'down' : 'up';
       }
 
-      setTouchState(prev => ({ ...prev, swipeDirection: direction }));
+      setTouchState(prev => ({
+        isTouching: prev.isTouching,
+        isLongPressing: prev.isLongPressing,
+        swipeDirection: direction,
+        scale: prev.scale
+      }));
+
       onSwipe({ direction, deltaX, deltaY, distance, duration });
 
       // Reset swipe direction after a short delay
       setTimeout(() => {
-        setTouchState(prev => ({ ...prev, swipeDirection: null }));
+        setTouchState(prev => ({
+          isTouching: prev.isTouching,
+          isLongPressing: prev.isLongPressing,
+          swipeDirection: null,
+          scale: prev.scale
+        }));
       }, 100);
     }
 
     // Reset touch state
-    setTouchState(prev => ({
-      ...prev,
+    setTouchState({
       isTouching: false,
       isLongPressing: false,
+      swipeDirection: null,
       scale: 1
-    }));
+    });
 
     // Reset gesture state
     gestureState.current = {
@@ -186,20 +212,19 @@ export const useMobileTouch = (options = {}) => {
     touchState,
     bind: () => touchHandlers
   };
-};
+}
 
 /**
  * Hook for optimized scrolling with momentum and bounce effects
  * @param {Object} options - Scroll options
  * @returns {Object} Scroll handlers and state
  */
-export const useMobileScroll = (options = {}) => {
-  const {
-    onScroll = null,
-    momentum = true,
-    bounce = true,
-    threshold = 5
-  } = options;
+function useMobileScroll(options) {
+  const opts = options || {};
+  const onScroll = opts.onScroll || null;
+  const momentum = opts.momentum !== false;
+  const bounce = opts.bounce !== false;
+  const threshold = opts.threshold || 5;
 
   const scrollRef = useRef(null);
   const scrollState = useRef({
@@ -246,7 +271,7 @@ export const useMobileScroll = (options = {}) => {
       onScroll: handleScroll
     }
   };
-};
+}
 
 /**
  * Hook for pull-to-refresh functionality
@@ -254,12 +279,11 @@ export const useMobileScroll = (options = {}) => {
  * @param {Object} options - Refresh options
  * @returns {Object} Refresh handlers and state
  */
-export const usePullToRefresh = (onRefresh, options = {}) => {
-  const {
-    threshold = 80,
-    resistance = 2.5,
-    refreshDelay = 1000
-  } = options;
+function usePullToRefresh(onRefresh, options) {
+  const opts = options || {};
+  const threshold = opts.threshold || 80;
+  const resistance = opts.resistance || 2.5;
+  const refreshDelay = opts.refreshDelay || 1000;
 
   const containerRef = useRef(null);
   const [refreshState, setRefreshState] = React.useState({
@@ -301,12 +325,12 @@ export const usePullToRefresh = (onRefresh, options = {}) => {
 
   const handleTouchEnd = useCallback(() => {
     if (refreshState.canRefresh && !refreshState.isRefreshing) {
-      setRefreshState(prev => ({
-        ...prev,
-        isRefreshing: true,
+      setRefreshState({
         isPulling: false,
-        pullDistance: threshold
-      }));
+        isRefreshing: true,
+        pullDistance: threshold,
+        canRefresh: refreshState.canRefresh
+      });
 
       // Call refresh function
       Promise.resolve(onRefresh()).finally(() => {
@@ -342,21 +366,20 @@ export const usePullToRefresh = (onRefresh, options = {}) => {
       onTouchEnd: handleTouchEnd
     }
   };
-};
+}
 
 /**
  * Touch-optimized button component
  */
-export const MobileTouchButton = React.forwardRef(({
-  children,
-  onPress,
-  onLongPress,
-  disabled = false,
-  className = '',
-  activeClassName = 'mobile-touch-active',
-  hapticFeedback = true,
-  ...props
-}, ref) => {
+function MobileTouchButton(props, ref) {
+  const children = props.children;
+  const onPress = props.onPress;
+  const onLongPress = props.onLongPress;
+  const disabled = props.disabled || false;
+  const className = props.className || '';
+  const activeClassName = props.activeClassName || 'mobile-touch-active';
+  const hapticFeedback = props.hapticFeedback !== false;
+
   const { touchHandlers, touchState } = useMobileTouch({
     onTap: onPress,
     onLongPress: onLongPress
@@ -376,46 +399,56 @@ export const MobileTouchButton = React.forwardRef(({
     }
   }, [disabled, onPress, triggerHaptic]);
 
-  const buttonClassName = `
-    ${className}
-    ${touchState.isTouching && !disabled ? activeClassName : ''}
-    ${disabled ? 'opacity-50 pointer-events-none' : ''}
-    touch-manipulation select-none
-  `.trim();
+  const buttonClassName = [
+    className,
+    touchState.isTouching && !disabled ? activeClassName : '',
+    disabled ? 'opacity-50 pointer-events-none' : '',
+    'touch-manipulation select-none'
+  ].filter(Boolean).join(' ');
 
-  return (
-    <button
-      {...props}
-      {...touchHandlers}
-      ref={ref}
-      className={buttonClassName}
-      disabled={disabled}
-      style={{
-        transform: touchState.isTouching && !disabled ? 'scale(0.98)' : 'scale(1)',
-        transition: 'transform 0.1s ease-out',
-        ...props.style
-      }}
-    >
-      {children}
-    </button>
-  );
-});
+  const buttonStyle = {
+    transform: touchState.isTouching && !disabled ? 'scale(0.98)' : 'scale(1)',
+    transition: 'transform 0.1s ease-out'
+  };
 
-MobileTouchButton.displayName = 'MobileTouchButton';
+  if (props.style) {
+    Object.assign(buttonStyle, props.style);
+  }
+
+  const buttonProps = {};
+  Object.keys(props).forEach(key => {
+    if (key !== 'children' && key !== 'onPress' && key !== 'onLongPress' &&
+        key !== 'disabled' && key !== 'className' && key !== 'activeClassName' &&
+        key !== 'hapticFeedback' && key !== 'style') {
+      buttonProps[key] = props[key];
+    }
+  });
+
+  return React.createElement('button', {
+    ...buttonProps,
+    ...touchHandlers,
+    ref: ref,
+    className: buttonClassName,
+    disabled: disabled,
+    style: buttonStyle
+  }, children);
+}
+
+const MobileTouchButtonWithRef = React.forwardRef(MobileTouchButton);
+MobileTouchButtonWithRef.displayName = 'MobileTouchButton';
 
 /**
  * Touch-optimized swipeable card component
  */
-export const MobileSwipeCard = ({
-  children,
-  onSwipeLeft,
-  onSwipeRight,
-  onSwipeUp,
-  onSwipeDown,
-  className = '',
-  swipeThreshold = 50,
-  ...props
-}) => {
+function MobileSwipeCard(props) {
+  const children = props.children;
+  const onSwipeLeft = props.onSwipeLeft;
+  const onSwipeRight = props.onSwipeRight;
+  const onSwipeUp = props.onSwipeUp;
+  const onSwipeDown = props.onSwipeDown;
+  const className = props.className || '';
+  const swipeThreshold = props.swipeThreshold || 50;
+
   const [swipeOffset, setSwipeOffset] = React.useState({ x: 0, y: 0 });
   const [isSwipeActive, setIsSwipeActive] = React.useState(false);
 
@@ -447,32 +480,41 @@ export const MobileSwipeCard = ({
     swipeThreshold
   });
 
-  return (
-    <div
-      {...props}
-      {...touchHandlers}
-      className={`${className} touch-manipulation`}
-      style={{
-        transform: `translate(${swipeOffset.x}px, ${swipeOffset.y}px)`,
-        transition: isSwipeActive ? 'transform 0.2s ease-out' : 'none',
-        ...props.style
-      }}
-    >
-      {children}
-    </div>
-  );
-};
+  const cardStyle = {
+    transform: 'translate(' + swipeOffset.x + 'px, ' + swipeOffset.y + 'px)',
+    transition: isSwipeActive ? 'transform 0.2s ease-out' : 'none'
+  };
+
+  if (props.style) {
+    Object.assign(cardStyle, props.style);
+  }
+
+  const cardProps = {};
+  Object.keys(props).forEach(key => {
+    if (key !== 'children' && key !== 'onSwipeLeft' && key !== 'onSwipeRight' &&
+        key !== 'onSwipeUp' && key !== 'onSwipeDown' && key !== 'className' &&
+        key !== 'swipeThreshold' && key !== 'style') {
+      cardProps[key] = props[key];
+    }
+  });
+
+  return React.createElement('div', {
+    ...cardProps,
+    ...touchHandlers,
+    className: className + ' touch-manipulation',
+    style: cardStyle
+  }, children);
+}
 
 /**
  * Mobile-optimized drag and drop
  */
-export const useMobileDragDrop = (options = {}) => {
-  const {
-    onDragStart = null,
-    onDrag = null,
-    onDragEnd = null,
-    dragThreshold = 5
-  } = options;
+function useMobileDragDrop(options) {
+  const opts = options || {};
+  const onDragStart = opts.onDragStart || null;
+  const onDrag = opts.onDrag || null;
+  const onDragEnd = opts.onDragEnd || null;
+  const dragThreshold = opts.dragThreshold || 5;
 
   const [dragState, setDragState] = React.useState({
     isDragging: false,
@@ -487,7 +529,9 @@ export const useMobileDragDrop = (options = {}) => {
   });
 
   const enhancedTouchHandlers = {
-    ...touchHandlers,
+    onTouchStart: touchHandlers.onTouchStart,
+    onTouchEnd: touchHandlers.onTouchEnd,
+    onTouchCancel: touchHandlers.onTouchCancel,
     onTouchMove: (e) => {
       touchHandlers.onTouchMove(e);
 
@@ -498,27 +542,44 @@ export const useMobileDragDrop = (options = {}) => {
           y: touch.clientY - dragState.startPosition.y
         };
 
-        setDragState(prev => ({ ...prev, dragOffset }));
+        setDragState({
+          isDragging: dragState.isDragging,
+          dragOffset: dragOffset,
+          startPosition: dragState.startPosition
+        });
         onDrag({ dragOffset, touch: e.touches[0] });
       }
     }
   };
 
+  const setDragActive = function(active, position) {
+    const pos = position || { x: 0, y: 0 };
+
+    if (active && onDragStart) {
+      onDragStart();
+    } else if (!active && onDragEnd) {
+      onDragEnd();
+    }
+
+    setDragState({
+      isDragging: active,
+      dragOffset: active ? { x: 0, y: 0 } : dragState.dragOffset,
+      startPosition: pos
+    });
+  };
+
   return {
     dragState,
     dragHandlers: enhancedTouchHandlers,
-    setDragActive: (active, position = { x: 0, y: 0 }) => {
-      if (active && onDragStart) {
-        onDragStart();
-      } else if (!active && onDragEnd) {
-        onDragEnd();
-      }
-
-      setDragState({
-        isDragging: active,
-        dragOffset: active ? { x: 0, y: 0 } : dragState.dragOffset,
-        startPosition: position
-      });
-    }
+    setDragActive: setDragActive
   };
+}
+
+export {
+  useMobileTouch,
+  useMobileScroll,
+  usePullToRefresh,
+  MobileTouchButtonWithRef as MobileTouchButton,
+  MobileSwipeCard,
+  useMobileDragDrop
 };
