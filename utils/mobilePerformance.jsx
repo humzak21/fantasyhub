@@ -11,13 +11,12 @@ import React, { lazy, Suspense } from 'react';
  * @param {Object} options - Configuration options
  * @returns {Object} Lazy component with mobile-optimized loading
  */
-export const mobileLazy = (importFn, options = {}) => {
-  const {
-    fallback = null,
-    retryCount = 3,
-    retryDelay = 1000,
-    preload = false
-  } = options;
+function mobileLazy(importFn, options) {
+  const opts = options || {};
+  const fallback = opts.fallback || null;
+  const retryCount = opts.retryCount || 3;
+  const retryDelay = opts.retryDelay || 1000;
+  const preload = opts.preload || false;
 
   let retries = 0;
   let preloadPromise = null;
@@ -55,19 +54,18 @@ export const mobileLazy = (importFn, options = {}) => {
   };
 
   return MobileLazyWrapper;
-};
+}
 
 /**
  * Mobile-optimized intersection observer for lazy loading
  * @param {Object} options - Intersection observer options
  * @returns {Function} Hook for lazy loading elements
  */
-export const useMobileIntersectionObserver = (options = {}) => {
-  const {
-    threshold = 0.1,
-    rootMargin = '50px',
-    triggerOnce = true
-  } = options;
+function useMobileIntersectionObserver(options) {
+  const opts = options || {};
+  const threshold = opts.threshold || 0.1;
+  const rootMargin = opts.rootMargin || '50px';
+  const triggerOnce = opts.triggerOnce !== false;
 
   const [isIntersecting, setIsIntersecting] = React.useState(false);
   const [element, setElement] = React.useState(null);
@@ -100,7 +98,7 @@ export const useMobileIntersectionObserver = (options = {}) => {
   }, [element, threshold, rootMargin, triggerOnce]);
 
   return [setElement, isIntersecting];
-};
+}
 
 /**
  * Progressive image loading with mobile optimization
@@ -109,12 +107,11 @@ export const useMobileIntersectionObserver = (options = {}) => {
  * @param {Object} options - Loading options
  * @returns {Object} Image loading state and props
  */
-export const useProgressiveImage = (src, placeholder, options = {}) => {
-  const {
-    delay = 0,
-    quality = 'auto',
-    enableWebP = true
-  } = options;
+function useProgressiveImage(src, placeholder, options) {
+  const opts = options || {};
+  const delay = opts.delay || 0;
+  const quality = opts.quality || 'auto';
+  const enableWebP = opts.enableWebP !== false;
 
   const [imageSrc, setImageSrc] = React.useState(placeholder);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -168,7 +165,7 @@ export const useProgressiveImage = (src, placeholder, options = {}) => {
       }
     }
   };
-};
+}
 
 /**
  * Mobile-optimized debounced value hook
@@ -176,27 +173,28 @@ export const useProgressiveImage = (src, placeholder, options = {}) => {
  * @param {number} delay - Debounce delay in milliseconds
  * @returns {any} Debounced value
  */
-export const useMobileDebounce = (value, delay = 300) => {
+function useMobileDebounce(value, delay) {
+  const delayMs = delay || 300;
   const [debouncedValue, setDebouncedValue] = React.useState(value);
 
   React.useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedValue(value);
-    }, delay);
+    }, delayMs);
 
     return () => {
       clearTimeout(handler);
     };
-  }, [value, delay]);
+  }, [value, delayMs]);
 
   return debouncedValue;
-};
+}
 
 /**
  * Mobile performance monitoring hook
  * @returns {Object} Performance metrics and utilities
  */
-export const useMobilePerformance = () => {
+function useMobilePerformance() {
   const [metrics, setMetrics] = React.useState({
     loadTime: 0,
     renderTime: 0,
@@ -237,7 +235,7 @@ export const useMobilePerformance = () => {
       const result = operation(...args);
       const duration = performance.now() - start;
 
-      console.log(`[Mobile Performance] ${label}: ${duration.toFixed(2)}ms`);
+      console.log('[Mobile Performance] ' + label + ': ' + duration.toFixed(2) + 'ms');
 
       return result;
     };
@@ -247,18 +245,18 @@ export const useMobilePerformance = () => {
     metrics,
     logPerformance
   };
-};
+}
 
 /**
  * Mobile-specific prefetch utilities
  */
-export const mobilePrefetch = {
+const mobilePrefetch = {
   /**
    * Prefetch route component for mobile
    * Uses predefined component map for Vite compatibility
    * @param {string} componentName - Component name to prefetch
    */
-  route: (componentName) => {
+  route: function(componentName) {
     // Predefined component map for Vite static analysis
     const componentMap = {
       'MobileStatistics': () => import('../src/components/mobile/MobileStatistics.jsx'),
@@ -292,8 +290,10 @@ export const mobilePrefetch = {
    * @param {string} src - Image source URL
    * @param {Object} options - Prefetch options
    */
-  image: (src, options = {}) => {
-    const { priority = 'low', sizes = '' } = options;
+  image: function(src, options) {
+    const opts = options || {};
+    const priority = opts.priority || 'low';
+    const sizes = opts.sizes || '';
 
     // Check connection before prefetching
     const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
@@ -324,8 +324,10 @@ export const mobilePrefetch = {
    * @param {Function} dataFetcher - Function that returns a promise
    * @param {Object} options - Prefetch options
    */
-  data: (dataFetcher, options = {}) => {
-    const { cache = true, timeout = 5000 } = options;
+  data: function(dataFetcher, options) {
+    const opts = options || {};
+    const cache = opts.cache !== false;
+    const timeout = opts.timeout || 5000;
 
     if ('requestIdleCallback' in window) {
       requestIdleCallback(() => {
@@ -345,13 +347,13 @@ export const mobilePrefetch = {
 /**
  * Mobile-optimized loading state component
  */
-export const MobileLoadingState = ({
-  type = 'spinner',
-  size = 'md',
-  message = '',
-  skeleton = false,
-  className = ''
-}) => {
+function MobileLoadingState(props) {
+  const type = props.type || 'spinner';
+  const size = props.size || 'md';
+  const message = props.message || '';
+  const skeleton = props.skeleton || false;
+  const className = props.className || '';
+
   const sizeClasses = {
     sm: 'w-4 h-4',
     md: 'w-6 h-6',
@@ -361,7 +363,7 @@ export const MobileLoadingState = ({
 
   if (skeleton) {
     return (
-      <div className={`animate-pulse space-y-4 ${className}`}>
+      <div className={'animate-pulse space-y-4 ' + className}>
         <div className="h-4 bg-gray-200 rounded w-3/4"></div>
         <div className="space-y-2">
           <div className="h-4 bg-gray-200 rounded"></div>
@@ -372,18 +374,18 @@ export const MobileLoadingState = ({
   }
 
   return (
-    <div className={`flex flex-col items-center justify-center space-y-3 ${className}`}>
+    <div className={'flex flex-col items-center justify-center space-y-3 ' + className}>
       {type === 'spinner' && (
-        <div className={`animate-spin rounded-full border-2 border-gray-300 border-t-primary ${sizeClasses[size]}`}></div>
+        <div className={'animate-spin rounded-full border-2 border-gray-300 border-t-primary ' + sizeClasses[size]}></div>
       )}
       {type === 'dots' && (
         <div className="flex space-x-1">
           {[0, 1, 2].map(i => (
             <div
               key={i}
-              className={`bg-primary rounded-full animate-pulse ${sizeClasses.sm}`}
+              className={'bg-primary rounded-full animate-pulse ' + sizeClasses.sm}
               style={{
-                animationDelay: `${i * 0.1}s`,
+                animationDelay: (i * 0.1) + 's',
                 animationDuration: '1s'
               }}
             ></div>
@@ -402,7 +404,7 @@ export const MobileLoadingState = ({
       )}
     </div>
   );
-};
+}
 
 /**
  * Mobile-optimized error boundary
@@ -446,4 +448,13 @@ class MobileErrorBoundary extends React.Component {
   }
 }
 
-export { MobileErrorBoundary };
+export {
+  mobileLazy,
+  useMobileIntersectionObserver,
+  useProgressiveImage,
+  useMobileDebounce,
+  useMobilePerformance,
+  mobilePrefetch,
+  MobileLoadingState,
+  MobileErrorBoundary
+};
