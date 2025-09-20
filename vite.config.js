@@ -12,7 +12,11 @@ export default defineConfig({
       '@floating-ui/react',
       '@floating-ui/react-dom',
       '@radix-ui/react-dropdown-menu',
-      '@radix-ui/react-tooltip'
+      '@radix-ui/react-tooltip',
+      '@radix-ui/react-alert-dialog',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-tabs',
+      'use-callback-ref'
     ],
     force: true
   },
@@ -27,6 +31,7 @@ export default defineConfig({
       '@/hooks': path.resolve(__dirname, './hooks'),
       '@/styles': path.resolve(__dirname, './styles'),
     },
+    dedupe: ['react', 'react-dom']
   },
   build: {
     outDir: 'dist',
@@ -53,6 +58,9 @@ export default defineConfig({
             return 'vendor-ui';
           }
           if (id.includes('node_modules/@floating-ui')) {
+            return 'vendor-ui';
+          }
+          if (id.includes('node_modules/use-callback-ref')) {
             return 'vendor-ui';
           }
 
