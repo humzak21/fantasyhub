@@ -83,8 +83,9 @@ class HealthCheckResults {
       details: this.results
     };
   }
-}/
-**
+}
+
+/**
  * Check Node.js environment and dependencies
  */
 async function checkEnvironment(results) {

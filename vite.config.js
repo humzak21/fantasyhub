@@ -5,6 +5,17 @@ import path from 'path'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      '@floating-ui/react',
+      '@floating-ui/react-dom',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-tooltip'
+    ],
+    force: true
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -39,6 +50,9 @@ export default defineConfig({
             return 'vendor-supabase';
           }
           if (id.includes('node_modules/@radix-ui')) {
+            return 'vendor-ui';
+          }
+          if (id.includes('node_modules/@floating-ui')) {
             return 'vendor-ui';
           }
 

@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback } from 'react';
 
 /**
  * Mobile Touch Event Handling Utilities
@@ -86,7 +86,7 @@ function useMobileTouch(options) {
     if (e.touches.length === 1 && e.cancelable) {
       e.preventDefault();
     }
-  }, [onLongPress, longPressDelay]);
+  }, [onLongPress, longPressDelay, onPinch]);
 
   const handleTouchMove = useCallback((e) => {
     if (!gestureState.current.startTime) return;
@@ -222,9 +222,6 @@ function useMobileTouch(options) {
 function useMobileScroll(options) {
   const opts = options || {};
   const onScroll = opts.onScroll || null;
-  const momentum = opts.momentum !== false;
-  const bounce = opts.bounce !== false;
-  const threshold = opts.threshold || 5;
 
   const scrollRef = useRef(null);
   const scrollState = useRef({
@@ -239,7 +236,6 @@ function useMobileScroll(options) {
   const handleScroll = useCallback((e) => {
     const currentY = e.target.scrollTop;
     const deltaY = currentY - scrollState.current.lastY;
-    const now = performance.now();
 
     // Calculate velocity
     scrollState.current.velocity = deltaY;
@@ -392,12 +388,6 @@ function MobileTouchButton(props) {
     }
   }, [hapticFeedback]);
 
-  const handlePress = useCallback((e) => {
-    if (!disabled) {
-      triggerHaptic();
-      if (onPress) onPress(e);
-    }
-  }, [disabled, onPress, triggerHaptic]);
 
   const buttonClassName = [
     className,
@@ -449,7 +439,7 @@ function MobileSwipeCard(props) {
   const [isSwipeActive, setIsSwipeActive] = React.useState(false);
 
   const { touchHandlers } = useMobileTouch({
-    onSwipe: ({ direction, deltaX, deltaY }) => {
+    onSwipe: ({ direction }) => {
       setIsSwipeActive(true);
 
       switch (direction) {
@@ -510,7 +500,6 @@ function useMobileDragDrop(options) {
   const onDragStart = opts.onDragStart || null;
   const onDrag = opts.onDrag || null;
   const onDragEnd = opts.onDragEnd || null;
-  const dragThreshold = opts.dragThreshold || 5;
 
   const [dragState, setDragState] = React.useState({
     isDragging: false,
@@ -519,7 +508,7 @@ function useMobileDragDrop(options) {
   });
 
   const { touchHandlers } = useMobileTouch({
-    onTap: (e) => {
+    onTap: () => {
       // Handle tap when not dragging
     }
   });
