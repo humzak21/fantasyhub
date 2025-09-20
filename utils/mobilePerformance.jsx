@@ -407,7 +407,7 @@ export const MobileLoadingState = ({
 /**
  * Mobile-optimized error boundary
  */
-export class MobileErrorBoundary extends React.Component {
+class MobileErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -445,3 +445,5 @@ export class MobileErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
+
+export { MobileErrorBoundary };
