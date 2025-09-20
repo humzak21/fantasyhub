@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Target, Trophy, Settings, AlertCircle, Clock, Plus } from 'lucide-react';
+import { Target, Trophy, Settings, AlertCircle, Clock, Plus, UserCheck } from 'lucide-react';
 import MobilePickEmsSubmission from './MobilePickEmsSubmission';
 import MobilePickEmsResults from './MobilePickEmsResults';
+import MobilePickEmsAdminSubmissions from './MobilePickEmsAdminSubmissions';
 import MobileButton from './MobileButton';
 
 const MobilePickEms = ({
@@ -219,7 +220,7 @@ const MobilePickEms = ({
         <>
           {/* Tab navigation */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2">
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid gap-2 ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <MobileButton
                 onClick={() => setActiveTab('picks')}
                 variant={activeTab === 'picks' ? 'secondary' : 'primary'}
@@ -227,7 +228,8 @@ const MobilePickEms = ({
                 className="flex items-center justify-center gap-2 px-3 py-3 font-semibold shadow-sm text-sm"
               >
                 <Target className="h-4 w-4" />
-                Make Picks
+                <span className="hidden xs:inline">Make Picks</span>
+                <span className="xs:hidden">Picks</span>
               </MobileButton>
               <MobileButton
                 onClick={() => setActiveTab('results')}
@@ -238,6 +240,18 @@ const MobilePickEms = ({
                 <Trophy className="h-4 w-4" />
                 Results
               </MobileButton>
+              {isAdmin && (
+                <MobileButton
+                  onClick={() => setActiveTab('admin')}
+                  variant={activeTab === 'admin' ? 'secondary' : 'primary'}
+                  size="lg"
+                  className="flex items-center justify-center gap-2 px-3 py-3 font-semibold shadow-sm text-sm"
+                >
+                  <UserCheck className="h-4 w-4" />
+                  <span className="hidden xs:inline">Submissions</span>
+                  <span className="xs:hidden">Admin</span>
+                </MobileButton>
+              )}
             </div>
           </div>
 
@@ -267,6 +281,15 @@ const MobilePickEms = ({
               userPicks={userPicks}
               loading={dataLoading}
               resultsAvailable={pickEmStatus?.resultsAvailable || false}
+            />
+          )}
+
+          {activeTab === 'admin' && isAdmin && (
+            <MobilePickEmsAdminSubmissions
+              currentWeek={currentWeek}
+              pickEmWeek={pickEmWeek}
+              dataManager={dataManager}
+              loading={dataLoading}
             />
           )}
         </>

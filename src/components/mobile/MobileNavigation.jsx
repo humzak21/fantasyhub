@@ -3,7 +3,6 @@ import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, X, Chev
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
-import { MobileLoginForm } from './MobileLoginForm.jsx';
 
 /**
  * Mobile Navigation System
@@ -151,15 +150,26 @@ const MobileNavigation = ({
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={signOut}
-                      className="w-full touch-target"
-                    >
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Sign Out
-                    </Button>
+                    <div className="space-y-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleNavigation('settings')}
+                        className="w-full touch-target"
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Settings
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={signOut}
+                        className="w-full touch-target"
+                      >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Sign Out
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -277,6 +287,7 @@ const MobileNavigation = ({
           </div>
         </div>
       </div>
+
     </div>
   );
 };
