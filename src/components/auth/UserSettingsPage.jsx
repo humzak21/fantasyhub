@@ -136,14 +136,6 @@ export const UserSettingsPage = () => {
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </Button>
-                <Button variant="ghost" className="w-full justify-start text-gray-400" disabled>
-                  Notifications
-                  <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded">Soon</span>
-                </Button>
-                <Button variant="ghost" className="w-full justify-start text-gray-400" disabled>
-                  Preferences
-                  <span className="ml-2 text-xs bg-gray-100 px-2 py-1 rounded">Soon</span>
-                </Button>
               </CardContent>
             </Card>
           </div>

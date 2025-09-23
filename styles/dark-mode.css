@@ -1,0 +1,1145 @@
+/**
+ * Comprehensive Dark Mode Styles
+ * Covers all components, features, and interactive elements
+ * with proper contrast ratios and accessibility
+ */
+
+/* Enhanced Dark Mode Color Variables */
+:root {
+  /* Light theme colors (keeping existing) */
+  --dm-light-background: 0 0% 100%;
+  --dm-light-foreground: 240 10% 3.9%;
+  --dm-light-card: 0 0% 100%;
+  --dm-light-card-foreground: 240 10% 3.9%;
+  --dm-light-popover: 0 0% 100%;
+  --dm-light-popover-foreground: 240 10% 3.9%;
+  --dm-light-primary: 240 5.9% 10%;
+  --dm-light-primary-foreground: 0 0% 98%;
+  --dm-light-secondary: 240 4.8% 95.9%;
+  --dm-light-secondary-foreground: 240 5.9% 10%;
+  --dm-light-muted: 240 4.8% 95.9%;
+  --dm-light-muted-foreground: 240 3.8% 46.1%;
+  --dm-light-accent: 240 4.8% 95.9%;
+  --dm-light-accent-foreground: 240 5.9% 10%;
+  --dm-light-destructive: 0 84.2% 60.2%;
+  --dm-light-destructive-foreground: 0 0% 98%;
+  --dm-light-border: 240 5.9% 90%;
+  --dm-light-input: 240 5.9% 90%;
+  --dm-light-ring: 240 5.9% 10%;
+
+  /* Enhanced dark theme colors */
+  --dm-dark-background: 222 84% 4.9%;
+  --dm-dark-foreground: 210 40% 98%;
+  --dm-dark-card: 222 84% 4.9%;
+  --dm-dark-card-foreground: 210 40% 98%;
+  --dm-dark-popover: 222 84% 4.9%;
+  --dm-dark-popover-foreground: 210 40% 98%;
+  --dm-dark-primary: 210 40% 98%;
+  --dm-dark-primary-foreground: 222 47% 11%;
+  --dm-dark-secondary: 217 32.6% 17.5%;
+  --dm-dark-secondary-foreground: 210 40% 98%;
+  --dm-dark-muted: 217 32.6% 17.5%;
+  --dm-dark-muted-foreground: 215 20.2% 65.1%;
+  --dm-dark-accent: 217 32.6% 17.5%;
+  --dm-dark-accent-foreground: 210 40% 98%;
+  --dm-dark-destructive: 0 62.8% 30.6%;
+  --dm-dark-destructive-foreground: 210 40% 98%;
+  --dm-dark-border: 217 32.6% 17.5%;
+  --dm-dark-input: 217 32.6% 17.5%;
+  --dm-dark-ring: 212 72% 59%;
+
+  /* Extended semantic colors for dark mode */
+  --dm-dark-success: 142 76% 36%;
+  --dm-dark-success-foreground: 210 40% 98%;
+  --dm-dark-warning: 47 96% 53%;
+  --dm-dark-warning-foreground: 222 47% 11%;
+  --dm-dark-info: 212 72% 59%;
+  --dm-dark-info-foreground: 210 40% 98%;
+
+  /* Overlay and backdrop colors */
+  --dm-dark-overlay: 222 84% 4.9% / 0.8;
+  --dm-light-overlay: 0 0% 0% / 0.5;
+
+  /* Enhanced contrast colors */
+  --dm-dark-surface-1: 220 65% 7%;
+  --dm-dark-surface-2: 217 45% 12%;
+  --dm-dark-surface-3: 215 30% 18%;
+  --dm-dark-text-high: 210 40% 98%;
+  --dm-dark-text-medium: 215 20.2% 65.1%;
+  --dm-dark-text-low: 215 15% 50%;
+
+  /* Gradient variables */
+  --dm-gradient-primary: linear-gradient(135deg, hsl(212 72% 59%) 0%, hsl(245 58% 51%) 100%);
+  --dm-gradient-secondary: linear-gradient(135deg, hsl(217 32.6% 17.5%) 0%, hsl(215 30% 18%) 100%);
+  --dm-gradient-accent: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(160 84% 39%) 100%);
+}
+
+/* Core Dark Mode Application */
+.dark {
+  --background: var(--dm-dark-background);
+  --foreground: var(--dm-dark-foreground);
+  --card: var(--dm-dark-card);
+  --card-foreground: var(--dm-dark-card-foreground);
+  --popover: var(--dm-dark-popover);
+  --popover-foreground: var(--dm-dark-popover-foreground);
+  --primary: var(--dm-dark-primary);
+  --primary-foreground: var(--dm-dark-primary-foreground);
+  --secondary: var(--dm-dark-secondary);
+  --secondary-foreground: var(--dm-dark-secondary-foreground);
+  --muted: var(--dm-dark-muted);
+  --muted-foreground: var(--dm-dark-muted-foreground);
+  --accent: var(--dm-dark-accent);
+  --accent-foreground: var(--dm-dark-accent-foreground);
+  --destructive: var(--dm-dark-destructive);
+  --destructive-foreground: var(--dm-dark-destructive-foreground);
+  --border: var(--dm-dark-border);
+  --input: var(--dm-dark-input);
+  --ring: var(--dm-dark-ring);
+
+  /* Extended semantic colors */
+  --success: var(--dm-dark-success);
+  --success-foreground: var(--dm-dark-success-foreground);
+  --warning: var(--dm-dark-warning);
+  --warning-foreground: var(--dm-dark-warning-foreground);
+  --info: var(--dm-dark-info);
+  --info-foreground: var(--dm-dark-info-foreground);
+}
+
+/* Dark Mode Body and Global Styles */
+.dark,
+.dark body,
+.dark #root {
+  background-color: hsl(var(--dm-dark-background)) !important;
+  color: hsl(var(--dm-dark-foreground));
+}
+
+.dark body {
+  background-image:
+    radial-gradient(circle at 20% 80%, hsl(217 32.6% 17.5% / 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, hsl(215 30% 18% / 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, hsl(212 72% 59% / 0.05) 0%, transparent 50%);
+}
+
+/* Ensure all main containers have dark background */
+.dark .min-h-screen,
+.dark .h-screen,
+.dark .h-full,
+.dark [class*="bg-background"],
+.dark [class*="bg-slate"],
+.dark [class*="bg-gray"],
+.dark [class*="bg-white"] {
+  background-color: hsl(var(--dm-dark-background)) !important;
+}
+
+.dark * {
+  border-color: hsl(var(--dm-dark-border));
+}
+
+/* Navigation and Header Specific Styles */
+.dark nav,
+.dark header,
+.dark .header,
+.dark .navigation,
+.dark .nav {
+  background-color: hsl(var(--dm-dark-surface-1)) !important;
+  border-color: hsl(var(--dm-dark-border));
+}
+
+.dark .nav-container,
+.dark .header-container,
+.dark .navbar {
+  background-color: hsl(var(--dm-dark-surface-1)) !important;
+}
+
+/* Week selector and navigation controls */
+.dark .week-selector,
+.dark .week-navigation,
+.dark .week-control {
+  background-color: hsl(var(--dm-dark-surface-2)) !important;
+  border-color: hsl(var(--dm-dark-border));
+}
+
+/* Tab navigation */
+.dark .tab,
+.dark .tab-button,
+.dark [role="tab"] {
+  background-color: hsl(var(--dm-dark-surface-2));
+  color: hsl(var(--dm-dark-text-medium));
+  border-color: hsl(var(--dm-dark-border));
+}
+
+.dark .tab.active,
+.dark .tab-button.active,
+.dark [role="tab"][aria-selected="true"] {
+  background-color: hsl(var(--dm-dark-primary)) !important;
+  color: hsl(var(--dm-dark-primary-foreground)) !important;
+}
+
+/* Floating and sticky elements */
+.dark .sticky,
+.dark .fixed,
+.dark .floating {
+  background-color: hsl(var(--dm-dark-surface-1)) !important;
+}
+
+/* Tailwind Background Overrides */
+.dark .bg-white {
+  background-color: hsl(var(--dm-dark-surface-1)) !important;
+}
+
+/* Semi-transparent white backgrounds */
+.dark [class*="bg-white/"] {
+  background-color: hsl(var(--dm-dark-surface-1) / 0.95) !important;
+}
+
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-slate-50,
+.dark .bg-slate-100 {
+  background-color: hsl(var(--dm-dark-surface-1)) !important;
+}
+
+.dark .bg-gray-200,
+.dark .bg-gray-300,
+.dark .bg-slate-200,
+.dark .bg-slate-300 {
+  background-color: hsl(var(--dm-dark-surface-2)) !important;
+}
+
+/* Gradient Background Overrides */
+.dark .bg-gradient-to-br,
+.dark .bg-gradient-to-r,
+.dark .bg-gradient-to-l,
+.dark .bg-gradient-to-t,
+.dark .bg-gradient-to-b,
+.dark .bg-gradient-to-tr,
+.dark .bg-gradient-to-tl,
+.dark .bg-gradient-to-bl {
+  background: hsl(var(--dm-dark-background)) !important;
+}
+
+/* Specific gradient override for main container */
+.dark .from-slate-50,
+.dark .to-slate-100,
+.dark .from-gray-50,
+.dark .to-gray-100 {
+  --tw-gradient-from: hsl(var(--dm-dark-background)) !important;
+  --tw-gradient-to: hsl(var(--dm-dark-surface-1)) !important;
+}
+
+/* Text Color Overrides */
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-black {
+  color: hsl(var(--dm-dark-text-high)) !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-700,
+.dark .text-slate-600,
+.dark .text-slate-700 {
+  color: hsl(var(--dm-dark-text-medium)) !important;
+}
+
+.dark .text-gray-400,
+.dark .text-gray-500,
+.dark .text-slate-400,
+.dark .text-slate-500 {
+  color: hsl(var(--dm-dark-text-low)) !important;
+}
+
+/* Backdrop and Glass Effect Overrides */
+.dark .backdrop-blur-sm,
+.dark .backdrop-blur,
+.dark .backdrop-blur-md,
+.dark .backdrop-blur-lg {
+  backdrop-filter: blur(12px) !important;
+  background-color: hsl(var(--dm-dark-surface-1) / 0.9) !important;
+}
+
+/* Container and Layout Overrides */
+.dark .container,
+.dark .mx-auto {
+  background-color: transparent !important;
+}
+
+/* Card and Surface Overrides */
+.dark .bg-card {
+  background-color: hsl(var(--dm-dark-surface-2)) !important;
+}
+
+.dark .bg-muted {
+  background-color: hsl(var(--dm-dark-surface-2)) !important;
+}
+
+.dark .bg-accent {
+  background-color: hsl(var(--dm-dark-accent)) !important;
+  color: hsl(var(--dm-dark-accent-foreground)) !important;
+}
+
+/* Border and Divider Overrides */
+.dark .border,
+.dark .border-b,
+.dark .border-t,
+.dark .border-l,
+.dark .border-r {
+  border-color: hsl(var(--dm-dark-border)) !important;
+}
+
+.dark .border-gray-200,
+.dark .border-gray-300,
+.dark .border-slate-200,
+.dark .border-slate-300 {
+  border-color: hsl(var(--dm-dark-border)) !important;
+}
+
+/* Enhanced Gradient Utilities for Dark Mode */
+.dark .gradient-bg {
+  background: var(--dm-gradient-primary);
+}
+
+.dark .gradient-card {
+  background: linear-gradient(135deg, hsl(var(--dm-dark-surface-2) / 0.8) 0%, hsl(var(--dm-dark-surface-1) / 0.6) 100%);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--dm-dark-border) / 0.5);
+}
+
+.dark .glass-effect {
+  background: hsl(var(--dm-dark-surface-2) / 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--dm-dark-border) / 0.3);
+}
+
+/* Enhanced Floating Controls for Dark Mode */
+.dark .floating-control {
+  background: hsl(var(--dm-dark-surface-2) / 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid hsl(var(--dm-dark-border) / 0.4);
+  box-shadow:
+    0 4px 6px -1px hsl(222 84% 4.9% / 0.3),
+    0 2px 4px -1px hsl(222 84% 4.9% / 0.2),
+    0 0 0 1px hsl(var(--dm-dark-border) / 0.1);
+}
+
+.dark .floating-control:hover {
+  background: hsl(var(--dm-dark-surface-2) / 0.98);
+  box-shadow:
+    0 10px 15px -3px hsl(222 84% 4.9% / 0.4),
+    0 4px 6px -2px hsl(222 84% 4.9% / 0.3),
+    0 0 0 1px hsl(var(--dm-dark-border) / 0.2);
+}
+
+/* Enhanced Modal Styles for Dark Mode */
+.dark .modal-backdrop {
+  background: hsl(var(--dm-dark-overlay));
+  backdrop-filter: blur(8px);
+}
+
+.dark .modal-content {
+  background: hsl(var(--dm-dark-surface-2) / 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid hsl(var(--dm-dark-border) / 0.3);
+  box-shadow:
+    0 25px 50px -12px hsl(222 84% 4.9% / 0.6),
+    0 0 0 1px hsl(var(--dm-dark-border) / 0.1);
+}
+
+/* Enhanced Button Styles for Dark Mode */
+.dark .week-button {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark .week-button:hover {
+  background: hsl(var(--dm-dark-surface-3));
+  box-shadow:
+    0 4px 8px -2px hsl(222 84% 4.9% / 0.3),
+    0 2px 4px -1px hsl(222 84% 4.9% / 0.2);
+}
+
+.dark .week-button.selected {
+  background: hsl(var(--dm-dark-primary));
+  color: hsl(var(--dm-dark-primary-foreground));
+  box-shadow:
+    0 0 0 2px hsl(212 72% 59% / 0.5),
+    0 4px 8px -2px hsl(212 72% 59% / 0.3);
+}
+
+/* Enhanced Loading States for Dark Mode */
+.dark .loading-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--dm-dark-surface-2) / 0.0) 0%,
+    hsl(var(--dm-dark-text-medium) / 0.2) 50%,
+    hsl(var(--dm-dark-surface-2) / 0.0) 100%
+  );
+}
+
+.dark .loading-pulse {
+  background: hsl(var(--dm-dark-surface-2));
+}
+
+/* Enhanced Focus States for Dark Mode */
+.dark .focus-enhanced:focus {
+  box-shadow:
+    0 0 0 2px hsl(212 72% 59% / 0.5),
+    0 0 0 4px hsl(212 72% 59% / 0.2);
+}
+
+.dark .focus-enhanced:focus-visible {
+  box-shadow:
+    0 0 0 2px hsl(212 72% 59% / 0.5),
+    0 0 0 4px hsl(212 72% 59% / 0.2);
+}
+
+/* Enhanced Scrollbar for Dark Mode */
+.dark .scrollbar-mobile::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--dm-dark-text-medium) / 0.5);
+}
+
+.dark .scrollbar-mobile::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--dm-dark-text-medium) / 0.7);
+}
+
+/* Enhanced Shadow Utilities for Dark Mode */
+.dark .shadow-floating {
+  box-shadow:
+    0 4px 6px -1px hsl(222 84% 4.9% / 0.3),
+    0 2px 4px -1px hsl(222 84% 4.9% / 0.2),
+    0 0 0 1px hsl(var(--dm-dark-border) / 0.1);
+}
+
+.dark .shadow-floating-hover {
+  box-shadow:
+    0 10px 15px -3px hsl(222 84% 4.9% / 0.4),
+    0 4px 6px -2px hsl(222 84% 4.9% / 0.3),
+    0 0 0 1px hsl(var(--dm-dark-border) / 0.2);
+}
+
+.dark .shadow-modal {
+  box-shadow:
+    0 25px 50px -12px hsl(222 84% 4.9% / 0.6),
+    0 0 0 1px hsl(var(--dm-dark-border) / 0.1);
+}
+
+/* Enhanced Drawer Styles for Dark Mode */
+.dark .drawer-backdrop {
+  background: hsl(var(--dm-dark-overlay));
+}
+
+.dark .drawer-trigger {
+  background: hsl(var(--dm-dark-primary));
+  color: hsl(var(--dm-dark-primary-foreground));
+}
+
+.dark .drawer-trigger:hover {
+  background: hsl(212 72% 65%);
+  box-shadow:
+    0 8px 25px -8px hsl(212 72% 59% / 0.4),
+    0 4px 12px -4px hsl(222 84% 4.9% / 0.3);
+}
+
+.dark .drawer-trigger.open {
+  background: hsl(212 72% 55%);
+  box-shadow:
+    0 6px 20px -6px hsl(212 72% 59% / 0.4),
+    0 2px 8px -2px hsl(222 84% 4.9% / 0.3);
+}
+
+/* Mobile Navigation Enhancements for Dark Mode */
+.dark .mobile-nav-overlay {
+  background: hsl(var(--dm-dark-overlay));
+}
+
+.dark .mobile-nav-menu {
+  background: hsl(var(--dm-dark-surface-1));
+  border-left: 1px solid hsl(var(--dm-dark-border));
+  box-shadow:
+    -4px 0 6px -1px hsl(222 84% 4.9% / 0.3),
+    -2px 0 4px -1px hsl(222 84% 4.9% / 0.2);
+}
+
+.dark .mobile-nav-item {
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark .mobile-nav-item:hover:not(:disabled) {
+  background-color: hsl(var(--dm-dark-surface-2));
+}
+
+.dark .mobile-nav-item:focus-visible {
+  outline: 2px solid hsl(212 72% 59%);
+}
+
+.dark .mobile-nav-item[data-state="active"] {
+  background-color: hsl(212 72% 59%);
+  color: hsl(var(--dm-dark-primary-foreground));
+}
+
+.dark .mobile-nav-item[data-state="recent"] {
+  background-color: hsl(212 72% 59% / 0.15);
+}
+
+/* Enhanced Card Styles for Dark Mode */
+.dark .mobile-card {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .mobile-card:hover {
+  background: hsl(var(--dm-dark-surface-3));
+  box-shadow: 0 8px 25px hsl(222 84% 4.9% / 0.4);
+}
+
+/* Enhanced List Item Styles for Dark Mode */
+.dark .mobile-list-item {
+  background: hsl(var(--dm-dark-surface-1));
+  border-bottom: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .mobile-list-item::after {
+  background: var(--dm-gradient-primary);
+}
+
+.dark .mobile-list-item:active {
+  background-color: hsl(212 72% 59% / 0.1);
+}
+
+/* Enhanced Toggle Styles for Dark Mode */
+.dark .mobile-toggle {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark .mobile-toggle.active {
+  background: hsl(212 72% 59%);
+  color: hsl(var(--dm-dark-primary-foreground));
+}
+
+/* Enhanced Progress Bar for Dark Mode */
+.dark .mobile-progress-bar {
+  background: hsl(var(--dm-dark-surface-2));
+}
+
+.dark .mobile-progress-fill {
+  background: var(--dm-gradient-primary);
+}
+
+/* Enhanced Loading Skeleton for Dark Mode */
+.dark .mobile-loading-skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--dm-dark-surface-2)) 0%,
+    hsl(var(--dm-dark-surface-3)) 50%,
+    hsl(var(--dm-dark-surface-2)) 100%
+  );
+}
+
+/* Enhanced FAB for Dark Mode */
+.dark .mobile-fab {
+  background: var(--dm-gradient-primary);
+  box-shadow: 0 4px 12px hsl(212 72% 59% / 0.4);
+}
+
+.dark .mobile-fab:hover {
+  box-shadow: 0 8px 20px hsl(212 72% 59% / 0.5);
+}
+
+/* Enhanced Tab Indicator for Dark Mode */
+.dark .mobile-tab-indicator {
+  background: var(--dm-gradient-primary);
+}
+
+/* Enhanced Pull-to-Refresh for Dark Mode */
+.dark .mobile-pull-refresh-indicator {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+  box-shadow: 0 2px 8px hsl(222 84% 4.9% / 0.3);
+}
+
+/* Form Elements and Inputs for Dark Mode */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="number"],
+.dark input[type="password"],
+.dark input[type="search"],
+.dark input[type="tel"],
+.dark input[type="url"],
+.dark select,
+.dark textarea {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  outline: none;
+  border-color: hsl(212 72% 59%);
+  box-shadow: 0 0 0 3px hsl(212 72% 59% / 0.2);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: hsl(var(--dm-dark-text-medium));
+}
+
+/* Table Styles for Dark Mode */
+.dark table {
+  background: hsl(var(--dm-dark-surface-1));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark thead {
+  background: hsl(var(--dm-dark-surface-2));
+}
+
+.dark th {
+  border-bottom: 1px solid hsl(var(--dm-dark-border));
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark td {
+  border-bottom: 1px solid hsl(var(--dm-dark-border) / 0.5);
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark tbody tr:hover {
+  background: hsl(var(--dm-dark-surface-2) / 0.5);
+}
+
+/* Badge and Status Indicators for Dark Mode */
+.dark .badge {
+  background: hsl(var(--dm-dark-surface-2));
+  color: hsl(var(--dm-dark-text-high));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .badge.success {
+  background: hsl(var(--dm-dark-success));
+  color: hsl(var(--dm-dark-success-foreground));
+}
+
+.dark .badge.warning {
+  background: hsl(var(--dm-dark-warning));
+  color: hsl(var(--dm-dark-warning-foreground));
+}
+
+.dark .badge.destructive {
+  background: hsl(var(--dm-dark-destructive));
+  color: hsl(var(--dm-dark-destructive-foreground));
+}
+
+.dark .badge.info {
+  background: hsl(var(--dm-dark-info));
+  color: hsl(var(--dm-dark-info-foreground));
+}
+
+/* Alert and Notification Styles for Dark Mode */
+.dark .alert {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark .alert.success {
+  background: hsl(var(--dm-dark-success) / 0.1);
+  border-color: hsl(var(--dm-dark-success) / 0.3);
+  color: hsl(var(--dm-dark-success));
+}
+
+.dark .alert.warning {
+  background: hsl(var(--dm-dark-warning) / 0.1);
+  border-color: hsl(var(--dm-dark-warning) / 0.3);
+  color: hsl(var(--dm-dark-warning-foreground));
+}
+
+.dark .alert.destructive {
+  background: hsl(var(--dm-dark-destructive) / 0.1);
+  border-color: hsl(var(--dm-dark-destructive) / 0.3);
+  color: hsl(var(--dm-dark-destructive));
+}
+
+/* Dropdown and Menu Styles for Dark Mode */
+.dark .dropdown-menu {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+  box-shadow:
+    0 10px 15px -3px hsl(222 84% 4.9% / 0.4),
+    0 4px 6px -2px hsl(222 84% 4.9% / 0.3);
+}
+
+.dark .dropdown-item {
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark .dropdown-item:hover {
+  background: hsl(var(--dm-dark-surface-3));
+}
+
+.dark .dropdown-item:focus {
+  background: hsl(212 72% 59% / 0.15);
+  outline: none;
+}
+
+.dark .dropdown-separator {
+  background: hsl(var(--dm-dark-border));
+}
+
+/* Tooltip Styles for Dark Mode */
+.dark .tooltip {
+  background: hsl(var(--dm-dark-surface-3));
+  color: hsl(var(--dm-dark-text-high));
+  border: 1px solid hsl(var(--dm-dark-border));
+  box-shadow: 0 4px 6px -1px hsl(222 84% 4.9% / 0.3);
+}
+
+/* Popover Styles for Dark Mode */
+.dark .popover {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+  box-shadow:
+    0 10px 15px -3px hsl(222 84% 4.9% / 0.4),
+    0 4px 6px -2px hsl(222 84% 4.9% / 0.3);
+}
+
+/* Tabs and Navigation for Dark Mode */
+.dark .tabs-list {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .tabs-trigger {
+  color: hsl(var(--dm-dark-text-medium));
+}
+
+.dark .tabs-trigger:hover {
+  color: hsl(var(--dm-dark-text-high));
+  background: hsl(var(--dm-dark-surface-3));
+}
+
+.dark .tabs-trigger[data-state="active"] {
+  background: hsl(var(--dm-dark-surface-1));
+  color: hsl(var(--dm-dark-text-high));
+  border-bottom: 2px solid hsl(212 72% 59%);
+}
+
+/* Calendar and Date Picker for Dark Mode */
+.dark .calendar {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .calendar-day {
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark .calendar-day:hover {
+  background: hsl(var(--dm-dark-surface-3));
+}
+
+.dark .calendar-day.selected {
+  background: hsl(212 72% 59%);
+  color: hsl(var(--dm-dark-primary-foreground));
+}
+
+.dark .calendar-day.today {
+  background: hsl(var(--dm-dark-accent));
+  color: hsl(var(--dm-dark-accent-foreground));
+}
+
+/* Chart and Data Visualization for Dark Mode */
+.dark .chart {
+  background: hsl(var(--dm-dark-surface-1));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .chart-grid {
+  stroke: hsl(var(--dm-dark-border));
+}
+
+.dark .chart-text {
+  fill: hsl(var(--dm-dark-text-medium));
+}
+
+.dark .chart-primary {
+  fill: hsl(212 72% 59%);
+  stroke: hsl(212 72% 59%);
+}
+
+.dark .chart-secondary {
+  fill: hsl(var(--dm-dark-accent));
+  stroke: hsl(var(--dm-dark-accent));
+}
+
+/* Code and Syntax Highlighting for Dark Mode */
+.dark .code-block {
+  background: hsl(var(--dm-dark-surface-3));
+  border: 1px solid hsl(var(--dm-dark-border));
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark .code-inline {
+  background: hsl(var(--dm-dark-surface-2));
+  color: hsl(212 72% 69%);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+/* Fantasy Football Specific Components for Dark Mode */
+.dark .team-card {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .team-card:hover {
+  background: hsl(var(--dm-dark-surface-3));
+  box-shadow: 0 4px 8px hsl(222 84% 4.9% / 0.3);
+}
+
+.dark .standings-table {
+  background: hsl(var(--dm-dark-surface-1));
+}
+
+.dark .standings-row {
+  border-bottom: 1px solid hsl(var(--dm-dark-border) / 0.5);
+}
+
+.dark .standings-row:hover {
+  background: hsl(var(--dm-dark-surface-2) / 0.5);
+}
+
+.dark .power-ranking-badge {
+  background: var(--dm-gradient-primary);
+  color: hsl(var(--dm-dark-primary-foreground));
+}
+
+.dark .week-selector {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .schedule-card {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .schedule-card.completed {
+  background: hsl(var(--dm-dark-success) / 0.1);
+  border-color: hsl(var(--dm-dark-success) / 0.3);
+}
+
+.dark .schedule-card.in-progress {
+  background: hsl(var(--dm-dark-warning) / 0.1);
+  border-color: hsl(var(--dm-dark-warning) / 0.3);
+}
+
+/* Statistics and Analytics for Dark Mode */
+.dark .stat-card {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .stat-value {
+  color: hsl(var(--dm-dark-text-high));
+  font-weight: 600;
+}
+
+.dark .stat-label {
+  color: hsl(var(--dm-dark-text-medium));
+}
+
+.dark .trend-positive {
+  color: hsl(var(--dm-dark-success));
+}
+
+.dark .trend-negative {
+  color: hsl(var(--dm-dark-destructive));
+}
+
+.dark .trend-neutral {
+  color: hsl(var(--dm-dark-text-medium));
+}
+
+/* Statistics Box Color Overrides - Darker Tints */
+/* Blue Statistics Boxes */
+.dark .bg-blue-50,
+.dark .bg-blue-100 {
+  background-color: hsl(212 45% 12%) !important;
+  border: 1px solid hsl(212 35% 18%) !important;
+}
+
+.dark .text-blue-600,
+.dark .text-blue-700 {
+  color: hsl(212 80% 75%) !important;
+}
+
+.dark .text-blue-500 {
+  color: hsl(212 85% 70%) !important;
+}
+
+/* Orange Statistics Boxes */
+.dark .bg-orange-50,
+.dark .bg-orange-100 {
+  background-color: hsl(24 45% 12%) !important;
+  border: 1px solid hsl(24 35% 18%) !important;
+}
+
+.dark .text-orange-600,
+.dark .text-orange-700 {
+  color: hsl(24 90% 75%) !important;
+}
+
+.dark .text-orange-500 {
+  color: hsl(24 95% 70%) !important;
+}
+
+/* Purple Statistics Boxes */
+.dark .bg-purple-50,
+.dark .bg-purple-100,
+.dark .bg-violet-50,
+.dark .bg-violet-100 {
+  background-color: hsl(260 45% 12%) !important;
+  border: 1px solid hsl(260 35% 18%) !important;
+}
+
+.dark .text-purple-600,
+.dark .text-purple-700,
+.dark .text-violet-600,
+.dark .text-violet-700 {
+  color: hsl(260 80% 75%) !important;
+}
+
+.dark .text-purple-500,
+.dark .text-violet-500 {
+  color: hsl(260 85% 70%) !important;
+}
+
+/* Green Statistics Boxes */
+.dark .bg-green-50,
+.dark .bg-green-100,
+.dark .bg-emerald-50,
+.dark .bg-emerald-100 {
+  background-color: hsl(142 45% 12%) !important;
+  border: 1px solid hsl(142 35% 18%) !important;
+}
+
+.dark .text-green-600,
+.dark .text-green-700,
+.dark .text-emerald-600,
+.dark .text-emerald-700 {
+  color: hsl(142 80% 75%) !important;
+}
+
+.dark .text-green-500,
+.dark .text-emerald-500 {
+  color: hsl(142 85% 70%) !important;
+}
+
+/* Red Statistics Boxes */
+.dark .bg-red-50,
+.dark .bg-red-100 {
+  background-color: hsl(0 45% 12%) !important;
+  border: 1px solid hsl(0 35% 18%) !important;
+}
+
+.dark .text-red-600,
+.dark .text-red-700 {
+  color: hsl(0 80% 75%) !important;
+}
+
+.dark .text-red-500 {
+  color: hsl(0 85% 70%) !important;
+}
+
+/* Yellow/Amber Statistics Boxes */
+.dark .bg-yellow-50,
+.dark .bg-yellow-100,
+.dark .bg-amber-50,
+.dark .bg-amber-100 {
+  background-color: hsl(45 45% 12%) !important;
+  border: 1px solid hsl(45 35% 18%) !important;
+}
+
+.dark .text-yellow-600,
+.dark .text-yellow-700,
+.dark .text-amber-600,
+.dark .text-amber-700 {
+  color: hsl(45 90% 75%) !important;
+}
+
+.dark .text-yellow-500,
+.dark .text-amber-500 {
+  color: hsl(45 95% 70%) !important;
+}
+
+/* Cyan/Teal Statistics Boxes */
+.dark .bg-cyan-50,
+.dark .bg-cyan-100,
+.dark .bg-teal-50,
+.dark .bg-teal-100 {
+  background-color: hsl(180 45% 12%) !important;
+  border: 1px solid hsl(180 35% 18%) !important;
+}
+
+.dark .text-cyan-600,
+.dark .text-cyan-700,
+.dark .text-teal-600,
+.dark .text-teal-700 {
+  color: hsl(180 80% 75%) !important;
+}
+
+.dark .text-cyan-500,
+.dark .text-teal-500 {
+  color: hsl(180 85% 70%) !important;
+}
+
+/* Pink Statistics Boxes */
+.dark .bg-pink-50,
+.dark .bg-pink-100 {
+  background-color: hsl(330 45% 12%) !important;
+  border: 1px solid hsl(330 35% 18%) !important;
+}
+
+.dark .text-pink-600,
+.dark .text-pink-700 {
+  color: hsl(330 80% 75%) !important;
+}
+
+.dark .text-pink-500 {
+  color: hsl(330 85% 70%) !important;
+}
+
+/* Indigo Statistics Boxes */
+.dark .bg-indigo-50,
+.dark .bg-indigo-100 {
+  background-color: hsl(230 45% 12%) !important;
+  border: 1px solid hsl(230 35% 18%) !important;
+}
+
+.dark .text-indigo-600,
+.dark .text-indigo-700 {
+  color: hsl(230 80% 75%) !important;
+}
+
+.dark .text-indigo-500 {
+  color: hsl(230 85% 70%) !important;
+}
+
+/* General card enhancements for statistics */
+.dark .card,
+.dark [class*="card"] {
+  box-shadow: 0 1px 3px hsl(222 84% 4.9% / 0.3) !important;
+}
+
+.dark .card:hover,
+.dark [class*="card"]:hover {
+  box-shadow: 0 4px 6px hsl(222 84% 4.9% / 0.4) !important;
+}
+
+/* Pick'ems and Predictions for Dark Mode */
+.dark .pickems-card {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .pickems-option {
+  background: hsl(var(--dm-dark-surface-1));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .pickems-option:hover {
+  background: hsl(var(--dm-dark-surface-3));
+}
+
+.dark .pickems-option.selected {
+  background: hsl(212 72% 59% / 0.15);
+  border-color: hsl(212 72% 59%);
+}
+
+.dark .pickems-score {
+  background: var(--dm-gradient-primary);
+  color: hsl(var(--dm-dark-primary-foreground));
+}
+
+/* Admin and Management Components for Dark Mode */
+.dark .admin-panel {
+  background: hsl(var(--dm-dark-surface-1));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .management-card {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .danger-zone {
+  background: hsl(var(--dm-dark-destructive) / 0.05);
+  border: 1px solid hsl(var(--dm-dark-destructive) / 0.2);
+}
+
+/* Login and Authentication for Dark Mode */
+.dark .login-form {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+}
+
+.dark .auth-provider-button {
+  background: hsl(var(--dm-dark-surface-2));
+  border: 1px solid hsl(var(--dm-dark-border));
+  color: hsl(var(--dm-dark-text-high));
+}
+
+.dark .auth-provider-button:hover {
+  background: hsl(var(--dm-dark-surface-3));
+}
+
+/* Accessibility Enhancements for Dark Mode */
+.dark *:focus-visible {
+  outline: 2px solid hsl(212 72% 59%);
+  outline-offset: 2px;
+}
+
+.dark .sr-only {
+  color: hsl(var(--dm-dark-text-high));
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .dark {
+    --dm-dark-background: 0 0% 0%;
+    --dm-dark-foreground: 0 0% 100%;
+    --dm-dark-border: 0 0% 50%;
+    --dm-dark-primary: 212 100% 70%;
+  }
+}
+
+/* Reduced Motion Support for Dark Mode */
+@media (prefers-reduced-motion: reduce) {
+  .dark * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Print Styles for Dark Mode */
+@media print {
+  .dark {
+    --dm-dark-background: 0 0% 100%;
+    --dm-dark-foreground: 0 0% 0%;
+    --dm-dark-border: 0 0% 50%;
+  }
+
+  .dark * {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+}

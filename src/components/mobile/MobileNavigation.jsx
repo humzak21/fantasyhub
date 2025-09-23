@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, X, ChevronRight, LogIn, LogOut, User } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, X, ChevronRight, LogIn, LogOut, User, Moon, Sun, Monitor, Check } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
+import { useDarkMode } from '../../contexts/DarkModeContext.jsx';
 import { MobileLoginForm } from './MobileLoginForm.jsx';
 
 /**
@@ -20,9 +21,11 @@ const MobileNavigation = ({
   currentWeek
 }) => {
   const { user, signOut } = useAuth();
+  const { isDarkMode, isAutoDetect, getThemeName, setDarkMode, enableAutoDetect } = useDarkMode();
   const [isAnimating, setIsAnimating] = useState(false);
   const [navigationHistory, setNavigationHistory] = useState(['rankings']);
   const [showLoginForm, setShowLoginForm] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   // Navigation tabs configuration
   const mainTabs = [
@@ -147,6 +150,73 @@ const MobileNavigation = ({
                       </div>
                     </div>
                     <div className="space-y-2">
+                      {/* Dark Mode Toggle */}
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowThemeMenu(!showThemeMenu)}
+                          className="w-full touch-target flex items-center justify-between"
+                        >
+                          <div className="flex items-center">
+                            {isDarkMode ? (
+                              <Moon className="h-4 w-4 mr-2" />
+                            ) : (
+                              <Sun className="h-4 w-4 mr-2" />
+                            )}
+                            Theme
+                          </div>
+                          <div className="flex items-center text-xs text-muted-foreground">
+                            {getThemeName()}
+                            <ChevronRight className={`h-3 w-3 ml-1 transition-transform ${showThemeMenu ? 'rotate-90' : ''}`} />
+                          </div>
+                        </Button>
+
+                        {showThemeMenu && (
+                          <div className="ml-4 space-y-1 border-l border-muted pl-4">
+                            <Button
+                              variant={isAutoDetect ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => {
+                                enableAutoDetect();
+                                setShowThemeMenu(false);
+                              }}
+                              className="w-full touch-target justify-start text-sm"
+                            >
+                              <Monitor className="h-3 w-3 mr-2" />
+                              Auto (System)
+                              {isAutoDetect && <Check className="ml-auto h-3 w-3" />}
+                            </Button>
+                            <Button
+                              variant={!isAutoDetect && !isDarkMode ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => {
+                                setDarkMode(false);
+                                setShowThemeMenu(false);
+                              }}
+                              className="w-full touch-target justify-start text-sm"
+                            >
+                              <Sun className="h-3 w-3 mr-2" />
+                              Light
+                              {!isAutoDetect && !isDarkMode && <Check className="ml-auto h-3 w-3" />}
+                            </Button>
+                            <Button
+                              variant={!isAutoDetect && isDarkMode ? "default" : "ghost"}
+                              size="sm"
+                              onClick={() => {
+                                setDarkMode(true);
+                                setShowThemeMenu(false);
+                              }}
+                              className="w-full touch-target justify-start text-sm"
+                            >
+                              <Moon className="h-3 w-3 mr-2" />
+                              Dark
+                              {!isAutoDetect && isDarkMode && <Check className="ml-auto h-3 w-3" />}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
                       <Button
                         variant="outline"
                         size="sm"
