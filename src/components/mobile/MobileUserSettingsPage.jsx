@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext.jsx';
 import { supabase } from '../../../services/supabaseClient.js';
-import { User, Save, CheckCircle, AlertCircle, Settings, Mail, Calendar, Shield, Bell, Palette } from 'lucide-react';
+import { User, Save, CheckCircle, AlertCircle, Mail, Calendar, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import MobileScreenManager from './MobileScreenManager';
 import { MobileInput } from './MobileInput';
@@ -261,62 +261,6 @@ const MobileUserSettingsPage = ({ isOpen, onClose }) => {
               <span className="text-xs font-mono text-gray-500">
                 {user?.id?.slice(0, 8)}...
               </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Future Settings Sections */}
-        <div className="bg-white rounded-lg p-4 shadow-sm">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-              <Settings className="w-6 h-6 text-purple-600" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-lg font-semibold text-gray-900">More Settings</h2>
-              <p className="text-sm text-gray-600">
-                Additional options coming soon
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-3 border-b border-gray-100">
-              <div className="flex items-center space-x-3">
-                <Bell className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Notifications</p>
-                  <p className="text-xs text-gray-500">Manage your notification preferences</p>
-                </div>
-              </div>
-              <div className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-500">
-                Soon
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center py-3 border-b border-gray-100">
-              <div className="flex items-center space-x-3">
-                <Palette className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Appearance</p>
-                  <p className="text-xs text-gray-500">Customize your app appearance</p>
-                </div>
-              </div>
-              <div className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-500">
-                Soon
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center py-3">
-              <div className="flex items-center space-x-3">
-                <Shield className="w-5 h-5 text-gray-400" />
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Privacy</p>
-                  <p className="text-xs text-gray-500">Control your privacy settings</p>
-                </div>
-              </div>
-              <div className="bg-gray-100 px-2 py-1 rounded text-xs text-gray-500">
-                Soon
-              </div>
             </div>
           </div>
         </div>

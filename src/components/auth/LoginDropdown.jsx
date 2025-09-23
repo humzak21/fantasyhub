@@ -1,16 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../../src/contexts/AuthContext.jsx'
+import { useDarkMode } from '../../contexts/DarkModeContext.jsx'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '../ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '../ui/avatar'
-import { User, LogIn, LogOut, UserPlus, Mail, Lock, CheckCircle, Settings } from 'lucide-react'
+import { User, LogIn, LogOut, UserPlus, Mail, Lock, CheckCircle, Settings, Moon, Sun, Monitor, Check } from 'lucide-react'
 
 export const LoginDropdown = () => {
   const { user, signIn, signUp, signOut } = useAuth()
+  const { isDarkMode, isAutoDetect, getThemeName, setDarkMode, enableAutoDetect } = useDarkMode()
   const navigate = useNavigate()
   const [showLoginForm, setShowLoginForm] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
@@ -174,6 +176,36 @@ export const LoginDropdown = () => {
               </div>
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                {isDarkMode ? (
+                  <Moon className="mr-2 h-4 w-4" />
+                ) : (
+                  <Sun className="mr-2 h-4 w-4" />
+                )}
+                <span>Theme</span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {getThemeName()}
+                </span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onClick={() => enableAutoDetect()}>
+                  <Monitor className="mr-2 h-4 w-4" />
+                  <span>Auto (System)</span>
+                  {isAutoDetect && <Check className="ml-auto h-4 w-4" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDarkMode(false)}>
+                  <Sun className="mr-2 h-4 w-4" />
+                  <span>Light</span>
+                  {!isAutoDetect && !isDarkMode && <Check className="ml-auto h-4 w-4" />}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDarkMode(true)}>
+                  <Moon className="mr-2 h-4 w-4" />
+                  <span>Dark</span>
+                  {!isAutoDetect && isDarkMode && <Check className="ml-auto h-4 w-4" />}
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuItem onClick={() => navigate('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
