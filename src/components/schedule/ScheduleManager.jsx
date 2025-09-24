@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Calendar, Users, RefreshCw, Download, Upload, Plus, Edit3, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 
-const ScheduleManager = ({ 
+const ScheduleManager = ({
   season = null,
   schedule = [],
   currentWeek = 1, // Added currentWeek prop to sync with week navigator
   onUpdateGame,
   onDeleteGame,
   loading = false,
-  isAuthenticated = false // This now represents isAdmin from parent
+  isAuthenticated = false, // This now represents isAdmin from parent
+  user = null
 }) => {
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
 
@@ -54,13 +56,13 @@ const ScheduleManager = ({
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-50 border-green-200 text-green-800';
+        return 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800/30 dark:text-green-300';
       case 'partial':
-        return 'bg-orange-50 border-orange-200 text-orange-800';
+        return 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/20 dark:border-orange-800/30 dark:text-orange-300';
       case 'scheduled':
-        return 'bg-blue-50 border-blue-200 text-blue-800';
+        return 'bg-gray-100 border-gray-300 text-gray-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300';
       default:
-        return 'bg-gray-50 border-gray-200 text-gray-600';
+        return 'bg-gray-100 border-gray-300 text-gray-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300';
     }
   };
 
@@ -144,20 +146,21 @@ const ScheduleManager = ({
           {viewMode === 'week' && (
             <div className="space-y-4">
               {/* Week games */}
-              <WeekScheduleView 
+              <WeekScheduleView
                 week={currentWeek}
                 games={getGamesForWeek(currentWeek)}
                 teams={season.teams}
                 onUpdateGame={onUpdateGame}
                 onDeleteGame={onDeleteGame}
                 isAuthenticated={isAuthenticated}
+                user={user}
               />
             </div>
           )}
 
           {/* View Mode: Full Schedule */}
           {viewMode === 'full' && (
-            <FullScheduleView 
+            <FullScheduleView
               schedule={schedule}
               teams={season.teams}
               totalWeeks={season.totalWeeks}
@@ -165,6 +168,7 @@ const ScheduleManager = ({
               getWeekStatus={getWeekStatus}
               getStatusIcon={getStatusIcon}
               getStatusColor={getStatusColor}
+              user={user}
             />
           )}
         </>
@@ -175,7 +179,7 @@ const ScheduleManager = ({
 };
 
 // Week Schedule View Component
-const WeekScheduleView = ({ week, games, teams, onUpdateGame, onDeleteGame, isAuthenticated = false }) => {
+const WeekScheduleView = ({ week, games, teams, onUpdateGame, onDeleteGame, isAuthenticated = false, user = null }) => {
   const getTeamName = (teamId) => {
     const team = teams.find(t => t.id === teamId);
     return team ? team.name : 'Unknown Team';
@@ -193,13 +197,15 @@ const WeekScheduleView = ({ week, games, teams, onUpdateGame, onDeleteGame, isAu
   return (
     <div className="space-y-4">
       {games.map(game => (
-        <GameCard 
+        <GameCard
           key={game.id}
           game={game}
           getTeamName={getTeamName}
           onUpdateGame={onUpdateGame}
           onDeleteGame={onDeleteGame}
           isAuthenticated={isAuthenticated}
+          teams={teams}
+          user={user}
         />
       ))}
     </div>
@@ -207,14 +213,15 @@ const WeekScheduleView = ({ week, games, teams, onUpdateGame, onDeleteGame, isAu
 };
 
 // Full Schedule View Component
-const FullScheduleView = ({ 
-  schedule, 
-  teams, 
-  totalWeeks, 
+const FullScheduleView = ({
+  schedule,
+  teams,
+  totalWeeks,
   regularSeasonWeeks,
   getWeekStatus,
   getStatusIcon,
-  getStatusColor 
+  getStatusColor,
+  user = null
 }) => {
   const getTeamName = (teamId) => {
     const team = teams.find(t => t.id === teamId);
@@ -249,17 +256,25 @@ const FullScheduleView = ({
               <p className="text-sm opacity-75">No games scheduled</p>
             ) : (
               <div className="grid gap-2">
-                {weekGames.map(game => (
-                  <div key={game.id} className="bg-white bg-opacity-50 rounded p-2 text-sm">
-                    <span className="font-medium">{getTeamName(game.team1Id)}</span>
+                {weekGames.map(game => {
+                  const team1 = teams.find(t => t.id === game.team1Id);
+                  const team2 = teams.find(t => t.id === game.team2Id);
+                  const isUserGame = isUserTeam(team1, user) || isUserTeam(team2, user);
+                  const baseClasses = "bg-white bg-opacity-50 rounded p-2 text-sm";
+                  const highlightClasses = getUserTeamHighlightClasses(isUserGame);
+
+                  return (
+                  <div key={game.id} className={`${baseClasses} ${highlightClasses}`}>
+                    <span className="font-medium dark:text-white">{getTeamName(game.team1Id)}</span>
                     {game.isCompleted ? (
-                      <span className="mx-2">{game.team1Score} - {game.team2Score}</span>
+                      <span className="mx-2 dark:text-white">{game.team1Score} - {game.team2Score}</span>
                     ) : (
-                      <span className="mx-2">vs</span>
+                      <span className="mx-2 dark:text-white">vs</span>
                     )}
-                    <span className="font-medium">{getTeamName(game.team2Id)}</span>
+                    <span className="font-medium dark:text-white">{getTeamName(game.team2Id)}</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -270,7 +285,7 @@ const FullScheduleView = ({
 };
 
 // Game Card Component
-const GameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthenticated = false }) => {
+const GameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthenticated = false, teams = [], user = null }) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
     team1Score: game.team1Score || '',
@@ -302,8 +317,14 @@ const GameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthenticat
     }
   };
 
+  // Check if this game involves the user's team
+  const team1 = teams.find(t => t.id === game.team1Id);
+  const team2 = teams.find(t => t.id === game.team2Id);
+  const isUserGame = isUserTeam(team1, user) || isUserTeam(team2, user);
+  const highlightClasses = getUserTeamHighlightClasses(isUserGame);
+
   return (
-    <div className="bg-white border rounded-lg p-4 shadow-sm">
+    <div className={`bg-white border rounded-lg p-4 shadow-sm ${highlightClasses}`}>
       <div className="flex items-center justify-between">
         <div className="flex-1">
           {editing ? (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, Trophy, Target, AlertCircle, CheckCircle2, Calendar, Save, Edit3 } from 'lucide-react';
 import MobileButton from './MobileButton';
+import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 
 const MobilePickEmsSubmission = ({
   season,
@@ -11,7 +12,8 @@ const MobilePickEmsSubmission = ({
   onSubmitPicks,
   loading = false,
   canSubmit = false,
-  timeRemaining = null
+  timeRemaining = null,
+  user = null
 }) => {
   const [picks, setPicks] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -266,7 +268,7 @@ const MobilePickEmsSubmission = ({
                       (status.status !== 'open' || (hasSubmitted && !isEditing))
                         ? 'opacity-60 cursor-not-allowed'
                         : 'active:scale-95 cursor-pointer'
-                    }`}
+                    } ${getUserTeamHighlightClasses(isUserTeam(game.team1, user))}`}
                   >
                     <div className="text-center">
                       <div className={`font-semibold text-sm mb-1 ${
@@ -294,7 +296,7 @@ const MobilePickEmsSubmission = ({
                       (status.status !== 'open' || (hasSubmitted && !isEditing))
                         ? 'opacity-60 cursor-not-allowed'
                         : 'active:scale-95 cursor-pointer'
-                    }`}
+                    } ${getUserTeamHighlightClasses(isUserTeam(game.team2, user))}`}
                   >
                     <div className="text-center">
                       <div className={`font-semibold text-sm mb-1 ${

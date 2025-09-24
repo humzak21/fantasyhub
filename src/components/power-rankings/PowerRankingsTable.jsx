@@ -13,6 +13,7 @@ import {
 import { Card, CardContent } from '../ui/card';
 import TrendingPlayerIndicators from '../analytics/TrendingPlayerIndicators';
 import AnalyticsInsights from '../analytics/AnalyticsInsights';
+import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 
 const PowerRankingsTable = ({
   rankings = [],
@@ -22,7 +23,8 @@ const PowerRankingsTable = ({
   loading = false,
   analyticsData = {},
   showAnalytics = false,
-  onExportAnalytics = null
+  onExportAnalytics = null,
+  user = null
 }) => {
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [analyticsExpandedRows, setAnalyticsExpandedRows] = useState(new Set());
@@ -249,9 +251,13 @@ const PowerRankingsTable = ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rankings.map((team, index) => (
+          {rankings.map((team, index) => {
+            const isCurrentUserTeam = isUserTeam(team, user);
+            const highlightClasses = getUserTeamHighlightClasses(isCurrentUserTeam);
+
+            return (
             <React.Fragment key={team.teamId || team.id}>
-              <TableRow className="group">
+              <TableRow className={`group ${highlightClasses}`}>
               <TableCell>
                 <div className="flex items-center gap-3">
                   <div className={`relative inline-flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm border-2 shadow-sm ${getRankColor(index + 1)}`}>
@@ -460,7 +466,8 @@ const PowerRankingsTable = ({
                 </TableRow>
               )}
             </React.Fragment>
-          ))}
+          );
+          })}
         </TableBody>
       </Table>
       

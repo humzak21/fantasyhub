@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { 
-  Trophy, 
-  TrendingUp, 
-  TrendingDown, 
-  Minus, 
-  Crown, 
-  Medal, 
-  Award, 
-  ChevronDown, 
-  ChevronUp, 
-  Info, 
+import {
+  Trophy,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Crown,
+  Medal,
+  Award,
+  ChevronDown,
+  ChevronUp,
+  Info,
   Target,
   Zap,
   Shield,
@@ -19,6 +19,7 @@ import {
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 
 /**
  * Mobile-optimized Power Rankings component
@@ -31,7 +32,8 @@ const MobilePowerRankings = ({
   showAdvanced = false,
   analyticsData = {},
   showAnalytics = false,
-  onExportAnalytics = null
+  onExportAnalytics = null,
+  user = null
 }) => {
   const [expandedCards, setExpandedCards] = useState(new Set());
   const [analyticsExpandedCards, setAnalyticsExpandedCards] = useState(new Set());
@@ -255,9 +257,11 @@ const MobilePowerRankings = ({
           const teamId = team.teamId || team.id;
           const isExpanded = expandedCards.has(teamId);
           const isAnalyticsExpanded = analyticsExpandedCards.has(teamId);
+          const isCurrentUserTeam = isUserTeam(team, user);
+          const highlightClasses = getUserTeamHighlightClasses(isCurrentUserTeam);
 
           return (
-            <Card key={teamId} className="overflow-hidden border shadow-sm bg-card">
+            <Card key={teamId} className={`overflow-hidden border shadow-sm bg-card ${highlightClasses}`}>
               <CardContent className="p-0">
                 {/* Header Section - Team Identity & Rating */}
                 <div className="p-4 bg-gradient-to-r from-card to-muted/20 border-b">

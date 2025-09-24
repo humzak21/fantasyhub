@@ -16,16 +16,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
+import { moveUserTeamToFirst } from '../../utils/userTeamUtils';
 
-const TeamsAndRosters = ({ 
-  teams = [], 
+const TeamsAndRosters = ({
+  teams = [],
   rosters = {},
-  onAddTeam, 
-  onUpdateTeam, 
-  onRemoveTeam, 
+  onAddTeam,
+  onUpdateTeam,
+  onRemoveTeam,
   loading = false,
   powerRankings = [],
-  isAuthenticated = false // This now represents isAdmin from parent
+  isAuthenticated = false, // This now represents isAdmin from parent
+  user = null
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
@@ -338,7 +340,7 @@ const TeamsAndRosters = ({
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {teams.map(team => {
+          {moveUserTeamToFirst(teams, user).map(team => {
             const rank = getTeamRanking(team.id);
             const stats = getTeamStats(team.id);
             const teamRoster = rosters[team.id]?.roster || [];

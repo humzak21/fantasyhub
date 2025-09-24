@@ -32,6 +32,11 @@
     "postbuild": "echo 'Build completed successfully!'",
     "db:setup": "echo 'Run the SQL files in database/ folder in your Supabase SQL editor'",
     "db:reset": "echo 'Reset database by running schema.sql then functions.sql in Supabase'",
+    "automation:test": "node scripts/weeklyDataUpdate.js test",
+    "automation:run": "node scripts/weeklyDataUpdate.js full",
+    "automation:status": "curl -s http://localhost:3001/api/automation/status | jq",
+    "automation:logs": "curl -s http://localhost:3001/api/automation/logs | jq",
+    "automation:trigger": "curl -X POST -s http://localhost:3001/api/automation/trigger | jq",
     "ffanalytics-config": "node scripts/ffanalytics-config-cli.js"
   },
   "dependencies": {

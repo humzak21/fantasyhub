@@ -35,7 +35,7 @@ import { MobileTouchButton, useMobileTouch } from '../../../utils/mobileTouch.js
 import '../../../styles/mobile.css';
 
 const MobileFantasyFootballApp = () => {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useAuth();
 
   const {
     seasons,
@@ -341,6 +341,7 @@ const MobileFantasyFootballApp = () => {
                         showAdvanced={true}
                         analyticsData={{}}
                         showAnalytics={false}
+                        user={user}
                       />
                     )}
 
@@ -374,6 +375,7 @@ const MobileFantasyFootballApp = () => {
                         loading={loading}
                         powerRankings={weeklyRankings}
                         isAuthenticated={isAdmin}
+                        user={user}
                       />
                     )}
 
@@ -386,6 +388,7 @@ const MobileFantasyFootballApp = () => {
                         loading={loading}
                         isAuthenticated={isAuthenticated}
                         isAdmin={isAdmin}
+                        user={user}
                       />
                     )}
 

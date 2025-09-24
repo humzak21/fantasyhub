@@ -27,7 +27,8 @@ const EnhancedPowerRankings = ({
   currentWeek = 1,
   loading = false,
   showAdvanced = false,
-  analyticsEnabled = true
+  analyticsEnabled = true,
+  user = null
 }) => {
   const [activeTab, setActiveTab] = useState('table');
   const [showAnalyticsColumn, setShowAnalyticsColumn] = useState(true);
@@ -220,6 +221,7 @@ const EnhancedPowerRankings = ({
             analyticsData={analyticsData}
             showAnalytics={analyticsEnabled && showAnalyticsColumn && hasAnalyticsData}
             onExportAnalytics={handleAnalyticsExport}
+            user={user}
           />
         </TabsContent>
 

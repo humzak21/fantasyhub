@@ -106,7 +106,7 @@ const MobileStatistics = ({ rankings = [], currentWeek = 1, season = null }) => 
           <h4 className="font-medium text-sm text-muted-foreground">{title}</h4>
           <Icon className={`h-4 w-4 text-${color}-600`} />
         </div>
-        <div className={`font-bold text-${color}-900 ${size === 'large' ? 'text-3xl' : 'text-xl'}`}>
+        <div className={`font-bold ${color === 'blue' || color === 'orange' || color === 'purple' ? 'text-white' : `text-${color}-900`} ${size === 'large' ? 'text-3xl' : 'text-xl'}`}>
           {value}
         </div>
         {subtitle && (
@@ -144,7 +144,7 @@ const MobileStatistics = ({ rankings = [], currentWeek = 1, season = null }) => 
             )}
             <div className="flex-1 min-w-0">
               <h4 className={`font-medium text-sm text-${color}-700 mb-1`}>{title}</h4>
-              <p className={`font-bold text-lg text-${color}-900 truncate`}>{team.name}</p>
+              <p className={`font-bold text-lg text-white truncate`}>{team.name}</p>
               <p className={`text-${color}-600 text-sm font-medium`}>{stat}</p>
               {description && (
                 <p className={`text-${color}-500 text-xs mt-1`}>{description}</p>
@@ -331,7 +331,7 @@ const MobileStatistics = ({ rankings = [], currentWeek = 1, season = null }) => 
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold truncate">{team.name}</h4>
+                    <h4 className="font-semibold truncate text-white">{team.name}</h4>
                     <p className="text-sm text-muted-foreground">
                       {team.wins || 0}-{team.losses || 0} • {((team.winPercentage || 0) * 100).toFixed(1)}%
                     </p>

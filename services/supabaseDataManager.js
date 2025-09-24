@@ -4,28 +4,85 @@ import {
   createPickEmWeek, createPickEmSubmission, validatePickEmWeek, validatePickEmSubmission,
   calculatePickEmSchedule, getPickEmTimeStatus, PICK_EM_STATUS
 } from '../types/index.js';
-import { supabase, supabaseAdmin, handleSupabaseError, formatForDatabase, formatFromDatabase } from './supabaseClient.js';
+import { handleSupabaseError, formatForDatabase, formatFromDatabase } from './supabaseClient.js';
 import { PowerRankingCalculator } from './powerRankingCalculator.js';
+import { createClient } from '@supabase/supabase-js';
 
 export class SupabaseDataManager {
   constructor() {
     this.seasonsCache = new Map();
     this.activeSeasonId = null;
     this._initialized = false;
-    // Use admin client for Node.js scripts, regular client for browser
-    this.client = supabaseAdmin || supabase;
-    this.isAdminMode = !!supabaseAdmin;
+    this.client = null;
+    this.isAdminMode = false;
   }
 
   async initialize() {
     if (this._initialized) return;
-    
+
     try {
-      
+      // Initialize client dynamically to ensure environment variables are loaded
+      if (!this.client) {
+        // Use proper environment variable detection for browser vs server
+        const supabaseUrl = typeof window !== 'undefined'
+          ? import.meta.env.VITE_SUPABASE_URL
+          : (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL);
+
+        const supabaseServiceRoleKey = typeof window !== 'undefined'
+          ? null
+          : process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+        const supabaseAnonKey = typeof window !== 'undefined'
+          ? import.meta.env.VITE_SUPABASE_ANON_KEY
+          : (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY);
+
+        if (!supabaseUrl) {
+          throw new Error('Missing SUPABASE_URL environment variable');
+        }
+
+        // Prefer service role key for Node.js scripts (admin access)
+        if (supabaseServiceRoleKey) {
+          this.client = createClient(supabaseUrl, supabaseServiceRoleKey, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+            },
+            db: {
+              schema: 'public'
+            },
+            global: {
+              headers: {
+                'x-client-info': 'fantasy-football-power-rankings-admin'
+              }
+            }
+          });
+          this.isAdminMode = true;
+        } else if (supabaseAnonKey) {
+          this.client = createClient(supabaseUrl, supabaseAnonKey, {
+            auth: {
+              autoRefreshToken: true,
+              persistSession: true,
+              detectSessionInUrl: true
+            },
+            db: {
+              schema: 'public'
+            },
+            global: {
+              headers: {
+                'x-client-info': 'fantasy-football-power-rankings'
+              }
+            }
+          });
+          this.isAdminMode = false;
+        } else {
+          throw new Error('Missing Supabase authentication keys (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY)');
+        }
+      }
+
       if (!this.isAdminMode) {
         // Check if user is authenticated (browser mode) - but allow read-only access for non-authenticated users
         const { data: { user }, error } = await this.client.auth.getUser();
-        
+
         // Store auth state but don't throw error - allow read-only access
         this.isAuthenticated = !!(user && !error);
       } else {
@@ -165,7 +222,7 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('seasons')
         .select(`
           *,
@@ -200,13 +257,13 @@ export class SupabaseDataManager {
     
     try {
       // Deactivate all seasons
-      await supabase
+      await this.client
         .from('seasons')
         .update({ is_active: false })
         .neq('id', seasonId);
 
       // Activate the specified season
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('seasons')
         .update({ is_active: true })
         .eq('id', seasonId)
@@ -263,7 +320,7 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      const { error } = await supabase
+      const { error } = await this.client
         .from('seasons')
         .delete()
         .eq('id', seasonId);
@@ -317,7 +374,7 @@ export class SupabaseDataManager {
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('teams')
         .insert(formatForDatabase(team))
         .select()
@@ -962,7 +1019,7 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      const { error } = await supabase
+      const { error } = await this.client
         .from('teams')
         .delete()
         .eq('id', teamId)
@@ -1206,7 +1263,7 @@ export class SupabaseDataManager {
         type: game.type
       });
 
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('games')
         .upsert(gameData, { 
           onConflict: 'season_id,week,team1_id,team2_id',
@@ -1219,7 +1276,7 @@ export class SupabaseDataManager {
 
       // If game has scores, update using database function for calculations
       if (team1Score !== null && team2Score !== null) {
-        const { data: updatedGame, error: updateError } = await supabase
+        const { data: updatedGame, error: updateError } = await this.client
           .rpc('update_game_result', {
             game_id: data.id,
             team1_score: team1Score,
@@ -1242,7 +1299,7 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .rpc('update_game_result', {
           game_id: gameId,
           team1_score: team1Score,
@@ -1265,7 +1322,7 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('weeks')
         .update({
           is_completed: true,
@@ -1298,7 +1355,7 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('weeks')
         .select('week_number, is_completed')
         .eq('season_id', seasonId)
@@ -1319,7 +1376,7 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('games')
         .select('*')
         .eq('season_id', seasonId)
@@ -1339,7 +1396,7 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      let query = supabase
+      let query = this.client
         .from('games')
         .select('*')
         .eq('season_id', seasonId)
@@ -1546,7 +1603,7 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      let query = supabase
+      let query = this.client
         .from('power_rankings_history')
         .select(`
           *,
@@ -1738,7 +1795,7 @@ export class SupabaseDataManager {
 
     try {
       // Delete existing schedule
-      await supabase
+      await this.client
         .from('games')
         .delete()
         .eq('season_id', seasonId);
@@ -1771,7 +1828,7 @@ export class SupabaseDataManager {
         week++;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('games')
         .insert(games)
         .select();
@@ -1844,19 +1901,148 @@ export class SupabaseDataManager {
 
   async assignScheduleToSeason(importId, seasonId, notes = null) {
     await this.initialize();
-    
+
     try {
-      const { data, error } = await this.client.rpc('assign_schedule_to_season', {
-        p_import_id: importId,
-        p_season_id: seasonId,
-        p_notes: notes
-      });
-      
-      if (error) throw error;
-      
-      return data;
+      // First, import teams from ESPN import to the main teams table
+      await this.importTeamsFromESPNImport(importId, seasonId);
+
+      // Then handle the schedule assignment (this can be database function or manual)
+      try {
+        const { data, error } = await this.client.rpc('assign_schedule_to_season', {
+          p_import_id: importId,
+          p_season_id: seasonId,
+          p_notes: notes
+        });
+
+        if (error) throw error;
+        return data;
+      } catch (rpcError) {
+        // If the RPC doesn't exist, handle assignment manually
+        if (rpcError.code === '42883') { // function does not exist
+          return await this.manualAssignScheduleToSeason(importId, seasonId, notes);
+        }
+        throw rpcError;
+      }
     } catch (error) {
       handleSupabaseError(error, 'Assign schedule to season');
+    }
+  }
+
+  async importTeamsFromESPNImport(importId, seasonId) {
+    await this.initialize();
+
+    try {
+      // Get teams from ESPN import
+      const { data: espnTeams, error: teamsError } = await this.client
+        .from('espn_teams')
+        .select('*')
+        .eq('import_id', importId);
+
+      if (teamsError) throw teamsError;
+
+      console.log(`🏈 Importing ${espnTeams.length} teams from ESPN import to season...`);
+
+      const importedTeams = [];
+      const errors = [];
+
+      for (const espnTeam of espnTeams) {
+        try {
+          // Check if team already exists for this season
+          const { data: existingTeam } = await this.client
+            .from('teams')
+            .select('id')
+            .eq('season_id', seasonId)
+            .eq('espn_team_id', espnTeam.espn_team_id)
+            .single();
+
+          if (existingTeam) {
+            console.log(`   Skipping ${espnTeam.team_name} - already exists`);
+            continue;
+          }
+
+          console.log(`   Adding: ${espnTeam.team_name} (Owner: ${espnTeam.owner_name || 'Unknown'})`);
+
+          const teamData = {
+            season_id: seasonId,
+            name: espnTeam.team_name,
+            owner: espnTeam.owner_name || espnTeam.abbreviation || '',
+            espn_team_id: espnTeam.espn_team_id,
+            wins: espnTeam.record?.wins || 0,
+            losses: espnTeam.record?.losses || 0,
+            ties: espnTeam.record?.ties || 0,
+            points_for: espnTeam.record?.pointsFor || 0,
+            points_against: espnTeam.record?.pointsAgainst || 0,
+            win_percentage: 0,
+            point_differential: 0,
+            average_points_for: 0,
+            average_points_against: 0,
+            strength_of_schedule: 0,
+            opponent_win_percentage: 0,
+            quality_wins: 0,
+            bad_losses: 0,
+            blowout_wins: 0,
+            close_wins: 0,
+            close_losses: 0,
+            recent_form: 0,
+            current_streak: { type: 'none', length: 0 },
+            power_rating: 0,
+            previous_rank: null,
+            rank_change: 0
+          };
+
+          const { data: newTeam, error: insertError } = await this.client
+            .from('teams')
+            .insert(formatForDatabase(teamData))
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+
+          importedTeams.push(newTeam);
+
+        } catch (error) {
+          console.error(`   ❌ Failed to import ${espnTeam.team_name}: ${error.message}`);
+          errors.push({ team: espnTeam.team_name, error: error.message });
+        }
+      }
+
+      console.log(`✅ Team import completed! Imported: ${importedTeams.length}, Errors: ${errors.length}`);
+
+      return {
+        imported: importedTeams,
+        errors,
+        success: errors.length === 0
+      };
+
+    } catch (error) {
+      handleSupabaseError(error, 'Import teams from ESPN import');
+    }
+  }
+
+  async manualAssignScheduleToSeason(importId, seasonId, notes = null) {
+    await this.initialize();
+
+    try {
+      // Update the import record to mark it as assigned
+      const { error: updateError } = await this.client
+        .from('espn_schedule_imports')
+        .update({
+          assignment_status: 'assigned',
+          assigned_season_id: seasonId,
+          assigned_at: new Date().toISOString(),
+          assignment_notes: notes
+        })
+        .eq('id', importId);
+
+      if (updateError) throw updateError;
+
+      return {
+        success: true,
+        message: 'Schedule and teams successfully assigned to season'
+      };
+
+    } catch (error) {
+      handleSupabaseError(error, 'Manual assign schedule to season');
     }
   }
 
@@ -1949,7 +2135,7 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from('seasons')
         .select(`
           *,

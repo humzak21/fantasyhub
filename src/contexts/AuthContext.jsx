@@ -20,6 +20,13 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
+        // Check if supabase client is initialized
+        if (!supabase || !supabase.auth) {
+          console.error('Supabase client not initialized')
+          setLoading(false)
+          return
+        }
+
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession()
         if (error) {
@@ -34,7 +41,11 @@ export const AuthProvider = ({ children }) => {
 
     initializeAuth()
 
-    // Listen for auth changes
+    // Listen for auth changes only if supabase is initialized
+    if (!supabase || !supabase.auth) {
+      return
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setLoading(false)
@@ -54,6 +65,10 @@ export const AuthProvider = ({ children }) => {
 
   const signIn = async (email, password) => {
     try {
+      if (!supabase || !supabase.auth) {
+        return { success: false, error: 'Authentication service not available' }
+      }
+
       setLoading(true)
       const { data, error } = await supabase.auth.signInWithPassword({
         email,

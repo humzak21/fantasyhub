@@ -63,7 +63,11 @@ export default defineConfig({
     minify: 'esbuild',
     target: 'esnext',
     rollupOptions: {
-      external: [],
+      external: [
+        'child_process',
+        'fs',
+        'path'
+      ],
       output: {
         manualChunks: (id) => {
           // Core vendor libraries - keep ALL React-related in same chunk
@@ -108,6 +112,11 @@ export default defineConfig({
             return 'desktop-bundle';
           }
 
+          // Exclude Node.js utilities from browser bundle
+          if (id.includes('utils/rExecutor')) {
+            return undefined; // Don't include in any chunk
+          }
+
           // Shared utilities and services
           if (id.includes('services/') || id.includes('hooks/') || id.includes('utils/')) {
             return 'shared-services';
@@ -139,6 +148,9 @@ export default defineConfig({
     // Ensure Supabase env vars are available at build time for Railway
     __SUPABASE_URL__: JSON.stringify(process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL),
     __SUPABASE_ANON_KEY__: JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY),
+    // Define global process for browser environment
+    global: 'globalThis',
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
   },
   // Ensure proper handling of environment variables
   envPrefix: ['VITE_', 'REACT_APP_'],
