@@ -430,24 +430,8 @@
   background: hsl(var(--dm-dark-overlay));
 }
 
-.dark .drawer-trigger {
-  background: hsl(var(--dm-dark-primary));
-  color: hsl(var(--dm-dark-primary-foreground));
-}
-
-.dark .drawer-trigger:hover {
-  background: hsl(212 72% 65%);
-  box-shadow:
-    0 8px 25px -8px hsl(212 72% 59% / 0.4),
-    0 4px 12px -4px hsl(222 84% 4.9% / 0.3);
-}
-
-.dark .drawer-trigger.open {
-  background: hsl(212 72% 55%);
-  box-shadow:
-    0 6px 20px -6px hsl(212 72% 59% / 0.4),
-    0 2px 8px -2px hsl(222 84% 4.9% / 0.3);
-}
+/* Drawer trigger styles moved to globals.css with proper color classes */
+/* These styles are now handled by .standings-button-dark and .standings-button-light classes */
 
 /* Mobile Navigation Enhancements for Dark Mode */
 .dark .mobile-nav-overlay {

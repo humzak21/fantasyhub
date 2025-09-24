@@ -421,10 +421,17 @@
     will-change: transform, box-shadow, background-color;
   }
   
-  .drawer-trigger:hover {
+  button.drawer-trigger.standings-button-light:hover {
     transform: translateY(-2px) scale(1.05);
     box-shadow: 
       0 8px 25px -8px rgba(59, 130, 246, 0.4),
+      0 4px 12px -4px rgba(0, 0, 0, 0.1);
+  }
+
+  button.drawer-trigger.standings-button-dark:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 
+      0 8px 25px -8px rgba(249, 115, 22, 0.4),
       0 4px 12px -4px rgba(0, 0, 0, 0.1);
   }
   
@@ -433,11 +440,19 @@
     transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
-  .drawer-trigger.open {
-    background-color: rgb(29, 78, 216);
+  button.drawer-trigger.open.standings-button-light {
+    background-color: rgb(29, 78, 216) !important;
     transform: translateY(-1px) scale(1.02);
     box-shadow: 
       0 6px 20px -6px rgba(59, 130, 246, 0.3),
+      0 2px 8px -2px rgba(0, 0, 0, 0.1);
+  }
+
+  button.drawer-trigger.open.standings-button-dark {
+    background-color: rgb(194, 65, 12) !important;
+    transform: translateY(-1px) scale(1.02);
+    box-shadow: 
+      0 6px 20px -6px rgba(249, 115, 22, 0.3),
       0 2px 8px -2px rgba(0, 0, 0, 0.1);
   }
   
@@ -617,6 +632,19 @@
   .mobile-optimized select,
   .mobile-optimized textarea {
     font-size: 16px; /* Prevents zoom on iOS */
+  }
+
+  /* Standings Button Custom Styles - High specificity to override all other styles */
+  button.drawer-trigger.standings-button-light {
+    background-color: #2563eb !important;
+    background-image: none !important;
+    background: #2563eb !important;
+  }
+
+  button.drawer-trigger.standings-button-dark {
+    background-color: #f97316 !important;
+    background-image: none !important;
+    background: #f97316 !important;
   }
 
 }

@@ -129,8 +129,8 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
   if (!shouldRender) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-40 flex justify-end"
+    <div
+      className="fixed inset-0 z-[60] flex justify-end"
       onClick={handleBackdropClick}
     >
       {/* Backdrop overlay */}
@@ -146,7 +146,7 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
       <div
         ref={drawerRef}
         className={`
-          drawer-panel relative bg-white h-full shadow-xl
+          drawer-panel relative bg-white dark:bg-gray-900 h-full shadow-xl
           w-[95%] max-w-[690px] sm:w-[690px]
           flex flex-col safe-area-inset-right
           transition-transform duration-300 cubic-bezier(0.4, 0, 0.2, 1)
