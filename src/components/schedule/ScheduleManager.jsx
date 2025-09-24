@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Calendar, Users, RefreshCw, Download, Upload, Plus, Edit3, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { Badge } from '../ui/badge';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 
 const ScheduleManager = ({
@@ -10,7 +11,9 @@ const ScheduleManager = ({
   onDeleteGame,
   loading = false,
   isAuthenticated = false, // This now represents isAdmin from parent
-  user = null
+  user = null,
+  powerRankings = [],
+  rosters = {}
 }) => {
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
 
@@ -154,6 +157,8 @@ const ScheduleManager = ({
                 onDeleteGame={onDeleteGame}
                 isAuthenticated={isAuthenticated}
                 user={user}
+                powerRankings={powerRankings}
+                rosters={rosters}
               />
             </div>
           )}
@@ -179,33 +184,39 @@ const ScheduleManager = ({
 };
 
 // Week Schedule View Component
-const WeekScheduleView = ({ week, games, teams, onUpdateGame, onDeleteGame, isAuthenticated = false, user = null }) => {
-  const getTeamName = (teamId) => {
-    const team = teams.find(t => t.id === teamId);
-    return team ? team.name : 'Unknown Team';
-  };
-
+const WeekScheduleView = ({
+  week,
+  games,
+  teams,
+  onUpdateGame,
+  onDeleteGame,
+  isAuthenticated = false,
+  user = null,
+  powerRankings = [],
+  rosters = {}
+}) => {
   if (games.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <Calendar size={48} className="mx-auto mb-4 text-gray-300" />
+      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <Calendar size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
         <p>No games scheduled for Week {week}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {games.map(game => (
         <GameCard
           key={game.id}
           game={game}
-          getTeamName={getTeamName}
           onUpdateGame={onUpdateGame}
           onDeleteGame={onDeleteGame}
           isAuthenticated={isAuthenticated}
           teams={teams}
           user={user}
+          powerRankings={powerRankings}
+          rosters={rosters}
         />
       ))}
     </div>
@@ -284,8 +295,17 @@ const FullScheduleView = ({
   );
 };
 
-// Game Card Component
-const GameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthenticated = false, teams = [], user = null }) => {
+// Game Card Component with Versus Layout
+const GameCard = ({
+  game,
+  onUpdateGame,
+  onDeleteGame,
+  isAuthenticated = false,
+  teams = [],
+  user = null,
+  powerRankings = [],
+  rosters = {}
+}) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
     team1Score: game.team1Score || '',
@@ -317,6 +337,220 @@ const GameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthenticat
     }
   };
 
+  const getTeamStats = (teamId) => {
+    const ranking = powerRankings.find(r => (r.teamId || r.id) === teamId);
+    return ranking || {};
+  };
+
+  const getTeamRanking = (teamId) => {
+    const ranking = powerRankings.find(r => (r.teamId || r.id) === teamId);
+    return ranking ? ranking.rank : null;
+  };
+
+
+  const getRankIcon = (rank) => {
+    if (rank === 1) return '👑';
+    if (rank <= 3) return '🥉';
+    if (rank <= 6) return '🏆';
+    return '🏅';
+  };
+
+  const getPositionColor = (position) => {
+    const colors = {
+      QB: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
+      RB: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700',
+      WR: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
+      TE: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700',
+      K: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700',
+      'D/ST': 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-600'
+    };
+    return colors[position] || 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-600';
+  };
+
+  const TeamRosterPreview = ({ roster }) => {
+    if (!roster || roster.length === 0) {
+      return (
+        <div className="text-xs text-gray-500 dark:text-gray-400">No roster data</div>
+      );
+    }
+
+    // Group players by roster slot
+    const groupedRoster = roster.reduce((acc, player) => {
+      const slot = player.rosterSlot || 'BE';
+      if (!acc[slot]) {
+        acc[slot] = [];
+      }
+      acc[slot].push(player);
+      return acc;
+    }, {});
+
+    const starters = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K']
+      .map(slot => groupedRoster[slot] || [])
+      .flat();
+
+    const benchPlayers = groupedRoster['BE'] || [];
+    const irPlayers = groupedRoster['IR'] || [];
+
+    const PlayerBadge = ({ player, slot }) => {
+      const playerName = player.playerName || player.player?.name || 'Unknown';
+      const position = player.position || player.player?.position || '?';
+      const isStarter = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'].includes(slot);
+
+      return (
+        <div
+          className={`flex items-center gap-1 p-1 rounded text-xs border ${
+            isStarter
+              ? 'bg-white border-gray-200 font-medium dark:bg-gray-800 dark:border-gray-600'
+              : slot === 'IR'
+              ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300'
+              : 'bg-gray-50 border-gray-200 text-gray-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400'
+          }`}
+          title={`${playerName} (${position})${slot !== 'BE' && slot !== 'IR' ? ` - ${slot}` : ''}`}
+        >
+          <Badge
+            variant="outline"
+            className={`text-xs w-10 justify-center ${getPositionColor(position)}`}
+          >
+            {position}
+          </Badge>
+          <span className="truncate text-xs" style={{maxWidth: '140px'}}>{playerName}</span>
+          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
+            <div className="w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0" title={player.injuryStatus} />
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <div className="space-y-2 max-h-128 overflow-y-auto">
+        {/* Starting Lineup */}
+        {starters.length > 0 && (
+          <div className="space-y-1">
+            <h5 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+              Starters
+            </h5>
+            <div className="grid grid-cols-1 gap-1">
+              {starters.map((player, idx) => (
+                <PlayerBadge key={`starter-${idx}`} player={player} slot={player.rosterSlot} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bench Players */}
+        {benchPlayers.length > 0 && (
+          <div className="space-y-1">
+            <h5 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+              Bench
+            </h5>
+            <div className="grid grid-cols-1 gap-1">
+              {benchPlayers.map((player, idx) => (
+                <PlayerBadge key={`bench-${idx}`} player={player} slot="BE" />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* IR Players */}
+        {irPlayers.length > 0 && (
+          <div className="space-y-1">
+            <h5 className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide">
+              Injured Reserve
+            </h5>
+            <div className="grid grid-cols-1 gap-1">
+              {irPlayers.map((player, idx) => (
+                <PlayerBadge key={`ir-${idx}`} player={player} slot="IR" />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const TeamCard = ({ teamId, score, isWinner }) => {
+    const team = teams.find(t => t.id === teamId);
+    const stats = getTeamStats(teamId);
+    const rank = getTeamRanking(teamId);
+    const roster = rosters[teamId]?.roster || [];
+    const teamName = team ? team.name : 'Unknown Team';
+
+    return (
+      <div className={`flex-1 p-3 rounded-lg border ${
+        isWinner && game.isCompleted
+          ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-700'
+          : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-600'
+      }`}>
+        <div className="space-y-2">
+          {/* Team Header */}
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <h4 className="font-bold text-base truncate dark:text-white">{teamName}</h4>
+              {team?.owner && (
+                <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                  {team.owner}
+                </div>
+              )}
+              {/* Record */}
+              {stats.gamesPlayed > 0 && (
+                <div className="text-xs mt-1">
+                  <span className="text-gray-600 dark:text-gray-400">Record: </span>
+                  <span className={`font-semibold ${
+                    (stats.wins || 0) > (stats.losses || 0)
+                      ? 'text-green-600 dark:text-green-400'
+                      : (stats.wins || 0) < (stats.losses || 0)
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-gray-600 dark:text-gray-400'
+                  }`}>
+                    {stats.wins || 0}-{stats.losses || 0}
+                    {stats.ties > 0 && `-${stats.ties}`}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-center gap-1">
+              {rank && (
+                <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  rank === 1
+                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                    : rank <= 3
+                    ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                    : 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                }`}>
+                  {getRankIcon(rank)} #{rank}
+                </div>
+              )}
+
+              {/* Score Display */}
+              {editing ? (
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={teamId === game.team1Id ? scores.team1Score : scores.team2Score}
+                  onChange={(e) => setScores(prev => ({
+                    ...prev,
+                    [teamId === game.team1Id ? 'team1Score' : 'team2Score']: e.target.value
+                  }))}
+                  className="p-1 border rounded text-center w-16 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="0"
+                />
+              ) : (
+                <div className="text-2xl font-bold dark:text-white">
+                  {score !== null && score !== undefined ? score : '-'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Roster Preview */}
+          <TeamRosterPreview roster={roster} />
+        </div>
+      </div>
+    );
+  };
+
   // Check if this game involves the user's team
   const team1 = teams.find(t => t.id === game.team1Id);
   const team2 = teams.find(t => t.id === game.team2Id);
@@ -324,69 +558,32 @@ const GameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthenticat
   const highlightClasses = getUserTeamHighlightClasses(isUserGame);
 
   return (
-    <div className={`bg-white border rounded-lg p-4 shadow-sm ${highlightClasses}`}>
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          {editing ? (
-            <div className="grid grid-cols-5 gap-2 items-center">
-              <div className="text-sm font-medium">{getTeamName(game.team1Id)}</div>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={scores.team1Score}
-                onChange={(e) => setScores(prev => ({ ...prev, team1Score: e.target.value }))}
-                className="p-2 border rounded text-center"
-                placeholder="0"
-              />
-              <div className="text-center text-gray-500">vs</div>
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={scores.team2Score}
-                onChange={(e) => setScores(prev => ({ ...prev, team2Score: e.target.value }))}
-                className="p-2 border rounded text-center"
-                placeholder="0"
-              />
-              <div className="text-sm font-medium">{getTeamName(game.team2Id)}</div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-4">
-              <span className="font-semibold">{getTeamName(game.team1Id)}</span>
-              {game.isCompleted ? (
-                <span className="font-mono text-lg">
-                  {game.team1Score} - {game.team2Score}
-                </span>
-              ) : (
-                <span className="text-gray-500">vs</span>
-              )}
-              <span className="font-semibold">{getTeamName(game.team2Id)}</span>
-              
-              {game.isCompleted && (
-                <div className="ml-auto text-sm text-gray-600">
-                  Winner: {getTeamName(game.winnerTeamId)}
-                  {game.isBlowout && <span className="ml-2 text-orange-600">Blowout</span>}
-                  {game.isClose && <span className="ml-2 text-blue-600">Close Game</span>}
-                </div>
-              )}
+    <div className={`bg-white dark:bg-gray-900 border rounded-lg p-4 shadow-sm ${highlightClasses}`}>
+      {/* Game Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="text-base font-semibold dark:text-white">Week {game.week}</div>
+          {game.isCompleted && (
+            <div className="flex items-center gap-1">
+              {game.isBlowout && <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded dark:bg-orange-900/30 dark:text-orange-300">Blowout</span>}
+              {game.isClose && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded dark:bg-blue-900/30 dark:text-blue-300">Close</span>}
             </div>
           )}
         </div>
 
         {isAuthenticated && (
-          <div className="flex items-center gap-2 ml-4">
+          <div className="flex items-center gap-1">
             {editing ? (
               <>
                 <button
                   onClick={() => setEditing(false)}
-                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="px-2 py-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded text-xs transition-colors dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSave}
-                  className="p-2 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg transition-colors"
+                  className="px-2 py-1 text-green-600 hover:text-green-800 hover:bg-green-100 rounded text-xs transition-colors dark:text-green-400 dark:hover:text-green-200 dark:hover:bg-green-900/30"
                 >
                   Save
                 </button>
@@ -401,22 +598,44 @@ const GameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthenticat
                     });
                     setEditing(true);
                   }}
-                  className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors dark:text-blue-400 dark:hover:text-blue-200 dark:hover:bg-blue-900/30"
                   title="Edit scores"
                 >
-                  <Edit3 size={16} />
+                  <Edit3 size={14} />
                 </button>
                 <button
                   onClick={handleDelete}
-                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                  className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors dark:text-red-400 dark:hover:text-red-200 dark:hover:bg-red-900/30"
                   title="Delete game"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={14} />
                 </button>
               </>
             )}
           </div>
         )}
+      </div>
+
+      {/* Versus Layout */}
+      <div className="flex items-start gap-3">
+        <TeamCard
+          teamId={game.team1Id}
+          score={game.team1Score}
+          isWinner={game.isCompleted && game.winnerTeamId === game.team1Id}
+        />
+
+        <div className="flex-shrink-0 text-center self-center">
+          <div className="text-lg font-bold text-gray-400 dark:text-gray-500">VS</div>
+          {!game.isCompleted && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Scheduled</div>
+          )}
+        </div>
+
+        <TeamCard
+          teamId={game.team2Id}
+          score={game.team2Score}
+          isWinner={game.isCompleted && game.winnerTeamId === game.team2Id}
+        />
       </div>
     </div>
   );

@@ -582,6 +582,8 @@ const FantasyFootballApp = () => {
                 loading={loading}
                 isAuthenticated={isAdmin}
                 user={user}
+                powerRankings={powerRankings}
+                rosters={rosters}
               />
             )}
             </div>

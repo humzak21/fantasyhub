@@ -10,7 +10,7 @@ import { Badge } from '../ui/badge';
 import MobileNavigation from './MobileNavigation.jsx';
 import MobilePowerRankings from './MobilePowerRankings.jsx';
 import MobileStatistics from './MobileStatistics.jsx';
-import MobileSchedule from './MobileSchedule.jsx';
+import MobileScheduleManager from './MobileScheduleManager.jsx';
 import MobileTeamsAndRosters from './MobileTeamsAndRosters.jsx';
 import MobileWeekSelector from './MobileWeekSelector.jsx';
 import MobilePickEms from './MobilePickEms.jsx';
@@ -356,11 +356,16 @@ const MobileFantasyFootballApp = () => {
 
                     {/* Mobile Schedule */}
                     {activeTab === 'schedule' && (
-                      <MobileSchedule
+                      <MobileScheduleManager
                         season={activeSeason}
                         schedule={activeSeason?.schedule || []}
                         currentWeek={currentWeek}
+                        onUpdateGame={isAdmin ? dataManager?.updateGame : null}
+                        onDeleteGame={isAdmin ? dataManager?.removeGame : null}
                         loading={loading}
+                        isAuthenticated={isAdmin}
+                        powerRankings={powerRankings}
+                        rosters={rosters}
                       />
                     )}
 

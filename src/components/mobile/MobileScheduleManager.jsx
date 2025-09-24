@@ -4,14 +4,16 @@ import { cn } from '../../../lib/utils';
 import MobileButton from './MobileButton';
 import { MobileNumberInput } from './MobileForm';
 
-const MobileScheduleManager = ({ 
+const MobileScheduleManager = ({
   season = null,
   schedule = [],
   currentWeek = 1,
   onUpdateGame,
   onDeleteGame,
   loading = false,
-  isAuthenticated = false
+  isAuthenticated = false,
+  powerRankings = [],
+  rosters = {}
 }) => {
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
   const [expandedWeeks, setExpandedWeeks] = useState(new Set([currentWeek]));
@@ -143,19 +145,21 @@ const MobileScheduleManager = ({
         <>
           {/* Week View */}
           {viewMode === 'week' && (
-            <MobileWeekScheduleView 
+            <MobileWeekScheduleView
               week={currentWeek}
               games={getGamesForWeek(currentWeek)}
               teams={season.teams}
               onUpdateGame={onUpdateGame}
               onDeleteGame={onDeleteGame}
               isAuthenticated={isAuthenticated}
+              powerRankings={powerRankings}
+              rosters={rosters}
             />
           )}
 
           {/* Full Schedule View */}
           {viewMode === 'full' && (
-            <MobileFullScheduleView 
+            <MobileFullScheduleView
               schedule={schedule}
               teams={season.teams}
               totalWeeks={totalWeeks}
@@ -168,6 +172,8 @@ const MobileScheduleManager = ({
               onUpdateGame={onUpdateGame}
               onDeleteGame={onDeleteGame}
               isAuthenticated={isAuthenticated}
+              powerRankings={powerRankings}
+              rosters={rosters}
             />
           )}
         </>
@@ -177,12 +183,16 @@ const MobileScheduleManager = ({
 };
 
 // Mobile Week Schedule View Component
-const MobileWeekScheduleView = ({ week, games, teams, onUpdateGame, onDeleteGame, isAuthenticated }) => {
-  const getTeamName = (teamId) => {
-    const team = teams.find(t => t.id === teamId);
-    return team ? team.name : 'Unknown Team';
-  };
-
+const MobileWeekScheduleView = ({
+  week,
+  games,
+  teams,
+  onUpdateGame,
+  onDeleteGame,
+  isAuthenticated,
+  powerRankings = [],
+  rosters = {}
+}) => {
   if (games.length === 0) {
     return (
       <div className="text-center py-12 px-6">
@@ -203,15 +213,17 @@ const MobileWeekScheduleView = ({ week, games, teams, onUpdateGame, onDeleteGame
           {games.filter(g => g.isCompleted).length}/{games.length} completed
         </span>
       </div>
-      
+
       {games.map(game => (
-        <MobileGameCard 
+        <MobileGameCard
           key={game.id}
           game={game}
-          getTeamName={getTeamName}
+          teams={teams}
           onUpdateGame={onUpdateGame}
           onDeleteGame={onDeleteGame}
           isAuthenticated={isAuthenticated}
+          powerRankings={powerRankings}
+          rosters={rosters}
         />
       ))}
     </div>
@@ -219,10 +231,10 @@ const MobileWeekScheduleView = ({ week, games, teams, onUpdateGame, onDeleteGame
 };
 
 // Mobile Full Schedule View Component
-const MobileFullScheduleView = ({ 
-  schedule, 
-  teams, 
-  totalWeeks, 
+const MobileFullScheduleView = ({
+  schedule,
+  teams,
+  totalWeeks,
   regularSeasonWeeks,
   getWeekStatus,
   getStatusIcon,
@@ -231,7 +243,9 @@ const MobileFullScheduleView = ({
   toggleWeekExpansion,
   onUpdateGame,
   onDeleteGame,
-  isAuthenticated
+  isAuthenticated,
+  powerRankings = [],
+  rosters = {}
 }) => {
   const getTeamName = (teamId) => {
     const team = teams.find(t => t.id === teamId);
@@ -293,13 +307,15 @@ const MobileFullScheduleView = ({
                 ) : (
                   <div className="space-y-3 p-4">
                     {weekGames.map(game => (
-                      <MobileGameCard 
+                      <MobileGameCard
                         key={game.id}
                         game={game}
-                        getTeamName={getTeamName}
+                        teams={teams}
                         onUpdateGame={onUpdateGame}
                         onDeleteGame={onDeleteGame}
                         isAuthenticated={isAuthenticated}
+                        powerRankings={powerRankings}
+                        rosters={rosters}
                         compact={true}
                       />
                     ))}
@@ -314,14 +330,22 @@ const MobileFullScheduleView = ({
   );
 };
 
-// Mobile Game Card Component
-const MobileGameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthenticated, compact = false }) => {
+// Mobile Game Card Component with Versus Layout
+const MobileGameCard = ({
+  game,
+  teams,
+  onUpdateGame,
+  onDeleteGame,
+  isAuthenticated,
+  compact = false,
+  powerRankings = [],
+  rosters = {}
+}) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
     team1Score: game.team1Score?.toString() || '',
     team2Score: game.team2Score?.toString() || ''
   });
-  const [showActions, setShowActions] = useState(false);
 
   const handleSave = async () => {
     try {
@@ -333,7 +357,6 @@ const MobileGameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthe
         scores.team2Score ? parseFloat(scores.team2Score) : null
       );
       setEditing(false);
-      setShowActions(false);
     } catch (error) {
       alert('Error updating game: ' + error.message);
     }
@@ -343,7 +366,6 @@ const MobileGameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthe
     if (confirm('Are you sure you want to delete this game?')) {
       try {
         await onDeleteGame(game.id);
-        setShowActions(false);
       } catch (error) {
         alert('Error deleting game: ' + error.message);
       }
@@ -356,152 +378,293 @@ const MobileGameCard = ({ game, getTeamName, onUpdateGame, onDeleteGame, isAuthe
       team2Score: game.team2Score?.toString() || ''
     });
     setEditing(false);
-    setShowActions(false);
+  };
+
+  const getTeamStats = (teamId) => {
+    const ranking = powerRankings.find(r => (r.teamId || r.id) === teamId);
+    return ranking || {};
+  };
+
+  const getTeamRanking = (teamId) => {
+    const ranking = powerRankings.find(r => (r.teamId || r.id) === teamId);
+    return ranking ? ranking.rank : null;
+  };
+
+  const getRankIcon = (rank) => {
+    if (rank === 1) return '👑';
+    if (rank <= 3) return '🥉';
+    if (rank <= 6) return '🏆';
+    return '🏅';
+  };
+
+  const getPositionColor = (position) => {
+    const colors = {
+      QB: 'bg-red-100 text-red-700 border-red-200',
+      RB: 'bg-green-100 text-green-700 border-green-200',
+      WR: 'bg-blue-100 text-blue-700 border-blue-200',
+      TE: 'bg-orange-100 text-orange-700 border-orange-200',
+      K: 'bg-purple-100 text-purple-700 border-purple-200',
+      'D/ST': 'bg-gray-100 text-gray-700 border-gray-200'
+    };
+    return colors[position] || 'bg-gray-100 text-gray-700 border-gray-200';
+  };
+
+  const MobileTeamRosterPreview = ({ roster }) => {
+    if (!roster || roster.length === 0) {
+      return (
+        <div className="text-xs text-gray-500">No roster data</div>
+      );
+    }
+
+    // Group players by roster slot
+    const groupedRoster = roster.reduce((acc, player) => {
+      const slot = player.rosterSlot || 'BE';
+      if (!acc[slot]) {
+        acc[slot] = [];
+      }
+      acc[slot].push(player);
+      return acc;
+    }, {});
+
+    const starters = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K']
+      .map(slot => groupedRoster[slot] || [])
+      .flat()
+      .slice(0, compact ? 3 : 5);
+
+    const benchPlayers = (groupedRoster['BE'] || []).slice(0, compact ? 2 : 4);
+
+    const PlayerBadge = ({ player, slot }) => {
+      const playerName = player.playerName || player.player?.name || 'Unknown';
+      const position = player.position || player.player?.position || '?';
+
+      return (
+        <div className="flex items-center gap-1 p-1 rounded text-xs border bg-white border-gray-200">
+          <div className={`px-1 py-0.5 rounded text-xs border ${getPositionColor(position)}`}>
+            {position}
+          </div>
+          <span className="truncate" style={{maxWidth: '110px'}}>{playerName}</span>
+          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
+            <div className="w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0" />
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <div className="space-y-1">
+        {/* Starting Lineup */}
+        {starters.length > 0 && (
+          <div className="space-y-1">
+            <h6 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              Starters
+            </h6>
+            <div className="space-y-1">
+              {starters.map((player, idx) => (
+                <PlayerBadge key={`starter-${idx}`} player={player} slot={player.rosterSlot} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bench Players */}
+        {benchPlayers.length > 0 && (
+          <div className="space-y-1">
+            <h6 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              Bench
+            </h6>
+            <div className="space-y-1">
+              {benchPlayers.map((player, idx) => (
+                <PlayerBadge key={`bench-${idx}`} player={player} slot="BE" />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const MobileTeamCard = ({ teamId, score, isWinner }) => {
+    const team = teams.find(t => t.id === teamId);
+    const stats = getTeamStats(teamId);
+    const rank = getTeamRanking(teamId);
+    const roster = rosters[teamId]?.roster || [];
+    const teamName = team ? team.name : 'Unknown Team';
+
+    return (
+      <div className={`flex-1 p-3 rounded-lg border ${
+        isWinner && game.isCompleted
+          ? 'bg-green-50 border-green-200'
+          : 'bg-gray-50 border-gray-200'
+      }`}>
+        <div className="space-y-2">
+          {/* Team Header */}
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <h5 className={cn(
+                'font-bold truncate',
+                compact ? 'text-sm' : 'text-base'
+              )}>{teamName}</h5>
+              {team?.owner && (
+                <div className="text-xs text-gray-600 truncate">
+                  {team.owner}
+                </div>
+              )}
+              {/* Record */}
+              {stats.gamesPlayed > 0 && (
+                <div className="text-xs mt-1">
+                  <span className="text-gray-600">Record: </span>
+                  <span className={`font-semibold ${
+                    (stats.wins || 0) > (stats.losses || 0)
+                      ? 'text-green-600'
+                      : (stats.wins || 0) < (stats.losses || 0)
+                      ? 'text-red-600'
+                      : 'text-gray-600'
+                  }`}>
+                    {stats.wins || 0}-{stats.losses || 0}
+                    {stats.ties > 0 && `-${stats.ties}`}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-center gap-1">
+              {rank && (
+                <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  rank === 1
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : rank <= 3
+                    ? 'bg-gray-100 text-gray-800'
+                    : 'bg-blue-50 text-blue-700'
+                }`}>
+                  {getRankIcon(rank)} #{rank}
+                </div>
+              )}
+
+              {/* Score Display */}
+              {editing ? (
+                <MobileNumberInput
+                  value={teamId === game.team1Id ? scores.team1Score : scores.team2Score}
+                  onChange={(value) => setScores(prev => ({
+                    ...prev,
+                    [teamId === game.team1Id ? 'team1Score' : 'team2Score']: value
+                  }))}
+                  placeholder="0"
+                  showSteppers={false}
+                  className="w-16 text-center"
+                />
+              ) : (
+                <div className={cn(
+                  'font-bold',
+                  compact ? 'text-xl' : 'text-2xl'
+                )}>
+                  {score !== null && score !== undefined ? score : '-'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Roster Preview */}
+          {!compact && <MobileTeamRosterPreview roster={roster} />}
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className={cn(
-      'bg-white rounded-lg border border-gray-200',
-      compact ? 'p-3' : 'p-4'
-    )}>
-      {editing ? (
-        <div className="space-y-4">
-          {/* Editing Mode */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="flex-1 text-sm font-medium">{getTeamName(game.team1Id)}</div>
-              <MobileNumberInput
-                value={scores.team1Score}
-                onChange={(value) => setScores(prev => ({ ...prev, team1Score: value }))}
-                placeholder="0"
-                showSteppers={false}
-                className="w-20"
-              />
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="flex-1 text-sm font-medium">{getTeamName(game.team2Id)}</div>
-              <MobileNumberInput
-                value={scores.team2Score}
-                onChange={(value) => setScores(prev => ({ ...prev, team2Score: value }))}
-                placeholder="0"
-                showSteppers={false}
-                className="w-20"
-              />
-            </div>
-          </div>
-          
-          <div className="flex gap-2">
-            <MobileButton
-              variant="outline"
-              size="sm"
-              onClick={handleCancel}
-              className="flex-1"
-            >
-              Cancel
-            </MobileButton>
-            <MobileButton
-              size="sm"
-              onClick={handleSave}
-              className="flex-1"
-            >
-              <Save className="h-4 w-4 mr-1" />
-              Save
-            </MobileButton>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between">
-          {/* Game Display */}
-          <div className="flex-1">
-            <div className="flex items-center justify-between">
-              <span className={cn(
-                'font-medium',
-                compact ? 'text-sm' : 'text-base'
-              )}>
-                {getTeamName(game.team1Id)}
-              </span>
-              <span className={cn(
-                'font-mono',
-                compact ? 'text-sm' : 'text-lg'
-              )}>
-                {game.isCompleted ? game.team1Score : '—'}
-              </span>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <span className={cn(
-                'font-medium',
-                compact ? 'text-sm' : 'text-base'
-              )}>
-                {getTeamName(game.team2Id)}
-              </span>
-              <span className={cn(
-                'font-mono',
-                compact ? 'text-sm' : 'text-lg'
-              )}>
-                {game.isCompleted ? game.team2Score : '—'}
-              </span>
-            </div>
-            
-            {game.isCompleted && (
-              <div className={cn(
-                'mt-2 text-gray-600',
-                compact ? 'text-xs' : 'text-sm'
-              )}>
-                Winner: {getTeamName(game.winnerTeamId)}
-                {game.isBlowout && <span className="ml-2 text-orange-600">• Blowout</span>}
-                {game.isClose && <span className="ml-2 text-blue-600">• Close Game</span>}
-              </div>
-            )}
-          </div>
-
-          {/* Actions */}
-          {isAuthenticated && (
-            <div className="ml-4">
-              {showActions ? (
-                <div className="flex gap-2">
-                  <MobileButton
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setScores({
-                        team1Score: game.team1Score?.toString() || '',
-                        team2Score: game.team2Score?.toString() || ''
-                      });
-                      setEditing(true);
-                    }}
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </MobileButton>
-                  <MobileButton
-                    size="sm"
-                    variant="destructive"
-                    onClick={handleDelete}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </MobileButton>
-                  <MobileButton
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowActions(false)}
-                  >
-                    <X className="h-4 w-4" />
-                  </MobileButton>
-                </div>
-              ) : (
-                <MobileButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowActions(true)}
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </MobileButton>
+    <div className="bg-white rounded-lg border border-gray-200 p-3">
+      {/* Game Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className={cn(
+            'font-semibold',
+            compact ? 'text-sm' : 'text-base'
+          )}>Week {game.week}</div>
+          {game.isCompleted && (
+            <div className="flex items-center gap-1">
+              {game.isBlowout && (
+                <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded">
+                  Blowout
+                </span>
+              )}
+              {game.isClose && (
+                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                  Close
+                </span>
               )}
             </div>
           )}
         </div>
-      )}
+
+        {isAuthenticated && (
+          <div className="flex items-center gap-1">
+            {editing ? (
+              <>
+                <MobileButton
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </MobileButton>
+                <MobileButton
+                  size="sm"
+                  onClick={handleSave}
+                >
+                  Save
+                </MobileButton>
+              </>
+            ) : (
+              <>
+                <MobileButton
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setScores({
+                      team1Score: game.team1Score?.toString() || '',
+                      team2Score: game.team2Score?.toString() || ''
+                    });
+                    setEditing(true);
+                  }}
+                >
+                  <Edit3 className="h-4 w-4" />
+                </MobileButton>
+                <MobileButton
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleDelete}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </MobileButton>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Versus Layout */}
+      <div className="flex items-start gap-2">
+        <MobileTeamCard
+          teamId={game.team1Id}
+          score={game.team1Score}
+          isWinner={game.isCompleted && game.winnerTeamId === game.team1Id}
+        />
+
+        <div className="flex-shrink-0 text-center self-center px-1">
+          <div className={cn(
+            'font-bold text-gray-400',
+            compact ? 'text-sm' : 'text-lg'
+          )}>VS</div>
+          {!game.isCompleted && (
+            <div className="text-xs text-gray-500 mt-1">Scheduled</div>
+          )}
+        </div>
+
+        <MobileTeamCard
+          teamId={game.team2Id}
+          score={game.team2Score}
+          isWinner={game.isCompleted && game.winnerTeamId === game.team2Id}
+        />
+      </div>
     </div>
   );
 };
