@@ -18,7 +18,8 @@ const MobileNavigation = ({
   isAuthenticated,
   isAdmin,
   activeSeason,
-  currentWeek
+  currentWeek,
+  dataManager
 }) => {
   const { user, signOut } = useAuth();
   const { isDarkMode, isAutoDetect, getThemeName, setDarkMode, enableAutoDetect } = useDarkMode();
@@ -26,6 +27,8 @@ const MobileNavigation = ({
   const [navigationHistory, setNavigationHistory] = useState(['rankings']);
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [hasUserSubmittedPicks, setHasUserSubmittedPicks] = useState(false);
+  const [pickemNotificationLoading, setPickemNotificationLoading] = useState(false);
 
   // Navigation tabs configuration
   const mainTabs = [
@@ -65,6 +68,39 @@ const MobileNavigation = ({
       onClose();
     }
   };
+
+  // Check if user has submitted picks for current week
+  const checkUserPicksSubmission = async () => {
+    if (!isAuthenticated || !user || !activeSeason || !currentWeek || !dataManager) {
+      setHasUserSubmittedPicks(false);
+      return;
+    }
+
+    setPickemNotificationLoading(true);
+    try {
+      // Get pick'em week data for current week
+      const pickEmWeekData = await dataManager.getPickEmWeek(activeSeason.id, currentWeek);
+      if (!pickEmWeekData) {
+        setHasUserSubmittedPicks(false);
+        return;
+      }
+
+      // Get user picks for this week
+      const userPicks = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
+      const hasSubmitted = userPicks && userPicks.length > 0;
+      setHasUserSubmittedPicks(hasSubmitted);
+    } catch (err) {
+      console.error('Error checking user picks:', err);
+      setHasUserSubmittedPicks(false);
+    } finally {
+      setPickemNotificationLoading(false);
+    }
+  };
+
+  // Check picks submission when relevant data changes
+  useEffect(() => {
+    checkUserPicksSubmission();
+  }, [isAuthenticated, user, activeSeason, currentWeek, dataManager]);
 
   // Prevent body scroll when menu is open
   useEffect(() => {
@@ -274,7 +310,8 @@ const MobileNavigation = ({
                       const Icon = tab.icon;
                       const isActive = activeTab === tab.id;
                       const wasRecentlyVisited = navigationHistory.includes(tab.id) && !isActive;
-                      
+                      const showNotification = tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading;
+
                       return (
                         <Button
                           key={tab.id}
@@ -283,7 +320,7 @@ const MobileNavigation = ({
                           disabled={isDisabled || isAnimating}
                           onClick={() => handleNavigation(tab.id)}
                           className={`
-                            w-full justify-start mobile-nav-item touch-target
+                            w-full justify-start mobile-nav-item touch-target relative
                             ${isAnimating ? 'opacity-50' : ''}
                             ${wasRecentlyVisited ? 'bg-muted/50' : ''}
                           `}
@@ -291,6 +328,9 @@ const MobileNavigation = ({
                           <Icon className="h-4 w-4 mr-3 flex-shrink-0" />
                           <span className="flex-1 text-left">{tab.label}</span>
                           <div className="flex items-center space-x-2">
+                            {showNotification && (
+                              <div className="w-2 h-2 bg-red-500 rounded-full" />
+                            )}
                             {!isActive && !isDisabled && (
                               <ChevronRight className="h-3 w-3 text-muted-foreground" />
                             )}

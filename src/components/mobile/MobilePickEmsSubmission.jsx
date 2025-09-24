@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Clock, Trophy, Target, AlertCircle, CheckCircle2, Calendar, Save, Edit3 } from 'lucide-react';
+import { Clock, Trophy, Target, AlertCircle, CheckCircle2, Calendar, Save, Edit3, X } from 'lucide-react';
 import MobileButton from './MobileButton';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 
@@ -85,6 +85,23 @@ const MobilePickEmsSubmission = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    // Reset picks to original user picks
+    if (userPicks && userPicks.length > 0) {
+      const originalPicks = {};
+      userPicks.forEach(pick => {
+        originalPicks[pick.gameId] = {
+          predictedWinnerTeamId: pick.predictedWinnerTeamId,
+          confidenceLevel: 1
+        };
+      });
+      setPicks(originalPicks);
+    }
+    setIsEditing(false);
+    setHasChanges(false);
+    setError(null);
   };
 
   const formatTimeRemaining = (timeStr) => {
@@ -346,26 +363,38 @@ const MobilePickEmsSubmission = ({
               className="w-full flex items-center justify-center gap-2"
             >
               <Edit3 className="h-4 w-4" />
-              Edit All Picks
+              Edit Picks
             </MobileButton>
           ) : (
-            <MobileButton
-              onClick={handleSubmit}
-              disabled={submitting || totalPicks !== availableGames.length}
-              className="w-full flex items-center justify-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  {hasSubmitted ? 'Updating...' : 'Submitting...'}
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  {hasSubmitted ? 'Update All Picks' : 'Submit All Picks'}
-                </>
+            <>
+              {isEditing && (
+                <MobileButton
+                  onClick={handleCancelEdit}
+                  variant="secondary"
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Cancel
+                </MobileButton>
               )}
-            </MobileButton>
+              <MobileButton
+                onClick={handleSubmit}
+                disabled={submitting || totalPicks !== availableGames.length}
+                className="w-full flex items-center justify-center gap-2"
+              >
+                {submitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Submit Picks
+                  </>
+                )}
+              </MobileButton>
+            </>
           )}
 
           {/* Instructions */}

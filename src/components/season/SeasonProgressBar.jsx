@@ -1,0 +1,210 @@
+import React from 'react';
+import { Trophy, Calendar, Users, AlertCircle, Clock } from 'lucide-react';
+
+const SeasonProgressBar = ({
+  season,
+  schedule = [],
+  currentWeek = 1,
+  onWeekChange
+}) => {
+  if (!season) {
+    return null;
+  }
+
+  const { totalWeeks, regularSeasonWeeks } = season;
+  const playoffStartWeek = regularSeasonWeeks + 1;
+  const championshipWeek = totalWeeks;
+  const tradeDeadlineWeek = 14; // After week 13, before week 14
+  const rivalryWeeks = [4, 14];
+
+  // Calculate completion status for each week
+  const getWeekStatus = (week) => {
+    const weekGames = schedule.filter(game => game.week === week);
+    if (weekGames.length === 0) return 'empty';
+    if (weekGames.every(game => game.isCompleted)) return 'completed';
+    if (weekGames.some(game => game.isCompleted)) return 'partial';
+    return 'scheduled';
+  };
+
+  const getWeekClasses = (week) => {
+    const status = getWeekStatus(week);
+    const isCurrentWeek = week === currentWeek;
+    const isChampionship = week === championshipWeek;
+    const isRivalryWeek = rivalryWeeks.includes(week);
+    const isTradeDeadline = week === tradeDeadlineWeek;
+    const isPlayoff = week > regularSeasonWeeks;
+
+    let classes = 'relative flex items-center justify-center text-xs font-medium transition-all duration-200 cursor-pointer flex-1 hover:opacity-80 ';
+
+    // Size classes - making them bigger and more consistent
+    if (isChampionship) {
+      classes += 'h-10 min-w-14 text-sm ';
+    } else if (isRivalryWeek || isTradeDeadline) {
+      classes += 'h-9 min-w-12 ';
+    } else {
+      classes += 'h-8 min-w-10 ';
+    }
+
+    // Status-based styling
+    if (status === 'completed') {
+      classes += 'bg-green-500 text-white shadow-md ';
+    } else if (isCurrentWeek) {
+      // Always make current week blue regardless of status
+      classes += 'bg-blue-500 text-white shadow-sm ';
+    } else if (status === 'partial') {
+      classes += 'bg-orange-400 text-white shadow-sm ';
+    } else if (week < currentWeek) {
+      classes += 'bg-blue-500 text-white shadow-sm ';
+    } else {
+      classes += 'bg-gray-200 text-gray-600 hover:bg-gray-300 ';
+    }
+
+    // Special week styling
+    if (isChampionship) {
+      classes += 'rounded-lg border-2 border-yellow-400 shadow-lg hover:shadow-xl ';
+      if (status !== 'completed') {
+        classes += 'ring-2 ring-yellow-300 ring-opacity-50 ';
+      }
+    } else if (isRivalryWeek) {
+      classes += 'rounded-lg border-2 border-red-400 ';
+    } else if (isTradeDeadline) {
+      classes += 'rounded-lg border-2 border-purple-400 ';
+    } else if (isPlayoff) {
+      classes += 'rounded-lg border border-gray-400 ';
+    } else {
+      classes += 'rounded ';
+    }
+
+    // Current week emphasis
+    if (isCurrentWeek) {
+      classes += 'ring-2 ring-blue-300 ring-opacity-70 ';
+    }
+
+    return classes;
+  };
+
+  const getWeekIcon = (week) => {
+    if (week === championshipWeek) {
+      return <Trophy size={12} className="text-yellow-400" />;
+    }
+    if (rivalryWeeks.includes(week)) {
+      return <Users size={10} className="text-red-400" />;
+    }
+    if (week === tradeDeadlineWeek) {
+      return <Clock size={10} className="text-purple-400" />;
+    }
+    if (week > regularSeasonWeeks) {
+      return <Calendar size={8} className="text-gray-300" />;
+    }
+    return null;
+  };
+
+  const getWeekTooltip = (week) => {
+    const status = getWeekStatus(week);
+    let tooltip = `Week ${week}`;
+
+    if (week === championshipWeek) {
+      tooltip += ' - Championship Week 🏆';
+    } else if (rivalryWeeks.includes(week)) {
+      tooltip += ' - Rivalry Week 🔥';
+    } else if (week === tradeDeadlineWeek) {
+      tooltip += ' - Trade Deadline';
+    } else if (week > regularSeasonWeeks) {
+      tooltip += ' - Playoffs';
+    }
+
+    if (status === 'completed') {
+      tooltip += ' (Completed)';
+    } else if (status === 'partial') {
+      tooltip += ' (In Progress)';
+    } else if (status === 'scheduled') {
+      tooltip += ' (Scheduled)';
+    }
+
+    return tooltip;
+  };
+
+  const handleWeekClick = (week) => {
+    if (onWeekChange) {
+      onWeekChange(week);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Legend */}
+      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+        <div className="flex items-center gap-2">
+          <span className="font-medium">Week {currentWeek} of {totalWeeks}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <div className="h-3 w-3 bg-green-500 rounded"></div>
+            <span className="text-xs">Complete</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="h-3 w-3 bg-blue-500 rounded"></div>
+            <span className="text-xs">Current</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="h-3 w-3 bg-gray-200 rounded"></div>
+            <span className="text-xs">Upcoming</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="relative w-full">
+        <div className="flex items-center gap-1 w-full px-2">
+          {Array.from({ length: totalWeeks }, (_, i) => i + 1).map(week => (
+            <React.Fragment key={week}>
+              <div
+                className={getWeekClasses(week)}
+                title={getWeekTooltip(week)}
+                onClick={() => handleWeekClick(week)}
+              >
+                <div className="flex flex-col items-center justify-center relative">
+                  {getWeekIcon(week)}
+                  <span className={`${getWeekIcon(week) ? 'text-xs' : ''}`}>
+                    {week}
+                  </span>
+                </div>
+              </div>
+              {/* Trade Deadline Separator after Week 13 */}
+              {week === 13 && (
+                <div className="flex flex-col items-center justify-center px-1" title="Trade Deadline">
+                  <div className="w-px h-8 bg-purple-400"></div>
+                  <div className="absolute">
+                    <Clock size={16} className="text-purple-500 bg-white rounded-full" />
+                  </div>
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Key Events - ordered from smallest week to largest */}
+        <div className="flex items-center gap-6 mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-1">
+            <Users size={12} className="text-red-500" />
+            <span>Weeks {rivalryWeeks.join(', ')}: Rivalry</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock size={12} className="text-purple-500" />
+            <span>Week {tradeDeadlineWeek}: Trade Deadline</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Calendar size={12} className="text-gray-400" />
+            <span>Week {playoffStartWeek}+: Playoffs</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Trophy size={12} className="text-yellow-500" />
+            <span>Week {championshipWeek}: Championship</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SeasonProgressBar;
