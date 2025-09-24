@@ -17,7 +17,8 @@ const PickEmsManager = ({
   dataManager,
   loading = false,
   isAuthenticated = false,
-  isAdmin = false
+  isAdmin = false,
+  user = null
 }) => {
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
@@ -275,6 +276,7 @@ const PickEmsManager = ({
               loading={dataLoading}
               canSubmit={pickEmStatus?.canSubmit || false}
               timeRemaining={pickEmWeek?.submissionClosesAt}
+              user={user}
             />
           </TabsContent>
 

@@ -127,7 +127,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
         <Icon className={`text-${color}-600`} size={20} />
         <span className={`text-${color}-600 text-sm font-medium`}>{title}</span>
       </div>
-      <div className={`text-2xl font-bold text-${color}-900`}>{value}</div>
+      <div className={`text-2xl font-bold ${color === 'blue' || color === 'orange' || color === 'purple' ? 'text-white' : `text-${color}-900`}`}>{value}</div>
       {subtitle && <div className={`text-${color}-700 text-sm mt-1`}>{subtitle}</div>}
     </div>
   );
@@ -137,7 +137,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
       return (
         <div className={`bg-gray-50 p-3 rounded-lg border border-gray-200`}>
           <div className={`text-gray-700 font-medium text-sm mb-1`}>{title}</div>
-          <div className={`text-gray-900 font-bold`}>No Data</div>
+          <div className={`text-white font-bold`}>No Data</div>
           <div className={`text-gray-600 text-sm`}>Complete games to see stats</div>
         </div>
       );
@@ -146,7 +146,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
     return (
       <div className={`bg-${color}-50 p-3 rounded-lg border border-${color}-200`}>
         <div className={`text-${color}-700 font-medium text-sm mb-1`}>{title}</div>
-        <div className={`text-${color}-900 font-bold`}>{team.name}</div>
+        <div className={`text-white font-bold`}>{team.name}</div>
         <div className={`text-${color}-600 text-sm`}>{stat}</div>
         {description && <div className={`text-${color}-500 text-xs mt-1`}>{description}</div>}
       </div>
@@ -309,7 +309,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
                     {index + 1}
                   </span>
                   <div>
-                    <div className="font-semibold">{team.name}</div>
+                    <div className="font-semibold text-white">{team.name}</div>
                     <div className="text-sm text-gray-600">
                       {team.wins || 0}-{team.losses || 0} • {((team.winPercentage || 0) * 100).toFixed(2)}%
                     </div>

@@ -3,16 +3,18 @@ import { Users, Plus, Edit3, Trash2, Trophy, Crown, Medal, Award, User, Target, 
 import MobileButton from './MobileButton';
 import MobileInput from './MobileInput';
 import { cn } from '../../../lib/utils';
+import { moveUserTeamToFirst } from '../../utils/userTeamUtils';
 
-const MobileTeamsAndRosters = ({ 
-  teams = [], 
+const MobileTeamsAndRosters = ({
+  teams = [],
   rosters = {},
-  onAddTeam, 
-  onUpdateTeam, 
-  onRemoveTeam, 
+  onAddTeam,
+  onUpdateTeam,
+  onRemoveTeam,
   loading = false,
   powerRankings = [],
-  isAuthenticated = false
+  isAuthenticated = false,
+  user = null
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
@@ -208,7 +210,7 @@ const MobileTeamsAndRosters = ({
           </div>
         ) : (
           <div className="p-4 space-y-3">
-            {teams.map((team, teamIndex) => {
+            {moveUserTeamToFirst(teams, user).map((team, teamIndex) => {
               const rank = getTeamRanking(team.id);
               const stats = getTeamStats(team.id);
               const teamRoster = rosters[team.id]?.roster || [];
@@ -238,6 +240,7 @@ const MobileTeamsAndRosters = ({
                   onDelete={handleTeamDelete}
                   isAuthenticated={isAuthenticated}
                   rosters={rosters}
+                  user={user}
                 />
               );
             })}
@@ -357,7 +360,8 @@ const MobileTeamCard = ({
   onEdit,
   onDelete,
   isAuthenticated,
-  rosters
+  rosters,
+  user = null
 }) => {
   const getRankBadgeColor = (rank) => {
     if (!rank) return 'bg-gray-100 text-gray-600';

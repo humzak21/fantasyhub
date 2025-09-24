@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
 import { Clock, Trophy, Users, Target, AlertCircle, CheckCircle2, Calendar, Edit3, Save } from 'lucide-react';
+import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 
 const PickEmsSubmission = ({
   season,
@@ -15,7 +16,8 @@ const PickEmsSubmission = ({
   onSubmitPicks,
   loading = false,
   canSubmit = false,
-  timeRemaining = null
+  timeRemaining = null,
+  user = null
 }) => {
   const [picks, setPicks] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -338,6 +340,7 @@ const PickEmsSubmission = ({
                             : 'border-muted hover:border-primary/50 hover:bg-muted/50'
                           }
                           ${(status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
+                          ${getUserTeamHighlightClasses(isUserTeam(game.team1, user))}
                         `}
                       >
                         <div className="text-center">
@@ -359,6 +362,7 @@ const PickEmsSubmission = ({
                             : 'border-muted hover:border-primary/50 hover:bg-muted/50'
                           }
                           ${(status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
+                          ${getUserTeamHighlightClasses(isUserTeam(game.team2, user))}
                         `}
                       >
                         <div className="text-center">

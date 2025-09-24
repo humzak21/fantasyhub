@@ -1,9 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Use proper environment variables for Supabase configuration
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabaseServiceRoleKey = typeof process !== 'undefined' ? process.env.SUPABASE_SERVICE_ROLE_KEY : null;
+// Support both Vite (browser) and Node.js environments
+// In browser, always use import.meta.env (Vite env vars)
+const supabaseUrl = typeof window !== 'undefined'
+  ? import.meta.env.VITE_SUPABASE_URL
+  : (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL);
+
+const supabaseAnonKey = typeof window !== 'undefined'
+  ? import.meta.env.VITE_SUPABASE_ANON_KEY
+  : (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY);
+
+
+const supabaseServiceRoleKey = typeof window !== 'undefined' ? null : process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 
 // Create Supabase client only if we have valid configuration

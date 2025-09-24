@@ -18,6 +18,9 @@ import dotenv from 'dotenv';
 // Import analytics API routes
 import analyticsRouter from './api/analytics/index.js';
 
+// Import automation scheduler
+import { automationScheduler } from './services/automationScheduler.js';
+
 // Load environment variables
 dotenv.config();
 
@@ -69,6 +72,84 @@ app.get('/health', (req, res) => {
 // Analytics API routes
 app.use('/api/analytics', analyticsRouter);
 
+// Automation API routes
+app.get('/api/automation/status', async (req, res) => {
+  try {
+    const status = automationScheduler.getStatus();
+    const stats = await automationScheduler.getStats();
+
+    res.json({
+      success: true,
+      data: {
+        ...status,
+        stats
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get automation status',
+      details: NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+app.get('/api/automation/logs', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const logs = await automationScheduler.getLogs(limit);
+
+    res.json({
+      success: true,
+      data: logs
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get automation logs',
+      details: NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+app.post('/api/automation/trigger', async (req, res) => {
+  try {
+    const result = await automationScheduler.runManualUpdate();
+
+    res.json({
+      success: true,
+      message: 'Manual update completed successfully',
+      data: result
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message === 'Weekly update already in progress'
+        ? 'Update already in progress'
+        : 'Failed to run manual update',
+      details: NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+app.post('/api/automation/restart', async (req, res) => {
+  try {
+    const success = automationScheduler.restart();
+
+    res.json({
+      success: true,
+      message: success ? 'Automation scheduler restarted' : 'Automation disabled',
+      data: automationScheduler.getStatus()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to restart automation scheduler',
+      details: NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
 // Serve static files in production
 if (NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
@@ -103,16 +184,29 @@ app.use((req, res) => {
 const server = app.listen(PORT, () => {
   console.log(`🚀 FFAnalytics server running on port ${PORT}`);
   console.log(`📊 Analytics API available at http://localhost:${PORT}/api/analytics`);
+  console.log(`🤖 Automation API available at http://localhost:${PORT}/api/automation`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
-  
+
   if (NODE_ENV === 'development') {
     console.log(`🎯 Frontend dev server should be running on http://localhost:5173`);
   }
+
+  // Initialize automation scheduler after server starts
+  setTimeout(() => {
+    const initialized = automationScheduler.init();
+    if (initialized) {
+      console.log(`⏰ Automation scheduler active`);
+      const status = automationScheduler.getStatus();
+      console.log(`   Schedule: ${status.schedule} (${status.timezone})`);
+      console.log(`   Next run: ${status.nextRunTime}`);
+    }
+  }, 1000);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received, shutting down gracefully');
+  automationScheduler.stop();
   server.close(() => {
     console.log('Server closed');
     process.exit(0);
@@ -121,6 +215,7 @@ process.on('SIGTERM', () => {
 
 process.on('SIGINT', () => {
   console.log('SIGINT received, shutting down gracefully');
+  automationScheduler.stop();
   server.close(() => {
     console.log('Server closed');
     process.exit(0);

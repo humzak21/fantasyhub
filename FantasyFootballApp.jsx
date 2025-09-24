@@ -29,7 +29,7 @@ import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
 import PickEmsManager from './src/components/pickems/PickEmsManager.jsx';
 
 const FantasyFootballApp = () => {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useAuth();
   // Allow viewing without auth, but only admin can edit
   
   const {
@@ -480,6 +480,7 @@ const FantasyFootballApp = () => {
                         showAnalytics={analyticsEnabled && hasAnalyticsData}
                         analyticsData={analyticsData}
                         onExportAnalytics={exportAnalyticsData}
+                        user={user}
                       />
                     ) : (
                       <PowerRankingsVisualization
@@ -580,6 +581,7 @@ const FantasyFootballApp = () => {
                 onDeleteGame={isAdmin ? handleGameDelete : null}
                 loading={loading}
                 isAuthenticated={isAdmin}
+                user={user}
               />
             )}
             </div>
@@ -621,6 +623,7 @@ const FantasyFootballApp = () => {
                 loading={loading}
                 powerRankings={powerRankings}
                 isAuthenticated={isAdmin}
+                user={user}
               />
             )}
             </div>
@@ -635,6 +638,7 @@ const FantasyFootballApp = () => {
               loading={loading}
               isAuthenticated={isAuthenticated}
               isAdmin={isAdmin}
+              user={user}
             />
             </div>
           )}
