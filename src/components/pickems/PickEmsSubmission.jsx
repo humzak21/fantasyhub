@@ -4,7 +4,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
-import { Clock, Trophy, Users, Target, AlertCircle, CheckCircle2, Calendar, Edit3, Save } from 'lucide-react';
+import { Clock, Trophy, Users, Target, AlertCircle, CheckCircle2, Calendar, Edit3, Save, X } from 'lucide-react';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 
 const PickEmsSubmission = ({
@@ -104,6 +104,23 @@ const PickEmsSubmission = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    // Reset picks to original user picks
+    if (userPicks && userPicks.length > 0) {
+      const originalPicks = {};
+      userPicks.forEach(pick => {
+        originalPicks[pick.gameId] = {
+          predictedWinnerTeamId: pick.predictedWinnerTeamId,
+          confidenceLevel: 1
+        };
+      });
+      setPicks(originalPicks);
+    }
+    setIsEditing(false);
+    setHasChanges(false);
+    setError(null);
   };
 
   const formatTimeRemaining = (timeStr) => {
@@ -250,26 +267,38 @@ const PickEmsSubmission = ({
                     className="flex items-center gap-2"
                   >
                     <Edit3 className="h-4 w-4" />
-                    Edit All Picks
+                    Edit Picks
                   </Button>
                 ) : (
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={submitting || totalPicks !== availableGames.length}
-                    className="flex items-center gap-2"
-                  >
-                    {submitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        {hasSubmitted ? 'Updating...' : 'Submitting...'}
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4" />
-                        {hasSubmitted ? 'Update Picks' : 'Submit Picks'}
-                      </>
+                  <>
+                    {isEditing && (
+                      <Button
+                        onClick={handleCancelEdit}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        <X className="h-4 w-4" />
+                        Cancel
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={submitting || totalPicks !== availableGames.length}
+                      className="flex items-center gap-2"
+                    >
+                      {submitting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          Submit Picks
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -443,27 +472,40 @@ const PickEmsSubmission = ({
                     className="flex items-center gap-2 px-8"
                   >
                     <Edit3 className="h-4 w-4" />
-                    Edit All Picks
+                    Edit Picks
                   </Button>
                 ) : (
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={submitting || totalPicks !== availableGames.length}
-                    size="lg"
-                    className="flex items-center gap-2 px-8"
-                  >
-                    {submitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        {hasSubmitted ? 'Updating...' : 'Submitting...'}
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4" />
-                        {hasSubmitted ? 'Update All Picks' : 'Submit All Picks'}
-                      </>
+                  <>
+                    {isEditing && (
+                      <Button
+                        onClick={handleCancelEdit}
+                        variant="outline"
+                        size="lg"
+                        className="flex items-center gap-2 px-8"
+                      >
+                        <X className="h-4 w-4" />
+                        Cancel
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={submitting || totalPicks !== availableGames.length}
+                      size="lg"
+                      className="flex items-center gap-2 px-8"
+                    >
+                      {submitting ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Submitting...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4" />
+                          Submit Picks
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
               </div>
             </div>

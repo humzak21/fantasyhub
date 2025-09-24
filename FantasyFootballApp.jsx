@@ -64,12 +64,42 @@ const FantasyFootballApp = () => {
   const [activeTab, setActiveTab] = useState('rankings');
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+  const [hasUserSubmittedPicks, setHasUserSubmittedPicks] = useState(false);
+  const [pickemNotificationLoading, setPickemNotificationLoading] = useState(false);
   
 
   
   // Week-specific power rankings state
   const [weeklyRankings, setWeeklyRankings] = useState([]);
   const [rankingsLoading, setRankingsLoading] = useState(false);
+
+  // Check if user has submitted picks for current week
+  const checkUserPicksSubmission = async () => {
+    if (!isAuthenticated || !user || !activeSeason || !currentWeek || !dataManager) {
+      setHasUserSubmittedPicks(false);
+      return;
+    }
+
+    setPickemNotificationLoading(true);
+    try {
+      // Get pick'em week data for current week
+      const pickEmWeekData = await dataManager.getPickEmWeek(activeSeason.id, currentWeek);
+      if (!pickEmWeekData) {
+        setHasUserSubmittedPicks(false);
+        return;
+      }
+
+      // Get user picks for this week
+      const userPicks = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
+      const hasSubmitted = userPicks && userPicks.length > 0;
+      setHasUserSubmittedPicks(hasSubmitted);
+    } catch (err) {
+      console.error('Error checking user picks:', err);
+      setHasUserSubmittedPicks(false);
+    } finally {
+      setPickemNotificationLoading(false);
+    }
+  };
 
   // Analytics data integration
   const {
@@ -81,11 +111,16 @@ const FantasyFootballApp = () => {
     isEnabled: analyticsEnabled
   } = useAnalyticsData(weeklyRankings, currentWeek, true);
 
+  // Check picks submission when relevant data changes
+  useEffect(() => {
+    checkUserPicksSubmission();
+  }, [isAuthenticated, user, activeSeason, currentWeek, dataManager]);
+
   // Initialize current week based on calendar date and keep it updated
   useEffect(() => {
     // Set initial week
     const calendarWeek = getCurrentWeek();
-    
+
     if (calendarWeek !== currentWeek) {
       setCurrentWeek(calendarWeek);
     }
@@ -220,7 +255,8 @@ const FantasyFootballApp = () => {
                   const isDisabled = isAdmin && tab.requiresSeason && !activeSeason;
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
-                  
+                  const showNotification = tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading;
+
                   return (
                     <Button
                       key={tab.id}
@@ -228,10 +264,13 @@ const FantasyFootballApp = () => {
                       size="sm"
                       disabled={isDisabled}
                       onClick={() => setActiveTab(tab.id)}
-                      className="flex items-center space-x-2 h-9"
+                      className="flex items-center space-x-2 h-9 relative"
                     >
                       <Icon className="h-4 w-4" />
                       <span>{tab.label}</span>
+                      {showNotification && (
+                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                      )}
                     </Button>
                   );
                 })}
@@ -579,6 +618,7 @@ const FantasyFootballApp = () => {
                 currentWeek={currentWeek}
                 onUpdateGame={isAdmin ? handleGameUpdate : null}
                 onDeleteGame={isAdmin ? handleGameDelete : null}
+                onWeekChange={setCurrentWeek}
                 loading={loading}
                 isAuthenticated={isAdmin}
                 user={user}

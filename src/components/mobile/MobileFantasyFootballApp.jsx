@@ -253,6 +253,7 @@ const MobileFantasyFootballApp = () => {
         isAdmin={isAdmin}
         activeSeason={activeSeason}
         currentWeek={currentWeek}
+        dataManager={dataManager}
       />
 
 

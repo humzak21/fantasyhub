@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, Users, RefreshCw, Download, Upload, Plus, Edit3, Trash2, CheckCircle, Clock } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
+import SeasonProgressBar from '../season/SeasonProgressBar';
 
 const ScheduleManager = ({
   season = null,
@@ -9,6 +10,7 @@ const ScheduleManager = ({
   currentWeek = 1, // Added currentWeek prop to sync with week navigator
   onUpdateGame,
   onDeleteGame,
+  onWeekChange, // Added to handle week navigation from progress bar
   loading = false,
   isAuthenticated = false, // This now represents isAdmin from parent
   user = null,
@@ -113,29 +115,13 @@ const ScheduleManager = ({
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="text-blue-600 text-sm font-medium">Total Games</div>
-          <div className="text-2xl font-bold text-blue-900">{schedule.length}</div>
-        </div>
-        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <div className="text-green-600 text-sm font-medium">Completed</div>
-          <div className="text-2xl font-bold text-green-900">
-            {schedule.filter(game => game.isCompleted).length}
-          </div>
-        </div>
-        <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-          <div className="text-orange-600 text-sm font-medium">Scheduled</div>
-          <div className="text-2xl font-bold text-orange-900">
-            {schedule.filter(game => !game.isCompleted).length}
-          </div>
-        </div>
-        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-          <div className="text-purple-600 text-sm font-medium">Teams</div>
-          <div className="text-2xl font-bold text-purple-900">{season.teams.length}</div>
-        </div>
-      </div>
+      {/* Season Progress Bar */}
+      <SeasonProgressBar
+        season={season}
+        schedule={schedule}
+        currentWeek={currentWeek}
+        onWeekChange={onWeekChange}
+      />
 
       {season.teams.length < 2 ? (
         <div className="text-center py-12 text-gray-500">
