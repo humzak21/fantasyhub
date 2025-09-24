@@ -260,7 +260,11 @@ const PickEmsSubmission = ({
               </div>
 
               <div className="flex items-center gap-2">
-                {hasSubmitted && !isEditing ? (
+                {!user ? (
+                  <div className="text-sm text-muted-foreground px-4 py-2 bg-yellow-50 border border-yellow-200 rounded">
+                    Please log in to submit or edit picks
+                  </div>
+                ) : hasSubmitted && !isEditing ? (
                   <Button
                     onClick={() => setIsEditing(true)}
                     variant="outline"
@@ -360,15 +364,15 @@ const PickEmsSubmission = ({
                     <div className="flex items-center space-x-4">
                       {/* Team 1 */}
                       <button
-                        onClick={() => (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
-                        disabled={status.status !== 'open' || (hasSubmitted && !isEditing)}
+                        onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
+                        disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
                         className={`
                           flex items-center space-x-3 p-3 rounded-lg border-2 transition-all
                           ${picks[game.id]?.predictedWinnerTeamId === game.team1.id
                             ? 'border-primary bg-primary/10 text-primary font-semibold'
                             : 'border-muted hover:border-primary/50 hover:bg-muted/50'
                           }
-                          ${(status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
+                          ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
                           ${getUserTeamHighlightClasses(isUserTeam(game.team1, user))}
                         `}
                       >
@@ -382,15 +386,15 @@ const PickEmsSubmission = ({
 
                       {/* Team 2 */}
                       <button
-                        onClick={() => (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
-                        disabled={status.status !== 'open' || (hasSubmitted && !isEditing)}
+                        onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
+                        disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
                         className={`
                           flex items-center space-x-3 p-3 rounded-lg border-2 transition-all
                           ${picks[game.id]?.predictedWinnerTeamId === game.team2.id
                             ? 'border-primary bg-primary/10 text-primary font-semibold'
                             : 'border-muted hover:border-primary/50 hover:bg-muted/50'
                           }
-                          ${(status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
+                          ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
                           ${getUserTeamHighlightClasses(isUserTeam(game.team2, user))}
                         `}
                       >
@@ -464,7 +468,11 @@ const PickEmsSubmission = ({
               </div>
 
               <div className="flex items-center gap-2">
-                {hasSubmitted && !isEditing ? (
+                {!user ? (
+                  <div className="text-sm text-muted-foreground px-4 py-2 bg-yellow-50 border border-yellow-200 rounded">
+                    Please log in to submit or edit picks
+                  </div>
+                ) : hasSubmitted && !isEditing ? (
                   <Button
                     onClick={() => setIsEditing(true)}
                     variant="outline"

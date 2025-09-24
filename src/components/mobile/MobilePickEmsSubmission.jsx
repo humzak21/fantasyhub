@@ -275,14 +275,14 @@ const MobilePickEmsSubmission = ({
                 <div className="grid grid-cols-2 gap-3">
                   {/* Team 1 */}
                   <button
-                    onClick={() => (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
-                    disabled={status.status !== 'open' || (hasSubmitted && !isEditing)}
+                    onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
+                    disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
                     className={`p-4 rounded-xl border-2 transition-all duration-200 ${
                       picks[game.id]?.predictedWinnerTeamId === game.team1.id
                         ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-25'
                     } ${
-                      (status.status !== 'open' || (hasSubmitted && !isEditing))
+                      (!user || status.status !== 'open' || (hasSubmitted && !isEditing))
                         ? 'opacity-60 cursor-not-allowed'
                         : 'active:scale-95 cursor-pointer'
                     } ${getUserTeamHighlightClasses(isUserTeam(game.team1, user))}`}
@@ -303,14 +303,14 @@ const MobilePickEmsSubmission = ({
 
                   {/* Team 2 */}
                   <button
-                    onClick={() => (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
-                    disabled={status.status !== 'open' || (hasSubmitted && !isEditing)}
+                    onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
+                    disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
                     className={`p-4 rounded-xl border-2 transition-all duration-200 ${
                       picks[game.id]?.predictedWinnerTeamId === game.team2.id
                         ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-25'
                     } ${
-                      (status.status !== 'open' || (hasSubmitted && !isEditing))
+                      (!user || status.status !== 'open' || (hasSubmitted && !isEditing))
                         ? 'opacity-60 cursor-not-allowed'
                         : 'active:scale-95 cursor-pointer'
                     } ${getUserTeamHighlightClasses(isUserTeam(game.team2, user))}`}
@@ -356,7 +356,11 @@ const MobilePickEmsSubmission = ({
       {/* Action buttons */}
       {status.status === 'open' && availableGames.length > 0 && (
         <div className="space-y-3 pt-4">
-          {hasSubmitted && !isEditing ? (
+          {!user ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
+              <p className="text-yellow-800 font-medium">Please log in to submit or edit picks</p>
+            </div>
+          ) : hasSubmitted && !isEditing ? (
             <MobileButton
               onClick={() => setIsEditing(true)}
               variant="secondary"
