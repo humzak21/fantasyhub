@@ -184,7 +184,7 @@ const TeamsAndRosters = ({
         >
           <Badge
             variant="outline"
-            className={`text-xs h-4 px-1 ${getPositionColor(position)}`}
+            className={`text-xs h-4 px-1 w-10 justify-center ${getPositionColor(position)}`}
           >
             {position}
           </Badge>

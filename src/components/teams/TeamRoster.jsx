@@ -97,9 +97,9 @@ const TeamRoster = ({ roster = [], teamName = '', loading = false, compact = fal
     return (
       <div className="flex items-center justify-between py-2 px-3 hover:bg-muted/50 rounded-md group">
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <Badge 
-            variant="outline" 
-            className={`text-xs font-mono ${getPositionColor(position)}`}
+          <Badge
+            variant="outline"
+            className={`text-xs font-mono w-12 justify-center ${getPositionColor(position)}`}
           >
             {position}
           </Badge>
