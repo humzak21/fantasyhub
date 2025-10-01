@@ -2227,15 +2227,82 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      const { data, error } = await this.client.rpc('get_pick_em_status', {
-        p_season_id: seasonId
-      });
+      // Get all pick'em weeks for the season
+      const { data: pickEmWeeks, error: weeksError } = await this.client
+        .from('pick_em_weeks')
+        .select('*')
+        .eq('season_id', seasonId)
+        .order('week_number');
 
-      if (error) throw error;
+      if (weeksError) throw weeksError;
 
-      return data || [];
+      if (!pickEmWeeks || pickEmWeeks.length === 0) {
+        return [];
+      }
+
+      const now = new Date();
+      const statusResults = [];
+
+      for (const week of pickEmWeeks) {
+        const submissionOpensAt = new Date(week.submission_opens_at);
+        const submissionClosesAt = new Date(week.submission_closes_at);
+        const resultsRevealAt = new Date(week.results_reveal_at);
+
+        // Check if all games for this week are completed
+        const { data: games, error: gamesError } = await this.client
+          .from('games')
+          .select('is_completed')
+          .eq('season_id', seasonId)
+          .eq('week', week.week_number);
+
+        if (gamesError) throw gamesError;
+
+        const allGamesCompleted = games && games.length > 0 && games.every(g => g.is_completed);
+
+        // Determine status
+        let status = 'upcoming';
+        let canSubmit = false;
+        let resultsAvailable = false;
+        let timeInfo = '';
+
+        if (now < submissionOpensAt) {
+          status = 'upcoming';
+          timeInfo = `Opens ${submissionOpensAt.toLocaleDateString()}`;
+        } else if (now >= submissionOpensAt && now < submissionClosesAt) {
+          status = 'open';
+          canSubmit = true;
+          timeInfo = `Closes ${submissionClosesAt.toLocaleDateString()}`;
+        } else if (now >= submissionClosesAt) {
+          status = 'closed';
+
+          // Results are available if all games are completed OR we're past reveal time
+          if (allGamesCompleted || now >= resultsRevealAt) {
+            resultsAvailable = true;
+            status = 'completed';
+            timeInfo = 'Results Available';
+          } else {
+            timeInfo = `Results reveal ${resultsRevealAt.toLocaleDateString()}`;
+          }
+        }
+
+        statusResults.push({
+          weekNumber: week.week_number,
+          pickEmWeekId: week.id,
+          status,
+          canSubmit,
+          resultsAvailable,
+          timeInfo,
+          allGamesCompleted,
+          submissionOpensAt: week.submission_opens_at,
+          submissionClosesAt: week.submission_closes_at,
+          resultsRevealAt: week.results_reveal_at
+        });
+      }
+
+      return statusResults;
     } catch (error) {
       handleSupabaseError(error, 'Get pick em status');
+      return [];
     }
   }
 
@@ -2270,6 +2337,52 @@ export class SupabaseDataManager {
     } catch (error) {
       handleSupabaseError(error, 'Submit pick em picks');
     }
+  }
+
+  // Helper method to get user display names from auth (public-safe, no emails exposed)
+  async getUserDisplayNames(userIds) {
+    if (!userIds || userIds.length === 0) return {};
+
+    const userDisplayNames = {};
+
+    // Try to get user display names using the public-safe RPC function
+    try {
+      const { data: usersData, error: usersError } = await this.client.rpc('get_user_display_names', {
+        user_ids: userIds
+      });
+
+      if (!usersError && usersData && Array.isArray(usersData)) {
+        usersData.forEach(user => {
+          if (user && user.id) {
+            userDisplayNames[user.id] = user.display_name || `User ${user.id.slice(0, 8)}`;
+          }
+        });
+      }
+    } catch (rpcError) {
+      console.warn('RPC function get_user_display_names not available:', rpcError);
+
+      // Fallback: get current user details only
+      try {
+        const { data: { user } } = await this.client.auth.getUser();
+        if (user && userIds.includes(user.id)) {
+          userDisplayNames[user.id] = user.user_metadata?.full_name ||
+                                      user.user_metadata?.name ||
+                                      user.email?.split('@')[0] ||
+                                      `User ${user.id.slice(0, 8)}`;
+        }
+      } catch (authError) {
+        console.warn('Could not get current user details:', authError);
+      }
+    }
+
+    // Fill in any missing users with fallback names
+    userIds.forEach(userId => {
+      if (!userDisplayNames[userId]) {
+        userDisplayNames[userId] = `User ${userId.slice(0, 8)}`;
+      }
+    });
+
+    return userDisplayNames;
   }
 
   async getUserPicksForWeek(pickEmWeekId, userId = null) {
@@ -2321,7 +2434,7 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      // This should only work if results have been revealed
+      // Get all submissions with game and team data
       const { data, error } = await this.client
         .from('pick_em_submissions')
         .select(`
@@ -2329,22 +2442,46 @@ export class SupabaseDataManager {
           pick_em_weeks!inner(is_completed),
           games(
             week,
+            is_completed,
+            winner_team_id,
+            team1_score,
+            team2_score,
             team1:teams!games_team1_id_fkey(id, name, owner),
             team2:teams!games_team2_id_fkey(id, name, owner)
           ),
-          predicted_team:teams!pick_em_submissions_predicted_winner_team_id_fkey(name),
-          pick_em_results(
-            is_correct,
-            points_earned,
-            actual_winner_team_id,
-            actual_team:teams!pick_em_results_actual_winner_team_id_fkey(name)
-          )
+          predicted_team:teams!pick_em_submissions_predicted_winner_team_id_fkey(name)
         `)
         .eq('pick_em_week_id', pickEmWeekId);
 
       if (error) throw error;
 
-      return (data || []).map(formatFromDatabase);
+      // Get unique user IDs
+      const userIds = [...new Set((data || []).map(s => s.user_id))];
+      const displayNames = await this.getUserDisplayNames(userIds);
+
+      // Calculate results on the fly by comparing picks to actual game results
+      const submissions = (data || []).map(submission => {
+        const game = submission.games;
+        const isCorrect = game?.is_completed && game.winner_team_id === submission.predicted_winner_team_id;
+        const pointsEarned = isCorrect ? 1 : 0; // Simple scoring: 1 point per correct pick
+
+        return {
+          ...formatFromDatabase(submission),
+          displayName: displayNames[submission.user_id] || `User ${submission.user_id?.slice(0, 8)}`,
+          isCorrect,
+          pointsEarned,
+          actualWinnerTeamId: game?.winner_team_id,
+          actualWinnerName: game?.winner_team_id === game?.team1?.id ? game?.team1?.name :
+                            game?.winner_team_id === game?.team2?.id ? game?.team2?.name : null,
+          team1Name: game?.team1?.name,
+          team2Name: game?.team2?.name,
+          team1Score: game?.team1_score,
+          team2Score: game?.team2_score,
+          gameCompleted: game?.is_completed
+        };
+      });
+
+      return submissions;
     } catch (error) {
       handleSupabaseError(error, 'Get all picks for week');
     }
@@ -2431,13 +2568,46 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      const { data, error } = await this.client.rpc('calculate_pick_em_results', {
-        p_pick_em_week_id: pickEmWeekId
-      });
+      // Since we calculate results on the fly, we just need to mark the week as completed
+      // and ensure all games for the week are completed
 
-      if (error) throw error;
+      // First, verify all games are completed
+      const { data: pickEmWeek, error: weekError } = await this.client
+        .from('pick_em_weeks')
+        .select('week_number, season_id')
+        .eq('id', pickEmWeekId)
+        .single();
 
-      return data;
+      if (weekError) throw weekError;
+
+      const { data: games, error: gamesError } = await this.client
+        .from('games')
+        .select('is_completed')
+        .eq('season_id', pickEmWeek.season_id)
+        .eq('week', pickEmWeek.week_number);
+
+      if (gamesError) throw gamesError;
+
+      const allGamesCompleted = games && games.length > 0 && games.every(g => g.is_completed);
+
+      if (!allGamesCompleted) {
+        throw new Error('Cannot calculate results: Not all games for this week are completed');
+      }
+
+      // Mark the week as completed
+      const { error: updateError } = await this.client
+        .from('pick_em_weeks')
+        .update({
+          is_completed: true,
+          is_closed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', pickEmWeekId);
+
+      if (updateError) throw updateError;
+
+      // Return success - results are calculated on the fly when requested
+      return { success: true, message: 'Results calculated successfully' };
     } catch (error) {
       handleSupabaseError(error, 'Calculate pick em results');
     }
@@ -2447,17 +2617,60 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      const { data, error } = await this.client
-        .from('pick_em_weekly_scores')
-        .select('*')
-        .eq('pick_em_week_id', pickEmWeekId)
-        .order('weekly_rank');
+      // Get all picks for the week with calculated results
+      const allPicks = await this.getAllPicksForWeek(pickEmWeekId);
 
-      if (error) throw error;
+      if (!allPicks || allPicks.length === 0) {
+        return [];
+      }
 
-      return (data || []).map(formatFromDatabase);
+      // Group picks by user
+      const userScores = {};
+      allPicks.forEach(pick => {
+        const userId = pick.userId;
+        if (!userScores[userId]) {
+          userScores[userId] = {
+            userId,
+            totalPicks: 0,
+            correctPicks: 0,
+            totalPoints: 0,
+            pickEmWeekId
+          };
+        }
+
+        userScores[userId].totalPicks++;
+        if (pick.isCorrect) {
+          userScores[userId].correctPicks++;
+          userScores[userId].totalPoints += pick.pointsEarned || 1;
+        }
+      });
+
+      // Get display names for all users
+      const userIds = Object.keys(userScores);
+      const displayNames = await this.getUserDisplayNames(userIds);
+
+      // Convert to array and calculate accuracy and rank
+      const scoresArray = Object.values(userScores).map(score => ({
+        ...score,
+        displayName: displayNames[score.userId] || `User ${score.userId.slice(0, 8)}`,
+        accuracyPercentage: score.totalPicks > 0 ? (score.correctPicks / score.totalPicks) * 100 : 0
+      }));
+
+      // Sort by total points (desc), then by correct picks (desc), then by accuracy (desc)
+      scoresArray.sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+        if (b.correctPicks !== a.correctPicks) return b.correctPicks - a.correctPicks;
+        return b.accuracyPercentage - a.accuracyPercentage;
+      });
+
+      // Assign ranks
+      return scoresArray.map((score, index) => ({
+        ...score,
+        weeklyRank: index + 1
+      }));
     } catch (error) {
       handleSupabaseError(error, 'Get weekly pick em scores');
+      return [];
     }
   }
 
@@ -2465,17 +2678,86 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      const { data, error } = await this.client
-        .from('pick_em_season_standings')
-        .select('*')
+      // Get all pick'em weeks for the season
+      const { data: pickEmWeeks, error: weeksError } = await this.client
+        .from('pick_em_weeks')
+        .select('id, week_number')
         .eq('season_id', seasonId)
-        .order('season_rank');
+        .order('week_number');
 
-      if (error) throw error;
+      if (weeksError) throw weeksError;
 
-      return (data || []).map(formatFromDatabase);
+      if (!pickEmWeeks || pickEmWeeks.length === 0) {
+        return [];
+      }
+
+      // Get all picks for all weeks
+      const userStats = {};
+
+      for (const week of pickEmWeeks) {
+        const allPicks = await this.getAllPicksForWeek(week.id);
+
+        allPicks.forEach(pick => {
+          const userId = pick.userId;
+          if (!userStats[userId]) {
+            userStats[userId] = {
+              userId,
+              totalPicks: 0,
+              totalCorrectPicks: 0,
+              totalPoints: 0,
+              totalWeeksParticipated: new Set(),
+              perfectWeeks: 0,
+              weeklyResults: []
+            };
+          }
+
+          userStats[userId].totalPicks++;
+          if (pick.isCorrect) {
+            userStats[userId].totalCorrectPicks++;
+            userStats[userId].totalPoints += pick.pointsEarned || 1;
+          }
+          userStats[userId].totalWeeksParticipated.add(week.week_number);
+        });
+
+        // Check for perfect weeks
+        const weekScores = await this.getWeeklyPickEmScores(week.id);
+        weekScores.forEach(score => {
+          if (score.accuracyPercentage === 100 && userStats[score.userId]) {
+            userStats[score.userId].perfectWeeks++;
+          }
+        });
+      }
+
+      // Get display names for all users
+      const userIds = Object.keys(userStats);
+      const displayNames = await this.getUserDisplayNames(userIds);
+
+      // Convert to array and calculate overall stats
+      const standingsArray = Object.values(userStats).map(stats => ({
+        userId: stats.userId,
+        displayName: displayNames[stats.userId] || `User ${stats.userId.slice(0, 8)}`,
+        totalPicks: stats.totalPicks,
+        totalCorrectPicks: stats.totalCorrectPicks,
+        totalPoints: stats.totalPoints,
+        totalWeeksParticipated: stats.totalWeeksParticipated.size,
+        perfectWeeks: stats.perfectWeeks,
+        overallAccuracyPercentage: stats.totalPicks > 0 ? (stats.totalCorrectPicks / stats.totalPicks) * 100 : 0
+      }));
+
+      // Sort by total points, then by accuracy
+      standingsArray.sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+        return b.overallAccuracyPercentage - a.overallAccuracyPercentage;
+      });
+
+      // Assign season ranks
+      return standingsArray.map((standing, index) => ({
+        ...standing,
+        seasonRank: index + 1
+      }));
     } catch (error) {
       handleSupabaseError(error, 'Get season pick em standings');
+      return [];
     }
   }
 
@@ -2484,31 +2766,27 @@ export class SupabaseDataManager {
     await this.initialize();
 
     try {
-      const { data, error } = await this.client
-        .from('pick_em_weekly_scores')
-        .select(`
-          *,
-          pick_em_weeks!inner(week_number, season_id)
-        `)
-        .eq('pick_em_weeks.season_id', seasonId)
-        .order('pick_em_weeks.week_number')
-        .order('weekly_rank');
+      // Get all pick'em weeks for the season
+      const { data: pickEmWeeks, error } = await this.client
+        .from('pick_em_weeks')
+        .select('id, week_number')
+        .eq('season_id', seasonId)
+        .order('week_number');
 
       if (error) throw error;
 
-      // Group by week
+      // Get scores for each week and group by week number
       const weeklyBreakdown = {};
-      (data || []).forEach(score => {
-        const weekNumber = score.pick_em_weeks.week_number;
-        if (!weeklyBreakdown[weekNumber]) {
-          weeklyBreakdown[weekNumber] = [];
-        }
-        weeklyBreakdown[weekNumber].push(formatFromDatabase(score));
-      });
+
+      for (const week of pickEmWeeks || []) {
+        const scores = await this.getWeeklyPickEmScores(week.id);
+        weeklyBreakdown[week.week_number] = scores;
+      }
 
       return weeklyBreakdown;
     } catch (error) {
       handleSupabaseError(error, 'Get pick em weekly breakdown');
+      return {};
     }
   }
 

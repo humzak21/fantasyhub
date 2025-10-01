@@ -742,6 +742,7 @@ const FantasyFootballApp = () => {
           onDivisionRename={renameDivision}
           onTeamDivisionChange={assignTeamToDivision}
           onCreateDivision={createDivision}
+          games={activeSeason.schedule || []}
         />
       )}
 
