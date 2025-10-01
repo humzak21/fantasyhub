@@ -25,35 +25,6 @@ A comprehensive, modular fantasy football power rankings application built with 
 - **Data Export/Import**: Save and share season data
 - **Local Storage**: Automatic data persistence
 
-## Architecture
-
-### Folder Structure
-```
-src/fantasy-football/
-├── components/          # React components
-│   ├── PowerRankingsTable.jsx
-│   ├── WeekScoreInput.jsx
-│   ├── SeasonManager.jsx
-│   ├── StatisticsPanel.jsx
-│   ├── FloatingWeekNavigator.jsx
-│   ├── CompactWeekControl.jsx
-│   ├── ExpandedWeekModal.jsx
-│   ├── ScheduleManager.jsx
-│   └── TeamManager.jsx
-├── services/           # Business logic and calculations
-│   ├── powerRankingCalculator.js
-│   └── dataManager.js
-├── hooks/              # Custom React hooks
-│   └── useFantasyData.js
-├── types/              # Data models and types
-│   └── index.js
-├── utils/              # Utility functions
-├── styles/             # CSS styles
-│   └── fantasy-football.css
-├── FantasyFootballApp.jsx  # Main application component
-└── README.md
-```
-
 ### Key Components
 
 #### PowerRankingCalculator
@@ -121,35 +92,6 @@ src/fantasy-football/
 }
 ```
 
-## Usage
-
-### Getting Started
-
-1. **Create a Season**
-   - Navigate to the "Seasons" tab
-   - Click "New Season" and fill in details
-   - Set the active season
-
-2. **Add Teams**
-   - Go to the "Teams" tab
-   - Add teams with names and optional owner information
-   - Teams can be edited or removed as needed
-
-3. **Generate Schedule**
-   - Visit the "Schedule" tab
-   - Click "Generate Schedule" for automatic round-robin creation
-   - Or manually add individual games
-
-4. **Enter Weekly Scores**
-   - Use the "Enter Scores" tab
-   - Input scores for all matchups in a week
-   - Data automatically saves and updates rankings
-
-5. **View Power Rankings**
-   - Check the "Power Rankings" tab for current standings
-   - Toggle advanced statistics for detailed metrics
-   - Navigate between weeks to see historical rankings
-
 ### Key Features Explained
 
 #### Power Ranking Algorithm
@@ -206,7 +148,7 @@ export const POWER_RANKING_WEIGHTS = {
 };
 ```
 
-### Thresholds
+### Threshold
 Adjust calculation thresholds in `types/index.js`:
 ```javascript
 export const THRESHOLDS = {
@@ -218,32 +160,6 @@ export const THRESHOLDS = {
   upsetRankDifference: 3        // Rank difference for upset detection
 };
 ```
-
-### Styling
-The system uses CSS custom properties for easy theming. Modify `styles/fantasy-football.css`:
-```css
-:root {
-  --ff-primary-blue: #2563eb;
-  --ff-accent-green: #16a34a;
-  --ff-accent-red: #dc2626;
-  /* ... other color variables */
-}
-```
-
-## Browser Support
-
-- Modern browsers with ES6+ support
-- Chrome 70+
-- Firefox 65+
-- Safari 12+
-- Edge 79+
-
-## Performance
-
-- Efficient re-calculations only when data changes
-- Memoized power ranking calculations
-- Responsive design for mobile performance
-- Local storage for instant loading
 
 ## Future Enhancements
 
@@ -257,12 +173,3 @@ Potential additions could include:
 - Multi-league management
 - Commissioner tools
 - Automated data import from fantasy platforms
-
-## Contributing
-
-This is a self-contained module that can be easily extended. Key areas for contribution:
-- Additional statistical calculations
-- Enhanced visualizations
-- Mobile app development
-- Integration with fantasy platforms
-- Performance optimizations
