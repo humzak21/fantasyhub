@@ -27,10 +27,41 @@ const DrawerStandingsTable = ({
   onDivisionRename,
   onTeamDivisionChange,
   onCreateDivision,
-  onClose
+  onClose,
+  games = [] // Add games data for streak calculation fallback
 }) => {
   const [isManaging, setIsManaging] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState('');
+  
+  // Debug: Log props in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[DrawerStandingsTable] Props:', {
+      teamsCount: teams?.length || 0,
+      divisionsCount: divisions?.length || 0,
+      gamesCount: games?.length || 0,
+      standingsStructure: standings,
+      sampleTeam: teams?.[0],
+      sampleGame: games?.[0]
+    });
+    
+    // Log detailed game structure
+    if (games?.[0]) {
+      const game = games[0];
+      console.log('[DrawerStandingsTable] Sample game fields:', {
+        id: game.id,
+        week: game.week,
+        team1_id: game.team1_id,
+        team2_id: game.team2_id,
+        team1_score: game.team1_score,
+        team2_score: game.team2_score,
+        team1Score: game.team1Score,
+        team2Score: game.team2Score,
+        isCompleted: game.isCompleted,
+        is_completed: game.is_completed,
+        allFields: Object.keys(game)
+      });
+    }
+  }
 
   // Calculate standings data
   const calculateStandings = () => {
@@ -103,7 +134,31 @@ const DrawerStandingsTable = ({
           : 0,
         divisionRank: index + 1,
         isPlayoffSpot: index < 3, // Top 3 teams per division make playoffs
-        streak: formatStreak(team.currentStreak || team.current_streak)
+        currentStreak: (() => {
+          const dbStreak = team.currentStreak || team.current_streak;
+          const teamId = team.id || team.teamId;
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Streak Debug] Team ${team.name} (${teamId}):`, {
+              dbStreak,
+              hasDbStreak: dbStreak && dbStreak.type !== 'none' && dbStreak.length > 0,
+              gamesCount: games?.length || 0,
+              team: { id: team.id, teamId: team.teamId, name: team.name }
+            });
+          }
+          
+          if (dbStreak && dbStreak.type !== 'none' && dbStreak.length > 0) {
+            return dbStreak;
+          }
+          // Fallback to calculate from games if database doesn't have it
+          const calculatedStreak = calculateStreakFromGames(teamId, games);
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Streak Debug] Calculated streak for ${team.name}:`, calculatedStreak);
+          }
+          
+          return calculatedStreak;
+        })()
       }));
 
       return {
@@ -128,7 +183,30 @@ const DrawerStandingsTable = ({
         : 0,
       divisionRank: index + 1,
       isPlayoffSpot: false,
-      streak: formatStreak(team.currentStreak || team.current_streak)
+      currentStreak: (() => {
+        const dbStreak = team.currentStreak || team.current_streak;
+        const teamId = team.id || team.teamId;
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[Streak Debug] Unassigned Team ${team.name} (${teamId}):`, {
+            dbStreak,
+            hasDbStreak: dbStreak && dbStreak.type !== 'none' && dbStreak.length > 0,
+            gamesCount: games?.length || 0
+          });
+        }
+        
+        if (dbStreak && dbStreak.type !== 'none' && dbStreak.length > 0) {
+          return dbStreak;
+        }
+        // Fallback to calculate from games if database doesn't have it
+        const calculatedStreak = calculateStreakFromGames(teamId, games);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[Streak Debug] Calculated streak for unassigned ${team.name}:`, calculatedStreak);
+        }
+        
+        return calculatedStreak;
+      })()
     }));
 
     return {
@@ -137,14 +215,149 @@ const DrawerStandingsTable = ({
     };
   };
 
-  const formatStreak = (streak) => {
-    if (!streak) return '';
-    if (typeof streak === 'string') return streak;
-    if (typeof streak === 'object' && streak.type && streak.length) {
-      const type = streak.type === 'win' ? 'W' : streak.type === 'loss' ? 'L' : '';
-      return type ? `${type}${streak.length}` : '';
+  const getStreakDisplay = (streak) => {
+    if (!streak || streak.type === 'none') return '-';
+    const prefix = streak.type === 'win' ? 'W' : streak.type === 'loss' ? 'L' : 'T';
+    return `${prefix}${streak.length}`;
+  };
+
+  const getStreakVariant = (streak) => {
+    if (streak?.type === 'win') return 'default';
+    if (streak?.type === 'loss') return 'destructive';
+    return 'secondary';
+  };
+
+  // Fallback function to calculate streak from games data if not in database
+  const calculateStreakFromGames = (teamId, gamesData) => {
+    if (!gamesData || gamesData.length === 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Streak Calc] No games data for team ${teamId}`);
+      }
+      return { type: 'none', length: 0 };
     }
-    return '';
+    
+    // Debug: log that we're calculating streaks from games
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Streak Calc] Calculating streak for team ${teamId}`, { 
+        gamesCount: gamesData.length,
+        sampleGame: gamesData[0]
+      });
+      
+      // Show completion stats for all games
+      const completedGamesCount = gamesData.filter(g => 
+        g.isCompleted || g.is_completed || 
+        (g.team1_score !== null && g.team1_score !== undefined && 
+         g.team2_score !== null && g.team2_score !== undefined)
+      ).length;
+      console.log(`[Streak Calc] Games completion status: ${completedGamesCount}/${gamesData.length} games completed`);
+    }
+
+    // Filter completed games for this team and sort by week descending
+    let debugLogged = false;
+    const teamGames = gamesData
+      .filter(game => {
+        const isTeamInGame = (
+          game.team1Id === teamId || game.team2Id === teamId || 
+          game.team1_id === teamId || game.team2_id === teamId
+        );
+        const isCompleted = game.isCompleted || game.is_completed || 
+          (game.team1_score !== null && game.team1_score !== undefined && 
+           game.team2_score !== null && game.team2_score !== undefined);
+        
+        // Removed excessive debug logging - issue was field name mismatch
+        
+        return isTeamInGame && isCompleted;
+      })
+      .sort((a, b) => (b.week || 0) - (a.week || 0));
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Streak Calc] Team ${teamId} - Found ${teamGames.length} completed games out of ${gamesData.length} total games`);
+      if (teamGames.length > 0) {
+        console.log(`[Streak Calc] Sample team game:`, teamGames[0]);
+      } else {
+        // Debug: show why no games were found
+        const teamGamesDebug = gamesData.filter(game => {
+          const isTeamInGame = (
+            game.team1Id === teamId || game.team2Id === teamId || 
+            game.team1_id === teamId || game.team2_id === teamId
+          );
+          return isTeamInGame;
+        });
+        console.log(`[Streak Calc] Team ${teamId} appears in ${teamGamesDebug.length} games (but none completed)`);
+        if (teamGamesDebug.length > 0) {
+          console.log(`[Streak Calc] Sample uncompleted team game:`, teamGamesDebug[0]);
+        }
+      }
+    }
+
+    if (teamGames.length === 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Streak Calc] No completed games found for team ${teamId}`);
+      }
+      return { type: 'none', length: 0 };
+    }
+
+    // Get the most recent game result
+    const latestGame = teamGames[0];
+    const isTeam1 = latestGame.team1Id === teamId || latestGame.team1_id === teamId;
+    const team1Score = parseFloat(latestGame.team1_score || 0);
+    const team2Score = parseFloat(latestGame.team2_score || 0);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Streak Calc] Latest game for team ${teamId}:`, {
+        isTeam1,
+        team1Score,
+        team2Score,
+        gameWeek: latestGame.week
+      });
+    }
+    
+    let latestResult;
+    if (team1Score === team2Score) {
+      latestResult = 'tie';
+    } else if ((isTeam1 && team1Score > team2Score) || (!isTeam1 && team2Score > team1Score)) {
+      latestResult = 'win';
+    } else {
+      latestResult = 'loss';
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Streak Calc] Latest result for team ${teamId}: ${latestResult}`);
+    }
+
+    if (latestResult === 'tie') return { type: 'tie', length: 1 };
+
+    // Count consecutive games with the same result
+    let streakLength = 1;
+    for (let i = 1; i < teamGames.length; i++) {
+      const game = teamGames[i];
+      const gameIsTeam1 = game.team1Id === teamId || game.team1_id === teamId;
+      const gameTeam1Score = parseFloat(game.team1_score || 0);
+      const gameTeam2Score = parseFloat(game.team2_score || 0);
+      
+      let gameResult;
+      if (gameTeam1Score === gameTeam2Score) {
+        gameResult = 'tie';
+      } else if ((gameIsTeam1 && gameTeam1Score > gameTeam2Score) || (!gameIsTeam1 && gameTeam2Score > gameTeam1Score)) {
+        gameResult = 'win';
+      } else {
+        gameResult = 'loss';
+      }
+
+      if (gameResult === latestResult) {
+        streakLength++;
+      } else {
+        break;
+      }
+    }
+
+    const finalStreak = { type: latestResult, length: streakLength };
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Streak Calc] Final streak for team ${teamId}:`, finalStreak);
+    }
+
+    return finalStreak;
   };
 
   const handleDivisionRename = async (divisionId, newName) => {
@@ -399,10 +612,10 @@ const DrawerStandingsTable = ({
                           {(team.winPercentage || team.calculatedWinPct || 0).toFixed(3)}
                         </TableCell>
                         <TableCell className="px-2 py-2 text-center">
-                          {(team.pointsFor || 0).toFixed(0)}
+                          {(team.pointsFor || 0).toFixed(2)}
                         </TableCell>
                         <TableCell className="px-2 py-2 text-center">
-                          {(team.pointsAgainst || 0).toFixed(0)}
+                          {(team.pointsAgainst || 0).toFixed(2)}
                         </TableCell>
                         <TableCell className="px-2 py-2 text-center">
                           <span className={`font-medium ${
@@ -412,8 +625,13 @@ const DrawerStandingsTable = ({
                           </span>
                         </TableCell>
                         <TableCell className="px-2 py-2 text-center">
-                          <Badge variant="outline" className="text-xs">
-                            {team.streak || '-'}
+                          <Badge 
+                            variant={getStreakVariant(team.currentStreak)} 
+                            className={`text-xs ${
+                              (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
+                            }`}
+                          >
+                            {getStreakDisplay(team.currentStreak)}
                           </Badge>
                         </TableCell>
                         {isManaging && (
@@ -488,10 +706,10 @@ const DrawerStandingsTable = ({
                         {(team.winPercentage || team.calculatedWinPct || 0).toFixed(3)}
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
-                        {(team.pointsFor || 0).toFixed(0)}
+                        {(team.pointsFor || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
-                        {(team.pointsAgainst || 0).toFixed(0)}
+                        {(team.pointsAgainst || 0).toFixed(2)}
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
                         <span className={`font-medium ${
@@ -501,8 +719,13 @@ const DrawerStandingsTable = ({
                         </span>
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
-                        <Badge variant="outline" className="text-xs">
-                          {team.streak || '-'}
+                        <Badge 
+                          variant={getStreakVariant(team.currentStreak)} 
+                          className={`text-xs ${
+                            (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
+                          }`}
+                        >
+                          {getStreakDisplay(team.currentStreak)}
                         </Badge>
                       </TableCell>
                       {isManaging && (

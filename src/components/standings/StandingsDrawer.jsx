@@ -12,7 +12,8 @@ const StandingsDrawer = ({
   isAuthenticated,
   onDivisionRename,
   onTeamDivisionChange,
-  onCreateDivision 
+  onCreateDivision,
+  games = []
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -51,6 +52,7 @@ const StandingsDrawer = ({
           onTeamDivisionChange={onTeamDivisionChange}
           onCreateDivision={onCreateDivision}
           onClose={handleClose}
+          games={games}
         />
       </StandingsDrawerContent>
     </>

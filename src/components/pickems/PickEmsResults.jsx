@@ -145,7 +145,7 @@ const PickEmsResults = ({
 
                         <div>
                           <div className="font-medium">
-                            User {score.userId} {/* Replace with actual user names when available */}
+                            {score.displayName || `User ${score.userId?.slice(0, 8)}`}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {score.correctPicks}/{score.totalPicks} correct
@@ -181,11 +181,13 @@ const PickEmsResults = ({
             </Card>
           ) : (
             <div className="space-y-4">
-              {Object.entries(picksByUser).map(([userId, picks]) => (
+              {Object.entries(picksByUser).map(([userId, picks]) => {
+                const displayName = picks[0]?.displayName || `User ${userId.slice(0, 8)}`;
+                return (
                 <Card key={userId}>
                   <CardHeader>
                     <CardTitle className="text-lg">
-                      User {userId}'s Picks {/* Replace with actual user names */}
+                      {displayName}'s Picks
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -227,7 +229,8 @@ const PickEmsResults = ({
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              );
+              })}
             </div>
           )}
         </TabsContent>
@@ -269,7 +272,7 @@ const PickEmsResults = ({
 
                         <div>
                           <div className="font-medium">
-                            User {standing.userId} {/* Replace with actual user names */}
+                            {standing.displayName || `User ${standing.userId?.slice(0, 8)}`}
                           </div>
                           <div className="text-sm text-muted-foreground flex items-center gap-4">
                             <span>{standing.totalCorrectPicks}/{standing.totalPicks} picks</span>
