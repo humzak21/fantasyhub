@@ -3,17 +3,19 @@ import StandingsDrawerTrigger from './StandingsDrawerTrigger';
 import StandingsDrawerContent from './StandingsDrawerContent';
 import DrawerStandingsTable from './DrawerStandingsTable';
 
-const StandingsDrawer = ({ 
-  teams, 
-  divisions, 
-  standings, 
-  currentWeek, 
-  loading, 
+const StandingsDrawer = ({
+  teams,
+  divisions,
+  standings,
+  currentWeek,
+  loading,
   isAuthenticated,
   onDivisionRename,
   onTeamDivisionChange,
   onCreateDivision,
-  games = []
+  games = [],
+  user = null,
+  isAdmin = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -53,6 +55,8 @@ const StandingsDrawer = ({
           onCreateDivision={onCreateDivision}
           onClose={handleClose}
           games={games}
+          user={user}
+          isAdmin={isAdmin}
         />
       </StandingsDrawerContent>
     </>

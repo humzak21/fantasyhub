@@ -108,3 +108,28 @@ export const getMaskedUserName = (displayName, userId, user, isAdmin) => {
 
   return getTruncatedUUID(displayName);
 };
+
+/**
+ * Get masked or real division name based on authentication status
+ * @param {Object} division - Division object with name property
+ * @param {number} divisionIndex - The index/position of the division (0-based)
+ * @param {Object} user - User object from auth context (null if not logged in)
+ * @param {boolean} isAdmin - Whether user is admin
+ * @returns {string} - Either real division name or "Division N"
+ */
+export const getMaskedDivisionName = (division, divisionIndex, user, isAdmin) => {
+  if (!division) return 'Unknown Division';
+
+  // Admin always sees real name
+  if (isAdmin) {
+    return division.name;
+  }
+
+  // Authenticated users see real name
+  if (user) {
+    return division.name;
+  }
+
+  // Unauthenticated users see generic division number
+  return `Division ${divisionIndex + 1}`;
+};
