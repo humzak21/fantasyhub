@@ -9,12 +9,15 @@ import {
   DropdownMenuTrigger
 } from '../ui/dropdown-menu';
 import AnalyticsExport from '../analytics/AnalyticsExport';
+import { getMaskedTeamName } from '../../utils/displayNameUtils';
 
-const PowerRankingsVisualization = ({ 
-  rankings = [], 
-  currentWeek = 1, 
+const PowerRankingsVisualization = ({
+  rankings = [],
+  currentWeek = 1,
   analyticsData = {},
-  showAnalyticsSection = false 
+  showAnalyticsSection = false,
+  user = null,
+  isAdmin = false
 }) => {
   const [showAllTeams, setShowAllTeams] = useState(false);
   const visualizationData = useMemo(() => {
@@ -107,7 +110,7 @@ const PowerRankingsVisualization = ({
                     <Badge variant={index === 0 ? "default" : "secondary"} className="w-6 h-6 text-xs p-0 flex items-center justify-center">
                       {index + 1}
                     </Badge>
-                    <span className="font-medium">{team.name}</span>
+                    <span className="font-medium">{getMaskedTeamName(team, user, isAdmin)}</span>
                     {isAboveAverage && (
                       <TrendingUp className="h-3 w-3 text-green-600" />
                     )}
@@ -161,7 +164,7 @@ const PowerRankingsVisualization = ({
                 <h4 className="font-semibold text-sm">{title}</h4>
                 <Badge variant="outline" className="text-xs">{metric}</Badge>
               </div>
-              <div className="font-bold text-lg">{team.name}</div>
+              <div className="font-bold text-lg">{getMaskedTeamName(team, user, isAdmin)}</div>
               <div className="text-xs text-muted-foreground mt-1">{description}</div>
             </div>
           </div>
@@ -264,7 +267,7 @@ const PowerRankingsVisualization = ({
                   <div>
                     <h4 className="font-semibold">Top Analytics Team</h4>
                     <p className="text-sm text-muted-foreground">
-                      <strong>{analyticsOverview.topAnalyticsTeam.name}</strong> leads with an analytics strength score of{' '}
+                      <strong>{getMaskedTeamName(analyticsOverview.topAnalyticsTeam, user, isAdmin)}</strong> leads with an analytics strength score of{' '}
                       <strong>{Math.round(analyticsData[analyticsOverview.topAnalyticsTeam.teamId || analyticsOverview.topAnalyticsTeam.id]?.analyticsStrengthScore || 0)}</strong>
                     </p>
                   </div>

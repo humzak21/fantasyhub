@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Target, 
-  Zap, 
-  Shield, 
-  Award, 
-  BarChart3, 
-  ChevronDown, 
+import {
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Zap,
+  Shield,
+  Award,
+  BarChart3,
+  ChevronDown,
   ChevronUp,
   Info,
   Star,
@@ -19,6 +19,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
+import { getMaskedTeamName } from '../../utils/displayNameUtils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,12 +40,14 @@ import {
  * - Create analytics summary views for team composition analysis
  * - Implement analytics data export capabilities
  */
-const AnalyticsInsights = ({ 
-  team, 
-  currentWeek = 1, 
+const AnalyticsInsights = ({
+  team,
+  currentWeek = 1,
   showPlayerDetails = false,
   onExportData = null,
-  analyticsData = null 
+  analyticsData = null,
+  user = null,
+  isAdmin = false
 }) => {
   const [expandedSections, setExpandedSections] = useState(new Set());
   const [selectedView, setSelectedView] = useState('overview');
@@ -466,7 +469,7 @@ const AnalyticsInsights = ({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-blue-600" />
-            Analytics Insights - {team.name}
+            Analytics Insights - {getMaskedTeamName(team, user, isAdmin)}
             <Badge variant="outline" className="ml-2">Week {currentWeek}</Badge>
           </CardTitle>
           
