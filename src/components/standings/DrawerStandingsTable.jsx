@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { getMaskedTeamName, getMaskedOwnerName, getMaskedDivisionName } from '../../utils/displayNameUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -518,11 +518,11 @@ const DrawerStandingsTable = ({
 
       {/* Divisions stacked vertically */}
       <div className="space-y-4">
-        {divisionStandings.map((division) => (
+        {divisionStandings.map((division, divisionIndex) => (
           <div key={division.id} className="space-y-2">
             {/* Compact division header */}
             <div className="flex items-center gap-2 px-1">
-              <h3 className="text-base font-semibold">{division.name}</h3>
+              <h3 className="text-base font-semibold">{getMaskedDivisionName(division, divisionIndex, user, isAdmin)}</h3>
               {isManaging && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -539,7 +539,7 @@ const DrawerStandingsTable = ({
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Rename Division</AlertDialogTitle>
+                      <AlertDialogTitle>Rename {getMaskedDivisionName(division, divisionIndex, user, isAdmin)}</AlertDialogTitle>
                       <AlertDialogDescription>
                         Enter a new name for this division.
                       </AlertDialogDescription>
