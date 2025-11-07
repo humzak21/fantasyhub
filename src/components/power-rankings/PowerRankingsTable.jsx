@@ -111,7 +111,7 @@ const PowerRankingsTable = ({
           <div className="py-4">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <span className="font-semibold text-sm">Power Rating Component Breakdown</span>
+              <span className="font-semibold text-sm">Power Rating Component Breakdown - {getMaskedTeamName(team, user, isAdmin)}</span>
               <Badge variant="outline" className="text-xs">Week {currentWeek}</Badge>
             </div>
             
@@ -472,6 +472,8 @@ const PowerRankingsTable = ({
                         analyticsData={analyticsData[team.teamId || team.id]}
                         showPlayerDetails={true}
                         onExportData={onExportAnalytics}
+                        user={user}
+                        isAdmin={isAdmin}
                       />
                     </div>
                   </TableCell>
