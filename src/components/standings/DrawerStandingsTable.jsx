@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +29,9 @@ const DrawerStandingsTable = ({
   onTeamDivisionChange,
   onCreateDivision,
   onClose,
-  games = [] // Add games data for streak calculation fallback
+  games = [], // Add games data for streak calculation fallback
+  user = null,
+  isAdmin = false
 }) => {
   const [isManaging, setIsManaging] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState('');
@@ -576,11 +579,10 @@ const DrawerStandingsTable = ({
                       <TableHead className="px-3 py-2 text-sm min-w-[140px]">Team</TableHead>
                       <TableHead className="px-3 py-2 text-sm min-w-[120px]">Owner</TableHead>
                       <TableHead className="w-20 px-2 py-2 text-center text-sm">Record</TableHead>
-                      <TableHead className="w-16 px-2 py-2 text-center text-sm">PCT</TableHead>
+                      <TableHead className="w-16 px-2 py-2 text-center text-sm">Win %</TableHead>
                       <TableHead className="w-16 px-2 py-2 text-center text-sm">PF</TableHead>
                       <TableHead className="w-16 px-2 py-2 text-center text-sm">PA</TableHead>
                       <TableHead className="w-16 px-2 py-2 text-center text-sm">Diff</TableHead>
-                      <TableHead className="w-16 px-2 py-2 text-center text-sm">Streak</TableHead>
                       {isManaging && <TableHead className="w-20 px-2 py-2 text-center text-sm">Move</TableHead>}
                     </TableRow>
                   </TableHeader>
@@ -600,16 +602,16 @@ const DrawerStandingsTable = ({
                           </div>
                         </TableCell>
                         <TableCell className="px-3 py-2 font-medium">
-                          {team.name}
+                          {getMaskedTeamName(team, user, isAdmin)}
                         </TableCell>
                         <TableCell className="px-3 py-2 text-muted-foreground">
-                          {team.owner || 'N/A'}
+                          {getMaskedOwnerName(team, user, isAdmin)}
                         </TableCell>
                         <TableCell className="px-2 py-2 text-center">
                           {team.wins}-{team.losses}-{team.ties}
                         </TableCell>
                         <TableCell className="px-2 py-2 text-center">
-                          {(team.winPercentage || team.calculatedWinPct || 0).toFixed(3)}
+                          {((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%
                         </TableCell>
                         <TableCell className="px-2 py-2 text-center">
                           {(team.pointsFor || 0).toFixed(2)}
@@ -623,16 +625,6 @@ const DrawerStandingsTable = ({
                           }`}>
                             {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
                           </span>
-                        </TableCell>
-                        <TableCell className="px-2 py-2 text-center">
-                          <Badge 
-                            variant={getStreakVariant(team.currentStreak)} 
-                            className={`text-xs ${
-                              (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
-                            }`}
-                          >
-                            {getStreakDisplay(team.currentStreak)}
-                          </Badge>
                         </TableCell>
                         {isManaging && (
                           <TableCell className="px-2 py-2 text-center">
@@ -679,11 +671,10 @@ const DrawerStandingsTable = ({
                     <TableHead className="px-3 py-2 text-sm min-w-[140px]">Team</TableHead>
                     <TableHead className="px-3 py-2 text-sm min-w-[120px]">Owner</TableHead>
                     <TableHead className="w-20 px-2 py-2 text-center text-sm">Record</TableHead>
-                    <TableHead className="w-16 px-2 py-2 text-center text-sm">PCT</TableHead>
+                    <TableHead className="w-16 px-2 py-2 text-center text-sm">Win %</TableHead>
                     <TableHead className="w-16 px-2 py-2 text-center text-sm">PF</TableHead>
                     <TableHead className="w-16 px-2 py-2 text-center text-sm">PA</TableHead>
                     <TableHead className="w-16 px-2 py-2 text-center text-sm">Diff</TableHead>
-                    <TableHead className="w-16 px-2 py-2 text-center text-sm">Streak</TableHead>
                     {isManaging && <TableHead className="w-20 px-2 py-2 text-center text-sm">Assign</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -694,16 +685,16 @@ const DrawerStandingsTable = ({
                       className="text-sm transition-all duration-200 hover:bg-muted/50"
                     >
                       <TableCell className="px-3 py-2 font-medium">
-                        {team.name}
+                        {getMaskedTeamName(team, user, isAdmin)}
                       </TableCell>
                       <TableCell className="px-3 py-2 text-muted-foreground">
-                        {team.owner || 'N/A'}
+                        {getMaskedOwnerName(team, user, isAdmin)}
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
                         {team.wins}-{team.losses}-{team.ties}
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
-                        {(team.winPercentage || team.calculatedWinPct || 0).toFixed(3)}
+                        {((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
                         {(team.pointsFor || 0).toFixed(2)}
@@ -717,16 +708,6 @@ const DrawerStandingsTable = ({
                         }`}>
                           {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
                         </span>
-                      </TableCell>
-                      <TableCell className="px-2 py-2 text-center">
-                        <Badge 
-                          variant={getStreakVariant(team.currentStreak)} 
-                          className={`text-xs ${
-                            (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
-                          }`}
-                        >
-                          {getStreakDisplay(team.currentStreak)}
-                        </Badge>
                       </TableCell>
                       {isManaging && (
                         <TableCell className="px-2 py-2 text-center">

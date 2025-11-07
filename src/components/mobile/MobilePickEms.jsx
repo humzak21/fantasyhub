@@ -3,6 +3,7 @@ import { Target, Trophy, Settings, AlertCircle, Clock, Plus, UserCheck } from 'l
 import MobilePickEmsSubmission from './MobilePickEmsSubmission';
 import MobilePickEmsResults from './MobilePickEmsResults';
 import MobilePickEmsAdminSubmissions from './MobilePickEmsAdminSubmissions';
+import MobilePickEmsSeasonStandings from './MobilePickEmsSeasonStandings';
 import MobileButton from './MobileButton';
 
 const MobilePickEms = ({
@@ -19,6 +20,7 @@ const MobilePickEms = ({
   const [games, setGames] = useState([]);
   const [userPicks, setUserPicks] = useState([]);
   const [allPicks, setAllPicks] = useState([]);
+  const [seasonPicks, setSeasonPicks] = useState([]);
   const [weeklyScores, setWeeklyScores] = useState([]);
   const [seasonStandings, setSeasonStandings] = useState([]);
   const [pickEmStatus, setPickEmStatus] = useState(null);
@@ -48,16 +50,23 @@ const MobilePickEms = ({
         const userPicksData = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
         setUserPicks(userPicksData || []);
 
+        // Always load season standings and season picks
+        const [seasonStandingsData, seasonPicksData] = await Promise.all([
+          dataManager.getSeasonPickEmStandings(season.id),
+          dataManager.getAllSeasonPicks(season.id)
+        ]);
+
+        setSeasonStandings(seasonStandingsData || []);
+        setSeasonPicks(seasonPicksData || []);
+
         if (currentWeekStatus?.resultsAvailable) {
-          const [allPicksData, weeklyScoresData, seasonStandingsData] = await Promise.all([
+          const [allPicksData, weeklyScoresData] = await Promise.all([
             dataManager.getAllPicksForWeek(pickEmWeekData.id),
-            dataManager.getWeeklyPickEmScores(pickEmWeekData.id),
-            dataManager.getSeasonPickEmStandings(season.id)
+            dataManager.getWeeklyPickEmScores(pickEmWeekData.id)
           ]);
 
           setAllPicks(allPicksData || []);
           setWeeklyScores(weeklyScoresData || []);
-          setSeasonStandings(seasonStandingsData || []);
         } else {
           setAllPicks([]);
           setWeeklyScores([]);
@@ -73,6 +82,13 @@ const MobilePickEms = ({
   useEffect(() => {
     loadPickEmData();
   }, [loadPickEmData]);
+
+  // Switch to results tab when results become available and user is on picks tab
+  useEffect(() => {
+    if (pickEmStatus?.resultsAvailable && activeTab === 'picks') {
+      setActiveTab('results');
+    }
+  }, [pickEmStatus?.resultsAvailable, activeTab]);
 
   const handleSubmitPicks = useCallback(async (pickEmWeekId, picks) => {
     try {
@@ -221,25 +237,42 @@ const MobilePickEms = ({
         <>
           {/* Tab navigation */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2">
-            <div className={`grid gap-2 ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
+            <div className={`grid gap-2 ${
+              isAdmin 
+                ? (pickEmStatus?.resultsAvailable ? 'grid-cols-3' : 'grid-cols-3')
+                : (pickEmStatus?.resultsAvailable ? 'grid-cols-2' : 'grid-cols-2')
+            }`}>
+              {!pickEmStatus?.resultsAvailable && (
+                <MobileButton
+                  onClick={() => setActiveTab('picks')}
+                  variant={activeTab === 'picks' ? 'secondary' : 'primary'}
+                  size="lg"
+                  className="flex items-center justify-center gap-2 px-3 py-3 font-semibold shadow-sm text-sm"
+                >
+                  <Target className="h-4 w-4" />
+                  <span className="hidden xs:inline">Make Picks</span>
+                  <span className="xs:hidden">Picks</span>
+                </MobileButton>
+              )}
+              {pickEmStatus?.resultsAvailable && (
+                <MobileButton
+                  onClick={() => setActiveTab('results')}
+                  variant={activeTab === 'results' ? 'secondary' : 'primary'}
+                  size="lg"
+                  className="flex items-center justify-center gap-2 px-3 py-3 font-semibold shadow-sm text-sm"
+                >
+                  <Trophy className="h-4 w-4" />
+                  Results
+                </MobileButton>
+              )}
               <MobileButton
-                onClick={() => setActiveTab('picks')}
-                variant={activeTab === 'picks' ? 'secondary' : 'primary'}
-                size="lg"
-                className="flex items-center justify-center gap-2 px-3 py-3 font-semibold shadow-sm text-sm"
-              >
-                <Target className="h-4 w-4" />
-                <span className="hidden xs:inline">Make Picks</span>
-                <span className="xs:hidden">Picks</span>
-              </MobileButton>
-              <MobileButton
-                onClick={() => setActiveTab('results')}
-                variant={activeTab === 'results' ? 'secondary' : 'primary'}
+                onClick={() => setActiveTab('standings')}
+                variant={activeTab === 'standings' ? 'secondary' : 'primary'}
                 size="lg"
                 className="flex items-center justify-center gap-2 px-3 py-3 font-semibold shadow-sm text-sm"
               >
                 <Trophy className="h-4 w-4" />
-                Results
+                Standings
               </MobileButton>
               {isAdmin && (
                 <MobileButton
@@ -278,11 +311,24 @@ const MobilePickEms = ({
               currentWeek={currentWeek}
               pickEmWeek={pickEmWeek}
               weeklyScores={weeklyScores}
-              seasonStandings={seasonStandings}
               allPicks={allPicks}
-              userPicks={userPicks}
               loading={dataLoading}
               resultsAvailable={pickEmStatus?.resultsAvailable || false}
+              user={user}
+              isAdmin={isAdmin}
+            />
+          )}
+
+          {activeTab === 'standings' && (
+            <MobilePickEmsSeasonStandings
+              season={season}
+              currentWeek={currentWeek}
+              seasonStandings={seasonStandings}
+              seasonPicks={seasonPicks}
+              loading={dataLoading}
+              resultsAvailable={pickEmStatus?.resultsAvailable || false}
+              user={user}
+              isAdmin={isAdmin}
             />
           )}
 
@@ -292,6 +338,8 @@ const MobilePickEms = ({
               pickEmWeek={pickEmWeek}
               dataManager={dataManager}
               loading={dataLoading}
+              user={user}
+              isAdmin={isAdmin}
             />
           )}
         </>

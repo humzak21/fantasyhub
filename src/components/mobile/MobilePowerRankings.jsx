@@ -20,6 +20,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 
 /**
  * Mobile-optimized Power Rankings component
@@ -33,7 +34,8 @@ const MobilePowerRankings = ({
   analyticsData = {},
   showAnalytics = false,
   onExportAnalytics = null,
-  user = null
+  user = null,
+  isAdmin = false
 }) => {
   const [expandedCards, setExpandedCards] = useState(new Set());
   const [analyticsExpandedCards, setAnalyticsExpandedCards] = useState(new Set());
@@ -281,11 +283,11 @@ const MobilePowerRankings = ({
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0 mr-3">
                           <h3 className="font-semibold text-base leading-tight truncate text-foreground">
-                            {team.name}
+                            {getMaskedTeamName(team, user, isAdmin)}
                           </h3>
                           {team.owner && (
                             <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {team.owner}
+                              {getMaskedOwnerName(team, user, isAdmin)}
                             </p>
                           )}
                         </div>
@@ -308,7 +310,7 @@ const MobilePowerRankings = ({
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                       Season Performance
                     </h4>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       {/* Record */}
                       <div className="text-center bg-muted/30 rounded-lg p-3 border">
                         <div className="font-mono font-bold text-sm text-foreground">
@@ -339,44 +341,70 @@ const MobilePowerRankings = ({
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">Point Diff</div>
                       </div>
+
+                      {/* Streak */}
+                      <div className="text-center bg-muted/30 rounded-lg p-3 border">
+                        <Badge
+                          variant={getStreakVariant(team.currentStreak)}
+                          className={`font-bold text-sm ${
+                            (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
+                          }`}
+                        >
+                          {getStreakDisplay(team.currentStreak)}
+                        </Badge>
+                        <div className="text-xs text-muted-foreground mt-1">Streak</div>
+                      </div>
                     </div>
                   </div>
 
+                  {/* Playoff Odds Section */}
+                  {showAdvanced && typeof team.playoffOdds !== 'undefined' && (
+                    <div className="border-t pt-3 mb-3">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        Playoff Outlook
+                      </h4>
+                      <div className="bg-muted/30 rounded-lg p-3 border">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs text-muted-foreground">Playoff Chances</span>
+                          <span className={`font-mono font-bold text-base ${
+                            (team.playoffOdds || 0) >= 80 ? 'text-green-600' :
+                            (team.playoffOdds || 0) >= 50 ? 'text-blue-600' :
+                            (team.playoffOdds || 0) >= 20 ? 'text-orange-600' : 'text-red-600'
+                          }`}>
+                            {(team.playoffOdds || 0).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-500 ${
+                              (team.playoffOdds || 0) >= 80 ? 'bg-green-600' :
+                              (team.playoffOdds || 0) >= 50 ? 'bg-blue-600' :
+                              (team.playoffOdds || 0) >= 20 ? 'bg-orange-600' : 'bg-red-600'
+                            }`}
+                            style={{ width: `${Math.min(100, team.playoffOdds || 0)}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 text-center">
+                          Top 3 per division make playoffs
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Advanced Metrics & Actions Section */}
-                  {(showAdvanced || team.rankChange !== 0 || showAnalytics || team.powerRatingComponents) && (
+                  {(showAdvanced || showAnalytics || team.powerRatingComponents) && (
                     <div className="border-t pt-3">
                       <div className="flex items-center justify-between">
                         {/* Left Side - Indicators */}
                         <div className="flex items-center space-x-2">
-                          {team.rankChange !== 0 && (
-                            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-muted border text-xs">
-                              {getRankChangeIcon(team.rankChange)}
-                              <span className="font-medium">
-                                {Math.abs(team.rankChange)} rank{Math.abs(team.rankChange) > 1 ? 's' : ''}
+
+                          {showAdvanced && (team.qualityWins || 0) > 0 && (
+                            <div className="flex items-center space-x-1 px-2 py-1 rounded-md bg-green-50 border border-green-200">
+                              <Target className="h-3 w-3 text-green-600" />
+                              <span className="text-xs font-medium text-green-700">
+                                {team.qualityWins} quality win{team.qualityWins > 1 ? 's' : ''}
                               </span>
                             </div>
-                          )}
-
-                          {showAdvanced && (
-                            <>
-                              {team.currentStreak && team.currentStreak.type !== 'none' && (
-                                <Badge
-                                  variant={getStreakVariant(team.currentStreak)}
-                                  className="text-xs h-6"
-                                >
-                                  {getStreakDisplay(team.currentStreak)}
-                                </Badge>
-                              )}
-
-                              {(team.qualityWins || 0) > 0 && (
-                                <div className="flex items-center space-x-1 px-2 py-1 rounded-md bg-green-50 border border-green-200">
-                                  <Target className="h-3 w-3 text-green-600" />
-                                  <span className="text-xs font-medium text-green-700">
-                                    {team.qualityWins} quality win{team.qualityWins > 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                              )}
-                            </>
                           )}
                         </div>
 

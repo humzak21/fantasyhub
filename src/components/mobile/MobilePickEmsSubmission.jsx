@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, Trophy, Target, AlertCircle, CheckCircle2, Calendar, Save, Edit3, X } from 'lucide-react';
 import MobileButton from './MobileButton';
-import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 
 const MobilePickEmsSubmission = ({
   season,
@@ -13,7 +13,8 @@ const MobilePickEmsSubmission = ({
   loading = false,
   canSubmit = false,
   timeRemaining = null,
-  user = null
+  user = null,
+  isAdmin = false
 }) => {
   const [picks, setPicks] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -279,24 +280,32 @@ const MobilePickEmsSubmission = ({
                     disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
                     className={`p-4 rounded-xl border-2 transition-all duration-200 ${
                       picks[game.id]?.predictedWinnerTeamId === game.team1.id
-                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                        ? ((hasSubmitted && !isEditing) || status.status === 'closed' || status.status === 'completed')
+                          ? 'border-blue-600 bg-blue-100 dark:bg-blue-600 text-blue-900 dark:text-white shadow-md font-semibold'
+                          : 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-25'
                     } ${
                       (!user || status.status !== 'open' || (hasSubmitted && !isEditing))
-                        ? 'opacity-60 cursor-not-allowed'
+                        ? 'opacity-100 cursor-not-allowed'
                         : 'active:scale-95 cursor-pointer'
-                    } ${getUserTeamHighlightClasses(isUserTeam(game.team1, user))}`}
+                    }`}
                   >
                     <div className="text-center">
-                      <div className={`font-semibold text-sm mb-1 ${
-                        picks[game.id]?.predictedWinnerTeamId === game.team1.id ? 'text-blue-900' : 'text-gray-900'
+                      <div className={`text-sm mb-1 ${
+                        picks[game.id]?.predictedWinnerTeamId === game.team1.id
+                          ? 'font-semibold'
+                          : 'font-semibold text-gray-900'
                       }`}>
-                        {game.team1.name}
+                        {getMaskedTeamName(game.team1, user, isAdmin)}
                       </div>
                       <div className={`text-xs ${
-                        picks[game.id]?.predictedWinnerTeamId === game.team1.id ? 'text-blue-700' : 'text-gray-500'
+                        picks[game.id]?.predictedWinnerTeamId === game.team1.id
+                          ? ((hasSubmitted && !isEditing) || status.status === 'closed' || status.status === 'completed')
+                            ? ''
+                            : 'text-blue-700'
+                          : 'text-gray-500'
                       }`}>
-                        {game.team1.owner}
+                        {getMaskedOwnerName(game.team1, user, isAdmin)}
                       </div>
                     </div>
                   </button>
@@ -307,24 +316,32 @@ const MobilePickEmsSubmission = ({
                     disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
                     className={`p-4 rounded-xl border-2 transition-all duration-200 ${
                       picks[game.id]?.predictedWinnerTeamId === game.team2.id
-                        ? 'border-blue-500 bg-blue-50 shadow-md'
+                        ? ((hasSubmitted && !isEditing) || status.status === 'closed' || status.status === 'completed')
+                          ? 'border-blue-600 bg-blue-100 dark:bg-blue-600 text-blue-900 dark:text-white shadow-md font-semibold'
+                          : 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-25'
                     } ${
                       (!user || status.status !== 'open' || (hasSubmitted && !isEditing))
-                        ? 'opacity-60 cursor-not-allowed'
+                        ? 'opacity-100 cursor-not-allowed'
                         : 'active:scale-95 cursor-pointer'
-                    } ${getUserTeamHighlightClasses(isUserTeam(game.team2, user))}`}
+                    }`}
                   >
                     <div className="text-center">
-                      <div className={`font-semibold text-sm mb-1 ${
-                        picks[game.id]?.predictedWinnerTeamId === game.team2.id ? 'text-blue-900' : 'text-gray-900'
+                      <div className={`text-sm mb-1 ${
+                        picks[game.id]?.predictedWinnerTeamId === game.team2.id
+                          ? 'font-semibold'
+                          : 'font-semibold text-gray-900'
                       }`}>
-                        {game.team2.name}
+                        {getMaskedTeamName(game.team2, user, isAdmin)}
                       </div>
                       <div className={`text-xs ${
-                        picks[game.id]?.predictedWinnerTeamId === game.team2.id ? 'text-blue-700' : 'text-gray-500'
+                        picks[game.id]?.predictedWinnerTeamId === game.team2.id
+                          ? ((hasSubmitted && !isEditing) || status.status === 'closed' || status.status === 'completed')
+                            ? ''
+                            : 'text-blue-700'
+                          : 'text-gray-500'
                       }`}>
-                        {game.team2.owner}
+                        {getMaskedOwnerName(game.team2, user, isAdmin)}
                       </div>
                     </div>
                   </button>
@@ -342,7 +359,7 @@ const MobilePickEmsSubmission = ({
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                       <span className="text-gray-600">Your pick:</span>
                       <span className="font-medium text-green-700">
-                        {game.team1.id === picks[game.id].predictedWinnerTeamId ? game.team1.name : game.team2.name}
+                        {game.team1.id === picks[game.id].predictedWinnerTeamId ? getMaskedTeamName(game.team1, user, isAdmin) : getMaskedTeamName(game.team2, user, isAdmin)}
                       </span>
                     </div>
                   </div>

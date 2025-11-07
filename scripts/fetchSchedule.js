@@ -52,6 +52,7 @@ Commands:
   export                  - Fetch and export to JSON file
   teams <season-id>       - Import teams directly to existing season
   teams-only <season-id>  - Fetch and import only teams (no schedule)
+  update-scores <season-id> <week>  - Update scores for a specific week (matches by owner names)
 
 Options:
   --season <year>         - Override season year from config
@@ -73,6 +74,9 @@ Examples:
   node scripts/fetchSchedule.js range 1 14
   node scripts/fetchSchedule.js export --output schedule-2024.json
   node scripts/fetchSchedule.js teams-only abc123-def4-5678-9012-34567890abcd
+
+  # Weekly Score Updates
+  node scripts/fetchSchedule.js update-scores abc123-def4-5678-9012-34567890abcd 5
 `);
 }
 
@@ -170,6 +174,126 @@ async function importTeamsToSeason(seasonId, teamsData) {
 
   return {
     imported: importedTeams,
+    errors,
+    success: errors.length === 0
+  };
+}
+
+async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
+  console.log(`\n🔄 Updating scores for Week ${weekNumber}...`);
+
+  let dataManager;
+  try {
+    dataManager = new SupabaseDataManager();
+    await dataManager.initialize();
+  } catch (error) {
+    console.error(`❌ Failed to initialize database: ${error.message}`);
+    throw new Error('Database initialization failed');
+  }
+
+  // Get season and teams
+  const season = await dataManager.getSeason(seasonId);
+  if (!season) {
+    throw new Error(`Season ${seasonId} not found`);
+  }
+
+  // Get games for this week
+  const games = await dataManager.getGamesForWeek(seasonId, weekNumber);
+  if (!games || games.length === 0) {
+    throw new Error(`No games found for week ${weekNumber}`);
+  }
+
+  console.log(`   Found ${games.length} games and ${espnMatchups.length} ESPN matchups`);
+
+  // Create ESPN team ID to database team mapping
+  const espnIdToTeam = {};
+  season.teams.forEach(team => {
+    if (team.espnTeamId) {
+      espnIdToTeam[team.espnTeamId] = team;
+    }
+  });
+
+  const updated = [];
+  const errors = [];
+
+  for (const espnMatchup of espnMatchups) {
+    try {
+      // Skip if not this week
+      if (espnMatchup.week !== weekNumber && espnMatchup.scoringPeriodId !== weekNumber) {
+        continue;
+      }
+
+      // Match teams by ESPN ID
+      const homeTeam = espnIdToTeam[espnMatchup.homeTeam.teamId];
+      const awayTeam = espnIdToTeam[espnMatchup.awayTeam.teamId];
+
+      if (!homeTeam || !awayTeam) {
+        continue; // Skip if can't match teams
+      }
+
+      // Find the game
+      const game = games.find(g =>
+        (g.team1Id === homeTeam.id && g.team2Id === awayTeam.id) ||
+        (g.team1Id === awayTeam.id && g.team2Id === homeTeam.id)
+      );
+
+      if (!game) {
+        continue; // Skip if no matching game found
+      }
+
+      // Assign scores based on which team is team1 vs team2 in the database
+      let team1Score, team2Score;
+      if (game.team1Id === homeTeam.id) {
+        team1Score = espnMatchup.homeTeam.score;
+        team2Score = espnMatchup.awayTeam.score;
+      } else {
+        team1Score = espnMatchup.awayTeam.score;
+        team2Score = espnMatchup.homeTeam.score;
+      }
+
+      // Update the game
+      const { error: updateError } = await dataManager.client
+        .from('games')
+        .update({
+          team1_score: team1Score,
+          team2_score: team2Score
+        })
+        .eq('id', game.id);
+
+      if (updateError) throw updateError;
+
+      updated.push({
+        team1: season.teams.find(t => t.id === game.team1Id)?.name,
+        team2: season.teams.find(t => t.id === game.team2Id)?.name,
+        team1Score,
+        team2Score
+      });
+
+    } catch (error) {
+      errors.push({
+        matchup: `${espnMatchup.homeTeam.teamName} vs ${espnMatchup.awayTeam.teamName}`,
+        error: error.message
+      });
+    }
+  }
+
+  console.log(`\n✅ Updated ${updated.length} games`);
+
+  if (updated.length > 0) {
+    updated.forEach(u => {
+      console.log(`   ${u.team1} ${u.team1Score} - ${u.team2Score} ${u.team2}`);
+    });
+  }
+
+  if (errors.length > 0) {
+    console.log(`\n❌ ${errors.length} errors:`);
+    errors.forEach(err => {
+      console.log(`   ${err.matchup}: ${err.error}`);
+    });
+  }
+
+  return {
+    updated,
     errors,
     success: errors.length === 0
   };
@@ -398,6 +522,37 @@ async function main() {
           });
         } else {
           console.log('\n⚠️ Some teams could not be imported. Check errors above.');
+          process.exit(1);
+        }
+        break;
+      }
+
+      case 'update-scores': {
+        if (!params[0] || !params[1]) {
+          console.error('❌ Error: Season ID and week number required');
+          console.error('Usage: node scripts/fetchSchedule.js update-scores <season-id> <week>');
+          process.exit(1);
+        }
+
+        const updateSeasonId = params[0];
+        const updateWeekNumber = parseInt(params[1]);
+
+        console.log(`📊 Fetching scores from ESPN for week ${updateWeekNumber}...`);
+
+        // Fetch the week's schedule from ESPN
+        const weekData = await scheduleFetcher.getSingleWeek(updateWeekNumber);
+
+        if (!weekData || !weekData.matchups || weekData.matchups.length === 0) {
+          console.error(`❌ No matchups found for week ${updateWeekNumber}`);
+          process.exit(1);
+        }
+
+        console.log(`   Found ${weekData.matchups.length} matchups from ESPN`);
+
+        // Update the scores in the database
+        const updateResult = await updateWeeklyScores(updateSeasonId, updateWeekNumber, weekData.matchups);
+
+        if (!updateResult.success) {
           process.exit(1);
         }
         break;

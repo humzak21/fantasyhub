@@ -90,6 +90,8 @@ export const useSupabaseFantasyData = () => {
           ...game,
           team1Id: game.team1_id,  // Map database field to expected frontend field
           team2Id: game.team2_id,  // Map database field to expected frontend field
+          team1Score: game.team1_score,  // Map score fields
+          team2Score: game.team2_score,  // Map score fields
           winnerTeamId: game.winner_team_id,  // Map winner field
           isCompleted: game.team1_score !== null && game.team2_score !== null
         }));
@@ -439,6 +441,7 @@ export const useSupabaseFantasyData = () => {
 
     setLoading(true);
     try {
+      // Rank changes are now calculated automatically by the data manager
       const rankings = await dataManager.calculatePowerRankings(activeSeason.id, weekNumber);
       return rankings;
     } catch (err) {
@@ -464,8 +467,8 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) return [];
 
     try {
-      // Get all necessary data for the calculator
-      const [teams, games, players] = await Promise.all([
+      // Get all necessary data for the calculator including divisions
+      const [teams, games, players, divisions, season] = await Promise.all([
         dataManager.client
           .from('teams')
           .select('*')
@@ -474,10 +477,51 @@ export const useSupabaseFantasyData = () => {
           .from('games')
           .select('*')
           .eq('season_id', activeSeason.id),
-        dataManager.getAllPlayers(activeSeason.id)
+        dataManager.getAllPlayers(activeSeason.id),
+        dataManager.client
+          .from('divisions')
+          .select('*')
+          .eq('season_id', activeSeason.id)
+          .order('display_order', { ascending: true }),
+        dataManager.client
+          .from('seasons')
+          .select('*')
+          .eq('id', activeSeason.id)
+          .single()
       ]);
 
-      // Create calculator with viewingWeek parameter for historical accuracy
+      console.log('[useSupabaseFantasyData] Fetched data for power rankings:', {
+        teamsCount: teams.data?.length || 0,
+        divisionsCount: divisions.data?.length || 0,
+        gamesCount: games.data?.length || 0,
+        regularSeasonWeeks: season.data?.regular_season_weeks || season.data?.regularSeasonWeeks || 14
+      });
+
+      // Get previous week's rankings for rank change calculation
+      let previousRankings = null;
+      if (week > 1) {
+        try {
+          const { data: prevWeekData, error: prevError } = await dataManager.client
+            .from('power_rankings_history')
+            .select('team_id, rank')
+            .eq('season_id', activeSeason.id)
+            .eq('week_number', week - 1);
+
+          if (!prevError && prevWeekData && prevWeekData.length > 0) {
+            previousRankings = prevWeekData.map(row => ({
+              teamId: row.team_id,
+              rank: row.rank
+            }));
+          }
+        } catch (prevErr) {
+          console.warn('Could not fetch previous week rankings:', prevErr);
+        }
+      }
+
+      // Get regularSeasonWeeks from season data
+      const regularSeasonWeeks = season.data?.regular_season_weeks || season.data?.regularSeasonWeeks || 14;
+
+      // Create calculator with divisions and regularSeasonWeeks for playoff odds
       const calculator = new PowerRankingCalculator(
         teams.data || [],
         games.data?.map(g => ({
@@ -490,10 +534,13 @@ export const useSupabaseFantasyData = () => {
         })) || [],
         currentWeek,
         players || [],
-        viewingWeek || week // Pass viewing week for historical calculations
+        viewingWeek || week, // Pass viewing week for historical calculations
+        null, // analyticsService
+        divisions.data || [],
+        regularSeasonWeeks
       );
 
-      const rankings = calculator.getRankings();
+      const rankings = await calculator.getRankings(previousRankings);
       return rankings;
     } catch (err) {
       setError(err.message);
@@ -554,6 +601,16 @@ export const useSupabaseFantasyData = () => {
 
     try {
       return await dataManager.getAvailableSnapshotWeeks(activeSeason.id);
+    } catch (err) {
+      return [];
+    }
+  }, [dataManager, activeSeason]);
+
+  const getCompletedWeeksArray = useCallback(async () => {
+    if (!activeSeason) return [];
+
+    try {
+      return await dataManager.getCompletedWeeks(activeSeason.id);
     } catch (err) {
       return [];
     }
@@ -912,6 +969,7 @@ export const useSupabaseFantasyData = () => {
     executeWeeklySnapshotIfNeeded,
     getCurrentNFLWeek,
     getAvailableSnapshotWeeks,
+    getCompletedWeeksArray,
 
     // Roster operations
     getRosterForTeam,

@@ -67,6 +67,7 @@ export class ESPNScheduleFetcher {
       params.append('view', 'mMatchupScore');
       params.append('view', 'mScoreboard');
       params.append('view', 'mTeam');
+      params.append('view', 'mMembers'); // Add members view to get owner info
       params.append('scoringPeriodId', weekNumber.toString());
 
       const headers = {
@@ -481,16 +482,21 @@ export class ESPNScheduleFetcher {
 
   async getScheduleByWeekRange(startWeek, endWeek) {
     try {
-      
+
       const weeklyData = [];
       for (let week = startWeek; week <= endWeek; week++) {
         try {
           const weekData = await this.fetchScheduleByWeek(week);
           if (weekData.schedule) {
+            // Filter matchups to only include those for the requested week
+            const filteredMatchups = weekData.schedule.filter(matchup =>
+              matchup.matchupPeriodId === week || matchup.scoringPeriodId === week
+            );
+
             weeklyData.push({
               week,
-              matchups: weekData.schedule.map(matchup => 
-                this.parseMatchupData(matchup, weekData.teams || [], weekData.settings || {})
+              matchups: filteredMatchups.map(matchup =>
+                this.parseMatchupData(matchup, weekData.teams || [], weekData.settings || {}, weekData.members || [])
               )
             });
           }

@@ -1,25 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Table } from '../ui/table';
-import { Separator } from '../ui/separator';
 import {
-  Trophy, Target, Users, TrendingUp, TrendingDown, Award,
-  CheckCircle2, XCircle, Calendar, BarChart3, Percent
+  Trophy, Target, Users, Award,
+  CheckCircle2, XCircle, Calendar, BarChart3
 } from 'lucide-react';
+import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUtils';
 
 const PickEmsResults = ({
   season,
   currentWeek,
   pickEmWeek,
   weeklyScores = [],
-  seasonStandings = [],
   allPicks = [],
-  userPicks = [],
   loading = false,
-  resultsAvailable = false
+  resultsAvailable = false,
+  user = null,
+  isAdmin = false
 }) => {
   const [selectedTab, setSelectedTab] = useState('weekly');
 
@@ -86,14 +84,14 @@ const PickEmsResults = ({
             Pick'ems Results - Week {currentWeek}
           </CardTitle>
           <CardDescription>
-            See how everyone performed this week and season standings
+            See how everyone performed this week
           </CardDescription>
         </CardHeader>
       </Card>
 
       {/* Results tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="weekly" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
             Weekly Results
@@ -101,10 +99,6 @@ const PickEmsResults = ({
           <TabsTrigger value="breakdown" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Pick Breakdown
-          </TabsTrigger>
-          <TabsTrigger value="season" className="flex items-center gap-2">
-            <Trophy className="h-4 w-4" />
-            Season Standings
           </TabsTrigger>
         </TabsList>
 
@@ -145,7 +139,7 @@ const PickEmsResults = ({
 
                         <div>
                           <div className="font-medium">
-                            {score.displayName || `User ${score.userId?.slice(0, 8)}`}
+                            {getMaskedUserName(score.displayName, score.userId, user, isAdmin)}
                           </div>
                           <div className="text-sm text-muted-foreground">
                             {score.correctPicks}/{score.totalPicks} correct
@@ -183,11 +177,12 @@ const PickEmsResults = ({
             <div className="space-y-4">
               {Object.entries(picksByUser).map(([userId, picks]) => {
                 const displayName = picks[0]?.displayName || `User ${userId.slice(0, 8)}`;
+                const maskedName = getMaskedUserName(displayName, userId, user, isAdmin);
                 return (
                 <Card key={userId}>
                   <CardHeader>
                     <CardTitle className="text-lg">
-                      {displayName}'s Picks
+                      {maskedName}'s Picks
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -208,14 +203,20 @@ const PickEmsResults = ({
 
                             <div>
                               <div className="font-medium">
-                                {pick.team1Name} vs {pick.team2Name}
+                                {getMaskedTeamName({ id: pick.team1Id, name: pick.team1Name }, user, isAdmin)} vs {getMaskedTeamName({ id: pick.team2Id, name: pick.team2Name }, user, isAdmin)}
                               </div>
-                              <div className="text-sm text-muted-foreground">
-                                Picked: {pick.predictedWinnerName}
-                                {pick.actualWinnerName && (
-                                  <span> • Winner: {pick.actualWinnerName}</span>
-                                )}
-                              </div>
+                              {pick.actualWinnerName && (
+                                <div className="text-sm">
+                                  <span className="text-muted-foreground">Winner: </span>
+                                  <span className={`font-semibold ${
+                                    pick.isCorrect
+                                      ? 'text-green-600 dark:text-green-400'
+                                      : 'text-red-600 dark:text-red-400'
+                                  }`}>
+                                    {getMaskedTeamName({ id: pick.actualWinnerId, name: pick.actualWinnerName }, user, isAdmin)}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -235,75 +236,10 @@ const PickEmsResults = ({
           )}
         </TabsContent>
 
-        {/* Season Standings Tab */}
-        <TabsContent value="season" className="space-y-4">
-          {seasonStandings.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No Season Standings Available</h3>
-                <p className="text-muted-foreground">
-                  Season-long pick'em standings will appear here as weeks are completed.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Season-Long Standings</CardTitle>
-                <CardDescription>
-                  Overall performance across all completed weeks
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {seasonStandings.map((standing, index) => (
-                    <div
-                      key={standing.id || index}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          {getRankIcon(standing.seasonRank)}
-                          <Badge variant={getRankBadgeVariant(standing.seasonRank)}>
-                            #{standing.seasonRank}
-                          </Badge>
-                        </div>
-
-                        <div>
-                          <div className="font-medium">
-                            {standing.displayName || `User ${standing.userId?.slice(0, 8)}`}
-                          </div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-4">
-                            <span>{standing.totalCorrectPicks}/{standing.totalPicks} picks</span>
-                            <span>{standing.totalWeeksParticipated} weeks</span>
-                            {standing.perfectWeeks > 0 && (
-                              <span className="flex items-center gap-1">
-                                <Trophy className="h-3 w-3" />
-                                {standing.perfectWeeks} perfect
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <div className="font-semibold">{standing.totalPoints} pts</div>
-                        <div className="text-sm text-muted-foreground">
-                          {formatAccuracy(standing.overallAccuracyPercentage)} overall
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
       </Tabs>
 
       {/* Summary stats */}
-      {(weeklyScores.length > 0 || seasonStandings.length > 0) && (
+      {weeklyScores.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Quick Stats</CardTitle>

@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { TrendingUp, Target, Zap, Award, BarChart3, Users } from 'lucide-react';
+import { getMaskedTeamName } from '../../utils/displayNameUtils';
 
-const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
+const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user = null, isAdmin = false }) => {
   // New algorithm insights - moved before early return
   // COMMENTED OUT: Power ranking algorithm insights hidden from view
   /*
@@ -127,7 +128,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
         <Icon className={`text-${color}-600`} size={20} />
         <span className={`text-${color}-600 text-sm font-medium`}>{title}</span>
       </div>
-      <div className={`text-2xl font-bold ${color === 'blue' || color === 'orange' || color === 'purple' ? 'text-white' : `text-${color}-900`}`}>{value}</div>
+      <div className={`text-2xl font-bold text-gray-900 dark:text-white`}>{value}</div>
       {subtitle && <div className={`text-${color}-700 text-sm mt-1`}>{subtitle}</div>}
     </div>
   );
@@ -137,7 +138,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
       return (
         <div className={`bg-gray-50 p-3 rounded-lg border border-gray-200`}>
           <div className={`text-gray-700 font-medium text-sm mb-1`}>{title}</div>
-          <div className={`text-white font-bold`}>No Data</div>
+          <div className={`text-gray-900 dark:text-white font-bold`}>No Data</div>
           <div className={`text-gray-600 text-sm`}>Complete games to see stats</div>
         </div>
       );
@@ -146,7 +147,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
     return (
       <div className={`bg-${color}-50 p-3 rounded-lg border border-${color}-200`}>
         <div className={`text-${color}-700 font-medium text-sm mb-1`}>{title}</div>
-        <div className={`text-white font-bold`}>{team.name}</div>
+        <div className={`text-gray-900 dark:text-white font-bold`}>{getMaskedTeamName(team, user, isAdmin)}</div>
         <div className={`text-${color}-600 text-sm`}>{stat}</div>
         {description && <div className={`text-${color}-500 text-xs mt-1`}>{description}</div>}
       </div>
@@ -265,7 +266,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
         </div>
       </div>
 
-      {/* Strength of Schedule */}
+      {/* Strength of Schedule - COMMENTED OUT/HIDDEN */}
+      {/*
       <div>
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
           <Users className="text-gray-600" size={20} />
@@ -288,44 +290,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           />
         </div>
       </div>
+      */}
 
-      {/* Top Performers */}
-      <div>
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <Award className="text-yellow-600" size={20} />
-          Current Top 5
-        </h3>
-        <div className="bg-white border rounded-lg overflow-hidden">
-          <div className="divide-y divide-gray-200">
-            {workingRankings.slice(0, 5).map((team, index) => (
-              <div key={team.teamId || team.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                    index === 0 ? 'bg-yellow-100 text-yellow-800' :
-                    index === 1 ? 'bg-gray-100 text-gray-800' :
-                    index === 2 ? 'bg-orange-100 text-orange-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {index + 1}
-                  </span>
-                  <div>
-                    <div className="font-semibold text-white">{team.name}</div>
-                    <div className="text-sm text-gray-600">
-                      {team.wins || 0}-{team.losses || 0} • {((team.winPercentage || 0) * 100).toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-lg">{(team.powerRating || 0).toFixed(2)}</div>
-                  <div className="text-sm text-gray-600">
-                    {(team.pointDifferential || 0) >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
 
       {/* Algorithm Insights - COMMENTED OUT/HIDDEN */}
       {/*

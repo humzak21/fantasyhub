@@ -14,6 +14,7 @@ import { Card, CardContent } from '../ui/card';
 import TrendingPlayerIndicators from '../analytics/TrendingPlayerIndicators';
 import AnalyticsInsights from '../analytics/AnalyticsInsights';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 
 const PowerRankingsTable = ({
   rankings = [],
@@ -24,7 +25,9 @@ const PowerRankingsTable = ({
   analyticsData = {},
   showAnalytics = false,
   onExportAnalytics = null,
-  user = null
+  user = null,
+  initializing = false,
+  isAdmin = false
 }) => {
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [analyticsExpandedRows, setAnalyticsExpandedRows] = useState(new Set());
@@ -104,7 +107,7 @@ const PowerRankingsTable = ({
 
     return (
       <TableRow className="bg-muted/20 hover:bg-muted/30">
-        <TableCell colSpan={showAdvanced ? (onEditTeam ? 9 : 8) : (onEditTeam ? 6 : 5)}>
+        <TableCell colSpan={showAdvanced ? (onEditTeam ? 10 : 9) : (onEditTeam ? 7 : 6)}>
           <div className="py-4">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -188,23 +191,9 @@ const PowerRankingsTable = ({
     );
   };
 
-  // Show loading state
-  if (loading) {
-    return (
-      <Card className="p-8">
-        <CardContent className="text-center space-y-4">
-          <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center animate-pulse">
-            <Trophy className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="font-semibold text-lg">Loading Rankings...</h3>
-            <p className="text-muted-foreground">
-              Fetching power rankings for week {currentWeek}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
+  // During initialization or data loading, don't show placeholder states (full-screen overlay handles loading)
+  if (initializing || loading) {
+    return null;
   }
 
   if (!rankings.length) {
@@ -237,11 +226,13 @@ const PowerRankingsTable = ({
             <TableHead className="text-center">Record</TableHead>
             <TableHead className="text-center">Win%</TableHead>
             <TableHead className="text-center">Total Point Diff</TableHead>
+            <TableHead className="text-center">Streak</TableHead>
+            {/* <TableHead className="text-center">Rank Change</TableHead> */}
             {showAdvanced && (
               <>
-                <TableHead className="text-center">SOS</TableHead>
+                {/* <TableHead className="text-center">SOS</TableHead> */}
+                <TableHead className="text-center">Playoff Odds</TableHead>
                 <TableHead className="text-center">Form</TableHead>
-                <TableHead className="text-center">Streak</TableHead>
                 <TableHead className="text-center">Quality</TableHead>
               </>
             )}
@@ -268,22 +259,14 @@ const PowerRankingsTable = ({
                       </span>
                     )}
                   </div>
-                  {team.rankChange !== 0 && (
-                    <div className="flex items-center gap-1">
-                      {getRankChangeIcon(team.rankChange)}
-                      <span className="text-xs text-muted-foreground font-medium">
-                        {Math.abs(team.rankChange)}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </TableCell>
               
               <TableCell>
                 <div className="space-y-1">
-                  <div className="font-semibold">{team.name}</div>
+                  <div className="font-semibold">{getMaskedTeamName(team, user, isAdmin)}</div>
                   {team.owner && (
-                    <div className="text-sm text-muted-foreground">{team.owner}</div>
+                    <div className="text-sm text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin)}</div>
                   )}
                   {showAdvanced && (
                     <div className="flex gap-3 text-xs text-muted-foreground mt-1">
@@ -298,18 +281,13 @@ const PowerRankingsTable = ({
               </TableCell>
               
               <TableCell className="text-center">
-                <div className="space-y-1">
-                  <div className="font-semibold font-mono">
-                    {team.wins || 0}-{team.losses || 0}
-                    {team.ties > 0 && `-${team.ties}`}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    ({team.gamesPlayed || 0} games)
-                  </div>
+                <div className="font-semibold font-mono text-base">
+                  {team.wins || 0}-{team.losses || 0}
+                  {team.ties > 0 && `-${team.ties}`}
                 </div>
               </TableCell>
               
-              <TableCell className={`text-center font-mono font-semibold ${
+              <TableCell className={`text-center font-mono font-semibold text-base ${
                 (team.winPercentage || 0) >= 0.7 ? 'text-green-600' :
                 (team.winPercentage || 0) >= 0.35 ? 'text-black' : 'text-red-600'
               }`}>
@@ -329,10 +307,33 @@ const PowerRankingsTable = ({
                   </div>
                 </div>
               </TableCell>
-              
+
+              <TableCell className="text-center">
+                <Badge
+                  variant={getStreakVariant(team.currentStreak || { type: 'none', length: 0 })}
+                  className={
+                    (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
+                  }
+                >
+                  {getStreakDisplay(team.currentStreak || { type: 'none', length: 0 })}
+                </Badge>
+              </TableCell>
+
+              {/* <TableCell className="text-center">
+                <div className={`font-mono font-semibold text-lg ${
+                  (team.rankChange || 0) > 0 ? 'text-green-600' :
+                  (team.rankChange || 0) < 0 ? 'text-red-600' :
+                  'text-gray-400'
+                }`}>
+                  {team.rankChange === 0 ? '-' :
+                    `${team.rankChange > 0 ? '+' : ''}${team.rankChange}`
+                  }
+                </div>
+              </TableCell> */}
+
               {showAdvanced && (
                 <>
-                  <TableCell className="text-center">
+                  {/* <TableCell className="text-center">
                     <div className="space-y-1">
                       <div className={`font-mono font-semibold ${
                         (team.strengthOfSchedule || 0) >= 0 ? 'text-orange-600' : 'text-green-600'
@@ -342,6 +343,28 @@ const PowerRankingsTable = ({
                       </div>
                       <div className="text-xs text-muted-foreground">
                         vs {((team.opponentWinPercentage || 0) * 100).toFixed(2)}%
+                      </div>
+                    </div>
+                  </TableCell> */}
+                  
+                  <TableCell className="text-center">
+                    <div className="space-y-1">
+                      <div className={`font-mono font-bold text-base ${
+                        (team.playoffOdds || 0) >= 80 ? 'text-green-600' :
+                        (team.playoffOdds || 0) >= 50 ? 'text-blue-600' :
+                        (team.playoffOdds || 0) >= 20 ? 'text-orange-600' : 'text-red-600'
+                      }`}>
+                        {(team.playoffOdds || 0).toFixed(0)}%
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 mt-1">
+                        <div 
+                          className={`h-1.5 rounded-full transition-all duration-300 ${
+                            (team.playoffOdds || 0) >= 80 ? 'bg-green-600' :
+                            (team.playoffOdds || 0) >= 50 ? 'bg-blue-600' :
+                            (team.playoffOdds || 0) >= 20 ? 'bg-orange-600' : 'bg-red-600'
+                          }`}
+                          style={{ width: `${Math.min(100, team.playoffOdds || 0)}%` }}
+                        />
                       </div>
                     </div>
                   </TableCell>
@@ -355,17 +378,6 @@ const PowerRankingsTable = ({
                       }`}
                     >
                       {(team.recentForm || 0) >= 0 ? '+' : ''}{(team.recentForm || 0).toFixed(2)}
-                    </Badge>
-                  </TableCell>
-                  
-                  <TableCell className="text-center">
-                    <Badge
-                      variant={getStreakVariant(team.currentStreak || { type: 'none', length: 0 })}
-                      className={
-                        (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
-                      }
-                    >
-                      {getStreakDisplay(team.currentStreak || { type: 'none', length: 0 })}
                     </Badge>
                   </TableCell>
                   
@@ -452,7 +464,7 @@ const PowerRankingsTable = ({
               {/* Analytics insights row */}
               {showAnalytics && analyticsExpandedRows.has(team.teamId || team.id) && (
                 <TableRow className="bg-blue-50/30 hover:bg-blue-50/50">
-                  <TableCell colSpan={showAdvanced ? (onEditTeam ? 10 : 9) : (onEditTeam ? 7 : 6)}>
+                  <TableCell colSpan={showAdvanced ? (onEditTeam ? 11 : 10) : (onEditTeam ? 8 : 7)}>
                     <div className="py-4">
                       <AnalyticsInsights
                         team={team}
@@ -484,9 +496,13 @@ const PowerRankingsTable = ({
               <div>
                 <h5 className="font-medium mb-2 text-sm">Traditional Metrics</h5>
                 <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
+                  {/* <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">SOS</Badge>
                     <span className="text-muted-foreground">Strength of Schedule</span>
+                  </div> */}
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">Playoff Odds</Badge>
+                    <span className="text-muted-foreground">Probability of making playoffs (top 3 per division)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">Form</Badge>

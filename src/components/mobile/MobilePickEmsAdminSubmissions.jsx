@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { UserCheck, Calendar, AlertCircle, Clock } from 'lucide-react';
+import { getMaskedUserName } from '../../utils/displayNameUtils';
 
 const MobilePickEmsAdminSubmissions = ({
   currentWeek,
   pickEmWeek,
   dataManager,
-  loading = false
+  loading = false,
+  user = null,
+  isAdmin = false
 }) => {
   const [submissions, setSubmissions] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
@@ -152,9 +155,7 @@ const MobilePickEmsAdminSubmissions = ({
                           {userData.userDetails.email}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {userData.userDetails.displayName !== userData.userDetails.email
-                            ? userData.userDetails.displayName
-                            : 'User'}
+                          {getMaskedUserName(userData.userDetails.displayName, userId, user, isAdmin)}
                         </div>
                       </div>
                     </div>

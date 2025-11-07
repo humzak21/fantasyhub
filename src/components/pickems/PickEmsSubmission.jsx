@@ -5,7 +5,7 @@ import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
 import { Clock, Trophy, Users, Target, AlertCircle, CheckCircle2, Calendar, Edit3, Save, X } from 'lucide-react';
-import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 
 const PickEmsSubmission = ({
   season,
@@ -17,7 +17,8 @@ const PickEmsSubmission = ({
   loading = false,
   canSubmit = false,
   timeRemaining = null,
-  user = null
+  user = null,
+  isAdmin = false
 }) => {
   const [picks, setPicks] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -39,6 +40,14 @@ const PickEmsSubmission = ({
       });
       setPicks(existingPicks);
       setHasSubmitted(true);
+      setIsEditing(false); // Exit edit mode when picks are loaded
+      setHasChanges(false); // Clear changes flag
+    } else {
+      // Reset picks when no user picks exist (e.g., navigating to a new week)
+      setPicks({});
+      setHasSubmitted(false);
+      setIsEditing(false);
+      setHasChanges(false);
     }
   }, [userPicks]);
 
@@ -117,10 +126,14 @@ const PickEmsSubmission = ({
         };
       });
       setPicks(originalPicks);
+    } else {
+      // If no user picks exist, clear the picks entirely
+      setPicks({});
     }
     setIsEditing(false);
     setHasChanges(false);
     setError(null);
+    setShowConfirmation(false);
   };
 
   const formatTimeRemaining = (timeStr) => {
@@ -357,7 +370,7 @@ const PickEmsSubmission = ({
                 <div className="flex items-center justify-between">
                   {/* Game matchup */}
                   <div className="flex items-center space-x-6">
-                    <div className="text-sm text-muted-foreground font-medium">
+                    <div className="text-sm text-muted-foreground font-medium w-16">
                       Game {index + 1}
                     </div>
 
@@ -367,65 +380,46 @@ const PickEmsSubmission = ({
                         onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
                         disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
                         className={`
-                          flex items-center space-x-3 p-3 rounded-lg border-2 transition-all
+                          flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
                           ${picks[game.id]?.predictedWinnerTeamId === game.team1.id
-                            ? 'border-primary bg-primary/10 text-primary font-semibold'
+                            ? ((hasSubmitted && !isEditing) || status.status === 'closed' || status.status === 'completed')
+                              ? 'border-blue-600 bg-blue-150 dark:bg-blue-600 text-blue-900 dark:text-white font-semibold'
+                              : 'border-primary bg-primary/10 text-primary font-semibold'
                             : 'border-muted hover:border-primary/50 hover:bg-muted/50'
                           }
-                          ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
-                          ${getUserTeamHighlightClasses(isUserTeam(game.team1, user))}
+                          ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
                         `}
                       >
-                        <div className="text-center">
-                          <div className="font-medium">{game.team1.name}</div>
-                          <div className="text-xs text-muted-foreground">{game.team1.owner}</div>
+                        <div className="text-center w-full">
+                          <div className="font-medium truncate px-2">{getMaskedTeamName(game.team1, user, isAdmin)}</div>
+                          <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team1, user, isAdmin)}</div>
                         </div>
                       </button>
 
-                      <div className="text-muted-foreground font-medium">vs</div>
+                      <div className="text-muted-foreground font-medium text-center w-8">vs</div>
 
                       {/* Team 2 */}
                       <button
                         onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
                         disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
                         className={`
-                          flex items-center space-x-3 p-3 rounded-lg border-2 transition-all
+                          flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
                           ${picks[game.id]?.predictedWinnerTeamId === game.team2.id
-                            ? 'border-primary bg-primary/10 text-primary font-semibold'
+                            ? ((hasSubmitted && !isEditing) || status.status === 'closed' || status.status === 'completed')
+                              ? 'border-blue-600 bg-blue-150 dark:bg-blue-600 text-blue-900 dark:text-white font-semibold'
+                              : 'border-primary bg-primary/10 text-primary font-semibold'
                             : 'border-muted hover:border-primary/50 hover:bg-muted/50'
                           }
-                          ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}
-                          ${getUserTeamHighlightClasses(isUserTeam(game.team2, user))}
+                          ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
                         `}
                       >
-                        <div className="text-center">
-                          <div className="font-medium">{game.team2.name}</div>
-                          <div className="text-xs text-muted-foreground">{game.team2.owner}</div>
+                        <div className="text-center w-full">
+                          <div className="font-medium truncate px-2">{getMaskedTeamName(game.team2, user, isAdmin)}</div>
+                          <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team2, user, isAdmin)}</div>
                         </div>
                       </button>
                     </div>
                   </div>
-
-                  {/* Show existing pick for submitted but not editing */}
-                  {hasSubmitted && !isEditing && picks[game.id] && (
-                    <div className="flex items-center space-x-2 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      <span className="text-muted-foreground">Your pick:</span>
-                      <span className="font-medium text-green-700">
-                        {game.team1.id === picks[game.id].predictedWinnerTeamId ? game.team1.name : game.team2.name}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Show existing pick for completed status */}
-                  {(status.status === 'closed' || status.status === 'completed') && picks[game.id] && (
-                    <div className="flex items-center space-x-2 text-sm">
-                      <span className="text-muted-foreground">Your pick:</span>
-                      <span className="font-medium">
-                        {game.team1.id === picks[game.id].predictedWinnerTeamId ? game.team1.name : game.team2.name}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             </Card>

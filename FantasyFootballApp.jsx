@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, ChevronDown, RefreshCw } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, ChevronDown, RefreshCw, Award } from 'lucide-react';
 import { useAuth } from './src/contexts/AuthContext';
 import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
 import { getCurrentWeek } from './utils/weekCalculator.js';
@@ -27,6 +27,7 @@ import PowerRankingsVisualization from './src/components/power-rankings/PowerRan
 
 import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
 import PickEmsManager from './src/components/pickems/PickEmsManager.jsx';
+import AwardsManager from './src/components/awards/AwardsManager.jsx';
 
 const FantasyFootballApp = () => {
   const { user, isAuthenticated, isAdmin } = useAuth();
@@ -71,7 +72,7 @@ const FantasyFootballApp = () => {
   
   // Week-specific power rankings state
   const [weeklyRankings, setWeeklyRankings] = useState([]);
-  const [rankingsLoading, setRankingsLoading] = useState(false);
+  const [rankingsLoading, setRankingsLoading] = useState(true);
 
   // Check if user has submitted picks for current week
   const checkUserPicksSubmission = async () => {
@@ -178,13 +179,23 @@ const FantasyFootballApp = () => {
     ?.filter(week => week.isCompleted)
     ?.map(week => week.weekNumber) || [];
 
+  // Check if awards are accessible (Dec 9th midnight or admin)
+  const isAwardsAccessible = () => {
+    if (isAdmin) return true;
+    
+    const now = new Date();
+    const awardsReleaseDate = new Date('2025-12-09T00:00:00');
+    return now >= awardsReleaseDate;
+  };
+
   // Main navigation tabs
   const mainTabs = [
     { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
     { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
     { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
     { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
-    { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false }
+    { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
+    { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isAwardsAccessible }
   ];
 
   // Settings dropdown items
@@ -250,7 +261,13 @@ const FantasyFootballApp = () => {
             {/* Main Navigation */}
             <nav className="hidden md:flex items-center space-x-1">
               {mainTabs
-                .filter(tab => !tab.requiresAuth || isAdmin)
+                .filter(tab => {
+                  // Check auth requirements
+                  if (tab.requiresAuth && !isAdmin) return false;
+                  // Check custom access function
+                  if (tab.customAccess && !tab.customAccess()) return false;
+                  return true;
+                })
                 .map(tab => {
                   const isDisabled = isAdmin && tab.requiresSeason && !activeSeason;
                   const Icon = tab.icon;
@@ -408,31 +425,6 @@ const FantasyFootballApp = () => {
         <div className="space-y-6">
           {activeTab === 'rankings' && (
             <div className="space-y-6">
-            {!initialized || (loading && !activeSeason) ? (
-              <div className="flex items-center justify-center min-h-[400px]">
-                <div className="flex items-center space-x-3">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  <span>Loading...</span>
-                </div>
-              </div>
-            ) : /* !activeSeason ? (
-              <Card>
-                <CardContent className="p-8">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-                      <Trophy className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold">No Season Available</h3>
-                      <p className="text-muted-foreground">
-                        There are currently no active seasons to display power rankings for.
-                        {!isAdmin && " Please contact an administrator to set up a season."}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : */ (
               <div className="space-y-6">
                 <Card>
                   <CardHeader>
@@ -520,6 +512,8 @@ const FantasyFootballApp = () => {
                         analyticsData={analyticsData}
                         onExportAnalytics={exportAnalyticsData}
                         user={user}
+                        isAdmin={isAdmin}
+                        initializing={!initialized}
                       />
                     ) : (
                       <PowerRankingsVisualization
@@ -528,43 +522,19 @@ const FantasyFootballApp = () => {
                         loading={rankingsLoading || analyticsLoading}
                         showAnalyticsSection={analyticsEnabled && hasAnalyticsData}
                         analyticsData={analyticsData}
+                        user={user}
+                        isAdmin={isAdmin}
                       />
                     )}
                   </CardContent>
                 </Card>
               </div>
-            )}
             </div>
           )}
 
 
           {activeTab === 'statistics' && (
             <div className="space-y-6">
-            {!initialized || (loading && !activeSeason) ? (
-              <div className="flex items-center justify-center min-h-[400px]">
-                <div className="flex items-center space-x-3">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  <span>Loading...</span>
-                </div>
-              </div>
-            ) : /* !activeSeason ? (
-              <Card>
-                <CardContent className="p-8">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-                      <BarChart3 className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold">No Season Available</h3>
-                      <p className="text-muted-foreground">
-                        There are currently no active seasons to display statistics for.
-                        {!isAdmin && " Please contact an administrator to set up a season."}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : */ (
               <Card>
                 <CardHeader>
                   <CardTitle>League Analytics</CardTitle>
@@ -578,40 +548,16 @@ const FantasyFootballApp = () => {
                     currentWeek={currentWeek}
                     season={activeSeason}
                     loading={rankingsLoading}
+                    user={user}
+                    isAdmin={isAdmin}
                   />
                 </CardContent>
               </Card>
-            )}
             </div>
           )}
 
           {activeTab === 'schedule' && (
             <div className="space-y-6">
-            {!initialized || (loading && !activeSeason) ? (
-              <div className="flex items-center justify-center min-h-[400px]">
-                <div className="flex items-center space-x-3">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  <span>Loading...</span>
-                </div>
-              </div>
-            ) : /* !activeSeason ? (
-              <Card>
-                <CardContent className="p-8">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-                      <Calendar className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold">No Season Available</h3>
-                      <p className="text-muted-foreground">
-                        There are currently no active seasons to display schedules for.
-                        {!isAdmin && " Please contact an administrator to set up a season."}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : */ (
               <ScheduleManager
                 season={activeSeason}
                 schedule={activeSeason?.schedule || []}
@@ -622,40 +568,15 @@ const FantasyFootballApp = () => {
                 loading={loading}
                 isAuthenticated={isAdmin}
                 user={user}
+                isAdmin={isAdmin}
                 powerRankings={powerRankings}
                 rosters={rosters}
               />
-            )}
             </div>
           )}
 
           {activeTab === 'teams' && (
             <div className="space-y-6">
-            {!initialized || (loading && !activeSeason) ? (
-              <div className="flex items-center justify-center min-h-[400px]">
-                <div className="flex items-center space-x-3">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                  <span>Loading...</span>
-                </div>
-              </div>
-            ) : /* !activeSeason ? (
-              <Card>
-                <CardContent className="p-8">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-                      <Users className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold">No Season Available</h3>
-                      <p className="text-muted-foreground">
-                        There are currently no active seasons to display teams for.
-                        {!isAuthenticated && " Please contact an administrator to set up a season."}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : */ (
               <TeamsAndRosters
                 teams={activeSeason?.teams || []}
                 rosters={rosters}
@@ -666,14 +587,29 @@ const FantasyFootballApp = () => {
                 powerRankings={powerRankings}
                 isAuthenticated={isAdmin}
                 user={user}
+                isAdmin={isAdmin}
               />
-            )}
             </div>
           )}
 
           {activeTab === 'pickems' && (
             <div className="space-y-6">
             <PickEmsManager
+              season={activeSeason}
+              currentWeek={currentWeek}
+              dataManager={dataManager}
+              loading={loading}
+              isAuthenticated={isAuthenticated}
+              isAdmin={isAdmin}
+              user={user}
+              initializing={!initialized}
+            />
+            </div>
+          )}
+
+          {activeTab === 'awards' && (
+            <div className="space-y-6">
+            <AwardsManager
               season={activeSeason}
               currentWeek={currentWeek}
               dataManager={dataManager}
@@ -739,6 +675,8 @@ const FantasyFootballApp = () => {
           currentWeek={currentWeek}
           loading={loading}
           isAuthenticated={isAdmin}
+          user={user}
+          isAdmin={isAdmin}
           onDivisionRename={renameDivision}
           onTeamDivisionChange={assignTeamToDivision}
           onCreateDivision={createDivision}
