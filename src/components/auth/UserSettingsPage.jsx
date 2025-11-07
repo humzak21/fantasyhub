@@ -169,7 +169,7 @@ export const UserSettingsPage = () => {
                       className="max-w-md"
                     />
                     <p className="text-sm text-gray-500">
-                      We use your full name to match you with your team in the league. Please use your real name as it appears in your fantasy league.
+                      We use your full name to match you with your team in the league and reveal all league information. Please use your real name as it appears in your fantasy league, I cannot manually do this for you (or else I would've).
                     </p>
                   </div>
 
