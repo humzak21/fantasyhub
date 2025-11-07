@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import { Trophy, Target, Users, TrendingUp, Calendar, BarChart3, CheckCircle2, XCircle, Award } from 'lucide-react';
+import { Trophy, Target, Users, Calendar, BarChart3, CheckCircle2, XCircle, Award } from 'lucide-react';
 import MobileButton from './MobileButton';
+import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUtils';
 
 const MobilePickEmsResults = ({
   season,
   currentWeek,
   pickEmWeek,
   weeklyScores = [],
-  seasonStandings = [],
   allPicks = [],
-  userPicks = [],
   loading = false,
-  resultsAvailable = false
+  resultsAvailable = false,
+  user = null,
+  isAdmin = false
 }) => {
   const [activeView, setActiveView] = useState('weekly');
 
@@ -82,7 +83,7 @@ const MobilePickEmsResults = ({
 
       {/* View selector */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-1">
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-1">
           <MobileButton
             onClick={() => setActiveView('weekly')}
             variant={activeView === 'weekly' ? 'primary' : 'ghost'}
@@ -100,15 +101,6 @@ const MobilePickEmsResults = ({
           >
             <BarChart3 className="h-3 w-3" />
             Breakdown
-          </MobileButton>
-          <MobileButton
-            onClick={() => setActiveView('season')}
-            variant={activeView === 'season' ? 'primary' : 'ghost'}
-            size="sm"
-            className="flex items-center justify-center gap-1 text-xs"
-          >
-            <Trophy className="h-3 w-3" />
-            Season
           </MobileButton>
         </div>
       </div>
@@ -143,7 +135,7 @@ const MobilePickEmsResults = ({
                         </div>
                         <div>
                           <div className="font-medium text-gray-900">
-                            User {score.userId}
+                            {getMaskedUserName(score.displayName, score.userId, user, isAdmin)}
                           </div>
                           <div className="text-xs text-gray-500">
                             {score.correctPicks}/{score.totalPicks} correct
@@ -210,10 +202,13 @@ const MobilePickEmsResults = ({
               </p>
             </div>
           ) : (
-            Object.entries(picksByUser).map(([userId, picks]) => (
+            Object.entries(picksByUser).map(([userId, picks]) => {
+              const displayName = picks[0]?.displayName;
+              const maskedName = getMaskedUserName(displayName, userId, user, isAdmin);
+              return (
               <div key={userId} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
-                  <h4 className="font-medium text-gray-900">User {userId}'s Picks</h4>
+                  <h4 className="font-medium text-gray-900">{maskedName}'s Picks</h4>
                 </div>
                 <div className="p-4 space-y-3">
                   {picks.map((pick) => (
@@ -231,14 +226,20 @@ const MobilePickEmsResults = ({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="font-medium text-gray-900 text-sm">
-                            {pick.team1Name} vs {pick.team2Name}
+                            {getMaskedTeamName({ id: pick.team1Id, name: pick.team1Name }, user, isAdmin)} vs {getMaskedTeamName({ id: pick.team2Id, name: pick.team2Name }, user, isAdmin)}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            Picked: {pick.predictedWinnerName}
-                            {pick.actualWinnerName && (
-                              <span> • Winner: {pick.actualWinnerName}</span>
-                            )}
-                          </div>
+                          {pick.actualWinnerName && (
+                            <div className="text-xs">
+                              <span className="text-gray-500">Winner: </span>
+                              <span className={`font-semibold ${
+                                pick.isCorrect
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                              }`}>
+                                {getMaskedTeamName({ id: pick.actualWinnerId, name: pick.actualWinnerName }, user, isAdmin)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="text-sm font-medium text-gray-900">
@@ -248,67 +249,12 @@ const MobilePickEmsResults = ({
                   ))}
                 </div>
               </div>
-            ))
+            );
+            })
           )}
         </div>
       )}
 
-      {/* Season Standings */}
-      {activeView === 'season' && (
-        <div className="space-y-3">
-          {seasonStandings.length === 0 ? (
-            <div className="text-center py-8">
-              <Trophy className="h-10 w-10 mx-auto text-gray-400 mb-3" />
-              <h3 className="font-semibold text-gray-900 mb-1">No Season Standings</h3>
-              <p className="text-gray-600 text-sm">
-                Season standings will appear as weeks are completed.
-              </p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Season-Long Standings</h3>
-              <div className="space-y-3">
-                {seasonStandings.map((standing, index) => (
-                  <div
-                    key={standing.id || index}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2">
-                        {getRankIcon(standing.seasonRank)}
-                        <div className={`px-2 py-1 rounded-full border text-xs font-medium ${getRankColor(standing.seasonRank)}`}>
-                          #{standing.seasonRank}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          User {standing.userId}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <span>{standing.totalCorrectPicks}/{standing.totalPicks}</span>
-                          <span>{standing.totalWeeksParticipated} weeks</span>
-                          {standing.perfectWeeks > 0 && (
-                            <span className="flex items-center gap-1">
-                              <Trophy className="h-3 w-3" />
-                              {standing.perfectWeeks}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-gray-900">{standing.totalPoints} pts</div>
-                      <div className="text-xs text-gray-500">
-                        {formatAccuracy(standing.overallAccuracyPercentage)}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };

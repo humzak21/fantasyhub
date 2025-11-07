@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, Menu, X, User, Save, CheckCircle, AlertCircle, Shield } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, Menu, X, User, Save, CheckCircle, AlertCircle, Shield, Award } from 'lucide-react';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
 import { useSupabaseFantasyData } from '../../../hooks/useSupabaseFantasyData.js';
 import { supabase } from '../../../services/supabaseClient.js';
@@ -14,6 +14,7 @@ import MobileScheduleManager from './MobileScheduleManager.jsx';
 import MobileTeamsAndRosters from './MobileTeamsAndRosters.jsx';
 import MobileWeekSelector from './MobileWeekSelector.jsx';
 import MobilePickEms from './MobilePickEms.jsx';
+import MobileAwards from './MobileAwards.jsx';
 import MobileUserSettingsPage from './MobileUserSettingsPage.jsx';
 import { MobileInput } from './MobileInput.jsx';
 import MobileButton from './MobileButton.jsx';
@@ -63,6 +64,7 @@ const MobileFantasyFootballApp = () => {
     renameDivision,
     assignTeamToDivision,
     createDivision,
+    getCompletedWeeksArray,
     dataManager
   } = useSupabaseFantasyData();
 
@@ -176,11 +178,18 @@ const MobileFantasyFootballApp = () => {
     setShowWeekSelector(false);
   };
 
-  const getCompletedWeeks = () => {
-    return activeSeason?.weeks
-      ?.filter(week => week.isCompleted)
-      ?.map(week => week.weekNumber) || [];
-  };
+  const [completedWeeks, setCompletedWeeks] = useState([]);
+
+  // Fetch completed weeks from games table
+  useEffect(() => {
+    const fetchCompletedWeeks = async () => {
+      if (activeSeason) {
+        const weeks = await getCompletedWeeksArray();
+        setCompletedWeeks(weeks);
+      }
+    };
+    fetchCompletedWeeks();
+  }, [activeSeason, getCompletedWeeksArray]);
 
   return (
     <MobileErrorBoundary>
@@ -226,7 +235,7 @@ const MobileFantasyFootballApp = () => {
                 totalWeeks={activeSeason.totalWeeks}
                 regularSeasonWeeks={activeSeason.regularSeasonWeeks || 14}
                 onWeekChange={handleWeekChange}
-                completedWeeks={getCompletedWeeks()}
+                completedWeeks={completedWeeks}
                 anchorRef={weekButtonRef}
               />
             </div>
@@ -288,6 +297,7 @@ const MobileFantasyFootballApp = () => {
                       {activeTab === 'rankings' && <><Trophy className="h-5 w-5 text-primary" /><span>Power Rankings</span></>}
                       {activeTab === 'teams' && <><Users className="h-5 w-5 text-primary" /><span>Teams & Rosters</span></>}
                       {activeTab === 'pickems' && <><Target className="h-5 w-5 text-primary" /><span>Pick'ems</span></>}
+                      {activeTab === 'awards' && <><Award className="h-5 w-5 text-primary" /><span>Awards</span></>}
                       {activeTab === 'settings' && <><Settings className="h-5 w-5 text-primary" /><span>Settings</span></>}
                       {activeTab === 'seasons' && <><Settings className="h-5 w-5 text-primary" /><span>Season Management</span></>}
                       {activeTab === 'import' && <><Download className="h-5 w-5 text-primary" /><span>Import Schedule</span></>}
@@ -352,6 +362,8 @@ const MobileFantasyFootballApp = () => {
                         rankings={weeklyRankings}
                         currentWeek={currentWeek}
                         season={activeSeason}
+                        user={user}
+                        isAdmin={isAdmin}
                       />
                     )}
 
@@ -388,6 +400,18 @@ const MobileFantasyFootballApp = () => {
                     {/* Mobile Pick'ems */}
                     {activeTab === 'pickems' && (
                       <MobilePickEms
+                        season={activeSeason}
+                        currentWeek={currentWeek}
+                        dataManager={dataManager}
+                        loading={loading}
+                        isAuthenticated={isAuthenticated}
+                        isAdmin={isAdmin}
+                        user={user}
+                      />
+                    )}
+
+                    {activeTab === 'awards' && (
+                      <MobileAwards
                         season={activeSeason}
                         currentWeek={currentWeek}
                         dataManager={dataManager}

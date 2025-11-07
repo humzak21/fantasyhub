@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,7 +37,9 @@ const StandingsTable = ({
   onDivisionRename,
   onTeamDivisionChange,
   onCreateDivision,
-  games = [] // Add games data for streak calculation fallback
+  games = [], // Add games data for streak calculation fallback
+  user = null,
+  isAdmin = false
 }) => {
   const [isManaging, setIsManaging] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState('');
@@ -438,11 +441,10 @@ const StandingsTable = ({
                         <TableHead>Team</TableHead>
                         <TableHead>Owner</TableHead>
                         <TableHead className="text-center">W-L-T</TableHead>
-                        <TableHead className="text-center">PCT</TableHead>
+                        <TableHead className="text-center">Win %</TableHead>
                         <TableHead className="text-center">PF</TableHead>
                         <TableHead className="text-center">PA</TableHead>
                         <TableHead className="text-center">DIFF</TableHead>
-                        <TableHead className="text-center">STRK</TableHead>
                         {isManaging && <TableHead className="text-center">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
@@ -462,13 +464,13 @@ const StandingsTable = ({
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="font-medium">{team.name}</TableCell>
-                          <TableCell className="text-muted-foreground">{team.owner}</TableCell>
+                          <TableCell className="font-medium">{getMaskedTeamName(team, user, isAdmin)}</TableCell>
+                          <TableCell className="text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin)}</TableCell>
                           <TableCell className="text-center">
                             {team.wins}-{team.losses}-{team.ties}
                           </TableCell>
                           <TableCell className="text-center">
-                            {(team.winPercentage || team.calculatedWinPct || 0).toFixed(3)}
+                            {((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%
                           </TableCell>
                           <TableCell className="text-center">
                             {(team.pointsFor || 0).toFixed(2)}
@@ -480,16 +482,6 @@ const StandingsTable = ({
                             <span className={team.pointDifferential >= 0 ? 'text-green-600' : 'text-red-600'}>
                               {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
                             </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge 
-                              variant={getStreakVariant(team.currentStreak)} 
-                              className={`text-xs ${
-                                (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
-                              }`}
-                            >
-                              {getStreakDisplay(team.currentStreak)}
-                            </Badge>
                           </TableCell>
                           {isManaging && (
                             <TableCell className="text-center">
@@ -545,24 +537,23 @@ const StandingsTable = ({
                     <TableHead>Team</TableHead>
                     <TableHead>Owner</TableHead>
                     <TableHead className="text-center">W-L-T</TableHead>
-                    <TableHead className="text-center">PCT</TableHead>
+                    <TableHead className="text-center">Win %</TableHead>
                     <TableHead className="text-center">PF</TableHead>
                     <TableHead className="text-center">PA</TableHead>
                     <TableHead className="text-center">DIFF</TableHead>
-                    <TableHead className="text-center">STRK</TableHead>
                     {isManaging && <TableHead className="text-center">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {unassigned.map((team) => (
                     <TableRow key={team.id}>
-                      <TableCell className="font-medium">{team.name}</TableCell>
-                      <TableCell className="text-muted-foreground">{team.owner}</TableCell>
+                      <TableCell className="font-medium">{getMaskedTeamName(team, user, isAdmin)}</TableCell>
+                      <TableCell className="text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin)}</TableCell>
                       <TableCell className="text-center">
                         {team.wins}-{team.losses}-{team.ties}
                       </TableCell>
                       <TableCell className="text-center">
-                        {(team.winPercentage || team.calculatedWinPct || 0).toFixed(3)}
+                        {((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%
                       </TableCell>
                       <TableCell className="text-center">
                         {(team.pointsFor || 0).toFixed(2)}
@@ -574,16 +565,6 @@ const StandingsTable = ({
                         <span className={team.pointDifferential >= 0 ? 'text-green-600' : 'text-red-600'}>
                           {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
                         </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge 
-                          variant={getStreakVariant(team.currentStreak)} 
-                          className={`text-xs ${
-                            (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
-                          }`}
-                        >
-                          {getStreakDisplay(team.currentStreak)}
-                        </Badge>
                       </TableCell>
                       {isManaging && (
                         <TableCell className="text-center">

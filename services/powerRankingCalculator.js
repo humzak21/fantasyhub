@@ -1,7 +1,8 @@
 import { THRESHOLDS, POSITION_WEIGHTS } from '../types/index.js';
+import { PlayoffOddsCalculator } from './playoffOddsCalculator.js';
 
 export class PowerRankingCalculator {
-  constructor(teams, games, currentWeek = 1, players = [], viewingWeek = null, analyticsService = null) {
+  constructor(teams, games, currentWeek = 1, players = [], viewingWeek = null, analyticsService = null, divisions = [], regularSeasonWeeks = 14) {
     this.teams = Array.isArray(teams) ? teams : [];
     this.games = Array.isArray(games) ? games : [];
     this.players = Array.isArray(players) ? players : [];
@@ -13,6 +14,10 @@ export class PowerRankingCalculator {
     // Analytics integration - optional for backward compatibility
     this.analyticsService = analyticsService;
     this.analyticsEnabled = analyticsService !== null;
+
+    // Playoff odds calculator support
+    this.divisions = Array.isArray(divisions) ? divisions : [];
+    this.regularSeasonWeeks = regularSeasonWeeks;
 
     this.leagueStats = this.calculateLeagueStats();
     this.teamRosterMetrics = this.calculateAllTeamRosterMetrics();
@@ -817,18 +822,56 @@ export class PowerRankingCalculator {
     return recentAverage - this.leagueStats.averageScore;
   }
 
+  /**
+   * Calculate playoff odds for all teams using PlayoffOddsCalculator
+   * @returns {Map} Map of teamId -> playoff odds percentage (0-100)
+   */
+  calculatePlayoffOdds() {
+    console.log('[PowerRankingCalculator] calculatePlayoffOdds called:', {
+      divisionsCount: this.divisions.length,
+      teamsCount: this.teams.length,
+      currentWeek: this.currentWeek,
+      regularSeasonWeeks: this.regularSeasonWeeks,
+      divisions: this.divisions,
+      sampleTeam: this.teams[0]
+    });
+
+    if (this.divisions.length === 0 || this.teams.length === 0) {
+      // Return 0% odds if no divisions configured
+      console.warn('[PowerRankingCalculator] No divisions or teams, returning 0 odds');
+      const emptyOdds = new Map();
+      this.teams.forEach(team => emptyOdds.set(team.id, 0));
+      return emptyOdds;
+    }
+
+    const playoffCalculator = new PlayoffOddsCalculator(
+      this.teams,
+      this.games,
+      this.divisions,
+      this.currentWeek,
+      this.regularSeasonWeeks
+    );
+
+    return playoffCalculator.calculateAllPlayoffOdds();
+  }
+
   async calculateAllTeamStats() {
+    // Calculate playoff odds for all teams once
+    const playoffOddsMap = this.calculatePlayoffOdds();
+
     const teamStatsPromises = this.teams.map(async team => {
       const stats = this.calculateTeamStats(team.id);
       const { powerRating, components } = await this.calculatePowerRating(team.id);
       const rosterMetrics = this.teamRosterMetrics[team.id] || {};
+      const playoffOdds = playoffOddsMap.get(team.id) || 0;
       
       return {
         ...team,
         ...stats,
         ...rosterMetrics,
         powerRating,
-        powerRatingComponents: components
+        powerRatingComponents: components,
+        playoffOdds
       };
     });
 
@@ -846,7 +889,11 @@ export class PowerRankingCalculator {
       let previousRank = null;
 
       if (previousRankings) {
-        const prevEntry = previousRankings.find(prev => prev.teamId === team.teamId);
+        // Check both team.id and team.teamId for compatibility
+        const teamIdentifier = team.id || team.teamId;
+        const prevEntry = previousRankings.find(prev => 
+          prev.teamId === teamIdentifier || prev.teamId === team.teamId || prev.teamId === team.id
+        );
         if (prevEntry) {
           previousRank = prevEntry.rank || prevEntry.previousRank || currentRank;
           rankChange = previousRank - currentRank;

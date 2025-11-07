@@ -15,12 +15,13 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { getMaskedTeamName } from '../../utils/displayNameUtils';
 
 /**
  * Statistics component
  * Single scrollable page with all statistics sections
  */
-const MobileStatistics = ({ rankings = [], currentWeek = 1, season = null }) => {
+const MobileStatistics = ({ rankings = [], currentWeek = 1, season = null, user = null, isAdmin = false }) => {
 
   // Calculate statistics (same logic as desktop but optimized for mobile display)
   const statistics = useMemo(() => {
@@ -144,7 +145,7 @@ const MobileStatistics = ({ rankings = [], currentWeek = 1, season = null }) => 
             )}
             <div className="flex-1 min-w-0">
               <h4 className={`font-medium text-sm text-${color}-700 mb-1`}>{title}</h4>
-              <p className={`font-bold text-lg text-white truncate`}>{team.name}</p>
+              <p className={`font-bold text-lg text-white truncate`}>{getMaskedTeamName(team, user, isAdmin)}</p>
               <p className={`text-${color}-600 text-sm font-medium`}>{stat}</p>
               {description && (
                 <p className={`text-${color}-500 text-xs mt-1`}>{description}</p>
@@ -331,7 +332,7 @@ const MobileStatistics = ({ rankings = [], currentWeek = 1, season = null }) => 
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold truncate text-white">{team.name}</h4>
+                    <h4 className="font-semibold truncate text-white">{getMaskedTeamName(team, user, isAdmin)}</h4>
                     <p className="text-sm text-muted-foreground">
                       {team.wins || 0}-{team.losses || 0} • {((team.winPercentage || 0) * 100).toFixed(1)}%
                     </p>

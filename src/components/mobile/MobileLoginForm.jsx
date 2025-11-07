@@ -7,13 +7,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { User, LogIn, Mail, Lock, CheckCircle, ArrowLeft } from 'lucide-react'
 
 export const MobileLoginForm = ({ onBack, onSuccess }) => {
-  const { signIn, signUp } = useAuth()
+  const { signIn, signUp, resetPassword } = useAuth()
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isForgotPassword, setIsForgotPassword] = useState(false)
   const [formData, setFormData] = useState({ email: '', password: '', name: '' })
+  const [resetEmail, setResetEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
 
   // Refs for form fields
   const nameInputRef = useRef(null)
@@ -87,6 +90,76 @@ export const MobileLoginForm = ({ onBack, onSuccess }) => {
     onSuccess?.()
   }
 
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!resetEmail.trim()) {
+      setError('Please enter your email address')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const result = await resetPassword(resetEmail)
+
+      if (result.success) {
+        setResetPasswordSuccess(true)
+        setResetEmail('')
+        // Auto-close after 5 seconds
+        setTimeout(() => {
+          setResetPasswordSuccess(false)
+          setIsForgotPassword(false)
+          onBack?.()
+        }, 5000)
+      } else {
+        setError(result.error || 'Failed to send password reset email')
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleBackToLogin = () => {
+    setIsForgotPassword(false)
+    setResetEmail('')
+    setError('')
+    setResetPasswordSuccess(false)
+  }
+
+  if (resetPasswordSuccess) {
+    return (
+      <div className="p-4">
+        <Card>
+          <CardContent className="space-y-4 p-6">
+            <div className="text-center space-y-4 py-4">
+              <CheckCircle className="h-12 w-12 text-orange-500 mx-auto" />
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-orange-700">Email Sent!</h3>
+                <p className="text-sm text-gray-600 px-2">
+                  Check your email for a password reset link. You can now go back.
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setResetPasswordSuccess(false)
+                  setIsForgotPassword(false)
+                  onBack?.()
+                }}
+                className="w-full bg-orange-600 hover:bg-orange-700"
+              >
+                Done
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   if (showSuccessMessage) {
     return (
       <div className="p-4">
@@ -107,6 +180,69 @@ export const MobileLoginForm = ({ onBack, onSuccess }) => {
                 Got it!
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (isForgotPassword) {
+    return (
+      <div className="p-4">
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex items-center space-x-3 mb-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToLogin}
+                className="p-1 h-8 w-8"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <CardTitle className="text-lg text-orange-600">Reset Password</CardTitle>
+            </div>
+            <CardDescription>
+              Enter your email to receive a password reset link
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <form onSubmit={handleForgotPasswordSubmit} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={resetEmail}
+                    onChange={(e) => {
+                      setResetEmail(e.target.value)
+                      if (error) setError('')
+                    }}
+                    className="pl-10 border-orange-200 focus:border-orange-500 focus:ring-orange-500"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <p className="text-destructive text-sm">{error}</p>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-orange-600 hover:bg-orange-700 focus:ring-orange-500"
+              >
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>
@@ -217,7 +353,7 @@ export const MobileLoginForm = ({ onBack, onSuccess }) => {
             </Button>
           </form>
 
-          <div className="text-center border-t pt-4">
+          <div className="space-y-3 border-t pt-4">
             <Button
               type="button"
               variant="ghost"
@@ -225,7 +361,7 @@ export const MobileLoginForm = ({ onBack, onSuccess }) => {
                 setIsSignUp(!isSignUp)
                 resetForm()
               }}
-              className={`text-sm font-medium transition-colors ${
+              className={`w-full text-sm font-medium transition-colors ${
                 isSignUp
                   ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
                   : 'text-green-600 hover:text-green-700 hover:bg-green-50'
@@ -236,6 +372,19 @@ export const MobileLoginForm = ({ onBack, onSuccess }) => {
                 : "Don't have an account? Sign up →"
               }
             </Button>
+            {!isSignUp && (
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  setIsForgotPassword(true)
+                  setError('')
+                }}
+                className="w-full text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              >
+                Forgot Password?
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

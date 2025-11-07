@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, X, ChevronRight, LogIn, LogOut, User, Moon, Sun, Monitor, Check } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, X, ChevronRight, LogIn, LogOut, User, Moon, Sun, Monitor, Check, Award } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
@@ -30,13 +30,23 @@ const MobileNavigation = ({
   const [hasUserSubmittedPicks, setHasUserSubmittedPicks] = useState(false);
   const [pickemNotificationLoading, setPickemNotificationLoading] = useState(false);
 
+  // Check if awards are accessible (Dec 9th midnight or admin)
+  const isAwardsAccessible = () => {
+    if (isAdmin) return true;
+    
+    const now = new Date();
+    const awardsReleaseDate = new Date('2025-12-09T00:00:00');
+    return now >= awardsReleaseDate;
+  };
+
   // Navigation tabs configuration
   const mainTabs = [
     { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
     { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
     { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
     { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
-    { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false }
+    { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
+    { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isAwardsAccessible }
   ];
 
   const adminTabs = [
@@ -128,11 +138,12 @@ const MobileNavigation = ({
         animation: 'mobile-backdrop-in 0.2s ease-out'
       }}
     >
-      <div 
-        className="mobile-nav-menu fixed top-16 right-0 w-80 h-full bg-background shadow-xl"
+      <div
+        className="mobile-nav-menu fixed top-16 right-0 w-80 bg-background shadow-xl"
         style={{
           animation: 'mobile-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          maxWidth: 'calc(100vw - 32px)'
+          maxWidth: 'calc(100vw - 32px)',
+          height: 'calc(100vh - 4rem)'
         }}
       >
         <div className="flex flex-col h-full">
@@ -151,7 +162,7 @@ const MobileNavigation = ({
 
           {/* Scrollable Content */}
           <div
-            className="flex-1 overflow-y-auto"
+            className="flex-1 overflow-y-auto min-h-0"
             style={{
               WebkitOverflowScrolling: 'touch',
               overscrollBehavior: 'contain',
@@ -304,7 +315,13 @@ const MobileNavigation = ({
                 </h3>
                 <div className="space-y-1">
                   {mainTabs
-                    .filter(tab => !tab.requiresAuth || isAdmin)
+                    .filter(tab => {
+                      // Check auth requirements
+                      if (tab.requiresAuth && !isAdmin) return false;
+                      // Check custom access function
+                      if (tab.customAccess && !tab.customAccess()) return false;
+                      return true;
+                    })
                     .map(tab => {
                       const isDisabled = isAdmin && tab.requiresSeason && !activeSeason;
                       const Icon = tab.icon;
@@ -323,6 +340,7 @@ const MobileNavigation = ({
                             w-full justify-start mobile-nav-item touch-target relative
                             ${isAnimating ? 'opacity-50' : ''}
                             ${wasRecentlyVisited ? 'bg-muted/50' : ''}
+                            ${isActive && isDarkMode ? '!text-black' : ''}
                           `}
                         >
                           <Icon className="h-4 w-4 mr-3 flex-shrink-0" />
@@ -364,6 +382,7 @@ const MobileNavigation = ({
                             w-full justify-start mobile-nav-item touch-target
                             ${isAnimating ? 'opacity-50' : ''}
                             ${wasRecentlyVisited ? 'bg-muted/50' : ''}
+                            ${isActive && isDarkMode ? '!text-black' : ''}
                           `}
                         >
                           <Icon className="h-4 w-4 mr-3 flex-shrink-0" />

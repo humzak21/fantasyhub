@@ -3,6 +3,7 @@ import { Calendar, Users, CheckCircle, Clock, Edit3, Trash2, Save, X, MoreVertic
 import { cn } from '../../../lib/utils';
 import MobileButton from './MobileButton';
 import { MobileNumberInput } from './MobileForm';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 
 const MobileScheduleManager = ({
   season = null,
@@ -13,7 +14,9 @@ const MobileScheduleManager = ({
   loading = false,
   isAuthenticated = false,
   powerRankings = [],
-  rosters = {}
+  rosters = {},
+  user = null,
+  isAdmin = false
 }) => {
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
   const [expandedWeeks, setExpandedWeeks] = useState(new Set([currentWeek]));
@@ -488,10 +491,10 @@ const MobileGameCard = ({
     const stats = getTeamStats(teamId);
     const rank = getTeamRanking(teamId);
     const roster = rosters[teamId]?.roster || [];
-    const teamName = team ? team.name : 'Unknown Team';
+    const teamName = team ? getMaskedTeamName(team, user, isAdmin) : 'Unknown Team';
 
     return (
-      <div className={`flex-1 p-3 rounded-lg border ${
+      <div className={`w-full p-3 rounded-lg border ${
         isWinner && game.isCompleted
           ? 'bg-green-50 border-green-200'
           : 'bg-gray-50 border-gray-200'
@@ -506,7 +509,7 @@ const MobileGameCard = ({
               )}>{teamName}</h5>
               {team?.owner && (
                 <div className="text-xs text-gray-600 truncate">
-                  {team.owner}
+                  {getMaskedOwnerName(team, user, isAdmin)}
                 </div>
               )}
               {/* Record */}
@@ -641,15 +644,15 @@ const MobileGameCard = ({
         )}
       </div>
 
-      {/* Versus Layout */}
-      <div className="flex items-start gap-2">
+      {/* Versus Layout - Vertical Stack */}
+      <div className="flex flex-col gap-2">
         <MobileTeamCard
           teamId={game.team1Id}
           score={game.team1Score}
           isWinner={game.isCompleted && game.winnerTeamId === game.team1Id}
         />
 
-        <div className="flex-shrink-0 text-center self-center px-1">
+        <div className="flex-shrink-0 text-center py-1">
           <div className={cn(
             'font-bold text-gray-400',
             compact ? 'text-sm' : 'text-lg'

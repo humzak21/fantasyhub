@@ -11,12 +11,14 @@ import { Avatar, AvatarFallback } from '../ui/avatar'
 import { User, LogIn, LogOut, UserPlus, Mail, Lock, CheckCircle, Settings, Moon, Sun, Monitor, Check } from 'lucide-react'
 
 export const LoginDropdown = () => {
-  const { user, signIn, signUp, signOut } = useAuth()
+  const { user, signIn, signUp, signOut, resetPassword } = useAuth()
   const { isDarkMode, isAutoDetect, getThemeName, setDarkMode, enableAutoDetect } = useDarkMode()
   const navigate = useNavigate()
   const [showLoginForm, setShowLoginForm] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isForgotPassword, setIsForgotPassword] = useState(false)
   const [formData, setFormData] = useState({ email: '', password: '', name: '' })
+  const [resetEmail, setResetEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showSuccessMessage, setShowSuccessMessage] = useState(() => {
@@ -31,6 +33,7 @@ export const LoginDropdown = () => {
     }
     return ''
   })
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
 
 
   // Refs for form fields
@@ -110,6 +113,47 @@ export const LoginDropdown = () => {
   const resetForm = () => {
     setFormData({ email: '', password: '', name: '' })
     setError('')
+  }
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!resetEmail.trim()) {
+      setError('Please enter your email address')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const result = await resetPassword(resetEmail)
+
+      if (result.success) {
+        setResetPasswordSuccess(true)
+        setResetEmail('')
+        // Auto-close after 5 seconds
+        setTimeout(() => {
+          setResetPasswordSuccess(false)
+          setIsForgotPassword(false)
+          setShowLoginForm(false)
+        }, 5000)
+      } else {
+        setError(result.error || 'Failed to send password reset email')
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleBackToLogin = () => {
+    setIsForgotPassword(false)
+    setResetEmail('')
+    setError('')
+    setResetPasswordSuccess(false)
   }
 
   // Show success popup even if user is logged in (after sign up)
@@ -231,19 +275,44 @@ export const LoginDropdown = () => {
       <DropdownMenuContent className="w-80" align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
         <Card className="border-0 shadow-none">
           <CardHeader className="pb-4">
-            <CardTitle className={`text-lg transition-colors ${isSignUp ? 'text-green-600' : 'text-blue-600'}`}>
-              {isSignUp ? 'Create Account' : 'Welcome Back'}
+            <CardTitle className={`text-lg transition-colors ${
+              isForgotPassword ? 'text-orange-600' : isSignUp ? 'text-green-600' : 'text-blue-600'
+            }`}>
+              {isForgotPassword ? 'Reset Password' : isSignUp ? 'Create Account' : 'Welcome Back'}
             </CardTitle>
             <CardDescription>
-              {isSignUp
-                ? 'Start tracking your fantasy football power rankings'
-                : 'Sign in to your fantasy football dashboard'
+              {isForgotPassword
+                ? 'Enter your email to receive a password reset link'
+                : isSignUp
+                  ? 'Start tracking your fantasy football power rankings'
+                  : 'Sign in to your fantasy football dashboard'
               }
             </CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-4">
-            {showSuccessMessage ? (
+            {resetPasswordSuccess ? (
+              <div className="text-center space-y-4 py-4">
+                <CheckCircle className="h-12 w-12 text-orange-500 mx-auto" />
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold text-orange-700">Email Sent!</h3>
+                  <p className="text-sm text-gray-600 px-2">
+                    Check your email for a password reset link. You can now close this dialog.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    setResetPasswordSuccess(false)
+                    setIsForgotPassword(false)
+                    setShowLoginForm(false)
+                  }}
+                  className="w-full bg-orange-600 hover:bg-orange-700"
+                  tabIndex={1}
+                >
+                  Done
+                </Button>
+              </div>
+            ) : showSuccessMessage ? (
               <div className="text-center space-y-4 py-4">
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
                 <div className="space-y-2">
@@ -267,6 +336,58 @@ export const LoginDropdown = () => {
                   Got it!
                 </Button>
               </div>
+            ) : isForgotPassword ? (
+              <>
+                <form onSubmit={handleForgotPasswordSubmit} className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="reset-email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={resetEmail}
+                        onChange={(e) => {
+                          setResetEmail(e.target.value)
+                          if (error) setError('')
+                        }}
+                        className="pl-10 border-orange-200 focus:border-orange-500 focus:ring-orange-500"
+                        required
+                        tabIndex={1}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                      <p className="text-destructive text-sm">{error}</p>
+                    </div>
+                  )}
+
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-orange-600 hover:bg-orange-700 focus:ring-orange-500"
+                    tabIndex={2}
+                  >
+                    {loading ? 'Sending...' : 'Send Reset Link'}
+                  </Button>
+                </form>
+
+                <div className="text-center border-t pt-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleBackToLogin}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    tabIndex={3}
+                  >
+                    ← Back to Sign In
+                  </Button>
+                </div>
+              </>
             ) : (
               <>
                 <form onSubmit={handleSubmit} className="space-y-3">
@@ -355,7 +476,7 @@ export const LoginDropdown = () => {
                   </Button>
                 </form>
 
-                <div className="text-center border-t pt-4">
+                <div className="space-y-3 border-t pt-4">
                   <Button
                     type="button"
                     variant="ghost"
@@ -363,7 +484,7 @@ export const LoginDropdown = () => {
                       setIsSignUp(!isSignUp)
                       resetForm()
                     }}
-                    className={`text-sm font-medium transition-colors ${
+                    className={`w-full text-sm font-medium transition-colors ${
                       isSignUp
                         ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
                         : 'text-green-600 hover:text-green-700 hover:bg-green-50'
@@ -375,6 +496,20 @@ export const LoginDropdown = () => {
                       : "Don't have an account? Sign up →"
                     }
                   </Button>
+                  {!isSignUp && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        setIsForgotPassword(true)
+                        setError('')
+                      }}
+                      className="w-full text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                      tabIndex={5}
+                    >
+                      Forgot Password?
+                    </Button>
+                  )}
                 </div>
               </>
             )}

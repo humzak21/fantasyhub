@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import MobileScreenManager from './MobileScreenManager';
 import { BarChart3, TrendingUp, Award, Target, Users, Calendar } from 'lucide-react';
+import { getMaskedTeamName } from '../../utils/displayNameUtils';
 
-const MobileStatisticsDetailScreen = ({ 
-  isOpen, 
-  onClose, 
+const MobileStatisticsDetailScreen = ({
+  isOpen,
+  onClose,
   statisticsData,
-  currentWeek = 1
+  currentWeek = 1,
+  user = null,
+  isAdmin = false
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
 

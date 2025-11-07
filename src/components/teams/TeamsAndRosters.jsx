@@ -17,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
 import { moveUserTeamToFirst } from '../../utils/userTeamUtils';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 
 const TeamsAndRosters = ({
   teams = [],
@@ -27,7 +28,8 @@ const TeamsAndRosters = ({
   loading = false,
   powerRankings = [],
   isAuthenticated = false, // This now represents isAdmin from parent
-  user = null
+  user = null,
+  isAdmin = false
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
@@ -352,7 +354,7 @@ const TeamsAndRosters = ({
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-bold truncate">{team.name}</h3>
+                        <h3 className="text-lg font-bold truncate">{getMaskedTeamName(team, user, isAdmin)}</h3>
                         {rank && (
                           <Badge variant={getRankBadgeVariant(rank)} className="gap-1 shrink-0">
                             {getRankIcon(rank)}
@@ -363,7 +365,7 @@ const TeamsAndRosters = ({
 
                       {team.owner && (
                         <div className="text-sm text-muted-foreground truncate">
-                          <strong>Owner:</strong> {team.owner}
+                          <strong>Owner:</strong> {getMaskedOwnerName(team, user, isAdmin)}
                         </div>
                       )}
                     </div>

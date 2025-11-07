@@ -1335,11 +1335,13 @@ export class SupabaseDataManager {
 
       if (error) throw error;
 
-      // Save power rankings snapshot
-      await this.client.rpc('save_power_rankings_snapshot', {
-        season_id: seasonId,
-        week_number: weekNumber
-      });
+      // Automatically save power rankings snapshot for this week
+      try {
+        await this.saveWeeklyPowerRankingsSnapshot(seasonId, weekNumber, 'auto');
+      } catch (snapshotError) {
+        console.warn('Failed to save power rankings snapshot:', snapshotError);
+        // Don't throw - week completion should succeed even if snapshot fails
+      }
 
       // Clear season cache
       this.seasonsCache.delete(seasonId);
@@ -1355,20 +1357,112 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      const { data, error } = await this.client
-        .from('weeks')
-        .select('week_number, is_completed')
+      // Check games table to determine completed weeks
+      // A week is considered completed if all its games have scores
+      const { data: games, error } = await this.client
+        .from('games')
+        .select('week, team1_score, team2_score')
         .eq('season_id', seasonId)
-        .order('week_number');
+        .order('week');
 
       if (error) throw error;
 
-      const completedWeeks = data.filter(week => week.is_completed);
-      const season = await this.getSeason(seasonId);
+      if (!games || games.length === 0) {
+        return 1; // No games yet, start at week 1
+      }
+
+      // Group games by week and check if each week is completed
+      const weekStatus = {};
+      games.forEach(game => {
+        if (!weekStatus[game.week]) {
+          weekStatus[game.week] = { total: 0, completed: 0 };
+        }
+        weekStatus[game.week].total++;
+        if (game.team1_score !== null && game.team2_score !== null) {
+          weekStatus[game.week].completed++;
+        }
+      });
+
+      // Find the last completed week
+      let lastCompletedWeek = 0;
+      const weeks = Object.keys(weekStatus).map(Number).sort((a, b) => a - b);
       
-      return Math.min(completedWeeks.length + 1, season?.totalWeeks || 1);
+      for (const week of weeks) {
+        const status = weekStatus[week];
+        if (status.completed === status.total && status.total > 0) {
+          lastCompletedWeek = week;
+        } else {
+          // Found first incomplete week, stop here
+          break;
+        }
+      }
+
+      // Current week is the week after the last completed week
+      return lastCompletedWeek + 1;
     } catch (error) {
       handleSupabaseError(error, 'Get current week');
+      return 1;
+    }
+  }
+
+  // Helper method to get the last completed week
+  async getLastCompletedWeek(seasonId) {
+    await this.initialize();
+    
+    try {
+      const currentWeek = await this.getCurrentWeek(seasonId);
+      // Last completed week is current week - 1 (unless we're at week 1)
+      return Math.max(1, currentWeek - 1);
+    } catch (error) {
+      handleSupabaseError(error, 'Get last completed week');
+      return 1;
+    }
+  }
+
+  // Helper method to get all completed weeks as an array
+  async getCompletedWeeks(seasonId) {
+    await this.initialize();
+    
+    try {
+      // Check games table to get all completed weeks
+      const { data: games, error } = await this.client
+        .from('games')
+        .select('week, team1_score, team2_score')
+        .eq('season_id', seasonId)
+        .order('week');
+
+      if (error) throw error;
+
+      if (!games || games.length === 0) {
+        return [];
+      }
+
+      // Group games by week and check if each week is completed
+      const weekStatus = {};
+      games.forEach(game => {
+        if (!weekStatus[game.week]) {
+          weekStatus[game.week] = { total: 0, completed: 0 };
+        }
+        weekStatus[game.week].total++;
+        if (game.team1_score !== null && game.team2_score !== null) {
+          weekStatus[game.week].completed++;
+        }
+      });
+
+      // Get all completed weeks
+      const completedWeeks = [];
+      Object.keys(weekStatus).forEach(week => {
+        const weekNum = parseInt(week);
+        const status = weekStatus[week];
+        if (status.completed === status.total && status.total > 0) {
+          completedWeeks.push(weekNum);
+        }
+      });
+
+      return completedWeeks.sort((a, b) => a - b);
+    } catch (error) {
+      handleSupabaseError(error, 'Get completed weeks');
+      return [];
     }
   }
 
@@ -1417,52 +1511,80 @@ export class SupabaseDataManager {
     }
   }
 
-  // Power rankings with enhanced historical support
+  // Power rankings - always calculate live for accuracy
   async calculatePowerRankings(seasonId, weekNumber = null) {
     await this.initialize();
-    
-    try {
-      // If weekNumber is specified, try to get historical data first
-      if (weekNumber !== null) {
-        const historicalData = await this.getPowerRankingsForWeek(seasonId, weekNumber);
-        if (historicalData && historicalData.length > 0) {
-          return historicalData;
-        }
-      }
 
-      // Use JavaScript PowerRankingCalculator for live calculation
-      return await this.calculateLivePowerRankings(seasonId, weekNumber);
+    console.log('=== calculatePowerRankings called ===', { weekNumber });
+
+    try {
+      // Always use live calculation with rank change comparison
+      // This ensures accuracy regardless of stored data
+      console.log('Calculating live rankings with rank changes');
+      return await this.getPowerRankingsForWeek(seasonId, weekNumber || await this.getCurrentWeek(seasonId));
     } catch (error) {
       handleSupabaseError(error, 'Calculate power rankings');
     }
   }
 
   // New method to calculate live power rankings using JavaScript PowerRankingCalculator
-  async calculateLivePowerRankings(seasonId, weekNumber = null) {
+  async calculateLivePowerRankings(seasonId, weekNumber = null, skipPreviousWeekLookup = false) {
     await this.initialize();
-    
+
+    console.log('=== calculateLivePowerRankings called ===', {
+      seasonId: seasonId?.substring(0, 8),
+      weekNumber,
+      skipPreviousWeekLookup
+    });
+
     try {
+      // Get season data for regularSeasonWeeks
+      const { data: season, error: seasonError } = await this.client
+        .from('seasons')
+        .select('*')
+        .eq('id', seasonId)
+        .single();
+
+      if (seasonError) throw seasonError;
+
+      // Get divisions for the season
+      const { data: divisions, error: divisionsError } = await this.client
+        .from('divisions')
+        .select('*')
+        .eq('season_id', seasonId)
+        .order('display_order', { ascending: true });
+
+      if (divisionsError) {
+        console.error('Error fetching divisions:', divisionsError);
+        throw divisionsError;
+      }
+
+      console.log('[calculateLivePowerRankings] Divisions fetched:', {
+        count: divisions?.length || 0,
+        divisions: divisions
+      });
+
       // Get teams for the season
       const { data: teams, error: teamsError } = await this.client
         .from('teams')
         .select('*')
         .eq('season_id', seasonId)
         .order('id', { ascending: true });
-      
+
       if (teamsError) throw teamsError;
-      
+
       // Get games for the season
       const { data: games, error: gamesError } = await this.client
         .from('games')
         .select('*')
         .eq('season_id', seasonId)
         .order('week', { ascending: true });
-      
+
       if (gamesError) throw gamesError;
-      
+
       // Get current week if not specified
       const currentWeek = weekNumber || await this.getCurrentWeek(seasonId);
-      
+
       // Format games to match PowerRankingCalculator expectations
       const formattedGames = games.map(game => ({
         ...game,
@@ -1472,38 +1594,109 @@ export class SupabaseDataManager {
         team2Score: game.team2_score,
         isCompleted: game.team1_score !== null && game.team2_score !== null
       }));
-      
+
       // Get all players for the season with their stats
       const players = await this.getAllPlayers(seasonId);
-      
+
       // Get all rosters for the season and attach to teams
       const rostersByTeam = await this.getAllRosters(seasonId);
-      
-      // Attach roster data to teams
+
+      // Attach roster data to teams with division IDs
       const teamsWithRosters = teams.map(team => ({
         ...team,
-        roster: rostersByTeam[team.id]?.roster || []
+        roster: rostersByTeam[team.id]?.roster || [],
+        divisionId: team.division_id
       }));
+
+      // Create PowerRankingCalculator instance with divisions and regularSeasonWeeks
+      const regularSeasonWeeks = season.regular_season_weeks || season.regularSeasonWeeks || 14;
       
-      // Create PowerRankingCalculator instance
-      const calculator = new PowerRankingCalculator(teamsWithRosters, formattedGames, currentWeek, players);
-      
+      console.log('[calculateLivePowerRankings] Creating PowerRankingCalculator:', {
+        teamsCount: teamsWithRosters.length,
+        divisionsCount: divisions?.length || 0,
+        regularSeasonWeeks,
+        currentWeek,
+        sampleTeamDivisionId: teamsWithRosters[0]?.division_id
+      });
+
+      const calculator = new PowerRankingCalculator(
+        teamsWithRosters,
+        formattedGames,
+        currentWeek,
+        players,
+        null, // viewingWeek (use current)
+        null, // analyticsService
+        divisions || [],
+        regularSeasonWeeks
+      );
+
       // Calculate all team stats with power rankings
-      const teamStats = calculator.calculateAllTeamStats();
-      
+      const teamStats = await calculator.calculateAllTeamStats();
+
       // Sort by power rating (highest first) and assign ranks
       const sortedTeams = teamStats.sort((a, b) => (b.powerRating || 0) - (a.powerRating || 0));
-      
+
+      // Get previous week's rankings for rank change calculation (only if not skipped)
+      let previousWeekRankings = null;
+      if (currentWeek > 1 && !skipPreviousWeekLookup) {
+        console.log(`Fetching previous week rankings for week ${currentWeek - 1}, season ${seasonId}`);
+        try {
+          // Only try to get from history table, don't recursively calculate
+          const { data: historicalData, error: histError } = await this.client
+            .from('power_rankings_history')
+            .select('team_id, rank')
+            .eq('season_id', seasonId)
+            .eq('week_number', currentWeek - 1)
+            .order('rank', { ascending: true });
+
+          console.log('Query result:', {
+            error: histError?.message,
+            dataCount: historicalData?.length
+          });
+
+          if (histError) {
+            console.error('Error fetching previous week rankings:', histError);
+          } else if (historicalData && historicalData.length > 0) {
+            console.log(`✓ Found ${historicalData.length} previous rankings`);
+            previousWeekRankings = historicalData.map(row => ({
+              teamId: row.team_id,
+              id: row.team_id,
+              rank: row.rank
+            }));
+          } else {
+            console.warn(`No previous week rankings found for week ${currentWeek - 1}`);
+          }
+        } catch (error) {
+          console.error('Could not fetch previous week rankings:', error);
+        }
+      }
+
       // Format results to match expected structure
-      return sortedTeams.map((team, index) => ({
+      return sortedTeams.map((team, index) => {
+        const currentRank = index + 1;
+        let rankChange = 0;
+        let previousRank = currentRank;
+
+        // Calculate rank change if we have previous week data
+        if (previousWeekRankings && previousWeekRankings.length > 0) {
+          const prevEntry = previousWeekRankings.find(prev =>
+            (prev.teamId === team.id || prev.id === team.id)
+          );
+          if (prevEntry) {
+            previousRank = prevEntry.rank || currentRank;
+            rankChange = previousRank - currentRank;
+          }
+        }
+
+        return {
         teamId: team.id,
         id: team.id,
         name: team.name,
         owner: team.owner,
-        rank: index + 1,
+        rank: currentRank,
         powerRating: team.powerRating || 0,
-        rankChange: 0, // Will be calculated when comparing to previous week
-        previousRank: index + 1,
+        rankChange: rankChange,
+        previousRank: previousRank,
         powerRatingComponents: team.powerRatingComponents || {
           performanceScore: 0,
           teamStrength: 0,
@@ -1533,8 +1726,11 @@ export class SupabaseDataManager {
         badLosses: team.badLosses || 0,
         blowoutWins: team.blowoutWins || 0,
         closeWins: team.closeWins || 0,
-        closeLosses: team.closeLosses || 0
-      })).sort((a, b) => b.powerRating - a.powerRating);
+        closeLosses: team.closeLosses || 0,
+        // Playoff odds
+        playoffOdds: team.playoffOdds || 0
+        };
+      }).sort((a, b) => b.powerRating - a.powerRating);
       
     } catch (error) {
       handleSupabaseError(error, 'Calculate live power rankings');
@@ -1546,53 +1742,37 @@ export class SupabaseDataManager {
     await this.initialize();
     
     try {
-      // First try to get historical snapshot data
-      const { data: historicalData, error: historyError } = await this.client
-        .from('power_rankings_history')
-        .select(`
-          *,
-          teams!inner(name, owner)
-        `)
-        .eq('season_id', seasonId)
-        .eq('week_number', weekNumber)
-        .order('rank', { ascending: true });
-
-      // If we have historical data, return it
-      if (!historyError && historicalData && historicalData.length > 0) {
-        return historicalData.map(row => ({
-          teamId: row.team_id,
-          id: row.team_id,
-          name: row.teams.name,
-          owner: row.teams.owner,
-          rank: row.rank,
-          powerRating: parseFloat(row.power_rating || 0),
-          rankChange: row.rank_change || 0,
-          previousRank: row.previous_rank || row.rank,
-          powerRatingComponents: {
-            performanceScore: parseFloat(row.performance_score || 0),
-            teamStrength: parseFloat(row.team_strength || 0),
-            strengthOfSchedule: parseFloat(row.strength_of_schedule || 0),
-            momentumScore: parseFloat(row.momentum_score || 0),
-            consistencyScore: parseFloat(row.consistency_score || 0),
-            injuryScore: parseFloat(row.injury_score || 0),
-            clutchScore: parseFloat(row.clutch_score || 0),
-            allPlayWinPct: parseFloat(row.all_play_win_pct || 0)
-          },
-          wins: row.wins || 0,
-          losses: row.losses || 0,
-          ties: row.ties || 0,
-          pointsFor: parseFloat(row.points_for || 0),
-          pointsAgainst: parseFloat(row.points_against || 0),
-          winPercentage: parseFloat(row.win_percentage || 0),
-          pointDifferential: parseFloat(row.point_differential || 0),
-          gamesPlayed: row.games_played || 0,
-          averagePointsFor: row.games_played > 0 ? parseFloat(row.points_for || 0) / row.games_played : 0,
-          averagePointsAgainst: row.games_played > 0 ? parseFloat(row.points_against || 0) / row.games_played : 0
-        }));
+      // Always calculate live rankings to ensure accuracy
+      // Don't trust historical data - calculate fresh from game data
+      const currentWeekRankings = await this.calculateLivePowerRankings(seasonId, weekNumber, true);
+      
+      // Calculate previous week's rankings live to compare
+      if (weekNumber > 1) {
+        const previousWeekRankings = await this.calculateLivePowerRankings(seasonId, weekNumber - 1, true);
+        
+        // Add rank changes by comparing live calculations
+        currentWeekRankings.forEach(team => {
+          const prevEntry = previousWeekRankings.find(prev => 
+            prev.teamId === team.teamId || prev.id === team.id
+          );
+          
+          if (prevEntry) {
+            team.previousRank = prevEntry.rank;
+            team.rankChange = prevEntry.rank - team.rank; // Positive = moved up, negative = moved down
+          } else {
+            team.previousRank = team.rank;
+            team.rankChange = 0;
+          }
+        });
+      } else {
+        // Week 1 - no previous week to compare
+        currentWeekRankings.forEach(team => {
+          team.previousRank = team.rank;
+          team.rankChange = 0;
+        });
       }
-
-      // If no historical data, calculate live using JavaScript PowerRankingCalculator
-      return await this.calculateLivePowerRankings(seasonId, weekNumber);
+      
+      return currentWeekRankings;
     } catch (error) {
       handleSupabaseError(error, 'Get power rankings for week');
       return [];
@@ -1648,24 +1828,17 @@ export class SupabaseDataManager {
       if (deleteError) {
       }
 
-      // Get previous week rankings for rank change calculation
-      const previousWeekRankings = weekNumber > 1 
-        ? await this.getPowerRankingsForWeek(seasonId, weekNumber - 1)
-        : [];
-
-      // Prepare snapshot data
+      // Prepare snapshot data - only store current week's rankings
+      // Rank changes will be calculated dynamically when fetching data
       const snapshotData = powerRankings.map((team, index) => {
-        const previousRank = previousWeekRankings.find(prev => prev.teamId === team.teamId)?.rank || team.rank;
-        const rankChange = previousRank - team.rank;
+        const teamId = team.teamId || team.id;
         
         return {
           season_id: seasonId,
           week_number: weekNumber,
-          team_id: team.teamId,
+          team_id: teamId,
           rank: team.rank,
           power_rating: team.powerRating,
-          rank_change: rankChange,
-          previous_rank: previousRank,
           performance_score: team.powerRatingComponents?.performanceScore || 0,
           team_strength: team.powerRatingComponents?.teamStrength || 0,
           strength_of_schedule: team.powerRatingComponents?.strengthOfSchedule || 0,
@@ -1681,7 +1854,6 @@ export class SupabaseDataManager {
           points_against: team.pointsAgainst,
           win_percentage: team.winPercentage,
           point_differential: team.pointDifferential,
-          games_played: team.gamesPlayed,
           snapshot_type: snapshotType
         };
       });
@@ -2464,15 +2636,21 @@ export class SupabaseDataManager {
         const game = submission.games;
         const isCorrect = game?.is_completed && game.winner_team_id === submission.predicted_winner_team_id;
         const pointsEarned = isCorrect ? 1 : 0; // Simple scoring: 1 point per correct pick
+        const formattedSubmission = formatFromDatabase(submission);
 
         return {
-          ...formatFromDatabase(submission),
+          ...formattedSubmission,
           displayName: displayNames[submission.user_id] || `User ${submission.user_id?.slice(0, 8)}`,
           isCorrect,
           pointsEarned,
+          pickedTeamId: submission.predicted_winner_team_id,
+          pickedTeamName: formattedSubmission.predictedTeam?.name,
+          predictedWinnerName: formattedSubmission.predictedTeam?.name,
           actualWinnerTeamId: game?.winner_team_id,
           actualWinnerName: game?.winner_team_id === game?.team1?.id ? game?.team1?.name :
                             game?.winner_team_id === game?.team2?.id ? game?.team2?.name : null,
+          team1Id: game?.team1?.id,
+          team2Id: game?.team2?.id,
           team1Name: game?.team1?.name,
           team2Name: game?.team2?.name,
           team1Score: game?.team1_score,
@@ -2757,6 +2935,39 @@ export class SupabaseDataManager {
       }));
     } catch (error) {
       handleSupabaseError(error, 'Get season pick em standings');
+      return [];
+    }
+  }
+
+  // Get all picks from all weeks in a season
+  async getAllSeasonPicks(seasonId) {
+    await this.initialize();
+
+    try {
+      // Get all pick'em weeks for the season
+      const { data: pickEmWeeks, error: weeksError } = await this.client
+        .from('pick_em_weeks')
+        .select('id, week_number')
+        .eq('season_id', seasonId)
+        .order('week_number');
+
+      if (weeksError) throw weeksError;
+
+      if (!pickEmWeeks || pickEmWeeks.length === 0) {
+        return [];
+      }
+
+      // Get all picks for all weeks
+      const allSeasonPicks = [];
+
+      for (const week of pickEmWeeks) {
+        const weekPicks = await this.getAllPicksForWeek(week.id);
+        allSeasonPicks.push(...weekPicks);
+      }
+
+      return allSeasonPicks;
+    } catch (error) {
+      handleSupabaseError(error, 'Get all season picks');
       return [];
     }
   }

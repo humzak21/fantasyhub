@@ -9,6 +9,7 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
   const [shouldRender, setShouldRender] = useState(false);
+  const [isAnimatingOpen, setIsAnimatingOpen] = useState(false);
 
   // Minimum swipe distance to trigger close (in pixels)
   const minSwipeDistance = 50;
@@ -16,8 +17,17 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
   // Handle rendering state for animations
   useEffect(() => {
     if (isOpen) {
+      // First, render the component in closed state
       setShouldRender(true);
+      // Then, trigger the opening animation in the next frame
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimatingOpen(true);
+        });
+      });
     } else {
+      // Immediately start closing animation
+      setIsAnimatingOpen(false);
       // Delay unmounting to allow exit animation
       const timer = setTimeout(() => {
         setShouldRender(false);
@@ -138,7 +148,7 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
         ref={backdropRef}
         className={`
           drawer-backdrop absolute inset-0 bg-black transition-opacity duration-300
-          ${isOpen ? 'opacity-50' : 'opacity-0'}
+          ${isAnimatingOpen ? 'opacity-50' : 'opacity-0'}
         `}
       />
       
@@ -149,13 +159,14 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
           drawer-panel relative bg-white dark:bg-gray-900 h-full shadow-xl
           w-[95%] max-w-[690px] sm:w-[690px]
           flex flex-col safe-area-inset-right
-          transition-transform duration-300 cubic-bezier(0.4, 0, 0.2, 1)
-          ${isOpen ? 'translate-x-0' : 'translate-x-full'}
+          transition-transform duration-300 ease-out
+          ${isAnimatingOpen ? 'translate-x-0' : 'translate-x-full'}
           ${isDragging ? '!transition-none' : ''}
           ${loading ? 'drawer-loading' : ''}
         `}
         style={{
-          transform: isDragging ? `translateX(${dragOffset}px)` : undefined
+          transform: isDragging ? `translateX(${dragOffset}px)` : undefined,
+          transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
         }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}

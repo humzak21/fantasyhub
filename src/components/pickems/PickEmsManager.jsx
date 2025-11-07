@@ -10,6 +10,7 @@ import { Target, Trophy, Settings, AlertCircle, Clock, UserCheck } from 'lucide-
 import PickEmsSubmission from './PickEmsSubmission';
 import PickEmsResults from './PickEmsResults';
 import PickEmsAdminSubmissions from './PickEmsAdminSubmissions';
+import PickEmsSeasonStandings from './PickEmsSeasonStandings';
 
 const PickEmsManager = ({
   season,
@@ -18,17 +19,19 @@ const PickEmsManager = ({
   loading = false,
   isAuthenticated = false,
   isAdmin = false,
-  user = null
+  user = null,
+  initializing = false
 }) => {
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
   const [games, setGames] = useState([]);
   const [userPicks, setUserPicks] = useState([]);
   const [allPicks, setAllPicks] = useState([]);
+  const [seasonPicks, setSeasonPicks] = useState([]);
   const [weeklyScores, setWeeklyScores] = useState([]);
   const [seasonStandings, setSeasonStandings] = useState([]);
   const [pickEmStatus, setPickEmStatus] = useState(null);
-  const [dataLoading, setDataLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Load pick'em data for current week
@@ -58,17 +61,24 @@ const PickEmsManager = ({
         const userPicksData = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
         setUserPicks(userPicksData || []);
 
+        // Always load season standings and season picks
+        const [seasonStandingsData, seasonPicksData] = await Promise.all([
+          dataManager.getSeasonPickEmStandings(season.id),
+          dataManager.getAllSeasonPicks(season.id)
+        ]);
+
+        setSeasonStandings(seasonStandingsData || []);
+        setSeasonPicks(seasonPicksData || []);
+
         // Load results data if available
         if (currentWeekStatus?.resultsAvailable) {
-          const [allPicksData, weeklyScoresData, seasonStandingsData] = await Promise.all([
+          const [allPicksData, weeklyScoresData] = await Promise.all([
             dataManager.getAllPicksForWeek(pickEmWeekData.id),
-            dataManager.getWeeklyPickEmScores(pickEmWeekData.id),
-            dataManager.getSeasonPickEmStandings(season.id)
+            dataManager.getWeeklyPickEmScores(pickEmWeekData.id)
           ]);
 
           setAllPicks(allPicksData || []);
           setWeeklyScores(weeklyScoresData || []);
-          setSeasonStandings(seasonStandingsData || []);
         } else {
           setAllPicks([]);
           setWeeklyScores([]);
@@ -85,6 +95,13 @@ const PickEmsManager = ({
   useEffect(() => {
     loadPickEmData();
   }, [loadPickEmData]);
+
+  // Switch to results tab when results become available and user is on picks tab
+  useEffect(() => {
+    if (pickEmStatus?.resultsAvailable && activeTab === 'picks') {
+      setActiveTab('results');
+    }
+  }, [pickEmStatus?.resultsAvailable, activeTab]);
 
   // Handle pick submission
   const handleSubmitPicks = useCallback(async (pickEmWeekId, picks) => {
@@ -145,6 +162,11 @@ const PickEmsManager = ({
       </Badge>
     );
   };
+
+  // During initialization or while loading pick'em data, don't show placeholder states (full-screen overlay handles loading)
+  if (initializing || dataLoading) {
+    return null;
+  }
 
   if (!season) {
     return (
@@ -248,14 +270,26 @@ const PickEmsManager = ({
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            <TabsTrigger value="picks" className="flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Make Picks
-            </TabsTrigger>
-            <TabsTrigger value="results" className="flex items-center gap-2">
+          <TabsList className={`grid w-full ${
+            isAdmin 
+              ? (pickEmStatus?.resultsAvailable ? 'grid-cols-3' : 'grid-cols-3')
+              : (pickEmStatus?.resultsAvailable ? 'grid-cols-2' : 'grid-cols-2')
+          }`}>
+            {!pickEmStatus?.resultsAvailable && (
+              <TabsTrigger value="picks" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Make Picks
+              </TabsTrigger>
+            )}
+            {pickEmStatus?.resultsAvailable && (
+              <TabsTrigger value="results" className="flex items-center gap-2">
+                <Trophy className="h-4 w-4" />
+                Results
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="standings" className="flex items-center gap-2">
               <Trophy className="h-4 w-4" />
-              Results
+              Standings
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="admin" className="flex items-center gap-2">
@@ -277,6 +311,7 @@ const PickEmsManager = ({
               canSubmit={pickEmStatus?.canSubmit || false}
               timeRemaining={pickEmWeek?.submissionClosesAt}
               user={user}
+              isAdmin={isAdmin}
             />
           </TabsContent>
 
@@ -286,11 +321,24 @@ const PickEmsManager = ({
               currentWeek={currentWeek}
               pickEmWeek={pickEmWeek}
               weeklyScores={weeklyScores}
-              seasonStandings={seasonStandings}
               allPicks={allPicks}
-              userPicks={userPicks}
               loading={dataLoading}
               resultsAvailable={pickEmStatus?.resultsAvailable || false}
+              user={user}
+              isAdmin={isAdmin}
+            />
+          </TabsContent>
+
+          <TabsContent value="standings">
+            <PickEmsSeasonStandings
+              season={season}
+              currentWeek={currentWeek}
+              seasonStandings={seasonStandings}
+              seasonPicks={seasonPicks}
+              loading={dataLoading}
+              resultsAvailable={pickEmStatus?.resultsAvailable || false}
+              user={user}
+              isAdmin={isAdmin}
             />
           </TabsContent>
 
@@ -301,6 +349,8 @@ const PickEmsManager = ({
                 pickEmWeek={pickEmWeek}
                 dataManager={dataManager}
                 loading={dataLoading}
+                user={user}
+                isAdmin={isAdmin}
               />
             </TabsContent>
           )}

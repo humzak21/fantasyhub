@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, Users, RefreshCw, Download, Upload, Plus, Edit3, Trash2, CheckCircle, Clock } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
+import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import SeasonProgressBar from '../season/SeasonProgressBar';
 
 const ScheduleManager = ({
@@ -15,7 +16,8 @@ const ScheduleManager = ({
   isAuthenticated = false, // This now represents isAdmin from parent
   user = null,
   powerRankings = [],
-  rosters = {}
+  rosters = {},
+  isAdmin = false
 }) => {
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
 
@@ -145,6 +147,7 @@ const ScheduleManager = ({
                 user={user}
                 powerRankings={powerRankings}
                 rosters={rosters}
+                isAdmin={isAdmin}
               />
             </div>
           )}
@@ -160,6 +163,7 @@ const ScheduleManager = ({
               getStatusIcon={getStatusIcon}
               getStatusColor={getStatusColor}
               user={user}
+              isAdmin={isAdmin}
             />
           )}
         </>
@@ -179,7 +183,8 @@ const WeekScheduleView = ({
   isAuthenticated = false,
   user = null,
   powerRankings = [],
-  rosters = {}
+  rosters = {},
+  isAdmin = false
 }) => {
   if (games.length === 0) {
     return (
@@ -203,6 +208,7 @@ const WeekScheduleView = ({
           user={user}
           powerRankings={powerRankings}
           rosters={rosters}
+          isAdmin={isAdmin}
         />
       ))}
     </div>
@@ -218,11 +224,12 @@ const FullScheduleView = ({
   getWeekStatus,
   getStatusIcon,
   getStatusColor,
-  user = null
+  user = null,
+  isAdmin = false
 }) => {
   const getTeamName = (teamId) => {
     const team = teams.find(t => t.id === teamId);
-    return team ? team.name : 'Unknown Team';
+    return team ? getMaskedTeamName(team, user, isAdmin) : 'Unknown Team';
   };
 
   const getGamesForWeek = (week) => {
@@ -252,24 +259,81 @@ const FullScheduleView = ({
             {weekGames.length === 0 ? (
               <p className="text-sm opacity-75">No games scheduled</p>
             ) : (
-              <div className="grid gap-2">
+              <div className="grid gap-3">
                 {weekGames.map(game => {
                   const team1 = teams.find(t => t.id === game.team1Id);
                   const team2 = teams.find(t => t.id === game.team2Id);
                   const isUserGame = isUserTeam(team1, user) || isUserTeam(team2, user);
-                  const baseClasses = "bg-white bg-opacity-50 rounded p-2 text-sm";
+                  const baseClasses = "bg-white bg-opacity-50 rounded p-3 border";
                   const highlightClasses = getUserTeamHighlightClasses(isUserGame);
+                  const borderClasses = game.isCompleted
+                    ? "border-green-200 dark:border-green-700/30"
+                    : "border-gray-200 dark:border-gray-600";
+
+                  const isTeam1Winner = game.isCompleted && game.winnerTeamId === game.team1Id;
+                  const isTeam2Winner = game.isCompleted && game.winnerTeamId === game.team2Id;
 
                   return (
-                  <div key={game.id} className={`${baseClasses} ${highlightClasses}`}>
-                    <span className="font-medium dark:text-white">{getTeamName(game.team1Id)}</span>
-                    {game.isCompleted ? (
-                      <span className="mx-2 dark:text-white">{game.team1Score} - {game.team2Score}</span>
-                    ) : (
-                      <span className="mx-2 dark:text-white">vs</span>
-                    )}
-                    <span className="font-medium dark:text-white">{getTeamName(game.team2Id)}</span>
-                  </div>
+                    <div key={game.id} className={`${baseClasses} ${highlightClasses} ${borderClasses}`}>
+                      <div className="flex items-center justify-between gap-4">
+                        {/* Team 1 */}
+                        <div className={`flex-1 flex items-center gap-2 ${isTeam1Winner ? 'font-bold' : 'font-medium'}`}>
+                          <span className="flex-1 truncate dark:text-white">
+                            {getTeamName(game.team1Id)}
+                          </span>
+                          {game.isCompleted && (
+                            <span className={`text-lg font-bold min-w-[3rem] text-right ${
+                              isTeam1Winner
+                                ? 'text-green-600 dark:text-green-400'
+                                : 'text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {game.team1Score}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* VS or Score Separator */}
+                        <div className="flex-shrink-0 px-2">
+                          {game.isCompleted ? (
+                            <span className="text-gray-400 dark:text-gray-500 font-medium">-</span>
+                          ) : (
+                            <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">vs</span>
+                          )}
+                        </div>
+
+                        {/* Team 2 */}
+                        <div className={`flex-1 flex items-center gap-2 ${isTeam2Winner ? 'font-bold' : 'font-medium'}`}>
+                          {game.isCompleted && (
+                            <span className={`text-lg font-bold min-w-[3rem] ${
+                              isTeam2Winner
+                                ? 'text-green-600 dark:text-green-400'
+                                : 'text-gray-600 dark:text-gray-400'
+                            }`}>
+                              {game.team2Score}
+                            </span>
+                          )}
+                          <span className="flex-1 truncate text-right dark:text-white">
+                            {getTeamName(game.team2Id)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Game indicators */}
+                      {game.isCompleted && (game.isBlowout || game.isClose) && (
+                        <div className="flex gap-1 mt-2">
+                          {game.isBlowout && (
+                            <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded dark:bg-orange-900/30 dark:text-orange-300">
+                              Blowout
+                            </span>
+                          )}
+                          {game.isClose && (
+                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded dark:bg-blue-900/30 dark:text-blue-300">
+                              Close
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -290,7 +354,8 @@ const GameCard = ({
   teams = [],
   user = null,
   powerRankings = [],
-  rosters = {}
+  rosters = {},
+  isAdmin = false
 }) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
@@ -459,7 +524,7 @@ const GameCard = ({
     const stats = getTeamStats(teamId);
     const rank = getTeamRanking(teamId);
     const roster = rosters[teamId]?.roster || [];
-    const teamName = team ? team.name : 'Unknown Team';
+    const teamName = team ? getMaskedTeamName(team, user, isAdmin) : 'Unknown Team';
 
     return (
       <div className={`flex-1 p-3 rounded-lg border ${
@@ -474,7 +539,7 @@ const GameCard = ({
               <h4 className="font-bold text-base truncate dark:text-white">{teamName}</h4>
               {team?.owner && (
                 <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                  {team.owner}
+                  {getMaskedOwnerName(team, user, isAdmin)}
                 </div>
               )}
               {/* Record */}

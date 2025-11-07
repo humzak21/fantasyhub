@@ -3,12 +3,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { UserCheck, Calendar, AlertCircle } from 'lucide-react';
+import { getMaskedTeamName, getMaskedOwnerName, getMaskedUserName } from '../../utils/displayNameUtils';
 
 const PickEmsAdminSubmissions = ({
   currentWeek,
   pickEmWeek,
   dataManager,
-  loading = false
+  loading = false,
+  user = null,
+  isAdmin = false
 }) => {
   const [submissions, setSubmissions] = useState([]);
   const [dataLoading, setDataLoading] = useState(false);
@@ -149,7 +152,7 @@ const PickEmsAdminSubmissions = ({
                         <div>
                           <div className="font-medium">{userData.userDetails.email}</div>
                           <div className="text-sm text-muted-foreground">
-                            {userData.userDetails.displayName !== userData.userDetails.email ? userData.userDetails.displayName : 'User'}
+                            {getMaskedUserName(userData.userDetails.displayName, userId, user, isAdmin)}
                           </div>
                         </div>
                       </div>
@@ -171,23 +174,33 @@ const PickEmsAdminSubmissions = ({
 
                         return (
                           <div key={submission.gameId} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
-                            <div className="flex items-center gap-4 flex-1">
-                              <div className={`px-3 py-2 rounded-md font-medium text-sm transition-colors ${
+                            <div className="flex items-center space-x-4 flex-1">
+                              <div className={`flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60 ${
                                 pickedTeamId === team1?.id
-                                  ? 'bg-primary text-primary-foreground shadow-sm'
-                                  : 'bg-background text-muted-foreground border'
+                                  ? 'border-blue-500 bg-[#007AFF] text-white font-semibold shadow-sm'
+                                  : 'border-muted bg-background text-muted-foreground'
                               }`}>
-                                {team1?.name || 'Team 1'}
+                                <div className="text-center w-full">
+                                  <div className="font-medium truncate px-2">{getMaskedTeamName(team1, user, isAdmin) || 'Team 1'}</div>
+                                  <div className={`text-xs truncate px-2 ${
+                                    pickedTeamId === team1?.id ? 'text-white/80' : 'text-muted-foreground'
+                                  }`}>{getMaskedOwnerName(team1, user, isAdmin) || 'Owner'}</div>
+                                </div>
                               </div>
 
-                              <div className="text-muted-foreground font-medium">vs</div>
+                              <div className="text-muted-foreground font-medium text-center w-8">vs</div>
 
-                              <div className={`px-3 py-2 rounded-md font-medium text-sm transition-colors ${
+                              <div className={`flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60 ${
                                 pickedTeamId === team2?.id
-                                  ? 'bg-primary text-primary-foreground shadow-sm'
-                                  : 'bg-background text-muted-foreground border'
+                                  ? 'border-blue-500 bg-[#007AFF]/75 text-white font-semibold shadow-sm'
+                                  : 'border-muted bg-background text-muted-foreground'
                               }`}>
-                                {team2?.name || 'Team 2'}
+                                <div className="text-center w-full">
+                                  <div className="font-medium truncate px-2">{getMaskedTeamName(team2, user, isAdmin) || 'Team 2'}</div>
+                                  <div className={`text-xs truncate px-2 ${
+                                    pickedTeamId === team2?.id ? 'text-white/80' : 'text-muted-foreground'
+                                  }`}>{getMaskedOwnerName(team2, user, isAdmin) || 'Owner'}</div>
+                                </div>
                               </div>
                             </div>
 
