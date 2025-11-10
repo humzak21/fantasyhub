@@ -143,7 +143,7 @@ export class PowerRankingCalculator {
 
   // All-Play Win Percentage - calculates what percentage of teams this team would beat each week
   calculateAllPlayWinPercentage(teamId) {
-    const teamGames = this.games.filter(game => 
+    const teamGames = this.games.filter(game =>
       (game.team1Id === teamId || game.team2Id === teamId) && game.isCompleted
     );
 
@@ -155,28 +155,48 @@ export class PowerRankingCalculator {
     teamGames.forEach(game => {
       const teamScore = game.team1Id === teamId ? game.team1Score : game.team2Score;
       const week = game.week;
-      
+
       // Get all completed games for this week
       const weekGames = this.games.filter(g => g.week === week && g.isCompleted);
-      
+
       // Get all scores for this week
       const weekScores = [];
       weekGames.forEach(weekGame => {
         weekScores.push(weekGame.team1Score);
         weekScores.push(weekGame.team2Score);
       });
-      
+
       // Remove the team's own score to avoid counting it twice
       const otherScores = weekScores.filter(score => score !== teamScore);
-      
+
       // Count how many teams this team would beat
       const wins = otherScores.filter(score => teamScore > score).length;
-      
+
       totalActualWins += wins;
       totalPossibleWins += otherScores.length;
     });
 
     return totalPossibleWins > 0 ? totalActualWins / totalPossibleWins : 0;
+  }
+
+  // Luck Percentage - calculates the difference between actual win % and all-play win %
+  // A positive luck % means the team has been luckier than expected (wins more than all-play suggests)
+  // A negative luck % means the team has been unlucky (wins less than all-play suggests)
+  calculateLuckPercentage(teamId) {
+    const teamGames = this.games.filter(game =>
+      (game.team1Id === teamId || game.team2Id === teamId) &&
+      game.isCompleted &&
+      game.week < this.viewingWeek
+    );
+
+    if (teamGames.length === 0) return 0;
+
+    const wins = teamGames.filter(game => this.getWinnerFromGame(game) === teamId).length;
+    const winPercentage = wins / teamGames.length;
+
+    const allPlayWinPercentage = this.calculateAllPlayWinPercentage(teamId);
+
+    return winPercentage - allPlayWinPercentage;
   }
 
   // 2. Team Strength (TS) - 20% Weight - ENHANCED with analytics integration
@@ -560,6 +580,7 @@ export class PowerRankingCalculator {
     const cv = this.calculateConsistencyScore(teamId);
     const cs = this.calculateClutchScore(teamId);
     const allPlay = this.calculateAllPlayWinPercentage(teamId);
+    const luck = this.calculateLuckPercentage(teamId);
 
     // ANALYTICS ENHANCEMENT: Get team analytics metrics if available
     let analyticsMetrics = null;
@@ -658,6 +679,7 @@ export class PowerRankingCalculator {
         consistencyScore: normalizedCV,
         clutchScore: normalizedCS,
         allPlayWinPct: normalizedAllPlay,
+        luckPercentage: luck,
         recordScore: Math.min(100, Math.max(0, recordScore)),
         sosAdjustedRecord: Math.min(100, Math.max(0, sosAdjustedRecord)),
         formScore,
