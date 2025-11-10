@@ -102,12 +102,13 @@ const PowerRankingsTable = ({
       { key: 'momentumScore', label: 'Momentum Score', weight: '15%', color: 'text-purple-600' },
       { key: 'consistencyScore', label: 'Consistency Score', weight: '15%', color: 'text-indigo-600' },
       { key: 'clutchScore', label: 'Clutch Score', weight: '5%', color: 'text-amber-600' },
-      { key: 'allPlayWinPct', label: 'All-Play Win %', weight: '*', color: 'text-teal-600' }
+      { key: 'allPlayWinPct', label: 'All-Play Win %', weight: '*', color: 'text-teal-600' },
+      { key: 'luckPercentage', label: 'Luck %', weight: '*', color: 'text-pink-600' }
     ];
 
     return (
       <TableRow className="bg-muted/20 hover:bg-muted/30">
-        <TableCell colSpan={showAdvanced ? (onEditTeam ? 10 : 9) : (onEditTeam ? 7 : 6)}>
+        <TableCell colSpan={showAdvanced ? (onEditTeam ? 11 : 10) : (onEditTeam ? 8 : 7)}>
           <div className="py-4">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -181,6 +182,12 @@ const PowerRankingsTable = ({
                     {team.powerRatingComponents.allPlayWinPct < 35 && (
                       <div>• <strong>Schedule Dependent:</strong> Record heavily influenced by specific matchups</div>
                     )}
+                    {team.powerRatingComponents.luckPercentage > 0.15 && (
+                      <div>• <strong>Fortunate Record:</strong> Winning more games than all-play analysis suggests - riding high variance</div>
+                    )}
+                    {team.powerRatingComponents.luckPercentage < -0.15 && (
+                      <div>• <strong>Unlucky Record:</strong> Winning fewer games than all-play analysis suggests - underperforming expected results</div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -225,6 +232,7 @@ const PowerRankingsTable = ({
             <TableHead>Team</TableHead>
             <TableHead className="text-center">Record</TableHead>
             <TableHead className="text-center">Win%</TableHead>
+            <TableHead className="text-center">Luck%</TableHead>
             <TableHead className="text-center">Total Point Diff</TableHead>
             <TableHead className="text-center">Streak</TableHead>
             {/* <TableHead className="text-center">Rank Change</TableHead> */}
@@ -293,7 +301,14 @@ const PowerRankingsTable = ({
               }`}>
                 {((team.winPercentage || 0) * 100).toFixed(2)}%
               </TableCell>
-              
+
+              <TableCell className={`text-center font-mono font-semibold text-base ${
+                (team.powerRatingComponents?.luckPercentage || 0) > 0.05 ? 'text-green-600' :
+                (team.powerRatingComponents?.luckPercentage || 0) < -0.05 ? 'text-red-600' : 'text-gray-400'
+              }`}>
+                {((team.powerRatingComponents?.luckPercentage || 0) * 100).toFixed(2)}%
+              </TableCell>
+
               <TableCell className="text-center">
                 <div className="space-y-1">
                   <div className={`font-mono font-semibold ${
@@ -400,6 +415,7 @@ const PowerRankingsTable = ({
                   <div className="font-mono font-bold text-lg bg-muted/50 rounded-lg px-3 py-1 inline-block">
                     {(team.powerRating || 0).toFixed(2)}
                   </div>
+                  {/* TODO: Rework component breakdown visualization
                   {team.powerRatingComponents && (
                     <Button
                       onClick={() => toggleRowExpansion(team.teamId || team.id)}
@@ -407,12 +423,13 @@ const PowerRankingsTable = ({
                       size="sm"
                       className="h-8 w-8 p-0"
                     >
-                      {expandedRows.has(team.teamId || team.id) ? 
-                        <ChevronUp className="h-4 w-4" /> : 
+                      {expandedRows.has(team.teamId || team.id) ?
+                        <ChevronUp className="h-4 w-4" /> :
                         <ChevronDown className="h-4 w-4" />
                       }
                     </Button>
                   )}
+                  */}
                 </div>
               </TableCell>
               
@@ -457,14 +474,14 @@ const PowerRankingsTable = ({
                 </TableCell>
               )}
               </TableRow>
-              
-              {/* Component breakdown row */}
-              {expandedRows.has(team.teamId || team.id) && renderComponentBreakdown(team)}
+
+              {/* TODO: Rework component breakdown visualization - disabled for now */}
+              {/* {expandedRows.has(team.teamId || team.id) && renderComponentBreakdown(team)} */}
               
               {/* Analytics insights row */}
               {showAnalytics && analyticsExpandedRows.has(team.teamId || team.id) && (
                 <TableRow className="bg-blue-50/30 hover:bg-blue-50/50">
-                  <TableCell colSpan={showAdvanced ? (onEditTeam ? 11 : 10) : (onEditTeam ? 8 : 7)}>
+                  <TableCell colSpan={showAdvanced ? (onEditTeam ? 12 : 11) : (onEditTeam ? 9 : 8)}>
                     <div className="py-4">
                       <AnalyticsInsights
                         team={team}
