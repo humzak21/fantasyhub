@@ -52,11 +52,12 @@ const PowerRankingsTable = ({
     setAnalyticsExpandedRows(newExpanded);
   };
   const getRankColor = (rank) => {
-    if (rank === 1) return 'text-yellow-600 bg-gradient-to-br from-yellow-50 to-amber-100 border-yellow-300 shadow-yellow-200/50';
-    if (rank <= 3) return 'text-orange-600 bg-gradient-to-br from-orange-50 to-red-100 border-orange-300 shadow-orange-200/50';
-    if (rank <= 6) return 'text-green-600 bg-gradient-to-br from-green-50 to-emerald-100 border-green-300 shadow-green-200/50';
-    if (rank <= 10) return 'text-blue-600 bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-300 shadow-blue-200/50';
-    return 'text-muted-foreground bg-gradient-to-br from-muted to-muted/80 border-border shadow-muted/50';
+    if (rank === 1) return 'bg-gradient-to-br from-ff-rank-gold-50 to-amber-100 text-ff-rank-gold-600 border-[4px] border-amber-300';
+    if (rank === 2) return 'bg-gradient-to-br from-ff-rank-silver-50 to-gray-100 text-ff-rank-silver-600 border-[4px] border-slate-200';
+    if (rank === 3) return 'bg-gradient-to-br from-ff-rank-bronze-50 to-orange-100 text-ff-rank-bronze-600 border-[4px] border-orange-400';
+    if (rank <= 6) return 'bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600 border-2 border-emerald-300';
+    if (rank <= 10) return 'bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 border-2 border-blue-300';
+    return 'bg-gradient-to-br from-muted to-muted/80 text-muted-foreground border-2 border-border';
   };
 
   const getRankIcon = (rank) => {
@@ -152,12 +153,12 @@ const PowerRankingsTable = ({
             </div>
 
             {/* Component insights */}
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="mt-4 p-3 bg-blue-50/80 rounded-lg border border-blue-200">
               <div className="flex items-start gap-2">
-                <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <Info className="h-4 w-4 text-blue-700 mt-0.5 flex-shrink-0" />
                 <div className="text-sm">
-                  <div className="font-medium text-blue-900 mb-1">Algorithm Insights</div>
-                  <div className="text-blue-700 space-y-1">
+                  <div className="font-semibold text-blue-900 mb-1">Algorithm Insights</div>
+                  <div className="text-blue-800 space-y-1">
                     {team.powerRatingComponents.performanceScore > 80 && (
                       <div>• <strong>Strong Recent Performance:</strong> Excelling in recent weeks with consistent scoring</div>
                     )}
@@ -259,7 +260,7 @@ const PowerRankingsTable = ({
               <TableRow className={`group ${highlightClasses}`}>
               <TableCell>
                 <div className="flex items-center gap-3">
-                  <div className={`relative inline-flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm border-2 shadow-sm ${getRankColor(index + 1)}`}>
+                  <div className={`relative inline-flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm ${getRankColor(index + 1)}`}>
                     {getRankIcon(index + 1) || (index + 1)}
                     {getRankIcon(index + 1) && (
                       <span className="absolute -bottom-1 -right-1 text-xs bg-background border rounded-full w-5 h-5 flex items-center justify-center">
@@ -327,7 +328,8 @@ const PowerRankingsTable = ({
                 <Badge
                   variant={getStreakVariant(team.currentStreak || { type: 'none', length: 0 })}
                   className={
-                    (team.currentStreak?.type === 'win') ? 'bg-green-100 text-green-700 hover:bg-green-100' : ''
+                    (team.currentStreak?.type === 'win') ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
+                    (team.currentStreak?.type === 'loss') ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' : ''
                   }
                 >
                   {getStreakDisplay(team.currentStreak || { type: 'none', length: 0 })}
@@ -388,8 +390,11 @@ const PowerRankingsTable = ({
                     <Badge
                       variant={getFormVariant(team.recentForm || 0)}
                       className={`font-mono ${
-                        (team.recentForm || 0) > 0 ? 'bg-green-100 text-green-700 hover:bg-green-100' :
-                        (team.recentForm || 0) < 0 ? 'bg-red-100 text-red-700 hover:bg-red-100' : ''
+                        (team.recentForm || 0) >= 5 ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
+                        (team.recentForm || 0) >= 2 ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50' :
+                        (team.recentForm || 0) >= -2 ? 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-50' :
+                        (team.recentForm || 0) >= -5 ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-50' :
+                        'bg-red-50 text-red-700 border-red-200 hover:bg-red-50'
                       }`}
                     >
                       {(team.recentForm || 0) >= 0 ? '+' : ''}{(team.recentForm || 0).toFixed(2)}
@@ -398,11 +403,11 @@ const PowerRankingsTable = ({
                   
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">
+                      <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200 hover:bg-green-50">
                         <Target className="h-3 w-3 mr-1" />
                         {team.qualityWins || 0}
                       </Badge>
-                      <Badge variant="destructive" className="text-xs">
+                      <Badge variant="destructive" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50 text-xs">
                         {team.badLosses || 0}
                       </Badge>
                     </div>

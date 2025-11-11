@@ -20,7 +20,9 @@ const PickEmsManager = ({
   isAuthenticated = false,
   isAdmin = false,
   user = null,
-  initializing = false
+  initializing = false,
+  preloadedData = null,
+  preloadingInProgress = false
 }) => {
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
@@ -91,10 +93,28 @@ const PickEmsManager = ({
     }
   }, [season, dataManager, currentWeek]);
 
-  // Load data when dependencies change
+  // Use preloaded data when available
   useEffect(() => {
-    loadPickEmData();
-  }, [loadPickEmData]);
+    if (preloadedData) {
+      setPickEmWeek(preloadedData.pickEmWeek);
+      setGames(preloadedData.games || []);
+      setPickEmStatus(preloadedData.status?.find(s => s.weekNumber === currentWeek) || null);
+      setUserPicks(preloadedData.userPicks || []);
+      setSeasonStandings(preloadedData.standings || []);
+      setSeasonPicks(preloadedData.allSeasonPicks || []);
+      setAllPicks(preloadedData.allPicks || []);
+      setWeeklyScores(preloadedData.scores || []);
+      setDataLoading(false);
+    }
+  }, [preloadedData, currentWeek]);
+
+  // Load data when dependencies change (fallback if preloaded data not available)
+  useEffect(() => {
+    // Only load data if we don't have preloaded data
+    if (!preloadedData && !preloadingInProgress) {
+      loadPickEmData();
+    }
+  }, [preloadedData, preloadingInProgress, loadPickEmData]);
 
   // Switch to results tab when results become available and user is on picks tab
   useEffect(() => {

@@ -7,6 +7,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '../ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Avatar, AvatarFallback } from '../ui/avatar'
 import { User, LogIn, LogOut, UserPlus, Mail, Lock, CheckCircle, Settings, Moon, Sun, Monitor, Check } from 'lucide-react'
 
@@ -159,15 +160,15 @@ export const LoginDropdown = () => {
   // Show success popup even if user is logged in (after sign up)
   if (showSuccessMessage) {
     return (
-      <DropdownMenu open={true} onOpenChange={() => {}}>
-        <DropdownMenuTrigger asChild>
+      <Popover open={true} onOpenChange={() => {}}>
+        <PopoverTrigger asChild>
           <Button variant="outline" size="sm">
             <LogIn className="mr-2 h-4 w-4" />
             Success
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-80" align="end">
-          <Card className="border-0 shadow-none">
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0" align="end">
+          <Card>
             <CardContent className="space-y-4 p-6">
               <div className="text-center space-y-4 py-4">
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
@@ -192,8 +193,8 @@ export const LoginDropdown = () => {
               </div>
             </CardContent>
           </Card>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverContent>
+      </Popover>
     )
   }
 
@@ -233,16 +234,21 @@ export const LoginDropdown = () => {
                 </span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                <DropdownMenuItem onClick={() => enableAutoDetect()}>
+                {/* DISABLED: Auto (System) option disabled - light mode is forcefully disabled */}
+                {/* <DropdownMenuItem onClick={() => enableAutoDetect()}>
                   <Monitor className="mr-2 h-4 w-4" />
                   <span>Auto (System)</span>
                   {isAutoDetect && <Check className="ml-auto h-4 w-4" />}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setDarkMode(false)}>
+                </DropdownMenuItem> */}
+
+                {/* DISABLED: Light mode option disabled - light mode is forcefully disabled */}
+                {/* <DropdownMenuItem onClick={() => setDarkMode(false)}>
                   <Sun className="mr-2 h-4 w-4" />
                   <span>Light</span>
                   {!isAutoDetect && !isDarkMode && <Check className="ml-auto h-4 w-4" />}
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
+
+                {/* Dark mode is the only available option */}
                 <DropdownMenuItem onClick={() => setDarkMode(true)}>
                   <Moon className="mr-2 h-4 w-4" />
                   <span>Dark</span>
@@ -265,15 +271,15 @@ export const LoginDropdown = () => {
   }
 
   return (
-    <DropdownMenu open={showLoginForm} onOpenChange={setShowLoginForm}>
-      <DropdownMenuTrigger asChild>
+    <Popover open={showLoginForm} onOpenChange={setShowLoginForm}>
+      <PopoverTrigger asChild>
         <Button variant="outline" size="sm">
           <LogIn className="mr-2 h-4 w-4" />
           Login
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-80" align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
-        <Card className="border-0 shadow-none">
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0" align="end">
+        <Card>
           <CardHeader className="pb-4">
             <CardTitle className={`text-lg transition-colors ${
               isForgotPassword ? 'text-orange-600' : isSignUp ? 'text-green-600' : 'text-blue-600'
@@ -515,7 +521,7 @@ export const LoginDropdown = () => {
             )}
           </CardContent>
         </Card>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   )
 }

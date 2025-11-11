@@ -140,51 +140,36 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex justify-end"
-      onClick={handleBackdropClick}
+      ref={drawerRef}
+      className={`
+        drawer-panel fixed top-0 right-0 bg-white dark:bg-gray-900 h-full shadow-xl
+        w-[95%] max-w-[690px] sm:w-[690px]
+        flex flex-col safe-area-inset-right z-[60]
+        transition-transform duration-300 ease-out
+        ${isAnimatingOpen ? 'translate-x-0' : 'translate-x-full'}
+        ${isDragging ? '!transition-none' : ''}
+        ${loading ? 'drawer-loading' : ''}
+      `}
+      style={{
+        transform: isDragging ? `translateX(${dragOffset}px)` : undefined,
+        transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
-      {/* Backdrop overlay */}
-      <div 
-        ref={backdropRef}
-        className={`
-          drawer-backdrop absolute inset-0 bg-black transition-opacity duration-300
-          ${isAnimatingOpen ? 'opacity-50' : 'opacity-0'}
-        `}
-      />
-      
-      {/* Drawer panel */}
+      {/* Scrollable content area */}
       <div
-        ref={drawerRef}
         className={`
-          drawer-panel relative bg-white dark:bg-gray-900 h-full shadow-xl
-          w-[95%] max-w-[690px] sm:w-[690px]
-          flex flex-col safe-area-inset-right
-          transition-transform duration-300 ease-out
-          ${isAnimatingOpen ? 'translate-x-0' : 'translate-x-full'}
-          ${isDragging ? '!transition-none' : ''}
-          ${loading ? 'drawer-loading' : ''}
+          flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6
+          ${loading ? 'drawer-content-loading' : ''}
         `}
         style={{
-          transform: isDragging ? `translateX(${dragOffset}px)` : undefined,
-          transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)'
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain'
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        {/* Scrollable content area */}
-        <div
-          className={`
-            flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6
-            ${loading ? 'drawer-content-loading' : ''}
-          `}
-          style={{
-            WebkitOverflowScrolling: 'touch',
-            overscrollBehavior: 'contain'
-          }}
-        >
-          {children}
-        </div>
+        {children}
       </div>
     </div>
   );

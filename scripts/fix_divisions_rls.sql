@@ -62,3 +62,4 @@ WHERE s.is_active = true
 GROUP BY s.id, s.name, s.year, s.is_active, d.id, d.name, d.display_order
 ORDER BY d.display_order;
 
+

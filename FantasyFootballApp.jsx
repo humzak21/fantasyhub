@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, ChevronDown, RefreshCw, Award } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, ChevronDown, RefreshCw, Award, TrendingUp } from 'lucide-react';
 import { useAuth } from './src/contexts/AuthContext';
 import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
 import { getCurrentWeek } from './utils/weekCalculator.js';
 import { Button } from './src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src/components/ui/card';
-
+import { Switch } from './src/components/ui/switch';
+import { Label } from './src/components/ui/label';
 import { Badge } from './src/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './src/components/ui/dropdown-menu';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
@@ -28,6 +29,7 @@ import PowerRankingsVisualization from './src/components/power-rankings/PowerRan
 import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
 import PickEmsManager from './src/components/pickems/PickEmsManager.jsx';
 import AwardsManager from './src/components/awards/AwardsManager.jsx';
+import ProjectionsManager from './src/components/projections/ProjectionsManager.jsx';
 
 const FantasyFootballApp = () => {
   const { user, isAuthenticated, isAdmin } = useAuth();
@@ -67,9 +69,12 @@ const FantasyFootballApp = () => {
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
   const [hasUserSubmittedPicks, setHasUserSubmittedPicks] = useState(false);
   const [pickemNotificationLoading, setPickemNotificationLoading] = useState(false);
-  
 
-  
+  // Pickems preloading state
+  const [preloadedPickemsData, setPreloadedPickemsData] = useState(null);
+  const [pickemPreloadingInProgress, setPickemPreloadingInProgress] = useState(false);
+
+
   // Week-specific power rankings state
   const [weeklyRankings, setWeeklyRankings] = useState([]);
   const [rankingsLoading, setRankingsLoading] = useState(true);
@@ -116,6 +121,79 @@ const FantasyFootballApp = () => {
   useEffect(() => {
     checkUserPicksSubmission();
   }, [isAuthenticated, user, activeSeason, currentWeek, dataManager]);
+
+  // Preload pickems data in the background when season loads
+  useEffect(() => {
+    const preloadPickemsData = async () => {
+      if (!activeSeason || !dataManager || !initialized) {
+        return;
+      }
+
+      setPickemPreloadingInProgress(true);
+      try {
+        // Load pick'em data for current week
+        const pickEmWeekData = await dataManager.getPickEmWeek(activeSeason.id, currentWeek);
+
+        if (!pickEmWeekData) {
+          setPickemPreloadingInProgress(false);
+          return;
+        }
+
+        // Load the data in parallel
+        const [gameData, statusData] = await Promise.all([
+          dataManager.getPickEmGameData(activeSeason.id, currentWeek),
+          dataManager.getPickEmStatus(activeSeason.id)
+        ]);
+
+        // Load additional data (standings, picks, etc)
+        const [standingsData, allSeasonPicksData] = await Promise.all([
+          dataManager.getSeasonPickEmStandings(activeSeason.id),
+          dataManager.getAllSeasonPicks(activeSeason.id)
+        ]);
+
+        // Check if results are available
+        const resultsAvailable = statusData?.find(s => s.weekNumber === currentWeek)?.resultsAvailable || false;
+
+        let allPicksData = null;
+        let scoresData = null;
+
+        // If results are available, load those too
+        if (resultsAvailable) {
+          [allPicksData, scoresData] = await Promise.all([
+            dataManager.getAllPicksForWeek(pickEmWeekData.id),
+            dataManager.getWeeklyPickEmScores(pickEmWeekData.id)
+          ]);
+        }
+
+        // Load user picks if authenticated
+        let userPicksData = null;
+        if (isAuthenticated && user) {
+          userPicksData = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
+        }
+
+        // Store all preloaded data
+        setPreloadedPickemsData({
+          pickEmWeek: pickEmWeekData,
+          games: gameData,
+          status: statusData,
+          standings: standingsData,
+          allSeasonPicks: allSeasonPicksData,
+          allPicks: allPicksData,
+          scores: scoresData,
+          userPicks: userPicksData,
+          resultsAvailable: resultsAvailable
+        });
+
+        setPickemPreloadingInProgress(false);
+      } catch (err) {
+        console.error('Error preloading pickems data:', err);
+        setPickemPreloadingInProgress(false);
+        // Don't fail - let PickEmsManager load data normally if preload fails
+      }
+    };
+
+    preloadPickemsData();
+  }, [activeSeason, dataManager, initialized, currentWeek, isAuthenticated, user]);
 
   // Initialize current week based on calendar date and keep it updated
   useEffect(() => {
@@ -188,9 +266,32 @@ const FantasyFootballApp = () => {
     return now >= awardsReleaseDate;
   };
 
+  // Check if pickems are still open (closes at 8:10 PM on Thursdays)
+  const arePickemsOpen = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0 = Sunday, 4 = Thursday
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    // If it's Thursday (day 4)
+    if (day === 4) {
+      // Check if time is after 8:10 PM (20:10)
+      if (hours > 20 || (hours === 20 && minutes >= 10)) {
+        return false; // Pickems are closed
+      }
+    }
+    // If it's Friday or Saturday (5, 6), pickems are definitely closed
+    if (day === 5 || day === 6) {
+      return false;
+    }
+    
+    return true; // Pickems are open
+  };
+
   // Main navigation tabs
   const mainTabs = [
     { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
+    { id: 'projections', label: 'Projections', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
     { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
     { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
     { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
@@ -272,7 +373,7 @@ const FantasyFootballApp = () => {
                   const isDisabled = isAdmin && tab.requiresSeason && !activeSeason;
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
-                  const showNotification = tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading;
+                  const showNotification = tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
 
                   return (
                     <Button
@@ -281,12 +382,18 @@ const FantasyFootballApp = () => {
                       size="sm"
                       disabled={isDisabled}
                       onClick={() => setActiveTab(tab.id)}
-                      className="flex items-center space-x-2 h-9 relative"
+                      className={`flex items-center space-x-0 h-9 ${
+                        isActive 
+                          ? 'bg-[hsl(217,32.6%,17.5%)] text-white hover:bg-[hsl(217,32.6%,20%)] border-[hsl(217,32.6%,17.5%)]' 
+                          : 'dark:hover:bg-slate-700 dark:text-slate-200'
+                      }`}
                     >
                       <Icon className="h-4 w-4" />
                       <span>{tab.label}</span>
                       {showNotification && (
-                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                        <Badge variant="destructive" className="ml-1 text-[10px] px-1.5 py-0 bg-red-600 hover:bg-red-700 border-red-600">
+                          !
+                        </Badge>
                       )}
                     </Button>
                   );
@@ -313,7 +420,7 @@ const FantasyFootballApp = () => {
               {isAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center space-x-1">
+                    <Button variant="ghost" size="sm" className="flex items-center space-x-1 dark:hover:bg-slate-700 dark:text-slate-200">
                       <Settings className="h-4 w-4" />
                       <span className="hidden lg:inline">Settings</span>
                       <ChevronDown className="h-3 w-3" />
@@ -360,7 +467,7 @@ const FantasyFootballApp = () => {
               <div className="md:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" className="dark:hover:bg-slate-700 dark:text-slate-200">
                       <BarChart3 className="h-4 w-4" />
                       <ChevronDown className="h-3 w-3 ml-1" />
                     </Button>
@@ -441,16 +548,14 @@ const FantasyFootballApp = () => {
                         {rankingsView === 'table' && (
                           <div className="flex items-center space-x-4">
                             <div className="flex items-center space-x-2">
-                              <input
-                                type="checkbox"
+                              <Switch
                                 id="advanced-stats"
                                 checked={showAdvancedStats}
-                                onChange={(e) => setShowAdvancedStats(e.target.checked)}
-                                className="rounded border-gray-300"
+                                onCheckedChange={setShowAdvancedStats}
                               />
-                              <label htmlFor="advanced-stats" className="text-sm font-medium">
+                              <Label htmlFor="advanced-stats" className="cursor-pointer">
                                 Advanced Stats
-                              </label>
+                              </Label>
                             </div>
                             
                             {analyticsEnabled && (
@@ -480,24 +585,14 @@ const FantasyFootballApp = () => {
                           </div>
                         )}
                         
-                        <div className="flex items-center gap-2">
-                          <Button
-                            onClick={() => setRankingsView('table')}
-                            variant={rankingsView === 'table' ? 'default' : 'outline'}
-                            size="sm"
-                            className="text-xs"
-                          >
-                            Rankings Table
-                          </Button>
-                          <Button
-                            onClick={() => setRankingsView('analysis')}
-                            variant={rankingsView === 'analysis' ? 'default' : 'outline'}
-                            size="sm"
-                            className="text-xs"
-                          >
-                            Advanced Analysis
-                          </Button>
-                        </div>
+                        <Button
+                          onClick={() => setRankingsView(rankingsView === 'table' ? 'analysis' : 'table')}
+                          variant="outline"
+                          size="sm"
+                          className="text-xs font-medium"
+                        >
+                          {rankingsView === 'table' ? 'Advanced Analysis' : 'Rankings Table'}
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -592,6 +687,21 @@ const FantasyFootballApp = () => {
             </div>
           )}
 
+          {activeTab === 'projections' && (
+            <div className="space-y-6">
+              <ProjectionsManager
+                season={activeSeason}
+                teams={activeSeason?.teams || []}
+                games={activeSeason?.schedule || []}
+                divisions={divisions}
+                currentWeek={currentWeek}
+                loading={loading}
+                user={user}
+                isAdmin={isAdmin}
+              />
+            </div>
+          )}
+
           {activeTab === 'pickems' && (
             <div className="space-y-6">
             <PickEmsManager
@@ -603,6 +713,8 @@ const FantasyFootballApp = () => {
               isAdmin={isAdmin}
               user={user}
               initializing={!initialized}
+              preloadedData={preloadedPickemsData}
+              preloadingInProgress={pickemPreloadingInProgress}
             />
             </div>
           )}
