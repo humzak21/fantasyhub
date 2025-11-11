@@ -480,7 +480,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
         </div>
 
         <div className="space-y-6">
-          {/* Score Distribution */}
+          {/* Score Distribution - COMMENTED OUT */}
+          {/*
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
             <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
               Score Distribution (Min/Q1/Avg/Q3/Max)
@@ -492,6 +493,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
               isAdmin={isAdmin}
             />
           </div>
+          */}
 
           {/* Weekly Scoring Trends */}
           <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">

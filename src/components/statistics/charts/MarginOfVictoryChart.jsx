@@ -86,15 +86,6 @@ const MarginOfVictoryChart = ({
           </Bar>
         </BarChart>
       </ChartContainer>
-      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-        <p className="font-semibold text-gray-900 dark:text-white mb-2">Margin of Victory Guide:</p>
-        <ul className="space-y-1 text-xs">
-          <li><span className="font-semibold text-green-600">Positive values (green):</span> Team wins by this many points on average</li>
-          <li><span className="font-semibold text-red-600">Negative values (red):</span> Team loses by this many points on average</li>
-          <li><span className="font-semibold">High margins:</span> Indicate dominant or weak performance</li>
-          <li><span className="font-semibold">Values near 0:</span> Close, competitive matchups</li>
-        </ul>
-      </div>
     </div>
   );
 };

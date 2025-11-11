@@ -252,7 +252,7 @@ const PickEmsManager = ({
                   </Button>
                 )}
 
-                {pickEmWeek && pickEmStatus?.status === 'closed' && (
+                {/* {pickEmWeek && pickEmStatus?.status === 'closed' && (
                   <Button
                     onClick={handleCalculateResults}
                     disabled={dataLoading}
@@ -261,7 +261,7 @@ const PickEmsManager = ({
                   >
                     Calculate Results
                   </Button>
-                )}
+                )} */}
               </div>
             </div>
           </CardContent>

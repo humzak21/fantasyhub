@@ -10,8 +10,8 @@ const FloatingTeamFilter = ({
   user = null,
   isAdmin = false
 }) => {
-  const [isOpen, setIsOpen] = useState(true);
-  const [position, setPosition] = useState({ x: 20, y: null }); // y: null means bottom
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ x: 20, y: 450 }); // Position at middle left
   const [height, setHeight] = useState(400); // Initial height in pixels
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -150,7 +150,7 @@ const FloatingTeamFilter = ({
         ref={containerRef}
         onClick={() => setIsOpen(true)}
         onMouseDown={handleMouseDown}
-        className="fixed z-50 w-12 h-12 rounded-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-400 dark:hover:bg-blue-500 shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors"
+        className="fixed z-50 w-12 h-12 rounded-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-500 dark:hover:bg-blue-600 shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors"
         style={{
           left: `${position.x}px`,
           top: getTopPosition() !== null ? `${getTopPosition()}px` : 'auto',
