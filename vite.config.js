@@ -27,7 +27,8 @@ export default defineConfig({
       '@radix-ui/react-separator',
       '@radix-ui/react-progress',
       '@radix-ui/react-label',
-      '@radix-ui/react-avatar'
+      '@radix-ui/react-avatar',
+      'recharts'
     ],
     force: true,
     exclude: []
@@ -84,6 +85,9 @@ export default defineConfig({
           }
           if (id.includes('node_modules/lucide-react')) {
             return 'vendor-icons';
+          }
+          if (id.includes('node_modules/recharts')) {
+            return 'vendor-charts';
           }
           if (id.includes('node_modules/@supabase')) {
             return 'vendor-supabase';
