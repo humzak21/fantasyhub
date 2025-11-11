@@ -4,6 +4,37 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../../../c
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 /**
+ * Custom tooltip component for ScoreDistributionChart
+ * Displays all score distribution metrics with labels
+ */
+const CustomScoreTooltip = ({ active, payload, label }) => {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const data = payload[0].payload;
+  const labels = {
+    min: 'Min',
+    q1: 'Q1 (25%)',
+    average: 'Average',
+    q3: 'Q3 (75%)',
+    max: 'Max'
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-900 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+      <p className="font-semibold text-gray-900 dark:text-white mb-2">{data.name}</p>
+      <div className="space-y-1 text-sm">
+        {Object.entries(labels).map(([key, label]) => (
+          <div key={key} className="flex justify-between gap-4">
+            <span className="text-gray-600 dark:text-gray-400">{label}:</span>
+            <span className="font-medium text-gray-900 dark:text-white">{data[key]?.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
  * ScoreDistributionChart - Displays high/low/average scoring distribution for teams
  * Shows consistency vs variability in team scoring patterns
  * Uses a grouped bar chart showing min/average/max for visual simplicity
@@ -63,10 +94,7 @@ const ScoreDistributionChart = ({
             tick={{ fontSize: 10 }}
             width={30}
           />
-          <ChartTooltip
-            content={<ChartTooltipContent />}
-            formatter={(value) => value.toFixed(2)}
-          />
+          <ChartTooltip content={<CustomScoreTooltip />} />
           <Legend
             wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }}
             height={45}
