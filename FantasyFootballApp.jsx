@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, ChevronDown, RefreshCw, Award, TrendingUp } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Target, RefreshCw, Award, TrendingUp } from 'lucide-react';
 import { useAuth } from './src/contexts/AuthContext';
 import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
 import { getCurrentWeek } from './utils/weekCalculator.js';
@@ -8,7 +8,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src
 import { Switch } from './src/components/ui/switch';
 import { Label } from './src/components/ui/label';
 import { Badge } from './src/components/ui/badge';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './src/components/ui/dropdown-menu';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
 
 // Import global styles
@@ -18,11 +17,9 @@ import './globals.css';
 import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTable.jsx';
 import useAnalyticsData from './hooks/useAnalyticsData.js';
 
-import SeasonManager from './src/components/admin/SeasonManager.jsx';
 import StatisticsPanel from './src/components/dashboard/StatisticsPanel.jsx';
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
 import ScheduleManager from './src/components/schedule/ScheduleManager.jsx';
-import ScheduleImportManager from './src/components/schedule/ScheduleImportManager.jsx';
 import TeamsAndRosters from './src/components/teams/TeamsAndRosters.jsx';
 import PowerRankingsVisualization from './src/components/power-rankings/PowerRankingsVisualization.jsx';
 
@@ -30,6 +27,7 @@ import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
 import PickEmsManager from './src/components/pickems/PickEmsManager.jsx';
 import AwardsManager from './src/components/awards/AwardsManager.jsx';
 import ProjectionsManager from './src/components/projections/ProjectionsManager.jsx';
+import ResponsiveNavigation from './src/components/navigation/ResponsiveNavigation.jsx';
 
 const FantasyFootballApp = () => {
   const { user, isAuthenticated, isAdmin } = useAuth();
@@ -46,16 +44,11 @@ const FantasyFootballApp = () => {
     rosters,
     divisions,
     standings,
-    createSeason,
-    setActiveSeasonById,
-    deleteSeason,
     addTeam,
     updateTeam,
     removeTeam,
     addWeekScores,
     getPowerRankingsForWeek,
-    exportSeason,
-    importSeason,
     setCurrentWeek,
     addGame,
     renameDivision,
@@ -299,12 +292,6 @@ const FantasyFootballApp = () => {
     { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isAwardsAccessible }
   ];
 
-  // Settings dropdown items
-  const settingsItems = [
-    { id: 'seasons', label: 'Seasons', icon: Settings, requiresAuth: true },
-    { id: 'import', label: 'Import Schedule', icon: Download, requiresAuth: true }
-  ];
-
 
 
   const handleGameUpdate = async (week, team1Id, team2Id, team1Score, team2Score) => {
@@ -344,9 +331,9 @@ const FantasyFootballApp = () => {
                 </div>
               </div>
               
-              {/* Inline Week Navigator - Desktop */}
+              {/* Inline Week Navigator - Desktop (Full) */}
               {activeSeason && (
-                <div className="hidden lg:block ml-8">
+                <div className="hidden xl:block ml-8">
                   <InlineWeekNavigator
                     currentWeek={currentWeek}
                     totalWeeks={activeSeason.totalWeeks}
@@ -354,162 +341,63 @@ const FantasyFootballApp = () => {
                     onWeekChange={setCurrentWeek}
                     completedWeeks={completedWeeks}
                     season={activeSeason}
+                    condensed={false}
+                  />
+                </div>
+              )}
+
+              {/* Inline Week Navigator - Tablet/Mobile (Condensed) */}
+              {activeSeason && (
+                <div className="hidden sm:block xl:hidden ml-4">
+                  <InlineWeekNavigator
+                    currentWeek={currentWeek}
+                    totalWeeks={activeSeason.totalWeeks}
+                    regularSeasonWeeks={activeSeason.regularSeasonWeeks}
+                    onWeekChange={setCurrentWeek}
+                    completedWeeks={completedWeeks}
+                    season={activeSeason}
+                    condensed={true}
+                  />
+                </div>
+              )}
+
+              {/* Inline Week Navigator - Mobile Only (Condensed) */}
+              {activeSeason && (
+                <div className="sm:hidden ml-2">
+                  <InlineWeekNavigator
+                    currentWeek={currentWeek}
+                    totalWeeks={activeSeason.totalWeeks}
+                    regularSeasonWeeks={activeSeason.regularSeasonWeeks}
+                    onWeekChange={setCurrentWeek}
+                    completedWeeks={completedWeeks}
+                    season={activeSeason}
+                    condensed={true}
                   />
                 </div>
               )}
             </div>
 
-            {/* Main Navigation */}
-            <nav className="hidden md:flex items-center space-x-1">
-              {mainTabs
-                .filter(tab => {
-                  // Check auth requirements
-                  if (tab.requiresAuth && !isAdmin) return false;
-                  // Check custom access function
-                  if (tab.customAccess && !tab.customAccess()) return false;
-                  return true;
-                })
-                .map(tab => {
-                  const isDisabled = isAdmin && tab.requiresSeason && !activeSeason;
-                  const Icon = tab.icon;
-                  const isActive = activeTab === tab.id;
-                  const showNotification = tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
+            {/* Main Navigation - Responsive */}
+            <ResponsiveNavigation
+              tabs={mainTabs.map(tab => ({
+                ...tab,
+                isDisabled: isAdmin && tab.requiresSeason && !activeSeason,
+                showNotification: tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen()
+              }))}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              shouldShowTab={(tab) => {
+                // Check auth requirements
+                if (tab.requiresAuth && !isAdmin) return false;
+                // Check custom access function
+                if (tab.customAccess && !tab.customAccess()) return false;
+                return true;
+              }}
+            />
 
-                  return (
-                    <Button
-                      key={tab.id}
-                      variant={isActive ? "default" : "ghost"}
-                      size="sm"
-                      disabled={isDisabled}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center space-x-0 h-9 ${
-                        isActive 
-                          ? 'bg-[hsl(217,32.6%,17.5%)] text-white hover:bg-[hsl(217,32.6%,20%)] border-[hsl(217,32.6%,17.5%)]' 
-                          : 'dark:hover:bg-slate-700 dark:text-slate-200'
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span>{tab.label}</span>
-                      {showNotification && (
-                        <Badge variant="destructive" className="ml-1 text-[10px] px-1.5 py-0 bg-red-600 hover:bg-red-700 border-red-600">
-                          !
-                        </Badge>
-                      )}
-                    </Button>
-                  );
-                })}
-            </nav>
-
-            {/* Right Section: Week Navigator (tablet), Settings, and Login */}
+            {/* Right Section: Login */}
             <div className="flex items-center space-x-2">
-              {/* Week Navigator - Tablet */}
-              {activeSeason && (
-                <div className="hidden md:block lg:hidden mr-4">
-                  <InlineWeekNavigator
-                    currentWeek={currentWeek}
-                    totalWeeks={activeSeason.totalWeeks}
-                    regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                    onWeekChange={setCurrentWeek}
-                    completedWeeks={completedWeeks}
-                    season={activeSeason}
-                  />
-                </div>
-              )}
-
-              {/* Settings Dropdown */}
-              {isAdmin && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center space-x-1 dark:hover:bg-slate-700 dark:text-slate-200">
-                      <Settings className="h-4 w-4" />
-                      <span className="hidden lg:inline">Settings</span>
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    {settingsItems.map(item => {
-                      const Icon = item.icon;
-                      const isActive = activeTab === item.id;
-                      
-                      return (
-                        <DropdownMenuItem
-                          key={item.id}
-                          onClick={() => setActiveTab(item.id)}
-                          className={isActive ? "bg-accent" : ""}
-                        >
-                          <Icon className="h-4 w-4 mr-2" />
-                          {item.label}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              
-              {/* Week Navigator - Mobile */}
-              {activeSeason && (
-                <div className="md:hidden">
-                  <InlineWeekNavigator
-                    currentWeek={currentWeek}
-                    totalWeeks={activeSeason.totalWeeks}
-                    regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                    onWeekChange={setCurrentWeek}
-                    completedWeeks={completedWeeks}
-                    season={activeSeason}
-                    className="scale-90"
-                  />
-                </div>
-              )}
-
               <LoginDropdown />
-
-              {/* Mobile Navigation Menu */}
-              <div className="md:hidden">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="dark:hover:bg-slate-700 dark:text-slate-200">
-                      <BarChart3 className="h-4 w-4" />
-                      <ChevronDown className="h-3 w-3 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    {mainTabs
-                      .filter(tab => !tab.requiresAuth || isAdmin)
-                      .map(tab => {
-                        const isDisabled = isAdmin && tab.requiresSeason && !activeSeason;
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-                        
-                        return (
-                          <DropdownMenuItem
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            disabled={isDisabled}
-                            className={isActive ? "bg-accent" : ""}
-                          >
-                            <Icon className="h-4 w-4 mr-2" />
-                            {tab.label}
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    {isAdmin && settingsItems.map(item => {
-                      const Icon = item.icon;
-                      const isActive = activeTab === item.id;
-                      
-                      return (
-                        <DropdownMenuItem
-                          key={item.id}
-                          onClick={() => setActiveTab(item.id)}
-                          className={isActive ? "bg-accent" : ""}
-                        >
-                          <Icon className="h-4 w-4 mr-2" />
-                          {item.label}
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
             </div>
           </div>
         </div>
@@ -733,48 +621,6 @@ const FantasyFootballApp = () => {
             </div>
           )}
 
-          {activeTab === 'import' && (
-            <div className="space-y-6">
-            {isAdmin ? (
-              <ScheduleImportManager />
-            ) : (
-              <Card>
-                <CardContent className="p-8">
-                  <div className="text-center space-y-4">
-                    <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-                      <Download className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-lg font-semibold">Authentication Required</h3>
-                      <p className="text-muted-foreground">
-                        Please log in to import and manage ESPN schedules.
-                      </p>
-                    </div>
-                    <Button onClick={() => window.location.reload()}>
-                      Log In to Continue
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            </div>
-          )}
-
-          {activeTab === 'seasons' && (
-            <div className="space-y-6">
-            <SeasonManager
-              seasons={seasons}
-              activeSeason={activeSeason}
-              onCreateSeason={isAdmin ? createSeason : null}
-              onSetActiveSeason={isAdmin ? setActiveSeasonById : null}
-              onDeleteSeason={isAdmin ? deleteSeason : null}
-              onExportSeason={exportSeason}
-              onImportSeason={isAdmin ? importSeason : null}
-              loading={loading}
-              isAuthenticated={isAdmin}
-            />
-            </div>
-          )}
         </div>
       </main>
 

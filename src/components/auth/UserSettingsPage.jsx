@@ -1,21 +1,37 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { supabase } from '../../../services/supabaseClient.js'
+import { useSupabaseFantasyData } from '../../../hooks/useSupabaseFantasyData.js'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
-import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings } from 'lucide-react'
+import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import SeasonManager from '../admin/SeasonManager.jsx'
+import ScheduleImportManager from '../schedule/ScheduleImportManager.jsx'
 
 export const UserSettingsPage = () => {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [hasChanges, setHasChanges] = useState(false)
+  const [activeSettingsTab, setActiveSettingsTab] = useState('profile')
+
+  // Fantasy data for admin settings
+  const {
+    seasons,
+    activeSeason,
+    loading: dataLoading,
+    createSeason,
+    setActiveSeasonById,
+    deleteSeason,
+    exportSeason,
+    importSeason,
+  } = useSupabaseFantasyData()
 
   // Initialize display name from user metadata
   useEffect(() => {
@@ -115,8 +131,8 @@ export const UserSettingsPage = () => {
               Back
             </Button>
             <div className="flex items-center gap-2">
-              <Settings className="h-6 w-6" />
-              <h1 className="text-2xl font-bold">User Settings</h1>
+              <SettingsIcon className="h-6 w-6" />
+              <h1 className="text-2xl font-bold">Settings</h1>
             </div>
           </div>
         </div>
@@ -125,17 +141,43 @@ export const UserSettingsPage = () => {
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="grid gap-6 md:grid-cols-3">
-          {/* Sidebar Navigation (for future expansion) */}
+          {/* Sidebar Navigation */}
           <div className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Settings</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                <Button variant="ghost" className="w-full justify-start" disabled>
+                <Button
+                  variant={activeSettingsTab === 'profile' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => setActiveSettingsTab('profile')}
+                >
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </Button>
+
+                {isAdmin && (
+                  <>
+                    <Button
+                      variant={activeSettingsTab === 'seasons' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('seasons')}
+                    >
+                      <Database className="mr-2 h-4 w-4" />
+                      Seasons
+                    </Button>
+
+                    <Button
+                      variant={activeSettingsTab === 'import' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('import')}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Import Schedule
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -143,6 +185,8 @@ export const UserSettingsPage = () => {
           {/* Main Settings Panel */}
           <div className="md:col-span-2 space-y-6">
             {/* Profile Settings */}
+            {activeSettingsTab === 'profile' && (
+            <>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -258,6 +302,28 @@ export const UserSettingsPage = () => {
                 </div>
               </CardContent>
             </Card>
+            </>
+            )}
+
+            {/* Seasons Management */}
+            {activeSettingsTab === 'seasons' && isAdmin && (
+              <SeasonManager
+                seasons={seasons}
+                activeSeason={activeSeason}
+                onCreateSeason={createSeason}
+                onSetActiveSeason={setActiveSeasonById}
+                onDeleteSeason={deleteSeason}
+                onExportSeason={exportSeason}
+                onImportSeason={importSeason}
+                loading={dataLoading}
+                isAuthenticated={isAdmin}
+              />
+            )}
+
+            {/* Import Schedule */}
+            {activeSettingsTab === 'import' && isAdmin && (
+              <ScheduleImportManager />
+            )}
           </div>
         </div>
       </div>

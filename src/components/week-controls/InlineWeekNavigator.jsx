@@ -13,7 +13,8 @@ const InlineWeekNavigator = ({
   onWeekChange,
   completedWeeks = [],
   season = null,
-  className = ''
+  className = '',
+  condensed = false
 }) => {
   const containerRef = useRef(null);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -138,16 +139,16 @@ const InlineWeekNavigator = ({
           onClick={handleExpand}
           className={`
             flex items-center gap-1
-            px-2 py-1 
-            min-w-[70px]
+            ${condensed ? 'px-1' : 'px-2'} py-1
+            ${condensed ? 'min-w-0' : 'min-w-[70px]'}
             justify-center
             text-sm font-medium
             hover:bg-gray-100
             rounded-md
             transition-colors duration-150
             cursor-pointer
-            ${isViewingCurrentWeek 
-              ? 'text-blue-700 bg-blue-50 hover:bg-blue-100' 
+            ${isViewingCurrentWeek
+              ? 'text-blue-700 bg-blue-50 hover:bg-blue-100'
               : 'text-gray-700'
             }
           `}
@@ -159,9 +160,11 @@ const InlineWeekNavigator = ({
           ) : (
             <Calendar className="h-3 w-3 text-gray-500" aria-hidden="true" />
           )}
-          <span className="whitespace-nowrap text-xs">
-            {getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
-          </span>
+          {!condensed && (
+            <span className="whitespace-nowrap text-xs">
+              {getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
+            </span>
+          )}
         </button>
 
         {/* Next Week Button */}
@@ -182,8 +185,8 @@ const InlineWeekNavigator = ({
           <ChevronRight className="h-3 w-3" />
         </Button>
 
-        {/* Go to Current Week Button - Only show when not viewing current week */}
-        {!isViewingCurrentWeek && (
+        {/* Go to Current Week Button - Only show when not viewing current week and not condensed */}
+        {!isViewingCurrentWeek && !condensed && (
           <Button
             onClick={() => onWeekChange && onWeekChange(actualCurrentWeek)}
             variant="ghost"
@@ -191,9 +194,9 @@ const InlineWeekNavigator = ({
             title={`Go to current week (Week ${actualCurrentWeek})`}
             aria-label={`Go to current week (Week ${actualCurrentWeek})`}
             className="
-              h-7 w-7 
-              p-0 rounded-md 
-              hover:bg-blue-100 
+              h-7 w-7
+              p-0 rounded-md
+              hover:bg-blue-100
               text-blue-600 hover:text-blue-700
               transition-all duration-150 ease-out
               ml-1

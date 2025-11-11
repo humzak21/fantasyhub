@@ -129,15 +129,6 @@ const WeeklyScoringTrendsChart = ({
           })}
         </LineChart>
       </ChartContainer>
-      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-        <p className="font-semibold text-gray-900 dark:text-white mb-2">Weekly Scoring Guide:</p>
-        <ul className="space-y-1 text-xs">
-          <li><span className="font-semibold">Upward trend:</span> Team improving in scoring performance</li>
-          <li><span className="font-semibold">Downward trend:</span> Team declining in scoring performance</li>
-          <li><span className="font-semibold">Flat line:</span> Consistent scoring week-to-week</li>
-          <li><span className="font-semibold">Spikes/dips:</span> Individual standout or poor performances</li>
-        </ul>
-      </div>
     </div>
   );
 };

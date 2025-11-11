@@ -97,17 +97,6 @@ const AllPlayRecordsChart = ({
           <Bar yAxisId="left" dataKey="allPlayLosses" name="All-Play Losses" fill="#ef4444" opacity={0.8} />
         </BarChart>
       </ChartContainer>
-
-      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-        <p className="font-semibold text-gray-900 dark:text-white mb-2">All-Play Records Guide:</p>
-        <ul className="space-y-1 text-xs">
-          <li><span className="font-semibold">All-Play:</span> Record against the league median score each week</li>
-          <li><span className="font-semibold">Wins:</span> Times team scored higher than that week's median</li>
-          <li><span className="font-semibold">Losses:</span> Times team scored lower than that week's median</li>
-          <li><span className="font-semibold">50% expected:</span> In a balanced league, teams should hover around 50% win rate</li>
-          <li><span className="font-semibold">Higher %:</span> Indicates stronger scoring consistency</li>
-        </ul>
-      </div>
     </div>
   );
 };

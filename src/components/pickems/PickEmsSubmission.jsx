@@ -301,7 +301,7 @@ const PickEmsSubmission = ({
                     <Button
                       onClick={handleSubmit}
                       disabled={submitting || totalPicks !== availableGames.length}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white"
                     >
                       {submitting ? (
                         <>
@@ -382,9 +382,7 @@ const PickEmsSubmission = ({
                         className={`
                           flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
                           ${picks[game.id]?.predictedWinnerTeamId === game.team1.id
-                            ? ((hasSubmitted && !isEditing) || status.status === 'closed' || status.status === 'completed')
-                              ? 'border-blue-600 bg-blue-150 dark:bg-blue-600 text-blue-900 dark:text-white font-semibold'
-                              : 'border-primary bg-primary/10 text-primary font-semibold'
+                            ? 'border-blue-600 bg-blue-600 text-white font-semibold'
                             : 'border-muted hover:border-primary/50 hover:bg-muted/50'
                           }
                           ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
@@ -405,9 +403,7 @@ const PickEmsSubmission = ({
                         className={`
                           flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
                           ${picks[game.id]?.predictedWinnerTeamId === game.team2.id
-                            ? ((hasSubmitted && !isEditing) || status.status === 'closed' || status.status === 'completed')
-                              ? 'border-blue-600 bg-blue-150 dark:bg-blue-600 text-blue-900 dark:text-white font-semibold'
-                              : 'border-primary bg-primary/10 text-primary font-semibold'
+                            ? 'border-blue-600 bg-blue-600 text-white font-semibold'
                             : 'border-muted hover:border-primary/50 hover:bg-muted/50'
                           }
                           ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
@@ -493,7 +489,7 @@ const PickEmsSubmission = ({
                       onClick={handleSubmit}
                       disabled={submitting || totalPicks !== availableGames.length}
                       size="lg"
-                      className="flex items-center gap-2 px-8"
+                      className="flex items-center gap-2 px-8 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white"
                     >
                       {submitting ? (
                         <>
