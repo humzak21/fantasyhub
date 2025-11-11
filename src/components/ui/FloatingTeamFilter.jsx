@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronUp, GripHorizontal, GripVertical, ChevronDownCircle } from 'lucide-react';
+import { ChevronUp, GripHorizontal, GripVertical, ChevronDownCircle, Filter } from 'lucide-react';
 import { getMaskedTeamName } from '../../utils/displayNameUtils';
 
 const FloatingTeamFilter = ({
@@ -150,7 +150,7 @@ const FloatingTeamFilter = ({
         ref={containerRef}
         onClick={() => setIsOpen(true)}
         onMouseDown={handleMouseDown}
-        className="fixed z-50 w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors"
+        className="fixed z-50 w-12 h-12 rounded-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-400 dark:hover:bg-blue-500 shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors"
         style={{
           left: `${position.x}px`,
           top: getTopPosition() !== null ? `${getTopPosition()}px` : 'auto',
@@ -159,7 +159,7 @@ const FloatingTeamFilter = ({
         }}
         title="Open Team Filter"
       >
-        <GripHorizontal size={20} className="text-white" />
+        <Filter size={20} className="text-white" />
       </button>
     );
   }
