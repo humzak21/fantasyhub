@@ -11,8 +11,10 @@ export const useDarkMode = () => {
 };
 
 export const DarkModeProvider = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isAutoDetect, setIsAutoDetect] = useState(true);
+  // DISABLED: Light mode is temporarily disabled. All users forced to dark mode.
+  // To re-enable light mode, revert the changes in LIGHT_MODE_DISABLED.md
+  const [isDarkMode, setIsDarkMode] = useState(true); // FORCED: Always true
+  const [isAutoDetect, setIsAutoDetect] = useState(false); // DISABLED: Always false to prevent light mode
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Device preference detection
@@ -24,6 +26,9 @@ export const DarkModeProvider = ({ children }) => {
   useEffect(() => {
     const initializeDarkMode = () => {
       try {
+        // DISABLED: Light mode preference logic removed. Always using dark mode.
+        // Original logic preserved below for easy reversion:
+        /* DISABLED_LIGHT_MODE_START
         // Check for stored preferences
         const storedDarkMode = localStorage.getItem('fantasyhub-dark-mode');
         const storedAutoDetect = localStorage.getItem('fantasyhub-auto-detect');
@@ -71,21 +76,21 @@ export const DarkModeProvider = ({ children }) => {
             document.documentElement.classList.remove('dark');
           }
         }
+        DISABLED_LIGHT_MODE_END */
+
+        // FORCED: Always use dark mode
+        setIsDarkMode(true);
+        setIsAutoDetect(false);
+        document.documentElement.classList.add('dark');
 
         setIsInitialized(true);
       } catch (error) {
         console.warn('Failed to initialize dark mode settings:', error);
 
-        // Fallback to system preference
-        const systemPreference = getSystemPreference();
-        setIsDarkMode(systemPreference);
-        setIsAutoDetect(true);
-
-        if (systemPreference) {
-          document.documentElement.classList.add('dark');
-        } else {
-          document.documentElement.classList.remove('dark');
-        }
+        // FORCED: Always dark mode on error
+        setIsDarkMode(true);
+        setIsAutoDetect(false);
+        document.documentElement.classList.add('dark');
 
         setIsInitialized(true);
       }
@@ -153,30 +158,37 @@ export const DarkModeProvider = ({ children }) => {
     }
   }, [isAutoDetect, isInitialized]);
 
+  // DISABLED: These functions are disabled because light mode is forcefully disabled
   // Toggle dark mode manually (disables auto-detect)
   const toggleDarkMode = () => {
-    setIsAutoDetect(false);
-    setIsDarkMode(prev => !prev);
+    // DISABLED: Light mode toggle disabled. Always dark mode.
+    // Original code:
+    // setIsAutoDetect(false);
+    // setIsDarkMode(prev => !prev);
   };
 
   // Set dark mode to specific value (disables auto-detect)
   const setDarkMode = (enabled) => {
-    setIsAutoDetect(false);
-    setIsDarkMode(enabled);
+    // DISABLED: Light mode setting disabled. Always dark mode.
+    // Original code:
+    // setIsAutoDetect(false);
+    // setIsDarkMode(enabled);
   };
 
   // Enable auto-detect and sync with system preference
   const enableAutoDetect = () => {
-    setIsAutoDetect(true);
-    const systemPreference = getSystemPreference();
-    setIsDarkMode(systemPreference);
+    // DISABLED: Auto-detect disabled. Always dark mode.
+    // Original code:
+    // setIsAutoDetect(true);
+    // const systemPreference = getSystemPreference();
+    // setIsDarkMode(systemPreference);
 
     // Clear stored manual preference
-    try {
-      localStorage.removeItem('fantasyhub-dark-mode');
-    } catch (error) {
-      console.warn('Failed to clear dark mode preference:', error);
-    }
+    // try {
+    //   localStorage.removeItem('fantasyhub-dark-mode');
+    // } catch (error) {
+    //   console.warn('Failed to clear dark mode preference:', error);
+    // }
   };
 
   // Reset to system defaults
@@ -195,10 +207,14 @@ export const DarkModeProvider = ({ children }) => {
 
   // Get current theme name for display
   const getThemeName = () => {
-    if (isAutoDetect) {
-      return 'Auto (System)';
-    }
-    return isDarkMode ? 'Dark' : 'Light';
+    // DISABLED: Light mode disabled. Always returns 'Dark'
+    // Original code:
+    // if (isAutoDetect) {
+    //   return 'Auto (System)';
+    // }
+    // return isDarkMode ? 'Dark' : 'Light';
+
+    return 'Dark';
   };
 
   const value = {
@@ -217,10 +233,11 @@ export const DarkModeProvider = ({ children }) => {
     getThemeName,
     getSystemPreference: getSystemPreference(),
 
-    // Theme options for UI
+    // DISABLED: Theme options limited to dark mode only
+    // Original options:
+    // { value: 'auto', label: 'Auto (System)', description: 'Follow system theme' },
+    // { value: 'light', label: 'Light', description: 'Always use light theme' },
     themeOptions: [
-      { value: 'auto', label: 'Auto (System)', description: 'Follow system theme' },
-      { value: 'light', label: 'Light', description: 'Always use light theme' },
       { value: 'dark', label: 'Dark', description: 'Always use dark theme' }
     ]
   };

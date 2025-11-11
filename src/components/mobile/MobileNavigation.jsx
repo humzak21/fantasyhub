@@ -39,6 +39,28 @@ const MobileNavigation = ({
     return now >= awardsReleaseDate;
   };
 
+  // Check if pickems are still open (closes at 8:10 PM on Thursdays)
+  const arePickemsOpen = () => {
+    const now = new Date();
+    const day = now.getDay(); // 0 = Sunday, 4 = Thursday
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    // If it's Thursday (day 4)
+    if (day === 4) {
+      // Check if time is after 8:10 PM (20:10)
+      if (hours > 20 || (hours === 20 && minutes >= 10)) {
+        return false; // Pickems are closed
+      }
+    }
+    // If it's Friday or Saturday (5, 6), pickems are definitely closed
+    if (day === 5 || day === 6) {
+      return false;
+    }
+    
+    return true; // Pickems are open
+  };
+
   // Navigation tabs configuration
   const mainTabs = [
     { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
@@ -221,7 +243,8 @@ const MobileNavigation = ({
 
                         {showThemeMenu && (
                           <div className="ml-4 space-y-1 border-l border-muted pl-4">
-                            <Button
+                            {/* DISABLED: Auto (System) option disabled - light mode is forcefully disabled */}
+                            {/* <Button
                               variant={isAutoDetect ? "default" : "ghost"}
                               size="sm"
                               onClick={() => {
@@ -233,8 +256,10 @@ const MobileNavigation = ({
                               <Monitor className="h-3 w-3 mr-2" />
                               Auto (System)
                               {isAutoDetect && <Check className="ml-auto h-3 w-3" />}
-                            </Button>
-                            <Button
+                            </Button> */}
+
+                            {/* DISABLED: Light mode option disabled - light mode is forcefully disabled */}
+                            {/* <Button
                               variant={!isAutoDetect && !isDarkMode ? "default" : "ghost"}
                               size="sm"
                               onClick={() => {
@@ -246,7 +271,9 @@ const MobileNavigation = ({
                               <Sun className="h-3 w-3 mr-2" />
                               Light
                               {!isAutoDetect && !isDarkMode && <Check className="ml-auto h-3 w-3" />}
-                            </Button>
+                            </Button> */}
+
+                            {/* Dark mode is the only available option */}
                             <Button
                               variant={!isAutoDetect && isDarkMode ? "default" : "ghost"}
                               size="sm"
@@ -327,7 +354,7 @@ const MobileNavigation = ({
                       const Icon = tab.icon;
                       const isActive = activeTab === tab.id;
                       const wasRecentlyVisited = navigationHistory.includes(tab.id) && !isActive;
-                      const showNotification = tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading;
+                      const showNotification = tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
 
                       return (
                         <Button
@@ -337,17 +364,22 @@ const MobileNavigation = ({
                           disabled={isDisabled || isAnimating}
                           onClick={() => handleNavigation(tab.id)}
                           className={`
-                            w-full justify-start mobile-nav-item touch-target relative
+                            w-full justify-start mobile-nav-item touch-target
                             ${isAnimating ? 'opacity-50' : ''}
                             ${wasRecentlyVisited ? 'bg-muted/50' : ''}
-                            ${isActive && isDarkMode ? '!text-black' : ''}
+                            ${isActive 
+                              ? 'bg-[hsl(217,32.6%,17.5%)] text-white hover:bg-[hsl(217,32.6%,20%)] border-[hsl(217,32.6%,17.5%)]' 
+                              : ''
+                            }
                           `}
                         >
                           <Icon className="h-4 w-4 mr-3 flex-shrink-0" />
                           <span className="flex-1 text-left">{tab.label}</span>
                           <div className="flex items-center space-x-2">
                             {showNotification && (
-                              <div className="w-2 h-2 bg-red-500 rounded-full" />
+                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0 bg-red-600 hover:bg-red-700 border-red-600">
+                                !
+                              </Badge>
                             )}
                             {!isActive && !isDisabled && (
                               <ChevronRight className="h-3 w-3 text-muted-foreground" />
@@ -382,7 +414,10 @@ const MobileNavigation = ({
                             w-full justify-start mobile-nav-item touch-target
                             ${isAnimating ? 'opacity-50' : ''}
                             ${wasRecentlyVisited ? 'bg-muted/50' : ''}
-                            ${isActive && isDarkMode ? '!text-black' : ''}
+                            ${isActive 
+                              ? 'bg-[hsl(217,32.6%,17.5%)] text-white hover:bg-[hsl(217,32.6%,20%)] border-[hsl(217,32.6%,17.5%)]' 
+                              : ''
+                            }
                           `}
                         >
                           <Icon className="h-4 w-4 mr-3 flex-shrink-0" />

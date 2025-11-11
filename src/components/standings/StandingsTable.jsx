@@ -452,13 +452,13 @@ const StandingsTable = ({
                       {division.teams.map((team) => (
                         <TableRow
                           key={team.id}
-                          className={team.isPlayoffSpot ? 'bg-green-50 dark:bg-green-900/20' : ''}
+                          className={team.isPlayoffSpot ? 'ff-playoff-spot' : ''}
                         >
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               {team.divisionRank}
                               {team.isPlayoffSpot && (
-                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                                <Badge variant="secondary" className="text-xs bg-green-50 text-green-700 border-green-200 hover:bg-green-50">
                                   P
                                 </Badge>
                               )}
@@ -479,7 +479,7 @@ const StandingsTable = ({
                             {(team.pointsAgainst || 0).toFixed(2)}
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className={team.pointDifferential >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            <span className={`font-mono font-semibold ${team.pointDifferential >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                               {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
                             </span>
                           </TableCell>

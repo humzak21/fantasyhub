@@ -5,6 +5,7 @@ import App from './App.jsx'
 import { AuthProvider } from './contexts/AuthContext.jsx'
 import { DarkModeProvider } from './contexts/DarkModeContext.jsx'
 import '../globals.css'
+import '../styles/fantasy-utilities.css'
 import '../styles/dark-mode.css'
 import '../styles/mobile.css'
 

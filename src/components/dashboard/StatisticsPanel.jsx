@@ -1,8 +1,57 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { TrendingUp, Target, Zap, Award, BarChart3, Users } from 'lucide-react';
 import { getMaskedTeamName } from '../../utils/displayNameUtils';
+import {
+  calculateScoreDistribution,
+  calculateWeeklyScoringTrends,
+  calculateMarginOfVictory,
+  calculateRankingMovement,
+  calculateAllPlayRecords
+} from '../../utils/chartCalculations';
+import ScoreDistributionChart from '../statistics/charts/ScoreDistributionChart';
+import WeeklyScoringTrendsChart from '../statistics/charts/WeeklyScoringTrendsChart';
+import MarginOfVictoryChart from '../statistics/charts/MarginOfVictoryChart';
+import RankingsMovementChart from '../statistics/charts/RankingsMovementChart';
+import AllPlayRecordsChart from '../statistics/charts/AllPlayRecordsChart';
+import FloatingTeamFilter from '../ui/FloatingTeamFilter';
 
 const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user = null, isAdmin = false }) => {
+  // State management for chart filtering
+  const [selectedTeams, setSelectedTeams] = useState([]);
+  const [minWeek, setMinWeek] = useState(1);
+  const [maxWeek, setMaxWeek] = useState(currentWeek);
+
+  // Calculate chart data
+  const chartData = useMemo(() => {
+    if (!season || !rankings.length) return {};
+
+    return {
+      scoreDistribution: calculateScoreDistribution(rankings, season.schedule || []),
+      weeklyScoringTrends: calculateWeeklyScoringTrends(rankings, season.schedule || []),
+      marginOfVictory: calculateMarginOfVictory(rankings, season.schedule || []),
+      rankingMovement: [], // Will be calculated in component
+      allPlayRecords: calculateAllPlayRecords(rankings, season.schedule || [])
+    };
+  }, [rankings, season]);
+
+  // Handle team selection toggle
+  const toggleTeamSelection = (teamId) => {
+    setSelectedTeams(prev =>
+      prev.includes(teamId)
+        ? prev.filter(id => id !== teamId)
+        : [...prev, teamId]
+    );
+  };
+
+  // Handle select all/deselect all
+  const toggleAllTeams = () => {
+    if (selectedTeams.length === rankings.length) {
+      setSelectedTeams([]);
+    } else {
+      setSelectedTeams(rankings.map(r => r.id));
+    }
+  };
+
   // New algorithm insights - moved before early return
   // COMMENTED OUT: Power ranking algorithm insights hidden from view
   /*
@@ -54,7 +103,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
   */
   const algorithmInsights = null; // Disabled algorithm insights
 
-  if (!rankings.length || !season) {
+  if (!rankings || !Array.isArray(rankings) || rankings.length === 0 || !season) {
     return (
       <div className="text-center py-8 text-gray-500">
         <BarChart3 size={48} className="mx-auto mb-4 text-gray-300" />
@@ -390,6 +439,145 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
       )}
       */}
 
+      {/* Chart Filtering Controls */}
+      <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <BarChart3 className="text-blue-600" size={20} />
+          Advanced Analytics
+        </h3>
+
+        {/* Week Range Filter */}
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+          <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-3">Week Range Filter</h4>
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Min Week: {minWeek}
+              </label>
+              <input
+                type="range"
+                min="1"
+                max={currentWeek}
+                value={minWeek}
+                onChange={(e) => setMinWeek(Math.min(parseInt(e.target.value), maxWeek))}
+                className="w-full"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Max Week: {maxWeek}
+              </label>
+              <input
+                type="range"
+                min="1"
+                max={currentWeek}
+                value={maxWeek}
+                onChange={(e) => setMaxWeek(Math.max(parseInt(e.target.value), minWeek))}
+                className="w-full"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {/* Score Distribution */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+              Score Distribution (Min/Q1/Avg/Q3/Max)
+            </h4>
+            <ScoreDistributionChart
+              data={chartData.scoreDistribution}
+              selectedTeams={selectedTeams}
+              user={user}
+              isAdmin={isAdmin}
+            />
+          </div>
+
+          {/* Weekly Scoring Trends */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+              Weekly Scoring Trends
+            </h4>
+            <WeeklyScoringTrendsChart
+              data={chartData.weeklyScoringTrends}
+              rankings={rankings}
+              selectedTeams={selectedTeams}
+              minWeek={minWeek}
+              maxWeek={maxWeek}
+              user={user}
+              isAdmin={isAdmin}
+            />
+          </div>
+
+          {/* Margin of Victory */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+              Average Margin of Victory
+            </h4>
+            <MarginOfVictoryChart
+              data={chartData.marginOfVictory}
+              selectedTeams={selectedTeams}
+              user={user}
+              isAdmin={isAdmin}
+            />
+          </div>
+
+          {/* All-Play Records */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+              All-Play Records (vs Median Score)
+            </h4>
+            <AllPlayRecordsChart
+              data={chartData.allPlayRecords}
+              selectedTeams={selectedTeams}
+              user={user}
+              isAdmin={isAdmin}
+            />
+          </div>
+        </div>
+
+        {/* Rankings Movement - COMMENTED OUT FOR NOW */}
+        {/*
+        <div className="mb-6">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Users className="text-purple-600" size={20} />
+            League-Wide Comparisons
+          </h3>
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+              <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+                Power Rankings Movement
+              </h4>
+              <RankingsMovementChart
+                data={chartData.rankingMovement}
+                teams={rankings}
+                games={season?.schedule || []}
+                rankings={rankings}
+                selectedTeams={selectedTeams}
+                minWeek={Math.max(2, minWeek)}
+                maxWeek={maxWeek}
+                user={user}
+                isAdmin={isAdmin}
+                players={season?.players || []}
+                divisions={season?.divisions || []}
+                regularSeasonWeeks={season?.regularSeasonWeeks || 14}
+                currentWeek={currentWeek}
+              />
+            </div>
+          </div>
+        </div>
+        */}
+      </div>
+
+      {/* Floating Team Filter */}
+      <FloatingTeamFilter
+        rankings={rankings}
+        selectedTeams={selectedTeams}
+        onToggleTeam={toggleTeamSelection}
+        onToggleAllTeams={toggleAllTeams}
+        user={user}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 };
