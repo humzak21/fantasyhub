@@ -93,75 +93,131 @@ export class ProjectionCalculator {
   }
 
   /**
+   * Get the number of games remaining for a specific team
+   * @param {string} teamId - Team ID
+   * @returns {number} Number of games remaining
+   */
+  getTeamGamesRemaining(teamId) {
+    const remainingGames = this.getRemainingGames(teamId);
+    return remainingGames.length;
+  }
+
+  /**
+   * Calculate the realistic maximum wins a team can achieve
+   * Considers the team's current wins plus their remaining games
+   * @param {Object} team - Team to calculate for
+   * @returns {number} Maximum possible wins
+   */
+  calculateTeamMaxWins(team) {
+    const currentWins = team.wins || 0;
+    const gamesRemaining = this.getTeamGamesRemaining(team.id);
+    return currentWins + gamesRemaining;
+  }
+
+  /**
    * Calculate magic numbers for playoff clinching
    * @param {Object} team - Team to calculate for
    * @param {Array} divisionTeams - All teams in the division
    * @returns {Object} Magic numbers object
    */
   calculateMagicNumbers(team, divisionTeams) {
-    const gamesRemaining = this.regularSeasonWeeks - (this.currentWeek - 1);
     const sortedTeams = this.sortTeamsByStandings(divisionTeams);
     const teamRank = sortedTeams.findIndex(t => t.id === team.id);
     const teamWins = team.wins || 0;
-    
-    // Magic number is 0 if already clinched or eliminated
-    if (gamesRemaining <= 0) {
+    const teamGamesRemaining = this.getTeamGamesRemaining(team.id);
+    const teamMaxWins = teamWins + teamGamesRemaining;
+
+    // Magic number is 0 if season is over
+    if (teamGamesRemaining <= 0) {
       return {
         magicNumber: 0,
         clinched: teamRank < 3,
-        eliminated: teamRank >= 3
+        eliminated: teamRank >= 3,
+        gamesRemaining: 0
       };
     }
-    
-    // Check if already clinched (top 3 with impossible to catch)
-    const fourthPlaceTeam = sortedTeams[3];
-    if (fourthPlaceTeam) {
-      const fourthMaxWins = (fourthPlaceTeam.wins || 0) + gamesRemaining;
-      if (teamRank < 3 && teamWins > fourthMaxWins) {
-        return {
-          magicNumber: 0,
-          clinched: true,
-          eliminated: false
-        };
+
+    // Calculate max wins for all teams in the division
+    const teamsWithMaxWins = sortedTeams.map(t => ({
+      ...t,
+      maxWins: this.calculateTeamMaxWins(t),
+      currentRank: sortedTeams.findIndex(st => st.id === t.id)
+    }));
+
+    // Sort by max wins (descending), then by points for (tiebreaker)
+    const teamsByMaxWins = [...teamsWithMaxWins].sort((a, b) => {
+      if (b.maxWins !== a.maxWins) {
+        return b.maxWins - a.maxWins;
       }
+      const aPointsFor = parseFloat(a.pointsFor || a.points_for || 0);
+      const bPointsFor = parseFloat(b.pointsFor || b.points_for || 0);
+      return bPointsFor - aPointsFor;
+    });
+
+    // Find the cutoff for 3rd place (the 3rd highest max wins)
+    const thirdPlaceMaxWins = teamsByMaxWins[2]?.maxWins || 0;
+    const fourthPlaceMaxWins = teamsByMaxWins[3]?.maxWins || 0;
+
+    // Check if already clinched
+    // Team has clinched if their current wins are higher than the 4th best team's max possible wins
+    if (teamRank < 3 && teamWins > fourthPlaceMaxWins) {
+      return {
+        magicNumber: 0,
+        clinched: true,
+        eliminated: false,
+        gamesRemaining: teamGamesRemaining
+      };
     }
-    
-    // Check if eliminated (can't catch 3rd place)
+
+    // Check if eliminated
+    // Team is eliminated if their max possible wins are less than the 3rd place team's current wins
     const thirdPlaceTeam = sortedTeams[2];
-    if (thirdPlaceTeam && teamRank >= 3) {
-      const thirdPlaceWins = thirdPlaceTeam.wins || 0;
-      const maxPossibleWins = teamWins + gamesRemaining;
-      if (maxPossibleWins < thirdPlaceWins) {
+    const thirdPlaceCurrentWins = thirdPlaceTeam?.wins || 0;
+
+    if (teamRank >= 3 && teamMaxWins < thirdPlaceCurrentWins) {
+      return {
+        magicNumber: 0,
+        clinched: false,
+        eliminated: true,
+        gamesRemaining: teamGamesRemaining
+      };
+    }
+
+    // Calculate magic number for teams not yet clinched or eliminated
+    let magicNumber = 0;
+
+    if (teamRank < 3) {
+      // Teams in playoff spots: calculate wins needed to guarantee staying in top 3
+      // Need to beat the 4th place team's maximum possible wins
+      magicNumber = Math.max(0, fourthPlaceMaxWins - teamWins + 1);
+
+      // If magic number exceeds games remaining, team cannot guarantee a spot (needs help)
+      if (magicNumber > teamGamesRemaining) {
+        magicNumber = teamGamesRemaining; // Show max possible, but they'll need help
+      }
+    } else {
+      // Teams out of playoffs: calculate wins needed to guarantee catching 3rd place
+      // Need to beat the current 3rd place team
+      const thirdPlaceWins = thirdPlaceTeam?.wins || 0;
+      magicNumber = Math.max(0, thirdPlaceWins - teamWins + 1);
+
+      // Can't exceed remaining games
+      if (magicNumber > teamGamesRemaining) {
+        // Mathematically eliminated if can't catch 3rd
         return {
           magicNumber: 0,
           clinched: false,
-          eliminated: true
+          eliminated: true,
+          gamesRemaining: teamGamesRemaining
         };
       }
     }
-    
-    // Calculate magic number for teams not yet clinched
-    let magicNumber = 0;
-    
-    if (teamRank < 3) {
-      // Teams in playoff spots: calculate wins needed to stay ahead of 4th place
-      if (fourthPlaceTeam) {
-        const fourthMaxWins = (fourthPlaceTeam.wins || 0) + gamesRemaining;
-        magicNumber = Math.max(0, fourthMaxWins - teamWins + 1);
-      }
-    } else {
-      // Teams out of playoffs: calculate wins needed to catch 3rd place
-      const thirdPlaceWins = thirdPlaceTeam?.wins || 0;
-      magicNumber = Math.max(0, thirdPlaceWins - teamWins + 1);
-      // Can't exceed remaining games
-      magicNumber = Math.min(magicNumber, gamesRemaining);
-    }
-    
+
     return {
       magicNumber,
       clinched: false,
       eliminated: false,
-      gamesRemaining
+      gamesRemaining: teamGamesRemaining
     };
   }
 
@@ -235,13 +291,13 @@ export class ProjectionCalculator {
    * @returns {Object} Path analysis
    */
   getPlayoffPath(team, divisionTeams) {
-    const gamesRemaining = this.regularSeasonWeeks - (this.currentWeek - 1);
+    const gamesRemaining = this.getTeamGamesRemaining(team.id);
     const sortedTeams = this.sortTeamsByStandings(divisionTeams);
     const teamRank = sortedTeams.findIndex(t => t.id === team.id) + 1;
     const teamWins = team.wins || 0;
-    
+
     const scenarios = [];
-    
+
     if (gamesRemaining <= 0) {
       scenarios.push({
         type: 'final',
@@ -250,7 +306,7 @@ export class ProjectionCalculator {
       });
       return { scenarios, summary: scenarios[0].description };
     }
-    
+
     // Check clinched/eliminated
     const magicNumbers = this.calculateMagicNumbers(team, divisionTeams);
     if (magicNumbers.clinched) {
@@ -261,7 +317,7 @@ export class ProjectionCalculator {
       });
       return { scenarios, summary: 'Playoffs clinched' };
     }
-    
+
     if (magicNumbers.eliminated) {
       scenarios.push({
         type: 'eliminated',
@@ -270,7 +326,7 @@ export class ProjectionCalculator {
       });
       return { scenarios, summary: 'Eliminated' };
     }
-    
+
     // Generate scenarios based on wins needed
     const winsNeeded = magicNumbers.magicNumber;
     
@@ -320,7 +376,7 @@ export class ProjectionCalculator {
   calculateLastPlaceOdds(team, divisionTeams) {
     const sortedTeams = this.sortTeamsByStandings(divisionTeams);
     const teamRank = sortedTeams.findIndex(t => t.id === team.id);
-    const gamesRemaining = this.regularSeasonWeeks - (this.currentWeek - 1);
+    const gamesRemaining = this.getTeamGamesRemaining(team.id);
     
     // Season over
     if (gamesRemaining <= 0) {
@@ -365,16 +421,17 @@ export class ProjectionCalculator {
     }
     
     let finalOdds = baseOdds + gamesDiffFactor + momentumFactor + scheduleFactor;
-    
+
     // Check if mathematically safe from last
     const secondLastTeam = sortedTeams[secondLast];
     if (secondLastTeam) {
-      const secondLastMaxWins = (secondLastTeam.wins || 0) + gamesRemaining;
+      const secondLastGamesRemaining = this.getTeamGamesRemaining(secondLastTeam.id);
+      const secondLastMaxWins = (secondLastTeam.wins || 0) + secondLastGamesRemaining;
       if (teamWins > secondLastMaxWins && teamRank < secondLast) {
         finalOdds = 0; // Safe from last
       }
     }
-    
+
     // Check if locked into last
     if (teamRank === lastPlace) {
       const secondLastMinWins = secondLastTeam?.wins || 0;
@@ -412,7 +469,7 @@ export class ProjectionCalculator {
    * @returns {Object} Path analysis
    */
   getLastPlacePath(team, divisionTeams) {
-    const gamesRemaining = this.regularSeasonWeeks - (this.currentWeek - 1);
+    const gamesRemaining = this.getTeamGamesRemaining(team.id);
     const sortedTeams = this.sortTeamsByStandings(divisionTeams);
     const teamRank = sortedTeams.findIndex(t => t.id === team.id) + 1;
     const gamesFromLast = this.calculateGamesFromLast(team, divisionTeams);
