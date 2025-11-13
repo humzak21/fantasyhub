@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Trophy, Calendar, BarChart3, Users, Target, RefreshCw, Award, TrendingUp } from 'lucide-react';
 import { useAuth } from './src/contexts/AuthContext';
 import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
 import { getCurrentWeek } from './utils/weekCalculator.js';
+import { getTeamOwnerNames } from './src/utils/displayNameUtils';
 import { Button } from './src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src/components/ui/card';
 import { Switch } from './src/components/ui/switch';
 import { Label } from './src/components/ui/label';
 import { Badge } from './src/components/ui/badge';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
+import ErrorBoundary from './utils/errorBoundary.jsx';
 
 // Import global styles
 import './globals.css';
@@ -28,6 +30,7 @@ import PickEmsManager from './src/components/pickems/PickEmsManager.jsx';
 import AwardsManager from './src/components/awards/AwardsManager.jsx';
 import ProjectionsManager from './src/components/projections/ProjectionsManager.jsx';
 import ResponsiveNavigation from './src/components/navigation/ResponsiveNavigation.jsx';
+import { ErrorFallback } from './utils/errorBoundary.jsx';
 
 const FantasyFootballApp = () => {
   const { user, isAuthenticated, isAdmin } = useAuth();
@@ -56,6 +59,11 @@ const FantasyFootballApp = () => {
     createDivision,
     dataManager
   } = useSupabaseFantasyData();
+
+  // Extract team owner names from active season for mask authentication
+  const teamOwnerNames = useMemo(() => {
+    return getTeamOwnerNames(activeSeason);
+  }, [activeSeason]);
 
   const [activeTab, setActiveTab] = useState('rankings');
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
@@ -307,6 +315,7 @@ const FantasyFootballApp = () => {
   // Each tab will show appropriate "no season available" messages
 
   return (
+    <ErrorBoundary>
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header - Responsive Design */}
       <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
@@ -419,6 +428,7 @@ const FantasyFootballApp = () => {
         {/* Tab Content */}
         <div className="space-y-6">
           {activeTab === 'rankings' && (
+            <ErrorBoundary key="rankings-error-boundary">
             <div className="space-y-6">
               <div className="space-y-6">
                 <Card>
@@ -496,6 +506,7 @@ const FantasyFootballApp = () => {
                         onExportAnalytics={exportAnalyticsData}
                         user={user}
                         isAdmin={isAdmin}
+                        teamOwnerNames={teamOwnerNames}
                         initializing={!initialized}
                       />
                     ) : (
@@ -506,6 +517,7 @@ const FantasyFootballApp = () => {
                         showAnalyticsSection={analyticsEnabled && hasAnalyticsData}
                         analyticsData={analyticsData}
                         user={user}
+                        teamOwnerNames={teamOwnerNames}
                         isAdmin={isAdmin}
                       />
                     )}
@@ -513,10 +525,12 @@ const FantasyFootballApp = () => {
                 </Card>
               </div>
             </div>
+            </ErrorBoundary>
           )}
 
 
           {activeTab === 'statistics' && (
+            <ErrorBoundary key="statistics-error-boundary">
             <div className="space-y-6">
               <Card>
                 <CardHeader>
@@ -533,13 +547,16 @@ const FantasyFootballApp = () => {
                     loading={rankingsLoading}
                     user={user}
                     isAdmin={isAdmin}
+                    teamOwnerNames={teamOwnerNames}
                   />
                 </CardContent>
               </Card>
             </div>
+            </ErrorBoundary>
           )}
 
           {activeTab === 'schedule' && (
+            <ErrorBoundary key="schedule-error-boundary">
             <div className="space-y-6">
               <ScheduleManager
                 season={activeSeason}
@@ -554,11 +571,14 @@ const FantasyFootballApp = () => {
                 isAdmin={isAdmin}
                 powerRankings={powerRankings}
                 rosters={rosters}
+                teamOwnerNames={teamOwnerNames}
               />
             </div>
+            </ErrorBoundary>
           )}
 
           {activeTab === 'teams' && (
+            <ErrorBoundary key="teams-error-boundary">
             <div className="space-y-6">
               <TeamsAndRosters
                 teams={activeSeason?.teams || []}
@@ -571,11 +591,14 @@ const FantasyFootballApp = () => {
                 isAuthenticated={isAdmin}
                 user={user}
                 isAdmin={isAdmin}
+                teamOwnerNames={teamOwnerNames}
               />
             </div>
+            </ErrorBoundary>
           )}
 
           {activeTab === 'projections' && (
+            <ErrorBoundary key="projections-error-boundary">
             <div className="space-y-6">
               <ProjectionsManager
                 season={activeSeason}
@@ -586,11 +609,14 @@ const FantasyFootballApp = () => {
                 loading={loading}
                 user={user}
                 isAdmin={isAdmin}
+                teamOwnerNames={teamOwnerNames}
               />
             </div>
+            </ErrorBoundary>
           )}
 
           {activeTab === 'pickems' && (
+            <ErrorBoundary key="pickems-error-boundary">
             <div className="space-y-6">
             <PickEmsManager
               season={activeSeason}
@@ -603,11 +629,14 @@ const FantasyFootballApp = () => {
               initializing={!initialized}
               preloadedData={preloadedPickemsData}
               preloadingInProgress={pickemPreloadingInProgress}
+              teamOwnerNames={teamOwnerNames}
             />
             </div>
+            </ErrorBoundary>
           )}
 
           {activeTab === 'awards' && (
+            <ErrorBoundary key="awards-error-boundary">
             <div className="space-y-6">
             <AwardsManager
               season={activeSeason}
@@ -619,6 +648,7 @@ const FantasyFootballApp = () => {
               user={user}
             />
             </div>
+            </ErrorBoundary>
           )}
 
         </div>
@@ -639,6 +669,7 @@ const FantasyFootballApp = () => {
           onTeamDivisionChange={assignTeamToDivision}
           onCreateDivision={createDivision}
           games={activeSeason.schedule || []}
+          teamOwnerNames={teamOwnerNames}
         />
       )}
 
@@ -654,6 +685,7 @@ const FantasyFootballApp = () => {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 };
 

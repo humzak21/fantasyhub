@@ -15,7 +15,8 @@ const PickEmsSeasonStandings = ({
   loading = false,
   resultsAvailable = false,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const formatAccuracy = (accuracy) => {
     return `${accuracy?.toFixed(1) || '0.0'}%`;
@@ -64,7 +65,7 @@ const PickEmsSeasonStandings = ({
       [pick.team1Id, pick.team2Id].forEach((teamId, idx) => {
         const originalTeamName = idx === 0 ? pick.team1Name : pick.team2Name;
         const team = { id: teamId, name: originalTeamName };
-        const teamName = getMaskedTeamName(team, user, isAdmin);
+        const teamName = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
         if (teamId && teamName) {
           if (!teamStats[teamId]) {
             teamStats[teamId] = {
@@ -161,7 +162,7 @@ const PickEmsSeasonStandings = ({
 
                     <div>
                       <div className="font-medium">
-                        {getMaskedUserName(standing.displayName, standing.userId, user, isAdmin)}
+                        {getMaskedUserName(standing.displayName, standing.userId, user, isAdmin, teamOwnerNames)}
                       </div>
                       <div className="text-sm text-muted-foreground flex items-center gap-4">
                         <span>{standing.totalCorrectPicks}/{standing.totalPicks} picks</span>

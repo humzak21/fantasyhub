@@ -31,7 +31,8 @@ const DrawerStandingsTable = ({
   onClose,
   games = [], // Add games data for streak calculation fallback
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [isManaging, setIsManaging] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState('');
@@ -522,7 +523,7 @@ const DrawerStandingsTable = ({
           <div key={division.id} className="space-y-2">
             {/* Compact division header */}
             <div className="flex items-center gap-2 px-1">
-              <h3 className="text-base font-semibold">{getMaskedDivisionName(division, divisionIndex, user, isAdmin)}</h3>
+              <h3 className="text-base font-semibold">{getMaskedDivisionName(division, divisionIndex, user, isAdmin, teamOwnerNames)}</h3>
               {isManaging && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -539,7 +540,7 @@ const DrawerStandingsTable = ({
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Rename {getMaskedDivisionName(division, divisionIndex, user, isAdmin)}</AlertDialogTitle>
+                      <AlertDialogTitle>Rename {getMaskedDivisionName(division, divisionIndex, user, isAdmin, teamOwnerNames)}</AlertDialogTitle>
                       <AlertDialogDescription>
                         Enter a new name for this division.
                       </AlertDialogDescription>
@@ -602,10 +603,10 @@ const DrawerStandingsTable = ({
                           </div>
                         </TableCell>
                         <TableCell className="px-3 py-2 font-medium">
-                          {getMaskedTeamName(team, user, isAdmin)}
+                          {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
                         </TableCell>
                         <TableCell className="px-3 py-2 text-muted-foreground">
-                          {getMaskedOwnerName(team, user, isAdmin)}
+                          {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                         </TableCell>
                         <TableCell className="px-2 py-2 text-center">
                           {team.wins}-{team.losses}-{team.ties}
@@ -685,10 +686,10 @@ const DrawerStandingsTable = ({
                       className="text-sm transition-all duration-200 hover:bg-muted/50"
                     >
                       <TableCell className="px-3 py-2 font-medium">
-                        {getMaskedTeamName(team, user, isAdmin)}
+                        {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
                       </TableCell>
                       <TableCell className="px-3 py-2 text-muted-foreground">
-                        {getMaskedOwnerName(team, user, isAdmin)}
+                        {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                       </TableCell>
                       <TableCell className="px-2 py-2 text-center">
                         {team.wins}-{team.losses}-{team.ties}

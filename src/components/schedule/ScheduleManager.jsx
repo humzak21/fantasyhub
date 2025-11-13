@@ -17,7 +17,8 @@ const ScheduleManager = ({
   user = null,
   powerRankings = [],
   rosters = {},
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
 
@@ -148,6 +149,7 @@ const ScheduleManager = ({
                 powerRankings={powerRankings}
                 rosters={rosters}
                 isAdmin={isAdmin}
+                teamOwnerNames={teamOwnerNames}
               />
             </div>
           )}
@@ -164,6 +166,7 @@ const ScheduleManager = ({
               getStatusColor={getStatusColor}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           )}
         </>
@@ -184,7 +187,8 @@ const WeekScheduleView = ({
   user = null,
   powerRankings = [],
   rosters = {},
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   if (games.length === 0) {
     return (
@@ -209,6 +213,7 @@ const WeekScheduleView = ({
           powerRankings={powerRankings}
           rosters={rosters}
           isAdmin={isAdmin}
+          teamOwnerNames={teamOwnerNames}
         />
       ))}
     </div>
@@ -225,11 +230,12 @@ const FullScheduleView = ({
   getStatusIcon,
   getStatusColor,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const getTeamName = (teamId) => {
     const team = teams.find(t => t.id === teamId);
-    return team ? getMaskedTeamName(team, user, isAdmin) : 'Unknown Team';
+    return team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown Team';
   };
 
   const getGamesForWeek = (week) => {
@@ -355,7 +361,8 @@ const GameCard = ({
   user = null,
   powerRankings = [],
   rosters = {},
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
@@ -524,7 +531,7 @@ const GameCard = ({
     const stats = getTeamStats(teamId);
     const rank = getTeamRanking(teamId);
     const roster = rosters[teamId]?.roster || [];
-    const teamName = team ? getMaskedTeamName(team, user, isAdmin) : 'Unknown Team';
+    const teamName = team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown Team';
 
     return (
       <div className={`flex-1 p-3 rounded-lg border ${
@@ -539,7 +546,7 @@ const GameCard = ({
               <h4 className="font-bold text-base truncate dark:text-white">{teamName}</h4>
               {team?.owner && (
                 <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                  {getMaskedOwnerName(team, user, isAdmin)}
+                  {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                 </div>
               )}
               {/* Record */}

@@ -39,7 +39,8 @@ const StandingsTable = ({
   onCreateDivision,
   games = [], // Add games data for streak calculation fallback
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [isManaging, setIsManaging] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState('');
@@ -464,8 +465,8 @@ const StandingsTable = ({
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="font-medium">{getMaskedTeamName(team, user, isAdmin)}</TableCell>
-                          <TableCell className="text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin)}</TableCell>
+                          <TableCell className="font-medium">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</TableCell>
+                          <TableCell className="text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}</TableCell>
                           <TableCell className="text-center">
                             {team.wins}-{team.losses}-{team.ties}
                           </TableCell>
@@ -547,8 +548,8 @@ const StandingsTable = ({
                 <TableBody>
                   {unassigned.map((team) => (
                     <TableRow key={team.id}>
-                      <TableCell className="font-medium">{getMaskedTeamName(team, user, isAdmin)}</TableCell>
-                      <TableCell className="text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin)}</TableCell>
+                      <TableCell className="font-medium">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</TableCell>
+                      <TableCell className="text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}</TableCell>
                       <TableCell className="text-center">
                         {team.wins}-{team.losses}-{team.ties}
                       </TableCell>

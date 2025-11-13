@@ -31,7 +31,8 @@ const AllPlayRecordsChart = ({
   data = [],
   selectedTeams = [],
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const chartData = useMemo(() => {
     if (!data.length) return [];
@@ -45,7 +46,7 @@ const AllPlayRecordsChart = ({
     return filteredData
       .sort((a, b) => b.allPlayWinPercentage - a.allPlayWinPercentage)
       .map(team => ({
-        name: getMaskedTeamName({ id: team.teamId, name: team.teamName, owner: team.owner }, user, isAdmin),
+        name: getMaskedTeamName({ id: team.teamId, name: team.teamName, owner: team.owner }, user, isAdmin, teamOwnerNames),
         allPlayWins: team.allPlayWins,
         allPlayLosses: team.allPlayLosses,
         allPlayWinPercentage: Math.round(team.allPlayWinPercentage * 100) / 100,

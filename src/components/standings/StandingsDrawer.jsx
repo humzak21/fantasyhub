@@ -15,7 +15,8 @@ const StandingsDrawer = ({
   onCreateDivision,
   games = [],
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -57,6 +58,7 @@ const StandingsDrawer = ({
           games={games}
           user={user}
           isAdmin={isAdmin}
+          teamOwnerNames={teamOwnerNames}
         />
       </StandingsDrawerContent>
     </>

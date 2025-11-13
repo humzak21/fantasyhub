@@ -69,7 +69,8 @@ const RankingsMovementChart = ({
   players = [],
   divisions = [],
   regularSeasonWeeks = 14,
-  currentWeek = 17
+  currentWeek = 17,
+  teamOwnerNames = []
 }) => {
   const [calculatedData, setCalculatedData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -234,7 +235,7 @@ const RankingsMovementChart = ({
             const team = rankings.find(r => r.id === teamId);
             if (!team) return null;
 
-            const teamName = getMaskedTeamName(team, user, isAdmin);
+            const teamName = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
             const color = TEAM_COLORS[index % TEAM_COLORS.length];
 
             return (

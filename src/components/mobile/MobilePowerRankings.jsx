@@ -35,7 +35,8 @@ const MobilePowerRankings = ({
   showAnalytics = false,
   onExportAnalytics = null,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [expandedCards, setExpandedCards] = useState(new Set());
   const [analyticsExpandedCards, setAnalyticsExpandedCards] = useState(new Set());
@@ -283,11 +284,11 @@ const MobilePowerRankings = ({
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0 mr-3">
                           <h3 className="font-semibold text-base leading-tight truncate text-foreground">
-                            {getMaskedTeamName(team, user, isAdmin)}
+                            {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
                           </h3>
                           {team.owner && (
                             <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {getMaskedOwnerName(team, user, isAdmin)}
+                              {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                             </p>
                           )}
                         </div>

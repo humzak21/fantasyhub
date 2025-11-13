@@ -47,7 +47,8 @@ const AnalyticsInsights = ({
   onExportData = null,
   analyticsData = null,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [expandedSections, setExpandedSections] = useState(new Set());
   const [selectedView, setSelectedView] = useState('overview');
@@ -469,7 +470,7 @@ const AnalyticsInsights = ({
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-blue-600" />
-            Analytics Insights - {getMaskedTeamName(team, user, isAdmin)}
+            Analytics Insights - {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
             <Badge variant="outline" className="ml-2">Week {currentWeek}</Badge>
           </CardTitle>
           

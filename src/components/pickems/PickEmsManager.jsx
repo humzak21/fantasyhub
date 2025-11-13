@@ -22,7 +22,8 @@ const PickEmsManager = ({
   user = null,
   initializing = false,
   preloadedData = null,
-  preloadingInProgress = false
+  preloadingInProgress = false,
+  teamOwnerNames = []
 }) => {
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
@@ -332,6 +333,7 @@ const PickEmsManager = ({
               timeRemaining={pickEmWeek?.submissionClosesAt}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           </TabsContent>
 
@@ -346,6 +348,7 @@ const PickEmsManager = ({
               resultsAvailable={pickEmStatus?.resultsAvailable || false}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           </TabsContent>
 
@@ -359,6 +362,7 @@ const PickEmsManager = ({
               resultsAvailable={pickEmStatus?.resultsAvailable || false}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           </TabsContent>
 
@@ -371,6 +375,7 @@ const PickEmsManager = ({
                 loading={dataLoading}
                 user={user}
                 isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
               />
             </TabsContent>
           )}

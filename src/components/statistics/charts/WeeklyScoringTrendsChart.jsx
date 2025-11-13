@@ -50,7 +50,8 @@ const WeeklyScoringTrendsChart = ({
   minWeek = 1,
   maxWeek = 17,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const chartData = useMemo(() => {
     if (!data.length) return [];
@@ -110,7 +111,7 @@ const WeeklyScoringTrendsChart = ({
             const team = rankings.find(r => r.id === teamId);
             if (!team) return null;
 
-            const teamName = getMaskedTeamName(team, user, isAdmin);
+            const teamName = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
             const color = TEAM_COLORS[index % TEAM_COLORS.length];
 
             return (

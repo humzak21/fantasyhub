@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, Menu, X, User, Save, CheckCircle, AlertCircle, Shield, Award } from 'lucide-react';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
 import { useSupabaseFantasyData } from '../../../hooks/useSupabaseFantasyData.js';
 import { supabase } from '../../../services/supabaseClient.js';
 import { getCurrentWeek } from '../../../utils/weekCalculator.js';
+import { getTeamOwnerNames } from '../../utils/displayNameUtils.js';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -67,6 +68,11 @@ const MobileFantasyFootballApp = () => {
     getCompletedWeeksArray,
     dataManager
   } = useSupabaseFantasyData();
+
+  // Extract team owner names from active season for mask authentication
+  const teamOwnerNames = useMemo(() => {
+    return getTeamOwnerNames(activeSeason);
+  }, [activeSeason]);
 
   const [activeTab, setActiveTab] = useState('rankings');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -353,6 +359,8 @@ const MobileFantasyFootballApp = () => {
                         analyticsData={{}}
                         showAnalytics={false}
                         user={user}
+                        isAdmin={isAdmin}
+                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
@@ -364,6 +372,7 @@ const MobileFantasyFootballApp = () => {
                         season={activeSeason}
                         user={user}
                         isAdmin={isAdmin}
+                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
@@ -379,6 +388,9 @@ const MobileFantasyFootballApp = () => {
                         isAuthenticated={isAdmin}
                         powerRankings={powerRankings}
                         rosters={rosters}
+                        user={user}
+                        isAdmin={isAdmin}
+                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
@@ -407,6 +419,7 @@ const MobileFantasyFootballApp = () => {
                         isAuthenticated={isAuthenticated}
                         isAdmin={isAdmin}
                         user={user}
+                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 

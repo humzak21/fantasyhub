@@ -12,7 +12,8 @@ const MarginOfVictoryChart = ({
   data = [],
   selectedTeams = [],
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const chartData = useMemo(() => {
     if (!data.length) return [];
@@ -26,7 +27,7 @@ const MarginOfVictoryChart = ({
     return filteredData
       .sort((a, b) => b.marginOfVictory - a.marginOfVictory)
       .map(team => ({
-        name: getMaskedTeamName({ id: team.teamId, name: team.teamName, owner: team.owner }, user, isAdmin),
+        name: getMaskedTeamName({ id: team.teamId, name: team.teamName, owner: team.owner }, user, isAdmin, teamOwnerNames),
         marginOfVictory: Math.round(team.marginOfVictory * 100) / 100,
         gamesPlayed: team.gamesPlayed,
         totalMargin: Math.round(team.totalMargin * 100) / 100,
