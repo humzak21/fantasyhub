@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { getMaskedTeamName, getMaskedOwnerName, getMaskedDivisionName } from '../../utils/displayNameUtils';
 import { ProjectionCalculator } from '../../../services/projectionCalculator.js';
 
 const ProjectionsManager = ({
@@ -103,10 +103,25 @@ const ProjectionsManager = ({
     return division?.name || 'Unknown';
   };
 
+  // Get masked division name for a team's division
+  const getMaskedDivisionNameForTeam = (divisionId) => {
+    if (!divisionId || divisionId === 'unassigned') return 'Unassigned';
+    const division = divisions.find(d => d.id === divisionId);
+    const divisionIndex = divisions.findIndex(d => d.id === divisionId);
+
+    if (!division || divisionIndex === -1) {
+      // Fallback to generic division number if not found
+      const fallbackIndex = divisions.length;
+      return (user || isAdmin) ? 'Unknown' : `Division ${fallbackIndex + 1}`;
+    }
+
+    return getMaskedDivisionName(division, divisionIndex, user, isAdmin);
+  };
+
   // Group playoff projections by division
   const groupedPlayoffProjections = useMemo(() => {
     const grouped = {};
-    
+
     playoffProjections.forEach(projection => {
       const divisionId = projection.divisionId || 'unassigned';
       if (!grouped[divisionId]) {
@@ -117,7 +132,34 @@ const ProjectionsManager = ({
       }
       grouped[divisionId].teams.push(projection);
     });
-    
+
+    // Sort teams within each division by playoff odds (desc), then win% (desc)
+    Object.values(grouped).forEach(division => {
+      division.teams.sort((a, b) => {
+        // First sort by playoff odds (higher odds first)
+        const oddsA = a.playoffOdds || 0;
+        const oddsB = b.playoffOdds || 0;
+        if (oddsA !== oddsB) {
+          return oddsB - oddsA;
+        }
+
+        // Then sort by win percentage (better record first)
+        const winsA = a.wins || 0;
+        const lossesA = a.losses || 0;
+        const tiesA = a.ties || 0;
+        const totalGamesA = winsA + lossesA + tiesA;
+        const winPctA = totalGamesA > 0 ? winsA / totalGamesA : 0;
+
+        const winsB = b.wins || 0;
+        const lossesB = b.losses || 0;
+        const tiesB = b.ties || 0;
+        const totalGamesB = winsB + lossesB + tiesB;
+        const winPctB = totalGamesB > 0 ? winsB / totalGamesB : 0;
+
+        return winPctB - winPctA;
+      });
+    });
+
     // Sort divisions to show assigned divisions first
     return Object.entries(grouped).sort(([idA], [idB]) => {
       if (idA === 'unassigned') return 1;
@@ -231,11 +273,25 @@ const ProjectionsManager = ({
           ) : (
             <div className="space-y-8">
               {/* Render each division separately */}
-              {groupedPlayoffProjections.map(([divisionId, divisionData]) => (
+              {groupedPlayoffProjections.map(([divisionId, divisionData], groupIndex) => {
+                const divisionIndex = divisions.findIndex(d => d.id === divisionId);
+                const division = divisions.find(d => d.id === divisionId);
+
+                let maskedDivisionName;
+                if (divisionId === 'unassigned') {
+                  maskedDivisionName = 'Unassigned';
+                } else if (division) {
+                  maskedDivisionName = getMaskedDivisionName(division, divisionIndex >= 0 ? divisionIndex : groupIndex, user, isAdmin);
+                } else {
+                  // Fallback if division not found but we have an index
+                  maskedDivisionName = (user || isAdmin) ? divisionData.divisionName : `Division ${groupIndex + 1}`;
+                }
+
+                return (
                 <div key={divisionId} className="space-y-3">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                    
-                    {divisionData.divisionName}
+
+                    {maskedDivisionName}
                   </h3>
                   <Table>
                     <TableHeader>
@@ -407,7 +463,8 @@ const ProjectionsManager = ({
                     </TableBody>
                   </Table>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -453,7 +510,31 @@ const ProjectionsManager = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {lastPlaceProjections.map((projection, index) => {
+                  {[...lastPlaceProjections]
+                    .sort((a, b) => {
+                      // First sort by last place odds (higher odds/risk first)
+                      const oddsA = a.lastPlaceOdds || 0;
+                      const oddsB = b.lastPlaceOdds || 0;
+                      if (oddsA !== oddsB) {
+                        return oddsB - oddsA;
+                      }
+
+                      // Then sort by win percentage (worse record first for last place)
+                      const winsA = a.wins || 0;
+                      const lossesA = a.losses || 0;
+                      const tiesA = a.ties || 0;
+                      const totalGamesA = winsA + lossesA + tiesA;
+                      const winPctA = totalGamesA > 0 ? winsA / totalGamesA : 0;
+
+                      const winsB = b.wins || 0;
+                      const lossesB = b.losses || 0;
+                      const tiesB = b.ties || 0;
+                      const totalGamesB = winsB + lossesB + tiesB;
+                      const winPctB = totalGamesB > 0 ? winsB / totalGamesB : 0;
+
+                      return winPctA - winPctB; // Lower win% first for last place
+                    })
+                    .map((projection, index) => {
                     const isExpanded = expandedLastPlaceTeams.has(projection.id);
                     const highRisk = projection.lastPlaceOdds >= 50;
                     const mediumRisk = projection.lastPlaceOdds >= 20 && projection.lastPlaceOdds < 50;
@@ -477,7 +558,7 @@ const ProjectionsManager = ({
                             </div>
                           </TableCell>
                           <TableCell className="text-center text-sm text-muted-foreground">
-                            {getDivisionName(projection.divisionId)}
+                            {getMaskedDivisionNameForTeam(projection.divisionId)}
                           </TableCell>
                           <TableCell className="text-center">
                             <span className={`font-medium ${
