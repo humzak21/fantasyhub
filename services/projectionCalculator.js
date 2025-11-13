@@ -446,20 +446,28 @@ export class ProjectionCalculator {
   /**
    * Calculate games from last place
    * @param {Object} team - Team to calculate for
-   * @param {Array} divisionTeams - All teams in division
-   * @returns {number} Games ahead of last place (negative if in last)
+   * @param {Array} divisionTeams - All teams in division (unused, kept for backwards compatibility)
+   * @returns {number} Games ahead of last place (positive if ahead, 0 if in last)
    */
   calculateGamesFromLast(team, divisionTeams) {
-    const sortedTeams = this.sortTeamsByStandings(divisionTeams);
-    const lastPlaceTeam = sortedTeams[sortedTeams.length - 1];
-    
+    // Find the worst team across ALL teams (league-wide last place)
+    const sortedAllTeams = this.sortTeamsByStandings(this.teams);
+    const lastPlaceTeam = sortedAllTeams[sortedAllTeams.length - 1];
+
     if (!lastPlaceTeam) return 0;
-    
+
     const teamWins = team.wins || 0;
     const lastPlaceWins = lastPlaceTeam.wins || 0;
-    
-    // Positive = ahead of last, negative = in last place
-    return teamWins - lastPlaceWins;
+
+    // Positive = ahead of last, 0 if team IS in last place
+    const gamesDiff = teamWins - lastPlaceWins;
+
+    // If this team IS the last place team, return 0
+    if (team.id === lastPlaceTeam.id) {
+      return 0;
+    }
+
+    return gamesDiff;
   }
 
   /**
@@ -470,24 +478,28 @@ export class ProjectionCalculator {
    */
   getLastPlacePath(team, divisionTeams) {
     const gamesRemaining = this.getTeamGamesRemaining(team.id);
-    const sortedTeams = this.sortTeamsByStandings(divisionTeams);
-    const teamRank = sortedTeams.findIndex(t => t.id === team.id) + 1;
+
+    // Check league-wide standings for last place status
+    const sortedAllTeams = this.sortTeamsByStandings(this.teams);
+    const leagueWideRank = sortedAllTeams.findIndex(t => t.id === team.id) + 1;
+    const isCurrentlyLast = leagueWideRank === sortedAllTeams.length;
+
     const gamesFromLast = this.calculateGamesFromLast(team, divisionTeams);
-    
+
     const scenarios = [];
-    
+
     if (gamesRemaining <= 0) {
       scenarios.push({
         type: 'final',
-        description: `Season complete - ${teamRank === sortedTeams.length ? 'Finished last' : 'Avoided last place'}`,
+        description: `Season complete - ${isCurrentlyLast ? 'Finished last' : 'Avoided last place'}`,
         probability: 100
       });
       return { scenarios, summary: scenarios[0].description };
     }
-    
+
     // Check if locked into last or safe
     const lastPlaceOdds = this.calculateLastPlaceOdds(team, divisionTeams);
-    
+
     if (lastPlaceOdds === 100) {
       scenarios.push({
         type: 'locked',
@@ -496,7 +508,7 @@ export class ProjectionCalculator {
       });
       return { scenarios, summary: 'Locked into last' };
     }
-    
+
     if (lastPlaceOdds === 0 && gamesFromLast > 2) {
       scenarios.push({
         type: 'safe',
@@ -505,38 +517,38 @@ export class ProjectionCalculator {
       });
       return { scenarios, summary: 'Safe from last' };
     }
-    
-    // Generate scenarios based on position
-    if (teamRank === sortedTeams.length) {
-      // Currently in last
+
+    // Generate scenarios based on league-wide position
+    if (isCurrentlyLast) {
+      // Currently in last place league-wide
       scenarios.push({
         type: 'escape',
-        description: `Currently in last - need wins to escape (${gamesFromLast} games behind)`,
-        probability: gamesRemaining > Math.abs(gamesFromLast) ? 'possible' : 'difficult'
+        description: `Currently in last - need wins to escape (0 games behind)`,
+        probability: gamesRemaining > 0 ? 'possible' : 'difficult'
       });
-    } else if (teamRank === sortedTeams.length - 1) {
-      // Second to last
+    } else if (gamesFromLast === 1) {
+      // One game ahead of last
       scenarios.push({
         type: 'risk',
-        description: 'One spot away from last - losses could drop you',
+        description: 'One game from last - losses could drop you',
         probability: 'medium'
       });
     } else if (gamesFromLast <= 2) {
-      // Close to last
+      // Close to last (2 games ahead)
       scenarios.push({
         type: 'danger',
         description: `Only ${gamesFromLast} game${gamesFromLast > 1 ? 's' : ''} ahead of last`,
         probability: 'low'
       });
     } else {
-      // Comfortable lead
+      // Comfortable lead (3+ games ahead)
       scenarios.push({
         type: 'comfortable',
         description: `${gamesFromLast} games ahead of last place`,
         probability: 'very low'
       });
     }
-    
+
     const summary = scenarios[0]?.description || 'Calculating path...';
     return { scenarios, summary };
   }
