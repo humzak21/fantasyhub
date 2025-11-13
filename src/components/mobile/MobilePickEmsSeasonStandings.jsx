@@ -10,7 +10,8 @@ const MobilePickEmsSeasonStandings = ({
   loading = false,
   resultsAvailable = false,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const formatAccuracy = (accuracy) => {
     return `${accuracy?.toFixed(1) || '0.0'}%`;
@@ -59,7 +60,7 @@ const MobilePickEmsSeasonStandings = ({
       [pick.team1Id, pick.team2Id].forEach((teamId, idx) => {
         const originalTeamName = idx === 0 ? pick.team1Name : pick.team2Name;
         const team = { id: teamId, name: originalTeamName };
-        const teamName = getMaskedTeamName(team, user, isAdmin);
+        const teamName = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
         if (teamId && teamName) {
           if (!teamStats[teamId]) {
             teamStats[teamId] = {
@@ -143,7 +144,7 @@ const MobilePickEmsSeasonStandings = ({
                   </div>
                   <div>
                     <div className="font-medium text-gray-900">
-                      {getMaskedUserName(standing.displayName, standing.userId, user, isAdmin)}
+                      {getMaskedUserName(standing.displayName, standing.userId, user, isAdmin, teamOwnerNames)}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
                       <span>{standing.totalCorrectPicks}/{standing.totalPicks}</span>

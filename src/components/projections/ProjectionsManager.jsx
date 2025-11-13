@@ -15,7 +15,8 @@ const ProjectionsManager = ({
   currentWeek,
   loading = false,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [playoffProjections, setPlayoffProjections] = useState([]);
   const [lastPlaceProjections, setLastPlaceProjections] = useState([]);
@@ -112,10 +113,12 @@ const ProjectionsManager = ({
     if (!division || divisionIndex === -1) {
       // Fallback to generic division number if not found
       const fallbackIndex = divisions.length;
-      return (user || isAdmin) ? 'Unknown' : `Division ${fallbackIndex + 1}`;
+      // Check if user is admin or if their name matches a league member
+      const isLeagueMember = user && teamOwnerNames && teamOwnerNames.includes(user.user_metadata?.full_name || user.user_metadata?.name || '');
+      return (isAdmin || isLeagueMember) ? 'Unknown' : `Division ${fallbackIndex + 1}`;
     }
 
-    return getMaskedDivisionName(division, divisionIndex, user, isAdmin);
+    return getMaskedDivisionName(division, divisionIndex, user, isAdmin, teamOwnerNames);
   };
 
   // Group playoff projections by division
@@ -191,7 +194,7 @@ const ProjectionsManager = ({
     const ppg = totalGames > 0 ? points / totalGames : 0;
     
     return {
-      name: getMaskedTeamName(opponent, user, isAdmin),
+      name: getMaskedTeamName(opponent, user, isAdmin, teamOwnerNames),
       record: `${wins}-${losses}${ties > 0 ? `-${ties}` : ''}`,
       winPct,
       ppg,
@@ -281,10 +284,12 @@ const ProjectionsManager = ({
                 if (divisionId === 'unassigned') {
                   maskedDivisionName = 'Unassigned';
                 } else if (division) {
-                  maskedDivisionName = getMaskedDivisionName(division, divisionIndex >= 0 ? divisionIndex : groupIndex, user, isAdmin);
+                  maskedDivisionName = getMaskedDivisionName(division, divisionIndex >= 0 ? divisionIndex : groupIndex, user, isAdmin, teamOwnerNames);
                 } else {
                   // Fallback if division not found but we have an index
-                  maskedDivisionName = (user || isAdmin) ? divisionData.divisionName : `Division ${groupIndex + 1}`;
+                  // Check if user is admin or if their name matches a league member
+                  const isLeagueMember = user && teamOwnerNames && teamOwnerNames.includes(user.user_metadata?.full_name || user.user_metadata?.name || '');
+                  maskedDivisionName = (isAdmin || isLeagueMember) ? divisionData.divisionName : `Division ${groupIndex + 1}`;
                 }
 
                 return (
@@ -323,7 +328,7 @@ const ProjectionsManager = ({
                               </TableCell>
                               <TableCell className="font-medium">
                                 <div className="flex items-center gap-2">
-                                  {getMaskedTeamName(projection, user, isAdmin)}
+                                  {getMaskedTeamName(projection, user, isAdmin, teamOwnerNames)}
                                   {isClinched && (
                                     <Badge variant="default" className="text-xs bg-green-600">
                                       Clinched
@@ -551,7 +556,7 @@ const ProjectionsManager = ({
                           </TableCell>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
-                              {getMaskedTeamName(projection, user, isAdmin)}
+                              {getMaskedTeamName(projection, user, isAdmin, teamOwnerNames)}
                               {highRisk && (
                                 <AlertTriangle className="h-4 w-4 text-red-600" />
                               )}

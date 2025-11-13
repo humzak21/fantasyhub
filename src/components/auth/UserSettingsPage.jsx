@@ -7,7 +7,7 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
-import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download } from 'lucide-react'
+import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import ScheduleImportManager from '../schedule/ScheduleImportManager.jsx'
@@ -20,6 +20,7 @@ export const UserSettingsPage = () => {
   const [message, setMessage] = useState({ type: '', text: '' })
   const [hasChanges, setHasChanges] = useState(false)
   const [activeSettingsTab, setActiveSettingsTab] = useState('profile')
+  const [shouldCrash, setShouldCrash] = useState(false)
 
   // Fantasy data for admin settings
   const {
@@ -100,6 +101,11 @@ export const UserSettingsPage = () => {
     navigate(-1)
   }
 
+  // Trigger crash for testing error boundaries (admin only)
+  if (shouldCrash) {
+    throw new Error('Admin triggered test error for error boundary verification')
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
@@ -175,6 +181,15 @@ export const UserSettingsPage = () => {
                     >
                       <Download className="mr-2 h-4 w-4" />
                       Import Schedule
+                    </Button>
+
+                    <Button
+                      variant={activeSettingsTab === 'testing' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('testing')}
+                    >
+                      <Wrench className="mr-2 h-4 w-4" />
+                      Testing Tools
                     </Button>
                   </>
                 )}
@@ -323,6 +338,65 @@ export const UserSettingsPage = () => {
             {/* Import Schedule */}
             {activeSettingsTab === 'import' && isAdmin && (
               <ScheduleImportManager />
+            )}
+
+            {/* Testing Tools - Admin Only */}
+            {activeSettingsTab === 'testing' && isAdmin && (
+              <Card className="border-orange-300">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wrench className="h-5 w-5 text-orange-600" />
+                    Testing Tools
+                  </CardTitle>
+                  <CardDescription>
+                    Admin tools for testing application functionality and error handling.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Error Boundary Testing */}
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 mb-1">Error Boundary Test</h3>
+                        <p className="text-sm text-gray-600 mb-3">
+                          Test the error boundary implementation by triggering a controlled crash. 
+                          This will verify that error boundaries are working correctly and displaying 
+                          the fallback UI with the red refresh button.
+                        </p>
+                        
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                          <p className="text-xs font-semibold text-orange-800 mb-2">
+                            ⚠️ What happens when you click "Trigger Crash":
+                          </p>
+                          <ul className="text-xs text-orange-700 space-y-1 ml-4 list-disc">
+                            <li>Component will throw an intentional error</li>
+                            <li>Error boundary will catch it and display fallback UI</li>
+                            <li>You'll see a generic error message with a red refresh button</li>
+                            <li>Click the refresh button to reload and return to normal</li>
+                          </ul>
+                        </div>
+
+                        <Button
+                          onClick={() => setShouldCrash(true)}
+                          variant="destructive"
+                          className="w-full md:w-auto"
+                        >
+                          <AlertTriangle className="mr-2 h-4 w-4" />
+                          Trigger Crash (Test Error Boundary)
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Future Testing Tools */}
+                  <div className="border-t pt-4">
+                    <div className="text-sm text-gray-500 italic">
+                      Additional testing tools can be added here as needed.
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>

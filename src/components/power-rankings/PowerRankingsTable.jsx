@@ -27,7 +27,8 @@ const PowerRankingsTable = ({
   onExportAnalytics = null,
   user = null,
   initializing = false,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [analyticsExpandedRows, setAnalyticsExpandedRows] = useState(new Set());
@@ -113,7 +114,7 @@ const PowerRankingsTable = ({
           <div className="py-4">
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <span className="font-semibold text-sm">Power Rating Component Breakdown - {getMaskedTeamName(team, user, isAdmin)}</span>
+              <span className="font-semibold text-sm">Power Rating Component Breakdown - {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</span>
               <Badge variant="outline" className="text-xs">Week {currentWeek}</Badge>
             </div>
             
@@ -273,9 +274,9 @@ const PowerRankingsTable = ({
               
               <TableCell>
                 <div className="space-y-1">
-                  <div className="font-semibold">{getMaskedTeamName(team, user, isAdmin)}</div>
+                  <div className="font-semibold">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</div>
                   {team.owner && (
-                    <div className="text-sm text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin)}</div>
+                    <div className="text-sm text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}</div>
                   )}
                   {showAdvanced && (
                     <div className="flex gap-3 text-xs text-muted-foreground mt-1">
@@ -496,6 +497,7 @@ const PowerRankingsTable = ({
                         onExportData={onExportAnalytics}
                         user={user}
                         isAdmin={isAdmin}
+                        teamOwnerNames={teamOwnerNames}
                       />
                     </div>
                   </TableCell>

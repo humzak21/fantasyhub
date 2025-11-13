@@ -18,7 +18,8 @@ const PickEmsSubmission = ({
   canSubmit = false,
   timeRemaining = null,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [picks, setPicks] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -389,8 +390,8 @@ const PickEmsSubmission = ({
                         `}
                       >
                         <div className="text-center w-full">
-                          <div className="font-medium truncate px-2">{getMaskedTeamName(game.team1, user, isAdmin)}</div>
-                          <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team1, user, isAdmin)}</div>
+                          <div className="font-medium truncate px-2">{getMaskedTeamName(game.team1, user, isAdmin, teamOwnerNames)}</div>
+                          <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team1, user, isAdmin, teamOwnerNames)}</div>
                         </div>
                       </button>
 
@@ -410,8 +411,8 @@ const PickEmsSubmission = ({
                         `}
                       >
                         <div className="text-center w-full">
-                          <div className="font-medium truncate px-2">{getMaskedTeamName(game.team2, user, isAdmin)}</div>
-                          <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team2, user, isAdmin)}</div>
+                          <div className="font-medium truncate px-2">{getMaskedTeamName(game.team2, user, isAdmin, teamOwnerNames)}</div>
+                          <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team2, user, isAdmin, teamOwnerNames)}</div>
                         </div>
                       </button>
                     </div>

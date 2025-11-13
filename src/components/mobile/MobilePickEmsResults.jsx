@@ -12,7 +12,8 @@ const MobilePickEmsResults = ({
   loading = false,
   resultsAvailable = false,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [activeView, setActiveView] = useState('weekly');
 
@@ -135,7 +136,7 @@ const MobilePickEmsResults = ({
                         </div>
                         <div>
                           <div className="font-medium text-gray-900">
-                            {getMaskedUserName(score.displayName, score.userId, user, isAdmin)}
+                            {getMaskedUserName(score.displayName, score.userId, user, isAdmin, teamOwnerNames)}
                           </div>
                           <div className="text-xs text-gray-500">
                             {score.correctPicks}/{score.totalPicks} correct
@@ -204,7 +205,7 @@ const MobilePickEmsResults = ({
           ) : (
             Object.entries(picksByUser).map(([userId, picks]) => {
               const displayName = picks[0]?.displayName;
-              const maskedName = getMaskedUserName(displayName, userId, user, isAdmin);
+              const maskedName = getMaskedUserName(displayName, userId, user, isAdmin, teamOwnerNames);
               return (
               <div key={userId} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
@@ -226,7 +227,7 @@ const MobilePickEmsResults = ({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="font-medium text-gray-900 text-sm">
-                            {getMaskedTeamName({ id: pick.team1Id, name: pick.team1Name }, user, isAdmin)} vs {getMaskedTeamName({ id: pick.team2Id, name: pick.team2Name }, user, isAdmin)}
+                            {getMaskedTeamName({ id: pick.team1Id, name: pick.team1Name }, user, isAdmin, teamOwnerNames)} vs {getMaskedTeamName({ id: pick.team2Id, name: pick.team2Name }, user, isAdmin, teamOwnerNames)}
                           </div>
                           {pick.actualWinnerName && (
                             <div className="text-xs">
@@ -236,7 +237,7 @@ const MobilePickEmsResults = ({
                                   ? 'text-green-600'
                                   : 'text-red-600'
                               }`}>
-                                {getMaskedTeamName({ id: pick.actualWinnerId, name: pick.actualWinnerName }, user, isAdmin)}
+                                {getMaskedTeamName({ id: pick.actualWinnerId, name: pick.actualWinnerName }, user, isAdmin, teamOwnerNames)}
                               </span>
                             </div>
                           )}

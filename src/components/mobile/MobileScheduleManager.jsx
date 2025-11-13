@@ -16,7 +16,8 @@ const MobileScheduleManager = ({
   powerRankings = [],
   rosters = {},
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
   const [expandedWeeks, setExpandedWeeks] = useState(new Set([currentWeek]));
@@ -157,6 +158,9 @@ const MobileScheduleManager = ({
               isAuthenticated={isAuthenticated}
               powerRankings={powerRankings}
               rosters={rosters}
+              user={user}
+              isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           )}
 
@@ -177,6 +181,9 @@ const MobileScheduleManager = ({
               isAuthenticated={isAuthenticated}
               powerRankings={powerRankings}
               rosters={rosters}
+              user={user}
+              isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           )}
         </>
@@ -194,7 +201,10 @@ const MobileWeekScheduleView = ({
   onDeleteGame,
   isAuthenticated,
   powerRankings = [],
-  rosters = {}
+  rosters = {},
+  user = null,
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   if (games.length === 0) {
     return (
@@ -227,6 +237,9 @@ const MobileWeekScheduleView = ({
           isAuthenticated={isAuthenticated}
           powerRankings={powerRankings}
           rosters={rosters}
+          user={user}
+          isAdmin={isAdmin}
+          teamOwnerNames={teamOwnerNames}
         />
       ))}
     </div>
@@ -248,7 +261,10 @@ const MobileFullScheduleView = ({
   onDeleteGame,
   isAuthenticated,
   powerRankings = [],
-  rosters = {}
+  rosters = {},
+  user = null,
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const getTeamName = (teamId) => {
     const team = teams.find(t => t.id === teamId);
@@ -319,6 +335,9 @@ const MobileFullScheduleView = ({
                         isAuthenticated={isAuthenticated}
                         powerRankings={powerRankings}
                         rosters={rosters}
+                        user={user}
+                        isAdmin={isAdmin}
+                        teamOwnerNames={teamOwnerNames}
                         compact={true}
                       />
                     ))}
@@ -342,7 +361,10 @@ const MobileGameCard = ({
   isAuthenticated,
   compact = false,
   powerRankings = [],
-  rosters = {}
+  rosters = {},
+  user = null,
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
@@ -491,7 +513,7 @@ const MobileGameCard = ({
     const stats = getTeamStats(teamId);
     const rank = getTeamRanking(teamId);
     const roster = rosters[teamId]?.roster || [];
-    const teamName = team ? getMaskedTeamName(team, user, isAdmin) : 'Unknown Team';
+    const teamName = team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown Team';
 
     return (
       <div className={`w-full p-3 rounded-lg border ${
@@ -509,7 +531,7 @@ const MobileGameCard = ({
               )}>{teamName}</h5>
               {team?.owner && (
                 <div className="text-xs text-gray-600 truncate">
-                  {getMaskedOwnerName(team, user, isAdmin)}
+                  {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                 </div>
               )}
               {/* Record */}

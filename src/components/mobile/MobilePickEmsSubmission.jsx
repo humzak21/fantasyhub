@@ -14,7 +14,8 @@ const MobilePickEmsSubmission = ({
   canSubmit = false,
   timeRemaining = null,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [picks, setPicks] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -296,7 +297,7 @@ const MobilePickEmsSubmission = ({
                           ? 'font-semibold'
                           : 'font-semibold text-gray-900'
                       }`}>
-                        {getMaskedTeamName(game.team1, user, isAdmin)}
+                        {getMaskedTeamName(game.team1, user, isAdmin, teamOwnerNames)}
                       </div>
                       <div className={`text-xs ${
                         picks[game.id]?.predictedWinnerTeamId === game.team1.id
@@ -305,7 +306,7 @@ const MobilePickEmsSubmission = ({
                             : 'text-blue-700'
                           : 'text-gray-500'
                       }`}>
-                        {getMaskedOwnerName(game.team1, user, isAdmin)}
+                        {getMaskedOwnerName(game.team1, user, isAdmin, teamOwnerNames)}
                       </div>
                     </div>
                   </button>
@@ -332,7 +333,7 @@ const MobilePickEmsSubmission = ({
                           ? 'font-semibold'
                           : 'font-semibold text-gray-900'
                       }`}>
-                        {getMaskedTeamName(game.team2, user, isAdmin)}
+                        {getMaskedTeamName(game.team2, user, isAdmin, teamOwnerNames)}
                       </div>
                       <div className={`text-xs ${
                         picks[game.id]?.predictedWinnerTeamId === game.team2.id
@@ -341,7 +342,7 @@ const MobilePickEmsSubmission = ({
                             : 'text-blue-700'
                           : 'text-gray-500'
                       }`}>
-                        {getMaskedOwnerName(game.team2, user, isAdmin)}
+                        {getMaskedOwnerName(game.team2, user, isAdmin, teamOwnerNames)}
                       </div>
                     </div>
                   </button>
@@ -359,7 +360,7 @@ const MobilePickEmsSubmission = ({
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                       <span className="text-gray-600">Your pick:</span>
                       <span className="font-medium text-green-700">
-                        {game.team1.id === picks[game.id].predictedWinnerTeamId ? getMaskedTeamName(game.team1, user, isAdmin) : getMaskedTeamName(game.team2, user, isAdmin)}
+                        {game.team1.id === picks[game.id].predictedWinnerTeamId ? getMaskedTeamName(game.team1, user, isAdmin, teamOwnerNames) : getMaskedTeamName(game.team2, user, isAdmin, teamOwnerNames)}
                       </span>
                     </div>
                   </div>

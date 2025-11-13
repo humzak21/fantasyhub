@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import { AuthProvider } from './contexts/AuthContext.jsx'
 import { DarkModeProvider } from './contexts/DarkModeContext.jsx'
+import ErrorBoundary from '../utils/errorBoundary.jsx'
 import '../globals.css'
 import '../styles/fantasy-utilities.css'
 import '../styles/dark-mode.css'
@@ -13,12 +14,14 @@ import '../styles/mobile.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter>
-      <DarkModeProvider>
-        <AuthProvider>
-          <App />
-        </AuthProvider>
-      </DarkModeProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <DarkModeProvider>
+          <AuthProvider>
+            <App />
+          </AuthProvider>
+        </DarkModeProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>,
 )

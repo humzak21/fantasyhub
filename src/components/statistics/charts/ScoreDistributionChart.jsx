@@ -43,7 +43,8 @@ const ScoreDistributionChart = ({
   data = [],
   selectedTeams = [],
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const chartData = useMemo(() => {
     if (!data.length) return [];
@@ -57,7 +58,7 @@ const ScoreDistributionChart = ({
     return filteredData
       .sort((a, b) => b.average - a.average)
       .map(team => ({
-        name: getMaskedTeamName({ id: team.teamId, name: team.teamName, owner: team.owner }, user, isAdmin),
+        name: getMaskedTeamName({ id: team.teamId, name: team.teamName, owner: team.owner }, user, isAdmin, teamOwnerNames),
         min: Math.round(team.min * 100) / 100,
         average: Math.round(team.average * 100) / 100,
         max: Math.round(team.max * 100) / 100,

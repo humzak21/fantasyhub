@@ -29,7 +29,8 @@ const TeamsAndRosters = ({
   powerRankings = [],
   isAuthenticated = false, // This now represents isAdmin from parent
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
@@ -354,7 +355,7 @@ const TeamsAndRosters = ({
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-bold truncate">{getMaskedTeamName(team, user, isAdmin)}</h3>
+                        <h3 className="text-lg font-bold truncate">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</h3>
                         {rank && (
                           <Badge variant={getRankBadgeVariant(rank)} className="gap-1 shrink-0">
                             {getRankIcon(rank)}
@@ -365,7 +366,7 @@ const TeamsAndRosters = ({
 
                       {team.owner && (
                         <div className="text-sm text-muted-foreground truncate">
-                          <strong>Owner:</strong> {getMaskedOwnerName(team, user, isAdmin)}
+                          <strong>Owner:</strong> {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                         </div>
                       )}
                     </div>

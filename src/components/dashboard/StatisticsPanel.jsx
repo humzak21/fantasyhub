@@ -15,7 +15,7 @@ import RankingsMovementChart from '../statistics/charts/RankingsMovementChart';
 import AllPlayRecordsChart from '../statistics/charts/AllPlayRecordsChart';
 import FloatingTeamFilter from '../ui/FloatingTeamFilter';
 
-const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user = null, isAdmin = false }) => {
+const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user = null, isAdmin = false, teamOwnerNames = [] }) => {
   // State management for chart filtering
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [minWeek, setMinWeek] = useState(1);
@@ -182,7 +182,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
     </div>
   );
 
-  const TeamHighlight = ({ title, team, stat, description, color = 'gray' }) => {
+  const TeamHighlight = ({ title, team, stat, description, color = 'gray', teamOwnerNames = [] }) => {
     if (!team) {
       return (
         <div className={`bg-gray-50 p-3 rounded-lg border border-gray-200`}>
@@ -196,7 +196,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
     return (
       <div className={`bg-${color}-50 p-3 rounded-lg border border-${color}-200`}>
         <div className={`text-${color}-700 font-medium text-sm mb-1`}>{title}</div>
-        <div className={`text-gray-900 dark:text-white font-bold`}>{getMaskedTeamName(team, user, isAdmin)}</div>
+        <div className={`text-gray-900 dark:text-white font-bold`}>{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</div>
         <div className={`text-${color}-600 text-sm`}>{stat}</div>
         {description && <div className={`text-${color}-500 text-xs mt-1`}>{description}</div>}
       </div>
@@ -225,6 +225,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             subtitle="Average scoring"
             icon={Zap}
             color="orange"
+            teamOwnerNames={teamOwnerNames}
           />
           <StatCard
             title="Power Range"
@@ -232,6 +233,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             subtitle="Rating spread"
             icon={Award}
             color="purple"
+            teamOwnerNames={teamOwnerNames}
           />
         </div>
       </div>
@@ -249,6 +251,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`${(highestScoringTeam?.averagePointsFor || 0).toFixed(2)} PPG`}
             description={`${(highestScoringTeam?.pointsFor || 0).toFixed(2)} total points in ${highestScoringTeam?.gamesPlayed || 0} games`}
             color="orange"
+            teamOwnerNames={teamOwnerNames}
           />
           <TeamHighlight
             title="Lowest Scoring"
@@ -256,6 +259,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`${(lowestScoringTeam?.averagePointsFor || 0).toFixed(2)} PPG`}
             description={`${(lowestScoringTeam?.pointsFor || 0).toFixed(2)} total points in ${lowestScoringTeam?.gamesPlayed || 0} games`}
             color="blue"
+            teamOwnerNames={teamOwnerNames}
           />
         </div>
       </div>
@@ -273,6 +277,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`${(bestDefense?.averagePointsAgainst || 0).toFixed(2)} PA/G`}
             description={`Allows ${(bestDefense?.pointsAgainst || 0).toFixed(2)} total points`}
             color="green"
+            teamOwnerNames={teamOwnerNames}
           />
           <TeamHighlight
             title="Worst Defense"
@@ -280,6 +285,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`${(worstDefense?.averagePointsAgainst || 0).toFixed(2)} PA/G`}
             description={`Allows ${(worstDefense?.pointsAgainst || 0).toFixed(2)} total points`}
             color="red"
+            teamOwnerNames={teamOwnerNames}
           />
         </div>
       </div>
@@ -297,6 +303,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`${mostBlowouts?.blowoutWins || 0} blowout wins`}
             description="Wins by 30+ points"
             color="purple"
+            teamOwnerNames={teamOwnerNames}
           />
           <TeamHighlight
             title="Luckiest Team"
@@ -304,6 +311,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`${((luckiestTeam?.winPercentage || 0) * 100).toFixed(2)}% win rate`}
             description="Performing above power rating"
             color="green"
+            teamOwnerNames={teamOwnerNames}
           />
           <TeamHighlight
             title="Unluckiest Team"
@@ -311,6 +319,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`${((unluckiestTeam?.winPercentage || 0) * 100).toFixed(2)}% win rate`}
             description="Performing below power rating"
             color="red"
+            teamOwnerNames={teamOwnerNames}
           />
         </div>
       </div>
@@ -329,6 +338,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`+${((toughestSchedule?.strengthOfSchedule || 0) * 100).toFixed(2)}% SOS`}
             description={`Faced opponents with ${((toughestSchedule?.opponentWinPercentage || 0) * 100).toFixed(2)}% win rate`}
             color="red"
+            teamOwnerNames={teamOwnerNames}
           />
           <TeamHighlight
             title="Easiest Schedule"
@@ -336,6 +346,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
             stat={`${((easiestSchedule?.strengthOfSchedule || 0) * 100).toFixed(2)}% SOS`}
             description={`Faced opponents with ${((easiestSchedule?.opponentWinPercentage || 0) * 100).toFixed(2)}% win rate`}
             color="green"
+            teamOwnerNames={teamOwnerNames}
           />
         </div>
       </div>
@@ -491,6 +502,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
               selectedTeams={selectedTeams}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           </div>
           */}
@@ -508,6 +520,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
               maxWeek={maxWeek}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           </div>
 
@@ -521,6 +534,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
               selectedTeams={selectedTeams}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           </div>
 
@@ -534,6 +548,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
               selectedTeams={selectedTeams}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           </div>
         </div>
@@ -564,6 +579,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
                 divisions={season?.divisions || []}
                 regularSeasonWeeks={season?.regularSeasonWeeks || 14}
                 currentWeek={currentWeek}
+                teamOwnerNames={teamOwnerNames}
               />
             </div>
           </div>
@@ -579,6 +595,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
         onToggleAllTeams={toggleAllTeams}
         user={user}
         isAdmin={isAdmin}
+        teamOwnerNames={teamOwnerNames}
       />
     </div>
   );

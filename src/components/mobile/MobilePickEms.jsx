@@ -13,7 +13,8 @@ const MobilePickEms = ({
   loading = false,
   isAuthenticated = false,
   isAdmin = false,
-  user = null
+  user = null,
+  teamOwnerNames = []
 }) => {
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
@@ -302,6 +303,8 @@ const MobilePickEms = ({
               canSubmit={pickEmStatus?.canSubmit || false}
               timeRemaining={pickEmWeek?.submissionClosesAt}
               user={user}
+              isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           )}
 
@@ -316,6 +319,7 @@ const MobilePickEms = ({
               resultsAvailable={pickEmStatus?.resultsAvailable || false}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           )}
 
@@ -329,6 +333,7 @@ const MobilePickEms = ({
               resultsAvailable={pickEmStatus?.resultsAvailable || false}
               user={user}
               isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
             />
           )}
 

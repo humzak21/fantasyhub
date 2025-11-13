@@ -8,7 +8,8 @@ const FloatingTeamFilter = ({
   onToggleTeam,
   onToggleAllTeams,
   user = null,
-  isAdmin = false
+  isAdmin = false,
+  teamOwnerNames = []
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ x: 20, y: 450 }); // Position at middle left
@@ -230,7 +231,7 @@ const FloatingTeamFilter = ({
                     className="rounded w-4 h-4 cursor-pointer flex-shrink-0"
                   />
                   <span className="truncate text-gray-700 dark:text-gray-300 flex-1 text-sm min-w-0">
-                    {getMaskedTeamName(team, user, isAdmin)}
+                    {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
                   </span>
                 </label>
               ))}

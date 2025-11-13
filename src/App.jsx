@@ -5,6 +5,7 @@ import MobileFantasyFootballApp from './components/mobile/MobileFantasyFootballA
 import { UserSettingsPage } from './components/auth/UserSettingsPage.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
 import { useMobileDetection, setMobileViewport, getMobileClasses } from '../utils/mobileDetection.js'
+import ErrorBoundary from '../utils/errorBoundary.jsx'
 
 function App() {
   const { loading } = useAuth()
@@ -55,7 +56,11 @@ function App() {
       {/* User Settings Page */}
       <Route
         path="/settings"
-        element={<UserSettingsPage />}
+        element={
+          <ErrorBoundary key="settings-error-boundary">
+            <UserSettingsPage />
+          </ErrorBoundary>
+        }
       />
 
       {/* Legacy routes - redirect to main */}
