@@ -324,6 +324,42 @@ export const filterTeamsFromChartData = (data, selectedTeamIds = []) => {
 };
 
 /**
+ * Calculate points per game for each team
+ * Used for: Points Per Game Chart (Bar)
+ */
+export const calculatePointsPerGame = (rankings = [], schedule = [], minWeek = 1, maxWeek = 999) => {
+  if (!rankings.length || !schedule.length) return [];
+
+  return rankings.map(team => {
+    let totalPoints = 0;
+    let gamesPlayed = 0;
+
+    schedule.forEach(game => {
+      if (game.isCompleted && game.week >= minWeek && game.week <= maxWeek) {
+        if (game.team1Id === team.id) {
+          totalPoints += game.team1Score;
+          gamesPlayed++;
+        } else if (game.team2Id === team.id) {
+          totalPoints += game.team2Score;
+          gamesPlayed++;
+        }
+      }
+    });
+
+    const ppg = gamesPlayed > 0 ? totalPoints / gamesPlayed : 0;
+
+    return {
+      teamId: team.id,
+      teamName: team.name,
+      owner: team.owner,
+      ppg: Math.round(ppg * 100) / 100,
+      totalPoints: Math.round(totalPoints * 100) / 100,
+      gamesPlayed
+    };
+  });
+};
+
+/**
  * Helper function to extract team metadata for chart legends
  */
 export const getTeamMetadata = (rankings = []) => {
