@@ -6,13 +6,15 @@ import {
   calculateWeeklyScoringTrends,
   calculateMarginOfVictory,
   calculateRankingMovement,
-  calculateAllPlayRecords
+  calculateAllPlayRecords,
+  calculatePointsPerGame
 } from '../../utils/chartCalculations';
 import ScoreDistributionChart from '../statistics/charts/ScoreDistributionChart';
 import WeeklyScoringTrendsChart from '../statistics/charts/WeeklyScoringTrendsChart';
 import MarginOfVictoryChart from '../statistics/charts/MarginOfVictoryChart';
 import RankingsMovementChart from '../statistics/charts/RankingsMovementChart';
 import AllPlayRecordsChart from '../statistics/charts/AllPlayRecordsChart';
+import PointsPerGameChart from '../statistics/charts/PointsPerGameChart';
 import FloatingTeamFilter from '../ui/FloatingTeamFilter';
 
 const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user = null, isAdmin = false, teamOwnerNames = [] }) => {
@@ -30,9 +32,10 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
       weeklyScoringTrends: calculateWeeklyScoringTrends(rankings, season.schedule || []),
       marginOfVictory: calculateMarginOfVictory(rankings, season.schedule || []),
       rankingMovement: [], // Will be calculated in component
-      allPlayRecords: calculateAllPlayRecords(rankings, season.schedule || [])
+      allPlayRecords: calculateAllPlayRecords(rankings, season.schedule || []),
+      pointsPerGame: calculatePointsPerGame(rankings, season.schedule || [], minWeek, maxWeek)
     };
-  }, [rankings, season]);
+  }, [rankings, season, minWeek, maxWeek]);
 
   // Handle team selection toggle
   const toggleTeamSelection = (teamId) => {
@@ -518,6 +521,20 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user =
               selectedTeams={selectedTeams}
               minWeek={minWeek}
               maxWeek={maxWeek}
+              user={user}
+              isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
+            />
+          </div>
+
+          {/* Points Per Game */}
+          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+              Points Per Game
+            </h4>
+            <PointsPerGameChart
+              data={chartData.pointsPerGame}
+              selectedTeams={selectedTeams}
               user={user}
               isAdmin={isAdmin}
               teamOwnerNames={teamOwnerNames}
