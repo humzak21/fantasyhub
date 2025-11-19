@@ -161,6 +161,8 @@ export const THRESHOLDS = {
 };
 ```
 
+SELECT refresh_league_history_views();
+
 ## Future Enhancements
 
 Potential additions could include:

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Target, RefreshCw, Award, TrendingUp } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Target, RefreshCw, Award, TrendingUp, History } from 'lucide-react';
 import { useAuth } from './src/contexts/AuthContext';
 import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
 import { getCurrentWeek } from './utils/weekCalculator.js';
@@ -31,6 +31,7 @@ import AwardsManager from './src/components/awards/AwardsManager.jsx';
 import ProjectionsManager from './src/components/projections/ProjectionsManager.jsx';
 import ResponsiveNavigation from './src/components/navigation/ResponsiveNavigation.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
+import LeagueHistoryManager from './src/components/history/LeagueHistoryManager.jsx';
 
 const FantasyFootballApp = () => {
   const { user, isAuthenticated, isAdmin } = useAuth();
@@ -296,6 +297,7 @@ const FantasyFootballApp = () => {
     { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
     { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
     { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
+    { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: true },
     { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
     { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isAwardsAccessible }
   ];
@@ -646,6 +648,19 @@ const FantasyFootballApp = () => {
               isAuthenticated={isAuthenticated}
               isAdmin={isAdmin}
               user={user}
+            />
+            </div>
+            </ErrorBoundary>
+          )}
+
+          {activeTab === 'history' && (
+            <ErrorBoundary key="history-error-boundary">
+            <div className="space-y-6">
+            <LeagueHistoryManager
+              user={user}
+              isAdmin={isAdmin}
+              teamOwnerNames={teamOwnerNames}
+              activeSeason={activeSeason}
             />
             </div>
             </ErrorBoundary>
