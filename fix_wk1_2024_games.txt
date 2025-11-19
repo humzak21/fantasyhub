@@ -1,0 +1,41 @@
+Create a SQL script to fix these 7 games in the historical_games table:
+
+9e09e5df-b205-48e8-9ad9-a1a4e6870100
+8a115507-c8b0-4db1-bfe4-fa9e51110f49
+25b03b7f-0500-43eb-965a-1dc0cd0654ce
+e3063377-89d2-4041-93aa-7ada12046847
+e114c0c2-d9b4-41ea-8ab7-068146a56af3
+067c3c51-e6e6-4b77-b670-56d6e870e278
+fa5d87c7-503b-402b-9c6f-47abcb9a82f0
+
+Make sure to calculate point_differential, is_blowout (true if point differential > 25), is_close (true if point differential is <7) for each game. 
+
+Adjust them as follows in order. Right now those 7 ids have placeholder data that you can overwrite for the columns I will state below. Overwrite them per matchup:
+
+Matchup 1:
+Humza Khalil (2024 team id: 88739bbb-16d0-4dab-b4dd-54a1f200ddbb) vs. Nikhil Sharma (04998c4a-49bb-4097-aa99-c5adfe55a2d3)
+103.76 - 107.28 (Nikhil won)
+
+Matchup 2:
+Arya Shah (618fe057-9202-40f4-841a-c99f6aec2894) vs. Pranesh Anand (2f408a35-a469-4bf0-8246-21c07d612483)
+91.26 - 138.36 (Pranesh won)
+
+Matchup 3:
+Harshil Pareek cbe63dee-8b27-480a-97b1-533c7d9d4940 vs. Anand Kanumuru 0b08332d-992f-4391-aad2-ee25a9a56cdf
+121.42 - 129.64
+
+Matchup 4:
+Sai Ravva e0486f67-4d6c-40b1-9db5-6bd5ee28c588 vs. Aaron Wadhwa 2e9cf5e6-6df1-4874-891f-6dea304ff5df
+88.18 - 76.82
+
+Matchup 5:
+Aashish Gatamaneni 6f579865-3ffd-47a8-853e-4788b018bbec vs. Aditya Penmesta a09c5586-dfe6-4538-b271-90a2d51bb013
+92.8 - 134.46
+
+Matchup 6:
+Rohit Ramki 5923c870-aa07-4a12-a4b5-5b126b3e68a0 vs. Pranav Simha b0be8350-4de3-4f75-9868-8adc900971e5
+128.34 - 117.48
+
+Matchup 7:
+Eshan Kaul 3d7bd34f-a0c2-4c2f-b6e1-8a83a1163f2d vs. Rohith Mahesh 1747d3c5-7c4b-409d-b55e-b2d25cc6efe3
+84.52 - 118.58
