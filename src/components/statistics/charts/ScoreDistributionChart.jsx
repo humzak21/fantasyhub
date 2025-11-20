@@ -81,7 +81,6 @@ const ScoreDistributionChart = ({
     <div className="w-full h-full flex flex-col">
       <ChartContainer config={{}} className="w-full" style={{ height: 520 }}>
         <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }}>
-          <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
           <XAxis
             dataKey="name"
             angle={-45}
@@ -95,7 +94,7 @@ const ScoreDistributionChart = ({
             tick={{ fontSize: 10 }}
             width={30}
           />
-          <ChartTooltip content={<CustomScoreTooltip />} />
+          <ChartTooltip content={<CustomScoreTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
           <Legend
             wrapperStyle={{ fontSize: '11px', paddingTop: '20px' }}
             height={45}

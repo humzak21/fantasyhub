@@ -22,7 +22,7 @@ import {
   ResponsiveContainer
 } from 'recharts';
 import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
-import { getMaskedFranchiseName } from '../utils/privacyHelpers';
+import { getMaskedFranchiseName, getMaskedHistoricalTeamName, canViewFullData } from '../utils/privacyHelpers';
 import { formatWinPercentage, formatPoints, formatRecord, formatYearRange, formatPlayoffFinish } from '../utils/statFormatters';
 import { TRANSACTION_COLORS } from '../../../../types/index.js';
 import { AXIS_STYLE, GRID_STYLE } from '../utils/chartHelpers';
@@ -260,7 +260,9 @@ const FranchiseProfile = ({
                           </div>
                         </TableCell>
                         <TableCell>
-                          <p className="text-sm">{season.team_name || '-'}</p>
+                          <p className="text-sm">
+                            {getMaskedHistoricalTeamName(season, user, isAdmin, teamOwnerNames)}
+                          </p>
                         </TableCell>
                         <TableCell className="text-center font-mono text-sm">
                           {formatRecord(wins, losses)}
@@ -324,7 +326,6 @@ const FranchiseProfile = ({
                 }))}
                 margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
               >
-                <CartesianGrid {...GRID_STYLE} />
                 <XAxis
                   dataKey="year"
                   style={AXIS_STYLE}
@@ -365,6 +366,7 @@ const FranchiseProfile = ({
                       </div>
                     );
                   }}
+                  cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }}
                 />
                 <Legend
                   verticalAlign="top"
@@ -424,7 +426,11 @@ const FranchiseProfile = ({
                     {rivalries.bestMatchups.map((matchup, index) => (
                       <div key={index} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
                         <div>
-                          <p className="font-semibold">{matchup.opponentName}</p>
+                          <p className="font-semibold">
+                            {canViewFullData(user, isAdmin, teamOwnerNames)
+                              ? matchup.opponentName
+                              : `Franchise ${matchup.opponentId?.substring(0, 8) || 'Unknown'}`}
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             {matchup.totalGames} games
                           </p>
@@ -454,7 +460,11 @@ const FranchiseProfile = ({
                     {rivalries.worstMatchups.map((matchup, index) => (
                       <div key={index} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
                         <div>
-                          <p className="font-semibold">{matchup.opponentName}</p>
+                          <p className="font-semibold">
+                            {canViewFullData(user, isAdmin, teamOwnerNames)
+                              ? matchup.opponentName
+                              : `Franchise ${matchup.opponentId?.substring(0, 8) || 'Unknown'}`}
+                          </p>
                           <p className="text-sm text-muted-foreground">
                             {matchup.totalGames} games
                           </p>

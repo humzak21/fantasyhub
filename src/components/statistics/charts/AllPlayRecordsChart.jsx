@@ -90,7 +90,7 @@ const AllPlayRecordsChart = ({
             tick={{ fontSize: 10 }}
             width={30}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '22px' }} height={50} />
           <ReferenceLine y={50} yAxisId="right" stroke="#999" strokeDasharray="3 3" />
 

@@ -107,7 +107,7 @@ const PointsPerGameChart = ({
             tick={{ fontSize: 10 }}
             width={30}
           />
-          <ChartTooltip content={<CustomPPGTooltip />} />
+          <ChartTooltip content={<CustomPPGTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
 
           <Bar dataKey="ppg" name="PPG" radius={[8, 8, 0, 0]}>
             {chartData.map((entry, index) => (

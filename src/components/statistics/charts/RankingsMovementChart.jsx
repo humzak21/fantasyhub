@@ -215,7 +215,6 @@ const RankingsMovementChart = ({
     <div className="w-full h-full flex flex-col">
       <ChartContainer config={{}} className="w-full" style={{ height: 360 }}>
         <LineChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
           <XAxis
             dataKey="week"
             label={{ value: 'Week', position: 'insideBottomRight', offset: -5 }}
@@ -228,7 +227,7 @@ const RankingsMovementChart = ({
             tick={{ fontSize: 10 }}
             width={30}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.3)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} height={50} />
 
           {teamIds.map((teamId, index) => {

@@ -5,7 +5,7 @@ import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/tabs';
 import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
-import { getMaskedFranchiseName } from '../utils/privacyHelpers';
+import { getMaskedFranchiseName, canViewFullData } from '../utils/privacyHelpers';
 import { formatPoints } from '../utils/statFormatters';
 
 const RecordBook = ({
@@ -47,6 +47,16 @@ const RecordBook = ({
     return getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames);
   };
 
+  // Get masked team name
+  const getMaskedTeamName = (ownerName, teamName) => {
+    if (canViewFullData(user, isAdmin, teamOwnerNames)) {
+      return teamName;
+    }
+    const franchise = franchises.find(f => f.owner_name === ownerName);
+    if (!franchise) return 'Unknown Team';
+    return `Team ${franchise.id?.substring(0, 8) || 'Unknown'}`;
+  };
+
   // Record card component
   const RecordCard = ({ title, icon: Icon, record, isNegative = false }) => {
     if (!record) return null;
@@ -63,7 +73,7 @@ const RecordBook = ({
             {getDisplayName(record.ownerName)}
           </p>
           <p className="text-xs text-muted-foreground">
-            {record.teamName} ({record.year})
+            {getMaskedTeamName(record.ownerName, record.teamName)} ({record.year})
           </p>
         </div>
       </div>

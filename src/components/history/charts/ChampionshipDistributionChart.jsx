@@ -137,7 +137,6 @@ const ChampionshipDistributionChart = ({
             data={pieChartData}
             margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
           >
-            <CartesianGrid {...GRID_STYLE} />
             <XAxis
               dataKey="name"
               angle={-45}
@@ -151,7 +150,7 @@ const ChampionshipDistributionChart = ({
               style={AXIS_STYLE}
               allowDecimals={false}
             />
-            <Tooltip content={<CustomTooltip />} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
             <Bar dataKey="value" radius={[8, 8, 0, 0]}>
               {pieChartData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
