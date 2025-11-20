@@ -297,7 +297,7 @@ const FantasyFootballApp = () => {
     { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
     { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
     { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
-    { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: true },
+    { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated && user?.user_metadata?.display_name && teamOwnerNames.includes(user.user_metadata.display_name) },
     { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
     { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isAwardsAccessible }
   ];

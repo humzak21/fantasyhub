@@ -67,6 +67,7 @@ const MarginOfVictoryChart = ({
             content={<ChartTooltipContent />}
             formatter={(value) => value.toFixed(2)}
             labelFormatter={(label) => `${label}`}
+            cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }}
           />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '2px' }} height={50} />
           <ReferenceLine x={0} stroke="#666" strokeDasharray="3 3" />

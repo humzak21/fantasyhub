@@ -104,7 +104,7 @@ const WeeklyScoringTrendsChart = ({
             tick={{ fontSize: 10 }}
             width={30}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.3)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} height={50} />
 
           {teamIds.map((teamId, index) => {

@@ -227,7 +227,6 @@ const PointsWinsDistributionChart = ({
             data={chartData.wins}
             margin={{ top: 20, right: 30, left: 20, bottom: 0 }}
           >
-            <CartesianGrid {...GRID_STYLE} />
             <XAxis
               dataKey="name"
               angle={-45}
@@ -241,7 +240,7 @@ const PointsWinsDistributionChart = ({
               style={AXIS_STYLE}
               allowDecimals={false}
             />
-            <Tooltip content={<WinsTooltip />} />
+            <Tooltip content={<WinsTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
             <Bar dataKey="totalWins" radius={[8, 8, 0, 0]}>
               {chartData.wins.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />
@@ -266,6 +265,7 @@ const PointsWinsDistributionChart = ({
                   outerRadius={125}
                   fill="#8884d8"
                   dataKey="totalPoints"
+                  stroke="none"
                 >
                   {chartData.points.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -288,6 +288,7 @@ const PointsWinsDistributionChart = ({
                   outerRadius={125}
                   fill="#8884d8"
                   dataKey="ppg"
+                  stroke="none"
                 >
                   {chartData.ppg.map((entry, index) => (
                     <Cell key={`cell-ppg-${index}`} fill={entry.color} />
@@ -321,7 +322,6 @@ const PointsWinsDistributionChart = ({
               data={chartData.transactions}
               margin={{ top: 5, right: 30, left: 20, bottom: 0 }}
             >
-              <CartesianGrid {...GRID_STYLE} />
               <XAxis
                 dataKey="name"
                 angle={-45}
@@ -335,7 +335,7 @@ const PointsWinsDistributionChart = ({
                 style={AXIS_STYLE}
                 allowDecimals={false}
               />
-              <Tooltip content={<TransactionsTooltip />} />
+              <Tooltip content={<TransactionsTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
               <Legend
                 verticalAlign="top"
                 height={36}

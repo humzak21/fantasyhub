@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '../../ui/table';
 import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
-import { getMaskedHistoricalOwnerName } from '../utils/privacyHelpers';
+import { getMaskedHistoricalOwnerName, getMaskedHistoricalTeamName } from '../utils/privacyHelpers';
 import { formatRecord, formatPoints, formatPlayoffFinish } from '../utils/statFormatters';
 
 const SeasonDetail = ({
@@ -182,7 +182,7 @@ const SeasonDetail = ({
                               {getMaskedHistoricalOwnerName(team, user, isAdmin, teamOwnerNames)}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {team.team_name}
+                              {getMaskedHistoricalTeamName(team, user, isAdmin, teamOwnerNames)}
                             </p>
                           </div>
                         </TableCell>
