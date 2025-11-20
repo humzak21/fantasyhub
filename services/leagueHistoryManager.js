@@ -1616,21 +1616,90 @@ export class LeagueHistoryManager {
    */
   async getTransactionLeaderboard() {
     try {
-      // Try materialized view first
-      const { data, error } = await this.client
+      // Get historical data from materialized view first
+      let historicalData = [];
+      const { data: mvData, error: mvError } = await this.client
         .from('mv_transaction_leaderboards')
         .select('*')
         .order('total_all_transactions', { ascending: false });
 
-      if (error) {
+      if (mvError) {
         // Fallback to direct aggregation if view doesn't exist
-        if (error.code === '42P01') {
-          return this.getTransactionLeaderboardFallback();
+        if (mvError.code === '42P01') {
+          historicalData = await this.getTransactionLeaderboardFallback();
+        } else {
+          throw mvError;
         }
-        throw error;
+      } else {
+        historicalData = mvData || [];
       }
 
-      return data || [];
+      // Get 2025 transaction data
+      const { data: data2025, error: error2025 } = await this.client
+        .from('transactions_2025')
+        .select('*');
+
+      // If no 2025 data or error, just return historical
+      if (error2025 || !data2025 || data2025.length === 0) {
+        return historicalData;
+      }
+
+      // Merge historical and 2025 data by owner_name
+      const mergedByOwner = {};
+
+      // First, add all historical data
+      historicalData.forEach(row => {
+        const ownerName = row.owner_name;
+        mergedByOwner[ownerName] = {
+          franchise_id: row.franchise_id,
+          owner_name: ownerName,
+          display_name: row.display_name,
+          total_free_agent_adds: row.total_free_agent_adds || 0,
+          total_waiver_claims: row.total_waiver_claims || 0,
+          total_trades: row.total_trades || 0,
+          total_drops: row.total_drops || 0,
+          total_all_transactions: row.total_all_transactions || 0,
+          total_faab_spent: row.total_faab_spent || 0,
+          seasons_tracked: row.seasons_tracked || 0
+        };
+      });
+
+      // Then add 2025 data
+      data2025.forEach(row => {
+        const ownerName = row.owner_name;
+        const transactions2025 = (row.free_agent_adds || 0) + (row.waiver_claims || 0) +
+                                  (row.trades || 0) + (row.drops || 0);
+
+        if (mergedByOwner[ownerName]) {
+          // Add to existing franchise
+          mergedByOwner[ownerName].total_free_agent_adds += row.free_agent_adds || 0;
+          mergedByOwner[ownerName].total_waiver_claims += row.waiver_claims || 0;
+          mergedByOwner[ownerName].total_trades += row.trades || 0;
+          mergedByOwner[ownerName].total_drops += row.drops || 0;
+          mergedByOwner[ownerName].total_all_transactions += transactions2025;
+          mergedByOwner[ownerName].total_faab_spent += row.faab_spent || 0;
+          mergedByOwner[ownerName].seasons_tracked += 1;
+        } else {
+          // New owner (only in 2025, like Anish Madala)
+          mergedByOwner[ownerName] = {
+            franchise_id: null,
+            owner_name: ownerName,
+            display_name: ownerName,
+            total_free_agent_adds: row.free_agent_adds || 0,
+            total_waiver_claims: row.waiver_claims || 0,
+            total_trades: row.trades || 0,
+            total_drops: row.drops || 0,
+            total_all_transactions: transactions2025,
+            total_faab_spent: row.faab_spent || 0,
+            seasons_tracked: 1
+          };
+        }
+      });
+
+      // Convert to array and sort by total transactions
+      return Object.values(mergedByOwner).sort((a, b) =>
+        b.total_all_transactions - a.total_all_transactions
+      );
     } catch (error) {
       console.error('Error getting transaction leaderboard:', error);
       return [];
