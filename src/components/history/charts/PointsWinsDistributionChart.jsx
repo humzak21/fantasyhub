@@ -105,8 +105,11 @@ const PointsWinsDistributionChart = ({
       .filter(t => t.total_all_transactions > 0)
       .sort((a, b) => b.total_all_transactions - a.total_all_transactions)
       .map(t => {
-        const franchise = franchises.find(f => f.id === t.franchise_id);
-        const name = getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames) || t.owner_name;
+        const franchise = t.franchise_id ? franchises.find(f => f.id === t.franchise_id) : null;
+        // Use franchise name if available, otherwise fall back to owner_name or display_name
+        const name = franchise
+          ? getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames)
+          : (t.owner_name || t.display_name || 'Unknown');
 
         return {
           name,
@@ -297,7 +300,7 @@ const PointsWinsDistributionChart = ({
         </div>
 
         {/* Shared Legend */}
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-9 px-4">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-6 px-4">
           {chartData.points.map((entry) => (
             <div key={entry.franchiseId} className="flex items-center gap-1.5">
               <div
@@ -316,14 +319,14 @@ const PointsWinsDistributionChart = ({
           <ResponsiveContainer width="100%" height={400}>
             <BarChart
               data={chartData.transactions}
-              margin={{ top: 20, right: 30, left: 20, bottom: 0 }}
+              margin={{ top: 5, right: 30, left: 20, bottom: 0 }}
             >
               <CartesianGrid {...GRID_STYLE} />
               <XAxis
                 dataKey="name"
                 angle={-45}
                 textAnchor="end"
-                height={100}
+                height={115}
                 interval={0}
                 style={AXIS_STYLE}
               />
@@ -370,7 +373,7 @@ const PointsWinsDistributionChart = ({
             <p>No transaction data available</p>
           </div>
         )}
-        <p className="text-xs text-muted-foreground text-center mt-4 italic">
+        <p className="text-xs text-muted-foreground text-center mt-0 italic">
           Note: Humza's trade count may be elevated due to league manager transactions being assigned to his account.
         </p>
       </TabsContent>
