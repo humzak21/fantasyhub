@@ -8,7 +8,7 @@
  * - STANDARD: Champion, Runner-up, 3rd Place, 4th Place
  * - REGULAR_SEASON: Best Record, Highest Points, Most Blowouts, Biggest Comeback
  * - DUBIOUS: Worst Record, Lowest Points, Most Points Against, Biggest Loss
- * - ADVANCED: Most Efficient, Most Consistent, Best Playoff Run, Unluckiest
+ * - ADVANCED: Most Consistent, Best Playoff Run, Unluckiest
  *
  * Usage:
  *   node scripts/calculateSeasonAwards.js
@@ -434,30 +434,6 @@ function calculateAdvancedAwards(teams, games, season) {
   console.log(`   📊 Calculating advanced awards...`);
 
   const awards = [];
-
-  // Highest Efficiency (points per win)
-  const teamsWithWins = teams.filter(t => t.regular_season_wins > 0);
-  const mostEfficient = teamsWithWins.reduce((best, team) => {
-    const efficiency = team.points_for / team.regular_season_wins;
-    const bestEfficiency = best ? (best.points_for / best.regular_season_wins) : 0;
-    return efficiency > bestEfficiency ? team : best;
-  }, null);
-
-  if (mostEfficient) {
-    const efficiency = mostEfficient.points_for / mostEfficient.regular_season_wins;
-    awards.push({
-      season_id: season.id,
-      franchise_id: mostEfficient.franchise_id,
-      team_id: mostEfficient.id,
-      award_category: 'advanced',
-      award_type: 'highest_efficiency',
-      award_name: 'Most Efficient Team',
-      value: efficiency,
-      value_label: `${efficiency.toFixed(2)} points per win`,
-      description: `Highest points-per-win ratio in ${season.year}`,
-      notes: null
-    });
-  }
 
   // Most Consistent (lowest standard deviation in weekly scores)
   const teamWeeklyScores = new Map();

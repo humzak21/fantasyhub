@@ -413,3 +413,119 @@ export const calculatePickEmSchedule = (weekNumber) => {
     resultsRevealAt: resultsReveal.toISOString()
   };
 };
+
+// ============================================================================
+// TRANSACTION TYPES AND DATA STRUCTURES
+// ============================================================================
+
+// Transaction type constants from ESPN API
+export const TRANSACTION_TYPES = {
+  FREE_AGENT: 'free_agent',
+  WAIVER: 'waiver',
+  TRADE: 'trade',
+  DROP: 'drop',
+  ROSTER: 'roster',
+  DRAFT: 'draft'
+};
+
+// ESPN API transaction type mappings
+export const ESPN_TRANSACTION_MAP = {
+  FREEAGENT: 'free_agent',
+  WAIVER: 'waiver',
+  WAIVER_ERROR: 'waiver_error',
+  TRADE_PROPOSAL: 'trade_proposal',
+  TRADE_ACCEPT: 'trade',
+  TRADE_DECLINE: 'trade_decline',
+  TRADE_VETO: 'trade_veto',
+  TRADE_UPHOLD: 'trade_uphold',
+  DROP: 'drop',
+  ROSTER: 'roster',
+  DRAFT: 'draft'
+};
+
+// Human-readable labels for transaction types
+export const TRANSACTION_LABELS = {
+  free_agent: 'Free Agent Adds',
+  waiver: 'Waiver Claims',
+  trade: 'Trades',
+  drop: 'Drops',
+  roster: 'Roster Moves',
+  draft: 'Draft Picks',
+  total: 'Total Transactions'
+};
+
+// Colors for transaction type charts
+export const TRANSACTION_COLORS = {
+  free_agent: '#22c55e', // green
+  waiver: '#3b82f6', // blue
+  trade: '#f59e0b', // amber
+  drop: '#ef4444', // red
+  roster: '#6366f1', // indigo
+  draft: '#8b5cf6', // violet
+  total: '#64748b' // slate
+};
+
+// Team transaction data structure (per season)
+export const createTeamTransaction = (franchiseId, seasonId, ownerName) => ({
+  id: null,
+  franchise_id: franchiseId,
+  season_id: seasonId,
+  owner_name: ownerName,
+  espn_team_id: null,
+
+  // Transaction counts by type
+  free_agent_adds: 0,
+  waiver_claims: 0,
+  trades: 0,
+  drops: 0,
+
+  // Aggregates
+  total_transactions: 0,
+  faab_spent: 0,
+
+  // Metadata
+  last_synced_at: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+});
+
+// Franchise transaction totals (all-time)
+export const createFranchiseTransactionTotals = (franchiseId, ownerName) => ({
+  franchise_id: franchiseId,
+  owner_name: ownerName,
+  total_free_agent_adds: 0,
+  total_waiver_claims: 0,
+  total_trades: 0,
+  total_drops: 0,
+  total_all_transactions: 0,
+  total_faab_spent: 0,
+  seasons_count: 0,
+  avg_transactions_per_season: 0
+});
+
+// Validation function for team transactions
+export const validateTeamTransaction = (transaction) => {
+  return transaction &&
+         typeof transaction.franchise_id !== 'undefined' &&
+         typeof transaction.season_id !== 'undefined' &&
+         typeof transaction.owner_name === 'string' &&
+         transaction.owner_name.length > 0 &&
+         typeof transaction.free_agent_adds === 'number' &&
+         typeof transaction.waiver_claims === 'number' &&
+         typeof transaction.trades === 'number' &&
+         typeof transaction.drops === 'number';
+};
+
+// Helper to calculate total transactions from individual counts
+export const calculateTotalTransactions = (transaction) => {
+  return (transaction.free_agent_adds || 0) +
+         (transaction.waiver_claims || 0) +
+         (transaction.trades || 0) +
+         (transaction.drops || 0);
+};
+
+// Helper to format transaction count with label
+export const formatTransactionCount = (type, count) => {
+  const label = TRANSACTION_LABELS[type] || type;
+  return `${count} ${label}`;
+};

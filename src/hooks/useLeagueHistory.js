@@ -476,6 +476,42 @@ export const useLeagueHistory = () => {
   }, []);
 
   /**
+   * Get all-time transaction leaderboard
+   */
+  const getTransactionLeaderboard = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await leagueHistoryManager.getTransactionLeaderboard();
+      return data || [];
+    } catch (err) {
+      console.error('Error loading transaction leaderboard:', err);
+      setError(`Failed to load transactions: ${err.message}`);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * Get transaction history for a specific franchise
+   */
+  const getFranchiseTransactionHistory = useCallback(async (franchiseId) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await leagueHistoryManager.getFranchiseTransactionHistory(franchiseId);
+      return data || [];
+    } catch (err) {
+      console.error('Error loading franchise transaction history:', err);
+      setError(`Failed to load transaction history: ${err.message}`);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
    * Initialize - load core data on mount
    */
   useEffect(() => {
@@ -607,6 +643,10 @@ export const useLeagueHistory = () => {
     getFranchisePerformanceChartData,
     getHistoricalTrendsChartData,
     getFranchiseComparisonChartData,
+
+    // Transaction methods
+    getTransactionLeaderboard,
+    getFranchiseTransactionHistory,
 
     // Utility methods
     refresh,

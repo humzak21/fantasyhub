@@ -3100,4 +3100,273 @@ export class SupabaseDataManager {
       handleSupabaseError(error, 'Update pick em week status');
     }
   }
+
+  // ============================================================================
+  // TRANSACTION MANAGEMENT
+  // ============================================================================
+
+  /**
+   * Get all-time transaction totals for all franchises
+   */
+  async getTransactionLeaderboard() {
+    await this.initialize();
+
+    try {
+      // Try to get from materialized view first
+      const { data, error } = await this.client
+        .from('mv_transaction_leaderboards')
+        .select('*')
+        .order('total_all_transactions', { ascending: false });
+
+      if (error) {
+        // Fallback to direct query if materialized view doesn't exist
+        if (error.code === '42P01') {
+          return this.getTransactionLeaderboardFallback();
+        }
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      handleSupabaseError(error, 'Get transaction leaderboard');
+      return [];
+    }
+  }
+
+  /**
+   * Fallback method to calculate transaction leaderboard from raw data
+   */
+  async getTransactionLeaderboardFallback() {
+    try {
+      const { data, error } = await this.client
+        .from('team_transactions')
+        .select(`
+          franchise_id,
+          owner_name,
+          free_agent_adds,
+          waiver_claims,
+          trades,
+          drops,
+          total_transactions,
+          faab_spent
+        `);
+
+      if (error) throw error;
+
+      // Aggregate by franchise
+      const aggregates = {};
+      (data || []).forEach(row => {
+        if (!aggregates[row.franchise_id]) {
+          aggregates[row.franchise_id] = {
+            franchise_id: row.franchise_id,
+            owner_name: row.owner_name,
+            total_free_agent_adds: 0,
+            total_waiver_claims: 0,
+            total_trades: 0,
+            total_drops: 0,
+            total_all_transactions: 0,
+            total_faab_spent: 0,
+            seasons_tracked: 0
+          };
+        }
+        aggregates[row.franchise_id].total_free_agent_adds += row.free_agent_adds || 0;
+        aggregates[row.franchise_id].total_waiver_claims += row.waiver_claims || 0;
+        aggregates[row.franchise_id].total_trades += row.trades || 0;
+        aggregates[row.franchise_id].total_drops += row.drops || 0;
+        aggregates[row.franchise_id].total_all_transactions += row.total_transactions || 0;
+        aggregates[row.franchise_id].total_faab_spent += row.faab_spent || 0;
+        aggregates[row.franchise_id].seasons_tracked += 1;
+      });
+
+      return Object.values(aggregates).sort((a, b) =>
+        b.total_all_transactions - a.total_all_transactions
+      );
+    } catch (error) {
+      handleSupabaseError(error, 'Get transaction leaderboard fallback');
+      return [];
+    }
+  }
+
+  /**
+   * Get transaction history for a specific franchise (season by season)
+   */
+  async getFranchiseTransactionHistory(franchiseId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('team_transactions')
+        .select(`
+          *,
+          season:historical_seasons (
+            id,
+            year,
+            name
+          )
+        `)
+        .eq('franchise_id', franchiseId)
+        .order('season(year)', { ascending: true });
+
+      if (error) throw error;
+
+      return (data || []).map(row => ({
+        ...row,
+        year: row.season?.year
+      }));
+    } catch (error) {
+      handleSupabaseError(error, 'Get franchise transaction history');
+      return [];
+    }
+  }
+
+  /**
+   * Get transactions for a specific season
+   */
+  async getSeasonTransactions(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('team_transactions')
+        .select(`
+          *,
+          franchise:league_franchises (
+            id,
+            owner_name,
+            display_name
+          )
+        `)
+        .eq('season_id', seasonId)
+        .order('total_transactions', { ascending: false });
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      handleSupabaseError(error, 'Get season transactions');
+      return [];
+    }
+  }
+
+  /**
+   * Upsert transaction data for a team
+   */
+  async upsertTeamTransaction(transactionData) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('team_transactions')
+        .upsert(transactionData, {
+          onConflict: 'franchise_id,season_id',
+          ignoreDuplicates: false
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return formatFromDatabase(data);
+    } catch (error) {
+      handleSupabaseError(error, 'Upsert team transaction');
+      return null;
+    }
+  }
+
+  /**
+   * Refresh transaction materialized views
+   */
+  async refreshTransactionViews() {
+    await this.initialize();
+
+    try {
+      const { error } = await this.client.rpc('refresh_transaction_views');
+
+      if (error) throw error;
+
+      return true;
+    } catch (error) {
+      // Non-fatal error - view might not exist yet
+      console.warn('Could not refresh transaction views:', error.message);
+      return false;
+    }
+  }
+
+  // ============================================================================
+  // CURRENT SEASON (2025) TRANSACTIONS
+  // ============================================================================
+
+  /**
+   * Get all current season (2025) transactions
+   */
+  async getCurrentSeasonTransactions() {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('transactions_2025')
+        .select(`
+          *,
+          team:teams (
+            id,
+            name,
+            owner_name
+          )
+        `)
+        .order('free_agent_adds', { ascending: false });
+
+      if (error) {
+        // Table might not exist yet
+        if (error.code === '42P01') {
+          return [];
+        }
+        throw error;
+      }
+
+      return (data || []).map(row => ({
+        ...row,
+        year: 2025,
+        total_transactions: (row.free_agent_adds || 0) + (row.waiver_claims || 0) +
+                           (row.trades || 0) + (row.drops || 0)
+      }));
+    } catch (error) {
+      handleSupabaseError(error, 'Get current season transactions');
+      return [];
+    }
+  }
+
+  /**
+   * Get current season (2025) transactions for a specific owner
+   */
+  async getCurrentSeasonTransactionsByOwner(ownerName) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('transactions_2025')
+        .select('*')
+        .eq('owner_name', ownerName)
+        .single();
+
+      if (error) {
+        // Table might not exist or no data for this owner
+        if (error.code === '42P01' || error.code === 'PGRST116') {
+          return null;
+        }
+        throw error;
+      }
+
+      if (!data) return null;
+
+      return {
+        ...data,
+        year: 2025,
+        total_transactions: (data.free_agent_adds || 0) + (data.waiver_claims || 0) +
+                           (data.trades || 0) + (data.drops || 0)
+      };
+    } catch (error) {
+      handleSupabaseError(error, 'Get current season transactions by owner');
+      return null;
+    }
+  }
 }

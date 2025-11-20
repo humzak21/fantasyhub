@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Trophy, TrendingUp, Users, Award, ChevronRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -6,6 +6,7 @@ import { Badge } from '../../ui/badge';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatPoints, formatWinPercentage } from '../utils/statFormatters';
 import PointsWinsDistributionChart from '../charts/PointsWinsDistributionChart';
+import { leagueHistoryManager } from '../../../../services/leagueHistoryManager';
 
 const QuickStatsPanel = ({
   franchises = [],
@@ -18,6 +19,23 @@ const QuickStatsPanel = ({
   onViewFranchise = () => {},
   onViewSeason = () => {}
 }) => {
+  // State for transaction data
+  const [transactionData, setTransactionData] = useState([]);
+
+  // Load transaction data on mount
+  useEffect(() => {
+    const loadTransactions = async () => {
+      try {
+        const data = await leagueHistoryManager.getTransactionLeaderboard();
+        setTransactionData(data || []);
+      } catch (error) {
+        console.error('Error loading transaction data:', error);
+        setTransactionData([]);
+      }
+    };
+    loadTransactions();
+  }, []);
+
   // Calculate quick stats
   const stats = useMemo(() => {
     if (!careerStats.length) return null;
@@ -241,12 +259,13 @@ const QuickStatsPanel = ({
       <div className="lg:col-span-2">
         <Card className="h-full">
           <CardHeader>
-            <CardTitle className="text-lg">All-Time Distribution</CardTitle>
+            <CardTitle className="text-lg">All-Time Statistics</CardTitle>
           </CardHeader>
           <CardContent>
             <PointsWinsDistributionChart
               careerStats={careerStats}
               franchises={franchises}
+              transactionData={transactionData}
               user={user}
               isAdmin={isAdmin}
               teamOwnerNames={teamOwnerNames}
