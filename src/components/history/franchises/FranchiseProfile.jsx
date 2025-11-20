@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Trophy, TrendingUp, Award, Calendar, Target, Users, Crown, Medal } from 'lucide-react';
+import { ArrowLeft, Trophy, TrendingUp, Award, Calendar, Target, Users, Crown, Medal, Activity } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
@@ -11,9 +11,21 @@ import {
   TableHeader,
   TableRow,
 } from '../../ui/table';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
 import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatWinPercentage, formatPoints, formatRecord, formatYearRange, formatPlayoffFinish } from '../utils/statFormatters';
+import { TRANSACTION_COLORS } from '../../../../types/index.js';
+import { AXIS_STYLE, GRID_STYLE } from '../utils/chartHelpers';
 
 const FranchiseProfile = ({
   franchise,
@@ -23,24 +35,27 @@ const FranchiseProfile = ({
   teamOwnerNames = [],
   onBack = () => {}
 }) => {
-  const { loadFranchiseHistory, getFranchiseRivalries, loading } = useLeagueHistory();
+  const { loadFranchiseHistory, getFranchiseRivalries, getFranchiseTransactionHistory, loading } = useLeagueHistory();
   const [franchiseData, setFranchiseData] = useState(null);
   const [rivalries, setRivalries] = useState(null);
+  const [transactionHistory, setTransactionHistory] = useState([]);
 
   useEffect(() => {
     const loadData = async () => {
       if (franchiseId) {
-        // Load franchise history and rivalries in parallel
-        const [historyData, rivalriesData] = await Promise.all([
+        // Load franchise history, rivalries, and transactions in parallel
+        const [historyData, rivalriesData, transactionsData] = await Promise.all([
           loadFranchiseHistory(franchiseId),
-          getFranchiseRivalries(franchiseId)
+          getFranchiseRivalries(franchiseId),
+          getFranchiseTransactionHistory(franchiseId)
         ]);
         setFranchiseData(historyData);
         setRivalries(rivalriesData);
+        setTransactionHistory(transactionsData || []);
       }
     };
     loadData();
-  }, [franchiseId, loadFranchiseHistory, getFranchiseRivalries]);
+  }, [franchiseId, loadFranchiseHistory, getFranchiseRivalries, getFranchiseTransactionHistory]);
 
   if (loading && !franchiseData) {
     return (
@@ -286,6 +301,106 @@ const FranchiseProfile = ({
           )}
         </CardContent>
       </Card>
+
+      {/* Transaction Activity Chart */}
+      {transactionHistory.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Transaction Activity by Season
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={transactionHistory.map(t => ({
+                  year: t.year,
+                  freeAgents: t.free_agent_adds || 0,
+                  waivers: t.waiver_claims || 0,
+                  trades: t.trades || 0,
+                  drops: t.drops || 0,
+                  total: t.total_transactions || 0
+                }))}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid {...GRID_STYLE} />
+                <XAxis
+                  dataKey="year"
+                  style={AXIS_STYLE}
+                />
+                <YAxis
+                  style={AXIS_STYLE}
+                  allowDecimals={false}
+                />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || !payload.length) return null;
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+                        <p className="font-semibold mb-2 text-foreground">{label} Season</p>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Free Agents:</span>
+                            <span className="font-medium text-foreground">{data.freeAgents}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Waivers:</span>
+                            <span className="font-medium text-foreground">{data.waivers}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Trades:</span>
+                            <span className="font-medium text-foreground">{data.trades}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-muted-foreground">Drops:</span>
+                            <span className="font-medium text-foreground">{data.drops}</span>
+                          </div>
+                          <div className="flex justify-between gap-4 pt-1 border-t border-border">
+                            <span className="font-medium text-foreground">Total:</span>
+                            <span className="font-bold text-foreground">{data.total}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }}
+                />
+                <Legend
+                  verticalAlign="top"
+                  height={36}
+                  iconType="rect"
+                />
+                <Bar
+                  dataKey="freeAgents"
+                  stackId="a"
+                  fill={TRANSACTION_COLORS.free_agent}
+                  name="Free Agents"
+                />
+                <Bar
+                  dataKey="waivers"
+                  stackId="a"
+                  fill={TRANSACTION_COLORS.waiver}
+                  name="Waivers"
+                />
+                <Bar
+                  dataKey="trades"
+                  stackId="a"
+                  fill={TRANSACTION_COLORS.trade}
+                  name="Trades"
+                />
+                <Bar
+                  dataKey="drops"
+                  stackId="a"
+                  fill={TRANSACTION_COLORS.drop}
+                  name="Drops"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Head-to-Head Rivalries */}
       {rivalries && (rivalries.bestMatchups?.length > 0 || rivalries.worstMatchups?.length > 0) && (

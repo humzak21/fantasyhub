@@ -7,6 +7,7 @@ dotenv.config({ path: '.env.local' });
 import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { SupabaseDataManager } from '../services/supabaseDataManager.js';
+import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
 
 // ====== CONFIGURATION ======
@@ -30,8 +31,9 @@ Arguments:
   season-id      - Your Supabase season ID (optional, uses DEFAULT_SEASON_ID if omitted)
 
 Options:
-  --skip-rosters - Skip the ESPN roster update (only update scores)
-  --skip-scores  - Skip the score update (only update rosters)
+  --skip-rosters      - Skip the ESPN roster update
+  --skip-scores       - Skip the score update
+  --skip-transactions - Skip the transaction count update
 
 Examples:
   # Full weekly update using default season ID
@@ -186,6 +188,133 @@ async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
   };
 }
 
+async function updateTransactionCounts(seasonId) {
+  console.log(`\n🔄 Updating transaction counts...`);
+
+  let dataManager;
+  try {
+    dataManager = new SupabaseDataManager();
+    await dataManager.initialize();
+  } catch (error) {
+    console.error(`❌ Failed to initialize database: ${error.message}`);
+    throw new Error('Database initialization failed');
+  }
+
+  // Get season and teams
+  const season = await dataManager.getSeason(seasonId);
+  if (!season) {
+    throw new Error(`Season ${seasonId} not found`);
+  }
+
+  // Create transaction fetcher
+  const fetcher = new ESPNTransactionFetcher(
+    config.leagueId,
+    config.seasonYear,
+    config.espnS2,
+    config.swid
+  );
+
+  // Fetch transaction summary for current season
+  const transactionSummary = await fetcher.getSeasonTransactionSummary(config.seasonYear);
+
+  if (!transactionSummary || transactionSummary.length === 0) {
+    console.warn('⚠️ No transaction data found');
+    return { updated: 0, errors: [] };
+  }
+
+  console.log(`   Found transactions for ${transactionSummary.length} teams`);
+
+  // Create ESPN team ID to database team mapping
+  const espnIdToTeam = {};
+  season.teams.forEach(team => {
+    if (team.espnTeamId) {
+      espnIdToTeam[team.espnTeamId] = team;
+    }
+  });
+
+  const updated = [];
+  const errors = [];
+
+  for (const teamData of transactionSummary) {
+    try {
+      // Match team by ESPN ID
+      const team = espnIdToTeam[teamData.espnTeamId];
+
+      if (!team) {
+        // Try matching by owner name
+        const teamByOwner = season.teams.find(t =>
+          t.ownerName === teamData.ownerName ||
+          t.name === teamData.teamName
+        );
+        if (!teamByOwner) {
+          errors.push({
+            team: teamData.ownerName,
+            error: 'Could not match team to database'
+          });
+          continue;
+        }
+      }
+
+      const teamId = team ? team.id : null;
+      if (!teamId) continue;
+
+      // Upsert transaction data
+      const { error: upsertError } = await dataManager.client
+        .from('transactions_2025')
+        .upsert({
+          team_id: teamId,
+          owner_name: teamData.ownerName,
+          espn_team_id: teamData.espnTeamId,
+          free_agent_adds: teamData.free_agent_adds,
+          waiver_claims: teamData.waiver_claims,
+          trades: teamData.trades,
+          drops: teamData.drops,
+          faab_spent: teamData.faab_spent,
+          last_synced_at: new Date().toISOString()
+        }, {
+          onConflict: 'team_id',
+          ignoreDuplicates: false
+        });
+
+      if (upsertError) {
+        throw upsertError;
+      }
+
+      updated.push({
+        owner: teamData.ownerName,
+        total: teamData.free_agent_adds + teamData.waiver_claims + teamData.trades + teamData.drops
+      });
+
+    } catch (error) {
+      errors.push({
+        team: teamData.ownerName,
+        error: error.message
+      });
+    }
+  }
+
+  console.log(`\n✅ Updated transactions for ${updated.length} teams`);
+
+  if (updated.length > 0) {
+    updated.forEach(u => {
+      console.log(`   ${u.owner}: ${u.total} total transactions`);
+    });
+  }
+
+  if (errors.length > 0) {
+    console.log(`\n❌ ${errors.length} errors:`);
+    errors.forEach(err => {
+      console.log(`   ${err.team}: ${err.error}`);
+    });
+  }
+
+  return {
+    updated: updated.length,
+    errors,
+    success: errors.length === 0
+  };
+}
+
 async function main() {
   const { seasonId, weekNumber, options } = parseArgs();
 
@@ -272,6 +401,22 @@ async function main() {
       } catch (error) {
         console.error('❌ Score update failed:', error.message);
         throw error;
+      }
+    }
+
+    // ===== UPDATE TRANSACTIONS =====
+    if (!options['skip-transactions']) {
+      console.log('\n📊 Step 3: Updating transaction counts from ESPN...');
+      try {
+        const transactionResult = await updateTransactionCounts(seasonId);
+
+        if (!transactionResult.success) {
+          console.warn('⚠️ Some transaction updates failed. Check errors above.');
+        }
+      } catch (error) {
+        console.error('❌ Transaction update failed:', error.message);
+        // Don't throw - transactions are non-critical
+        console.warn('⚠️ Continuing despite transaction update failure');
       }
     }
 

@@ -230,7 +230,7 @@ node scripts/calculateSeasonAwards.js --rebuild
 - **Standard**: Champion, Runner-up, 3rd/4th place
 - **Regular Season**: Best record, highest points, most blowouts, highest weekly score
 - **Dubious**: Worst record, lowest points, most points against, biggest loss, lowest weekly score
-- **Advanced**: Most efficient, most consistent (lowest std dev)
+- **Advanced**: Most consistent (lowest std dev)
 
 **Run this**: After importing seasons, or when recalculating awards.
 

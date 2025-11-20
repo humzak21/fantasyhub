@@ -1605,6 +1605,211 @@ export class LeagueHistoryManager {
     if (error) throw new Error(`Failed to search franchises: ${error.message}`);
     return data || [];
   }
+
+  // ============================================================================
+  // TRANSACTION METHODS
+  // ============================================================================
+
+  /**
+   * Get all-time transaction leaderboard
+   * @returns {Promise<Array>} Transaction totals per franchise
+   */
+  async getTransactionLeaderboard() {
+    try {
+      // Try materialized view first
+      const { data, error } = await this.client
+        .from('mv_transaction_leaderboards')
+        .select('*')
+        .order('total_all_transactions', { ascending: false });
+
+      if (error) {
+        // Fallback to direct aggregation if view doesn't exist
+        if (error.code === '42P01') {
+          return this.getTransactionLeaderboardFallback();
+        }
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error getting transaction leaderboard:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fallback method for transaction leaderboard
+   * @private
+   */
+  async getTransactionLeaderboardFallback() {
+    try {
+      const { data, error } = await this.client
+        .from('team_transactions')
+        .select('*');
+
+      if (error) throw error;
+
+      // Aggregate by franchise
+      const aggregates = {};
+      (data || []).forEach(row => {
+        if (!aggregates[row.franchise_id]) {
+          aggregates[row.franchise_id] = {
+            franchise_id: row.franchise_id,
+            owner_name: row.owner_name,
+            total_free_agent_adds: 0,
+            total_waiver_claims: 0,
+            total_trades: 0,
+            total_drops: 0,
+            total_all_transactions: 0,
+            total_faab_spent: 0,
+            seasons_tracked: 0
+          };
+        }
+        const agg = aggregates[row.franchise_id];
+        agg.total_free_agent_adds += row.free_agent_adds || 0;
+        agg.total_waiver_claims += row.waiver_claims || 0;
+        agg.total_trades += row.trades || 0;
+        agg.total_drops += row.drops || 0;
+        agg.total_all_transactions += row.total_transactions || 0;
+        agg.total_faab_spent += row.faab_spent || 0;
+        agg.seasons_tracked += 1;
+      });
+
+      return Object.values(aggregates).sort((a, b) =>
+        b.total_all_transactions - a.total_all_transactions
+      );
+    } catch (error) {
+      console.error('Error in transaction leaderboard fallback:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get transaction history for a specific franchise
+   * Includes both historical data and current season (2025) data
+   * @param {string} franchiseId - Franchise UUID
+   * @returns {Promise<Array>} Season-by-season transactions
+   */
+  async getFranchiseTransactionHistory(franchiseId) {
+    try {
+      // Get historical transactions
+      const { data: historicalData, error: historicalError } = await this.client
+        .from('team_transactions')
+        .select(`
+          *,
+          season:historical_seasons (
+            id,
+            year,
+            name
+          )
+        `)
+        .eq('franchise_id', franchiseId)
+        .order('season(year)', { ascending: true });
+
+      if (historicalError) throw historicalError;
+
+      const historicalTransactions = (historicalData || []).map(row => ({
+        ...row,
+        year: row.season?.year
+      }));
+
+      // Get franchise owner name to match with current season data
+      const ownerName = historicalTransactions[0]?.owner_name;
+
+      if (!ownerName) {
+        // Try to get owner name from franchise table
+        const { data: franchiseData } = await this.client
+          .from('league_franchises')
+          .select('owner_name')
+          .eq('id', franchiseId)
+          .single();
+
+        if (franchiseData?.owner_name) {
+          // Use this owner name to fetch current season data
+          const currentSeasonData = await this.getCurrentSeasonTransactionsByOwner(franchiseData.owner_name);
+          if (currentSeasonData) {
+            return [...historicalTransactions, currentSeasonData];
+          }
+        }
+        return historicalTransactions;
+      }
+
+      // Get current season (2025) transactions for this owner
+      const currentSeasonData = await this.getCurrentSeasonTransactionsByOwner(ownerName);
+
+      if (currentSeasonData) {
+        return [...historicalTransactions, currentSeasonData];
+      }
+
+      return historicalTransactions;
+    } catch (error) {
+      console.error('Error getting franchise transaction history:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get current season (2025) transactions for a specific owner
+   * @param {string} ownerName - Owner name
+   * @returns {Promise<Object|null>} Current season transactions
+   */
+  async getCurrentSeasonTransactionsByOwner(ownerName) {
+    try {
+      const { data, error } = await this.client
+        .from('transactions_2025')
+        .select('*')
+        .eq('owner_name', ownerName)
+        .single();
+
+      if (error) {
+        // Table might not exist or no data for this owner
+        if (error.code === '42P01' || error.code === 'PGRST116') {
+          return null;
+        }
+        throw error;
+      }
+
+      if (!data) return null;
+
+      return {
+        ...data,
+        year: 2025,
+        total_transactions: (data.free_agent_adds || 0) + (data.waiver_claims || 0) +
+                           (data.trades || 0) + (data.drops || 0)
+      };
+    } catch (error) {
+      console.error('Error getting current season transactions by owner:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get transaction totals for a franchise
+   * @param {string} franchiseId - Franchise UUID
+   * @returns {Promise<Object>} Transaction totals
+   */
+  async getFranchiseTransactionTotals(franchiseId) {
+    try {
+      const history = await this.getFranchiseTransactionHistory(franchiseId);
+
+      if (!history.length) return null;
+
+      return {
+        franchise_id: franchiseId,
+        owner_name: history[0]?.owner_name,
+        total_free_agent_adds: history.reduce((sum, h) => sum + (h.free_agent_adds || 0), 0),
+        total_waiver_claims: history.reduce((sum, h) => sum + (h.waiver_claims || 0), 0),
+        total_trades: history.reduce((sum, h) => sum + (h.trades || 0), 0),
+        total_drops: history.reduce((sum, h) => sum + (h.drops || 0), 0),
+        total_all_transactions: history.reduce((sum, h) => sum + (h.total_transactions || 0), 0),
+        total_faab_spent: history.reduce((sum, h) => sum + (h.faab_spent || 0), 0),
+        seasons_tracked: history.length
+      };
+    } catch (error) {
+      console.error('Error getting franchise transaction totals:', error);
+      return null;
+    }
+  }
 }
 
 // Export singleton instance
