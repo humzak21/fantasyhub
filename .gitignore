@@ -209,3 +209,34 @@ id_ed25519
 known_hosts
 authorized_keys
 *.ppk
+.env.production.local
+.env.staging
+.env.staging.local
+
+# Nested project env files
+movietracker/.env
+movietracker/backend/.env
+
+# MovieTracker build output and deps
+movietracker/dist/
+movietracker/node_modules/
+movietracker/backend/node_modules/
+
+# MovieTracker private docs and guides
+movietracker/DEVELOPMENT_GUIDE.md
+movietracker/PROJECT_SUMMARY.md
+movietracker/RAILWAY_DEPLOYMENT.md
+movietracker/railway/README.md
+movietracker/backend/railway/README.md
+movietracker/backend/README.md
+movietracker/AUTHENTICATION_SETUP.md
+movietracker/RAILWAY_OOM_FIX.md
+movietracker/STATISTICS_GUIDE.md
+movietracker/CSS_MODULARIZATION_GUIDE.md
+movietracker/PRIVATE_README.md
+movietracker/old_statistics.css
+movietracker/stats_ideas.txt
+
+# Data files in nested app
+movietracker/**/*.csv
+movietracker/**/*.xlsx
