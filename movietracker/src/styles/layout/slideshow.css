@@ -1,0 +1,197 @@
+.slideshow-container {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  margin-top: 0;
+}
+
+.slide {
+  height: 100vh;
+  width: 100%;
+}
+
+.slide-image {
+  height: 100%;
+  width: 100%;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* Black overlay for better text readability */
+.slideshow-black-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 1;
+}
+
+.slideshow-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+}
+
+.hero-content {
+  text-align: center;
+  color: white;
+  width: 100%;
+  max-width: 1200px;
+  padding: 0 20px;
+}
+
+.hero-content h1 {
+  font-size: 64px;
+  font-weight: var(--font-weight-bold);
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f0f0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Special styling for the overview title to match header logo */
+.hero-content h1.overview-title {
+  font-family: 'Razed', 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  font-size: 128px;
+  margin-bottom: -18px; /* Reduced from 16px to bring title closer to subtitle */
+}
+
+.hero-content p {
+  font-size: 20px;
+  margin-bottom: 40px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 40px;
+}
+
+/* Update stats grid for overlay */
+.slideshow-overlay .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.slideshow-overlay .stat-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  padding: 20px;
+  border-radius: 16px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.slideshow-overlay .stat-card:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Dark mode styling for slideshow overlay stat cards */
+[data-theme="dark"] .slideshow-overlay .stat-card {
+  background: rgba(28, 28, 30, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .slideshow-overlay .stat-card:hover {
+  background: rgba(44, 44, 46, 0.95);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* System preference dark mode for slideshow overlay stat cards */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .slideshow-overlay .stat-card {
+    background: rgba(28, 28, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+
+  :root:not([data-theme="light"]) .slideshow-overlay .stat-card:hover {
+    background: rgba(44, 44, 46, 0.95);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* Slick slider customizations */
+.slideshow-container .slick-slider {
+  height: 100vh;
+}
+
+.slideshow-container .slick-list {
+  height: 100vh;
+}
+
+.slideshow-container .slick-track {
+  height: 100vh;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .slideshow-container {
+    height: 100vh;
+  }
+  
+  .hero-content {
+    padding: 0 15px;
+  }
+  
+  .hero-content h1 {
+    font-size: 48px;
+  }
+  
+  .hero-content h1.overview-title {
+    font-size: 96px;
+  }
+  
+  .hero-content p {
+    font-size: 18px;
+  }
+  
+  .slideshow-overlay .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-content h1 {
+    font-size: 36px;
+  }
+  
+  .hero-content h1.overview-title {
+    font-size: 72px;
+  }
+  
+  .slideshow-overlay .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+} 
+

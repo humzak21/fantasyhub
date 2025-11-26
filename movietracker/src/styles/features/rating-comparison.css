@@ -1,0 +1,249 @@
+/* Rating Comparison Modal Styles */
+.rating-comparison-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent; /* No overlay background */
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  z-index: 10002; /* Higher than AddMovieModal */
+  padding: 20px;
+  pointer-events: none; /* Allow clicks to pass through to underlying modal */
+}
+
+.rating-comparison-modal {
+  background: var(--surface);
+  border-radius: 16px;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+  width: 280px;
+  max-height: 70vh;
+  overflow: hidden;
+  position: relative;
+  margin-left: calc(50vw - 250px - 140px); /* Position to the left of the add movie modal */
+  pointer-events: auto; /* Re-enable pointer events for the modal itself */
+  animation: slideInFromLeft 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Slide the add movie modal to the right when comparison is open */
+.add-movie-modal-overlay:has(.rating-comparison-overlay) .add-movie-modal,
+.add-movie-modal.with-comparison {
+  transform: translateX(140px);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="dark"] .rating-comparison-modal {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .rating-comparison-modal {
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.rating-comparison-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.rating-comparison-close:hover {
+  background: var(--border-light);
+  color: var(--text-primary);
+}
+
+.rating-comparison-header {
+  padding: 20px 20px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.rating-comparison-header h3 {
+  font-size: 24px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.rating-comparison-header p {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin: 0;
+}
+
+.rating-comparison-content {
+  max-height: calc(70vh - 80px);
+  overflow-y: auto;
+}
+
+.rating-comparison-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 20px;
+  text-align: center;
+}
+
+.rating-comparison-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-light);
+  border-top: 2px solid var(--primary-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.rating-comparison-error {
+  text-align: center;
+  padding: 30px 20px;
+}
+
+.rating-comparison-error p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.rating-comparison-empty {
+  text-align: center;
+  padding: 30px 20px;
+}
+
+.rating-comparison-empty p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.rating-comparison-list {
+  padding: 0;
+}
+
+.rating-comparison-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+  transition: background-color 0.2s ease;
+}
+
+.rating-comparison-item:last-child {
+  border-bottom: none;
+}
+
+.rating-comparison-item:hover {
+  background: var(--border-light);
+}
+
+[data-theme="dark"] .rating-comparison-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .rating-comparison-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+}
+
+.rating-comparison-movie-info {
+  flex: 1;
+  min-width: 0;
+  margin-right: 12px;
+}
+
+.rating-comparison-title {
+  font-size: 16px;
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.rating-comparison-year {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
+
+.rating-comparison-rating {
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--primary-blue);
+  white-space: nowrap;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .rating-comparison-overlay {
+    justify-content: center;
+    padding: 16px;
+  }
+  
+  .rating-comparison-modal {
+    width: 260px;
+    margin-left: 0;
+    animation: modalSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  /* Disable slide animation on mobile */
+  .add-movie-modal-overlay:has(.rating-comparison-overlay) .add-movie-modal,
+  .add-movie-modal.with-comparison {
+    transform: none;
+  }
+  
+  .rating-comparison-header {
+    padding: 16px 16px 10px;
+  }
+  
+  .rating-comparison-item {
+    padding: 10px 14px;
+  }
+  
+  .rating-comparison-title {
+    font-size: 12px;
+  }
+  
+  .rating-comparison-rating {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .rating-comparison-modal {
+    width: 240px;
+  }
+  
+  .rating-comparison-header {
+    padding: 14px 14px 8px;
+  }
+  
+  .rating-comparison-item {
+    padding: 8px 12px;
+  }
+}

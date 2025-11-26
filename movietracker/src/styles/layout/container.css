@@ -1,0 +1,14 @@
+.container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Ensure main content starts properly with floating header */
+main {
+  position: relative;
+}
+
+.slideshow-container + .section {
+  margin-top: 0;
+} 

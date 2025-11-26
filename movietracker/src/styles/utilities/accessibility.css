@@ -1,0 +1,83 @@
+/* Focus management for better accessibility */
+.movie-card:focus-visible {
+  outline: 2px solid var(--primary-blue);
+  outline-offset: 2px;
+}
+
+.stat-card:focus-visible {
+  outline: 2px solid var(--primary-blue);
+  outline-offset: 2px;
+  transform: translateY(-4px);
+  box-shadow: 
+    0 8px 32px var(--shadow-hover),
+    0 0 0 2px var(--primary-blue);
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .timeline-card-hidden,
+  .timeline-card-visible {
+    transition: none !important;
+  }
+
+  .timeline-card-visible:hover {
+    transform: none !important;
+  }
+}
+
+/* Ensure focus is visible for interactive elements */
+button:focus-visible,
+.nav-link:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--primary-blue);
+  outline-offset: 2px;
+}
+
+/* Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Skip link for keyboard navigation */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: var(--primary-blue);
+  color: white;
+  padding: 8px;
+  text-decoration: none;
+  z-index: 10000;
+  border-radius: 4px;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .movie-card,
+  .stat-card,
+  .btn {
+    border: 2px solid;
+  }
+  
+  .btn {
+    border-color: var(--primary-blue);
+  }
+}
+
+/* Ensure adequate color contrast */
+.text-high-contrast {
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+} 

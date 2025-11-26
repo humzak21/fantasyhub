@@ -1,0 +1,190 @@
+
+
+.dark-mode-toggle-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 10px;
+  background: transparent;
+  opacity: 0;
+  animation: fadeInToggle 0.5s ease-in-out 0.3s forwards;
+  position: relative;
+}
+
+.dark-mode-toggle-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.dark-mode-toggle-container::before {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.dark-mode-toggle-container::before {
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+.dark-mode-toggle-container {
+    padding: 40px 20px;
+  }
+
+.dark-mode-toggle-wrapper {
+  background: var(--surface);
+  padding: 16px;
+  border-radius: 50px;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 8px 32px var(--shadow);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark-mode-toggle-wrapper:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px var(--shadow-hover);
+}
+
+.dark-mode-toggle-wrapper {
+    padding: 10px 14px;
+  }
+
+.dark-mode-toggle-trigger {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 200px;
+  height: 100px;
+  z-index: 9998;
+  pointer-events: auto;
+}
+
+.dark-mode-toggle-trigger {
+    width: 150px;
+    height: 80px;
+  }
+
+.dark-mode-toggle-trigger {
+    width: 120px;
+    height: 70px;
+  }
+
+.dark-mode-toggle-pill {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 9999;
+}
+
+.dark-mode-toggle-pill-wrapper {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
+  padding: 6px 12px;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px var(--shadow);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark-mode-toggle-pill-wrapper:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px var(--shadow-hover);
+}
+
+.dark-mode-toggle-pill-wrapper {
+  background: rgba(28, 28, 30, 0.95);
+  border-color: var(--border-light);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode-toggle-pill-wrapper:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.dark-mode-toggle-pill-wrapper {
+    background: rgba(28, 28, 30, 0.95);
+    border-color: var(--border-light);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+.dark-mode-toggle-pill-wrapper:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  }
+
+.dark-mode-toggle-pill {
+    bottom: 15px;
+    left: 15px;
+  }
+
+.dark-mode-toggle-pill-wrapper {
+    padding: 5px 10px;
+  }
+
+.dark-mode-toggle-pill {
+    bottom: 10px;
+    left: 10px;
+  }
+
+.dark-mode-toggle-pill-wrapper {
+    padding: 4px 8px;
+  }
+
+.dark-mode-toggle-pill-wrapper {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-light);
+  padding: 6px 12px;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px var(--shadow);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dark-mode-toggle-pill-wrapper:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px var(--shadow-hover);
+}
+
+.dark-mode-toggle-pill-wrapper {
+  background: rgba(28, 28, 30, 0.95);
+  border-color: var(--border-light);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.dark-mode-toggle-pill-wrapper:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.dark-mode-toggle-pill-wrapper {
+    background: rgba(28, 28, 30, 0.95);
+    border-color: var(--border-light);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+
+.dark-mode-toggle-pill-wrapper:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  }
+
+.dark-mode-toggle-pill-wrapper {
+    padding: 5px 10px;
+  }
+
+.dark-mode-toggle-pill-wrapper {
+    padding: 4px 8px;
+  }
