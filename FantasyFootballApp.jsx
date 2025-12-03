@@ -81,6 +81,9 @@ const FantasyFootballApp = () => {
   const [weeklyRankings, setWeeklyRankings] = useState([]);
   const [rankingsLoading, setRankingsLoading] = useState(true);
 
+  // Awards unlock status
+  const [awardsUnlockStatus, setAwardsUnlockStatus] = useState({ votingOpenToAll: false });
+
   // Check if user has submitted picks for current week
   const checkUserPicksSubmission = async () => {
     if (!isAuthenticated || !user || !activeSeason || !currentWeek || !dataManager) {
@@ -259,10 +262,56 @@ const FantasyFootballApp = () => {
     ?.filter(week => week.isCompleted)
     ?.map(week => week.weekNumber) || [];
 
-  // Check if awards are accessible (Dec 9th midnight or admin)
+  // Load awards unlock status
+  useEffect(() => {
+    const loadAwardsStatus = async () => {
+      if (!activeSeason || !dataManager) return;
+
+      try {
+        const status = await dataManager.getAwardsUnlockStatus(activeSeason.id);
+        console.log('Loaded awards unlock status:', status);
+        setAwardsUnlockStatus(status || { votingOpenToAll: false });
+      } catch (err) {
+        console.error('Failed to load awards unlock status:', err);
+        setAwardsUnlockStatus({ votingOpenToAll: false });
+      }
+    };
+
+    loadAwardsStatus();
+  }, [activeSeason, dataManager]);
+
+  // Reload awards unlock status when switching to awards tab
+  useEffect(() => {
+    const reloadAwardsStatus = async () => {
+      if (activeTab === 'awards' && activeSeason && dataManager) {
+        try {
+          const status = await dataManager.getAwardsUnlockStatus(activeSeason.id);
+          setAwardsUnlockStatus(status || { votingOpenToAll: false });
+        } catch (err) {
+          console.error('Failed to reload awards unlock status:', err);
+        }
+      }
+    };
+
+    reloadAwardsStatus();
+  }, [activeTab, activeSeason, dataManager]);
+
+  // Check if awards are accessible
   const isAwardsAccessible = () => {
+    console.log('isAwardsAccessible check:', {
+      isAdmin,
+      isAuthenticated,
+      votingOpenToAll: awardsUnlockStatus?.votingOpenToAll,
+      awardsUnlockStatus
+    });
+
+    // Admins always have access
     if (isAdmin) return true;
-    
+
+    // Check if voting is open to all authenticated users
+    if (isAuthenticated && awardsUnlockStatus?.votingOpenToAll) return true;
+
+    // Fallback to date check (legacy support)
     const now = new Date();
     const awardsReleaseDate = new Date('2025-12-09T00:00:00');
     return now >= awardsReleaseDate;
@@ -290,17 +339,22 @@ const FantasyFootballApp = () => {
     return true; // Pickems are open
   };
 
-  // Main navigation tabs
-  const mainTabs = [
-    { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
-    { id: 'projections', label: 'Projections', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
-    { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
-    { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
-    { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
-    { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated && user?.user_metadata?.display_name && teamOwnerNames.includes(user.user_metadata.display_name) },
-    { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
-    { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isAwardsAccessible }
-  ];
+  // Main navigation tabs - use useMemo to recalculate when dependencies change
+  const mainTabs = useMemo(() => {
+    const awardsAccessible = isAwardsAccessible();
+    console.log('mainTabs computed - awardsAccessible:', awardsAccessible);
+
+    return [
+      { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
+      { id: 'projections', label: 'Projections', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
+      { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
+      { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
+      { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
+      { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated && user?.user_metadata?.display_name && teamOwnerNames.includes(user.user_metadata.display_name) },
+      { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
+      { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
+    ];
+  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, teamOwnerNames]);
 
 
 
@@ -400,8 +454,11 @@ const FantasyFootballApp = () => {
               shouldShowTab={(tab) => {
                 // Check auth requirements
                 if (tab.requiresAuth && !isAdmin) return false;
-                // Check custom access function
-                if (tab.customAccess && !tab.customAccess()) return false;
+                // Check custom access (can be boolean or function for backwards compatibility)
+                if (tab.customAccess !== undefined) {
+                  const hasAccess = typeof tab.customAccess === 'function' ? tab.customAccess() : tab.customAccess;
+                  if (!hasAccess) return false;
+                }
                 return true;
               }}
             />
@@ -648,6 +705,7 @@ const FantasyFootballApp = () => {
               isAuthenticated={isAuthenticated}
               isAdmin={isAdmin}
               user={user}
+              teamOwnerNames={teamOwnerNames}
             />
             </div>
             </ErrorBoundary>
