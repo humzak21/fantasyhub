@@ -35,14 +35,17 @@ export const getTeamOwnerNames = (teamsOrSeason) => {
   }
 
   return teams
-    .map(team => team.owner)
-    .filter(owner => owner && owner.trim() !== '');
+    .filter(team => team.owner && team.owner.trim() !== '')
+    .map(team => ({
+      ownerName: team.owner,
+      teamName: team.name
+    }));
 };
 
 /**
  * Check if a user is a team owner by comparing their name to the list of team owners
  * @param {Object} user - User object from auth context
- * @param {Array<string>} teamOwnerNames - Array of team owner names
+ * @param {Array<Object|string>} teamOwnerNames - Array of team owner names (can be strings or objects with ownerName property)
  * @returns {boolean} - Whether the user is a team owner
  */
 export const isUserATeamOwner = (user, teamOwnerNames) => {
@@ -55,9 +58,11 @@ export const isUserATeamOwner = (user, teamOwnerNames) => {
 
   // Case-insensitive comparison
   const normalizedUserName = userName.trim().toLowerCase();
-  return teamOwnerNames.some(ownerName =>
-    ownerName && ownerName.trim().toLowerCase() === normalizedUserName
-  );
+  return teamOwnerNames.some(item => {
+    // Handle both string array and object array formats
+    const ownerName = typeof item === 'string' ? item : item?.ownerName;
+    return ownerName && ownerName.trim().toLowerCase() === normalizedUserName;
+  });
 };
 
 /**
