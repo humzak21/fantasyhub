@@ -22,7 +22,7 @@ export const createPlayer = (playerId, playerName, position) => ({
   rosterSlot: null,
   acquisitionType: null,
   isActive: false,
-  
+
   // Points data
   projectedPoints: 0,
   actualPoints: 0,
@@ -31,12 +31,12 @@ export const createPlayer = (playerId, playerName, position) => ({
   gamesPlayed: 0,
   averagePointsPerGame: 0,
   projectedAverage: 0,
-  
+
   // Additional player info
   injuryStatus: 'ACTIVE',
   percentOwned: 0,
   percentStarted: 0,
-  
+
   // Sync tracking
   lastStatsSync: null,
   updatedAt: new Date().toISOString()
@@ -196,7 +196,7 @@ export const POWER_RANKING_WEIGHTS = {
   momentumScore: 0.15,
   consistencyScore: 0.15,
   clutchScore: 0.05,
-  
+
   // Legacy weights for backward compatibility (deprecated)
   winPercentage: 0.20,
   pointDifferential: 0.15,
@@ -229,11 +229,11 @@ export const THRESHOLDS = {
   badLossRankThreshold: 10,   // Losing to a team ranked this or lower
   recentFormWeeks: 3,         // Number of weeks for recent form calculation (last 3 games)
   upsetRankDifference: 3,     // Rank difference needed for upset
-  
+
   // Performance Score thresholds
   momentumThreshold: 0.10,    // L3W > L5W threshold for momentum bonus
   consistencyThreshold: 0.15, // CV threshold for consistency bonus
-  
+
   // Consistency/Variance thresholds
   eliteConsistency: 0.20,     // CV threshold for elite consistency
   highVariance: 0.35          // CV threshold for high variance penalty
@@ -241,37 +241,37 @@ export const THRESHOLDS = {
 
 // Helper functions for data validation
 export const validateTeam = (team) => {
-  return team && 
-         typeof team.id !== 'undefined' && 
-         typeof team.name === 'string' && 
-         team.name.length > 0;
+  return team &&
+    typeof team.id !== 'undefined' &&
+    typeof team.name === 'string' &&
+    team.name.length > 0;
 };
 
 export const validateGame = (game) => {
   return game &&
-         typeof game.week === 'number' &&
-         game.week > 0 &&
-         game.team1Id !== game.team2Id &&
-         (game.team1Score === null || typeof game.team1Score === 'number') &&
-         (game.team2Score === null || typeof game.team2Score === 'number');
+    typeof game.week === 'number' &&
+    game.week > 0 &&
+    game.team1Id !== game.team2Id &&
+    (game.team1Score === null || typeof game.team1Score === 'number') &&
+    (game.team2Score === null || typeof game.team2Score === 'number');
 };
 
 export const validateSeason = (season) => {
   return season &&
-         typeof season.year === 'number' &&
-         season.year > 2000 &&
-         season.leagueSize >= 4 &&
-         season.regularSeasonWeeks > 0 &&
-         season.playoffWeeks >= 0;
+    typeof season.year === 'number' &&
+    season.year > 2000 &&
+    season.leagueSize >= 4 &&
+    season.regularSeasonWeeks > 0 &&
+    season.playoffWeeks >= 0;
 };
 
 export const validateDivision = (division) => {
   return division &&
-         typeof division.seasonId !== 'undefined' &&
-         typeof division.name === 'string' &&
-         division.name.length > 0 &&
-         typeof division.displayOrder === 'number' &&
-         division.displayOrder > 0;
+    typeof division.seasonId !== 'undefined' &&
+    typeof division.name === 'string' &&
+    division.name.length > 0 &&
+    typeof division.displayOrder === 'number' &&
+    division.displayOrder > 0;
 };
 
 // Pick'ems types and constants
@@ -350,21 +350,21 @@ export const createPickEmSeasonStandings = (seasonId, totalWeeksParticipated, to
 // Validation functions for pick'ems
 export const validatePickEmWeek = (pickEmWeek) => {
   return pickEmWeek &&
-         typeof pickEmWeek.seasonId !== 'undefined' &&
-         typeof pickEmWeek.weekNumber === 'number' &&
-         pickEmWeek.weekNumber > 0 &&
-         pickEmWeek.submissionOpensAt &&
-         pickEmWeek.submissionClosesAt &&
-         pickEmWeek.resultsRevealAt &&
-         new Date(pickEmWeek.submissionOpensAt) < new Date(pickEmWeek.submissionClosesAt) &&
-         new Date(pickEmWeek.submissionClosesAt) < new Date(pickEmWeek.resultsRevealAt);
+    typeof pickEmWeek.seasonId !== 'undefined' &&
+    typeof pickEmWeek.weekNumber === 'number' &&
+    pickEmWeek.weekNumber > 0 &&
+    pickEmWeek.submissionOpensAt &&
+    pickEmWeek.submissionClosesAt &&
+    pickEmWeek.resultsRevealAt &&
+    new Date(pickEmWeek.submissionOpensAt) < new Date(pickEmWeek.submissionClosesAt) &&
+    new Date(pickEmWeek.submissionClosesAt) < new Date(pickEmWeek.resultsRevealAt);
 };
 
 export const validatePickEmSubmission = (submission) => {
   return submission &&
-         typeof submission.pickEmWeekId !== 'undefined' &&
-         typeof submission.gameId !== 'undefined' &&
-         typeof submission.predictedWinnerTeamId !== 'undefined';
+    typeof submission.pickEmWeekId !== 'undefined' &&
+    typeof submission.gameId !== 'undefined' &&
+    typeof submission.predictedWinnerTeamId !== 'undefined';
 };
 
 // Pick'ems time utilities
@@ -506,26 +506,46 @@ export const createFranchiseTransactionTotals = (franchiseId, ownerName) => ({
 // Validation function for team transactions
 export const validateTeamTransaction = (transaction) => {
   return transaction &&
-         typeof transaction.franchise_id !== 'undefined' &&
-         typeof transaction.season_id !== 'undefined' &&
-         typeof transaction.owner_name === 'string' &&
-         transaction.owner_name.length > 0 &&
-         typeof transaction.free_agent_adds === 'number' &&
-         typeof transaction.waiver_claims === 'number' &&
-         typeof transaction.trades === 'number' &&
-         typeof transaction.drops === 'number';
+    typeof transaction.franchise_id !== 'undefined' &&
+    typeof transaction.season_id !== 'undefined' &&
+    typeof transaction.owner_name === 'string' &&
+    transaction.owner_name.length > 0 &&
+    typeof transaction.free_agent_adds === 'number' &&
+    typeof transaction.waiver_claims === 'number' &&
+    typeof transaction.trades === 'number' &&
+    typeof transaction.drops === 'number';
 };
 
 // Helper to calculate total transactions from individual counts
 export const calculateTotalTransactions = (transaction) => {
   return (transaction.free_agent_adds || 0) +
-         (transaction.waiver_claims || 0) +
-         (transaction.trades || 0) +
-         (transaction.drops || 0);
+    (transaction.waiver_claims || 0) +
+    (transaction.trades || 0) +
+    (transaction.drops || 0);
 };
 
 // Helper to format transaction count with label
 export const formatTransactionCount = (type, count) => {
   const label = TRANSACTION_LABELS[type] || type;
   return `${count} ${label}`;
+};
+
+// Awards Types
+export const createAward = (seasonId, title, category, description = '', icon = 'Trophy', displayOrder = 0) => ({
+  seasonId,
+  title,
+  category, // 'voted' or 'non-voted'
+  description,
+  icon,
+  displayOrder,
+  winnerId: null,
+  winnerInfo: null,
+  votingOptions: [],
+  createdAt: new Date().toISOString()
+});
+
+export const validateAward = (award) => {
+  if (!award.seasonId || !award.title || !award.category) return false;
+  if (!['voted', 'non-voted'].includes(award.category)) return false;
+  return true;
 };
