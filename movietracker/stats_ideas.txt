@@ -1,0 +1,145 @@
+	•	Total Films Watched
+	•	Count of unique film entries marked “Watched.”
+	•	Total Viewing Sessions
+	•	Count of all entries (including repeat watches).
+	•	Films Added (Logged) This Year / Month
+	•	Number of films added to the tracker in a given calendar month or year.
+	•	Average Rating (Overall)
+	•	Arithmetic mean of all numeric ratings (e.g., 1–5 stars or 1–10 scale).
+	•	Median Rating
+	•	The middle value when all ratings are sorted.
+	•	Mode Rating
+	•	The most frequently assigned rating.
+	•	Standard Deviation of Ratings
+	•	How widely ratings vary.
+	•	Rating Histogram
+	•	Count of films at each rating value (e.g., 1★, 2★, … 5★).
+	•	Percentage of 5★, 4★, 3★, etc.
+	•	What fraction of total films each rating comprises.
+	•	Average Review Length (Word Count)
+	•	Mean number of words per written review.
+	•	First Watch Date
+	•	Earliest calendar date in which a film was marked watched.
+	•	Last Watch Date
+	•	Most recent date of a watch entry.
+	•	Watch Span
+	•	Difference between first and last watch dates (e.g., “4 years, 3 months”).
+	•	Films Watched Per Year
+	•	Year-by-year breakdown (and trend line).
+	•	Films Watched Per Month
+	•	Month-by-month counts, shown as a heat map ***********************************************************************
+	•	Daily Watch Counts
+	•	How many films were logged on each date (useful to identify binge days).
+	•	Longest Streak of Daily/Bi-weekly Watching
+	•	Maximum consecutive days/weeks with at least one film marked watched.
+	•	Average Time Gap Between Sequential Watches
+	•	Mean number of days between when two movies are logged.
+	•	Median Gap Between Watches
+	•	Middle value of days between sequential watch entries.
+	•	Longest Gap (Inactivity Period)
+	•	Maximum days between watch logs.
+	•	Shortest Gap (Binge Interval)
+	•	Minimum days between logs (often 0 days for multiple same-day watches).
+	•	Total Runtime Watched
+	•	Sum of runtime (in minutes or hours) of all watched films.
+	•	Average Runtime per Film
+	•	Mean length (minutes).
+	•	Longest Film Watched
+	•	Title and runtime (e.g., runtime ≥ 3 hours).
+	•	Shortest Film Watched
+	•	Title and runtime (e.g., shorts ≤ 40 minutes).
+	•	Total Hours Watched This Year / Month ********************************************************
+	•	Aggregate runtime for the current calendar window.
+	•	Distribution of Runtime (Bins)
+	•	Number of films in runtime buckets (e.g., <90 min, 90–120 min, 120–150 min, >150 min).
+	• Genre Constellation: Bubble chart showing genre preferences
+• Rating Galaxy: Radial chart of ratings over time
+• Movie Timeline: Interactive timeline with movie posters
+• Director Network: Network graph of favorite directors
+	•	Top Genres by Count
+	•	List (and count) of genres watched, sorted descending (e.g., Drama: 120, Comedy: 85).
+	•	Percentage of Each Genre
+	•	(Films in Genre) ÷ (Total Films Watched) × 100.
+	•	Average Rating by Genre
+	•	Mean rating for each genre (e.g., if you rated Action films slightly lower than Dramas).
+	•	Genre Diversity Index
+	•	Count of unique genres watched ÷ total possible tracked genres (a measure of how broad your tastes are).
+	•	Monthly Genre Trends
+	•	For each month, show the top genre(s) watched (e.g., Horror spikes in October).
+	•	Genre Heat Map
+	•	Two-dimensional visualization: Months on x-axis, genres on y-axis, with color intensity for counts. (Implementation: pivot table.)
+6.1 Directors
+	•	Top Directors by Watch Count
+	•	For example, if you’ve watched 20 Scorsese films, list him at top.
+	•	Average Rating by Director
+	•	How you tend to rate each director’s films (sorted descending).
+	•	Director Repeat Rate
+	•	Percentage of a director’s entire filmography you’ve watched (requires reference filmography data).
+	•	Directors Debuted in a Given Time Frame
+	•	E.g., count of unique new directors you watched for the first time this year.
+	•	Average Release Year
+	•	Mean of all film release years you’ve watched (gives sense if you skew classic vs. modern).
+	•	Median Release Year
+	•	Middle release year.
+	•	Films Watched by Decade
+	•	Count of films from 1920s, 1930s, … up to 2020s.
+	•	Percentage of Each Decade
+	•	(Count in Decade) ÷ (Total watched).
+	•	Oldest Film Watched
+	•	Title and year (e.g., Metropolis, 1927).
+	•	Newest Film Watched (Relative to Release)
+	•	Film watched most soon after its theatrical release (e.g., saw a 2025 film within 3 days).
+	•	Time Lag: Average Gap Between Release Date & Watch Date
+	•	For each film: (Watch date – Release date) in days. Then compute mean, median.
+	•	Vintage vs. Contemporary Ratio
+	•	E.g., films pre-1980 vs. post-1980 percentages.
+	•	Total Rewatches
+	•	Count of films with a watch count > 1.
+	•	Top Rewatched Films
+	•	Sorted list of films by number of times watched (e.g., The Godfather: 5).
+	•	Average Rating Change on Rewatch
+	•	If you log individual ratings per watch, compute (Rating on 2nd run – Rating on 1st run), averaged across all rewatched titles.
+	•	Rewatch Frequency Over Time
+	•	Year-by-year count of rewatch sessions (e.g., in 2024 you rewatched 15 films).
+	•	First Watch vs. Last Watch Rating Difference
+	•	For each film watched ≥ 2 times: (Last recorded rating – First rating). Use to see if your perception changes.
+	•	Percentage of Favorite Films Rewatched
+	•	If you mark “favorites,” see how many have a rewatch > 1.
+9.1 Day of Week & Time of Day
+	•	Watch Count by Day of Week
+	•	How many films you watch on Monday, Tuesday, … Sunday.
+	•	Percentage by Day of Week
+	•	Convert above to percentages to highlight preferred days (e.g., weekend binges).
+	•	Watch Count by Time Block (Requires timestamp logging)
+	•	Count of watches in morning (6 AM–12 PM), afternoon (12 PM–6 PM), evening (6 PM–12 AM), late night (12 AM–6 AM).
+	•	Average Rating by Day of Week
+	•	Did you rate films higher when you logged them on Sunday vs. Wednesday?
+
+9.2 Seasonal Patterns
+	•	Watch Count by Season
+	•	Spring/Summer/Fall/Winter counts.
+	•	Average Rating by Season
+	•	Do you tend to give higher ratings in summer?
+	•	Holiday vs. Non-Holiday Watching
+	•	If you tag entries as holiday watches (e.g., Christmas films in December), track count and average rating.
+	•	Social vs. Solo Watching
+	•	If you note “Watched with Friends” vs. “Solo,” track counts and average ratings per category.
+	•	Location Tags
+	•	e.g., “Train” “Airplane” “Theater” “IMAX, etc” Count and show which occasion yields highest average ratings.
+16. Visualization & Presentation Ideas
+	•	Dashboard Overview
+	•	Key KPIs: Total Films, Average Rating, Total Hours Watched, Top Genre, Top Director.
+	•	Interactive Timeline
+	•	A scrollable timeline with dots sized by rating or colored by genre.
+	•	Heat Map Calendar
+	•	Six years × 12 months grid showing number of films per month (color-coded from light to dark).
+	•	Bar Charts
+	•	For “Films Per Year,” “Genre Counts,” “Director Counts,” “Actor Counts.”
+	•	Pie/Donut Charts
+	•	For “Language Distribution,” “Platform Distribution,” “Genre Split.”
+	•	Line Graphs
+	•	“Cumulative Films Watched Over Time,” “Rolling 30-Day Watch Velocity,” “Average Rating Over Time.”
+	•	Network Graph
+	•	Actor co-occurrence network or collaboration graph (nodes = actors/directors, edges weighed by co-appearances).
+	•	Radar / Spider Charts
+	•	To compare your affinity scores across multiple genres or compare a single year’s metrics vs. another year.
