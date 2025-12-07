@@ -2,7 +2,8 @@ import {
   createSeason, createTeam, createGame, createWeek, createDivision,
   validateSeason, validateTeam, validateGame, validateDivision,
   createPickEmWeek, createPickEmSubmission, validatePickEmWeek, validatePickEmSubmission,
-  calculatePickEmSchedule, getPickEmTimeStatus, PICK_EM_STATUS
+  calculatePickEmSchedule, getPickEmTimeStatus, PICK_EM_STATUS,
+  createAward, validateAward
 } from '../types/index.js';
 import { handleSupabaseError, formatForDatabase, formatFromDatabase } from './supabaseClient.js';
 import { PowerRankingCalculator } from './powerRankingCalculator.js';
@@ -88,20 +89,20 @@ export class SupabaseDataManager {
       } else {
         this.isAuthenticated = true;
       }
-      
+
       // Test database connection by checking if seasons table exists
       const { data: tableTest, error: tableError } = await this.client
         .from('seasons')
         .select('count', { count: 'exact', head: true });
-      
-      
+
+
       if (tableError) {
         if (tableError.code === '42P01') {
           throw new Error('Database tables not found. Please run the database migration.');
         }
         throw tableError;
       }
-      
+
       this._initialized = true;
     } catch (error) {
       handleSupabaseError(error, 'Initialization');
@@ -110,11 +111,11 @@ export class SupabaseDataManager {
 
   // Season management
   async createSeason(year, name = '', leagueSize = 14, regularSeasonWeeks = 14, playoffWeeks = 3) {
-    
+
     await this.initialize();
-    
+
     const season = createSeason(year, name, leagueSize, regularSeasonWeeks, playoffWeeks);
-    
+
     if (!validateSeason(season)) {
       throw new Error('Invalid season data');
     }
@@ -133,14 +134,14 @@ export class SupabaseDataManager {
         playoffBracket: season.playoffBracket
       });
 
-      
+
       const { data: insertedSeason, error: seasonError } = await this.client
         .from('seasons')
         .insert(seasonData)
         .select()
         .single();
 
-      
+
       if (seasonError) throw seasonError;
 
       season.id = insertedSeason.id;
@@ -185,7 +186,7 @@ export class SupabaseDataManager {
 
   async getSeason(seasonId) {
     await this.initialize();
-    
+
     // Check cache first
     if (this.seasonsCache.has(seasonId)) {
       return this.seasonsCache.get(seasonId);
@@ -206,11 +207,11 @@ export class SupabaseDataManager {
       if (error) throw error;
 
       const formattedSeason = formatFromDatabase(data);
-      
+
       // Transform the structure to match expected format
       formattedSeason.schedule = formattedSeason.games || [];
       delete formattedSeason.games;
-      
+
       this.seasonsCache.set(seasonId, formattedSeason);
       return formattedSeason;
     } catch (error) {
@@ -220,7 +221,7 @@ export class SupabaseDataManager {
 
   async getAllSeasons() {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .from('seasons')
@@ -240,7 +241,7 @@ export class SupabaseDataManager {
         }
         return formattedSeason;
       });
-      
+
       // Update cache
       seasons.forEach(season => {
         this.seasonsCache.set(season.id, season);
@@ -254,7 +255,7 @@ export class SupabaseDataManager {
 
   async setActiveSeason(seasonId) {
     await this.initialize();
-    
+
     try {
       // Deactivate all seasons
       await this.client
@@ -275,7 +276,7 @@ export class SupabaseDataManager {
       this.activeSeasonId = seasonId;
       const formattedSeason = formatFromDatabase(data);
       this.seasonsCache.set(seasonId, formattedSeason);
-      
+
       return formattedSeason;
     } catch (error) {
       handleSupabaseError(error, 'Set active season');
@@ -284,7 +285,7 @@ export class SupabaseDataManager {
 
   async getActiveSeason() {
     await this.initialize();
-    
+
     if (this.activeSeasonId && this.seasonsCache.has(this.activeSeasonId)) {
       return this.seasonsCache.get(this.activeSeasonId);
     }
@@ -309,7 +310,7 @@ export class SupabaseDataManager {
       }
       this.activeSeasonId = formattedSeason.id;
       this.seasonsCache.set(formattedSeason.id, formattedSeason);
-      
+
       return formattedSeason;
     } catch (error) {
       handleSupabaseError(error, 'Get active season');
@@ -318,7 +319,7 @@ export class SupabaseDataManager {
 
   async deleteSeason(seasonId) {
     await this.initialize();
-    
+
     try {
       const { error } = await this.client
         .from('seasons')
@@ -341,7 +342,7 @@ export class SupabaseDataManager {
   // Team management
   async addTeamToSeason(seasonId, name, owner = '') {
     await this.initialize();
-    
+
     const team = {
       seasonId,
       name,
@@ -383,10 +384,10 @@ export class SupabaseDataManager {
       if (error) throw error;
 
       const formattedTeam = formatFromDatabase(data);
-      
+
       // Clear season cache to ensure fresh data on next fetch
       this.seasonsCache.delete(seasonId);
-      
+
       return formattedTeam;
     } catch (error) {
       handleSupabaseError(error, 'Add team');
@@ -395,41 +396,41 @@ export class SupabaseDataManager {
 
   async updateTeam(seasonId, teamId, updates) {
     await this.initialize();
-    
+
     try {
       // Separate roster data from team updates
       const { roster, ...teamUpdates } = updates;
-      
+
       // Update team record (if there are non-roster fields to update)
       let updatedTeam = null;
       if (Object.keys(teamUpdates).length > 0) {
         const formattedUpdates = formatForDatabase(teamUpdates);
-        
+
         const { data, error } = await this.client
           .from('teams')
           .update(formattedUpdates)
           .eq('id', teamId)
           .eq('season_id', seasonId)
           .select();
-          
+
         if (error) throw error;
-        
+
         if (!data || data.length === 0) {
           throw new Error(`No team found with id: ${teamId} and season_id: ${seasonId}`);
         }
-        
+
         updatedTeam = formatFromDatabase(data[0]);
       }
-      
+
       // Handle roster data using the database function
       if (roster && Array.isArray(roster)) {
         const currentWeek = updates.currentWeek || 1; // Default to week 1 if not provided
         await this.syncTeamRosterFromESPN(teamId, roster, currentWeek);
       }
-      
+
       // Clear season cache
       this.seasonsCache.delete(seasonId);
-      
+
       return updatedTeam || { id: teamId };
     } catch (error) {
       handleSupabaseError(error, 'Update team');
@@ -438,7 +439,7 @@ export class SupabaseDataManager {
 
   async syncTeamRosterFromESPN(teamId, rosterData, currentWeek = 1) {
     await this.initialize();
-    
+
     try {
       // Get the team's user_id first
       const { data: teamData, error: teamError } = await this.client
@@ -446,15 +447,15 @@ export class SupabaseDataManager {
         .select('user_id')
         .eq('id', teamId)
         .single();
-        
+
       if (teamError) throw teamError;
       if (!teamData) throw new Error(`Team not found: ${teamId}`);
-      
-      
+
+
       // Since the database function doesn't handle user_id properly with service role,
       // let's do a manual sync instead
       await this.manualSyncTeamRoster(teamId, teamData.user_id, rosterData, currentWeek);
-      
+
       return rosterData.length;
     } catch (error) {
       handleSupabaseError(error, 'Sync team roster from ESPN');
@@ -463,19 +464,19 @@ export class SupabaseDataManager {
 
   async manualSyncTeamRoster(teamId, userId, rosterData, currentWeek = 1) {
     await this.initialize();
-    
+
     try {
       // First, clear existing roster for this team
       const { error: deleteError } = await this.client
         .from('rosters')
         .delete()
         .eq('team_id', teamId);
-        
+
       if (deleteError) throw deleteError;
-      
+
       // Build roster data for bulk insert
       const rosterInserts = [];
-      
+
       for (const player of rosterData) {
         // Sync player to database first with all stats data
         const playerId = await this.syncPlayerFromESPN(
@@ -496,7 +497,7 @@ export class SupabaseDataManager {
             proTeam: player.proTeam
           }
         );
-        
+
         rosterInserts.push({
           user_id: userId,
           team_id: teamId,
@@ -507,23 +508,23 @@ export class SupabaseDataManager {
           cost: 0
         });
       }
-      
-      
+
+
       // Try disabling trigger temporarily for service role
-      
+
       const { error: disableError } = await this.client.rpc('disable_roster_trigger');
-      
+
       if (disableError) {
-        
+
         const { data, error } = await this.client
           .from('rosters')
           .insert(rosterInserts)
           .select();
-          
+
         if (error) {
           return await this.insertRosterOneByOne(rosterInserts);
         }
-        
+
         return data || rosterInserts;
       } else {
         // Trigger disabled, now insert
@@ -531,14 +532,14 @@ export class SupabaseDataManager {
           .from('rosters')
           .insert(rosterInserts)
           .select();
-          
+
         // Re-enable trigger
         await this.client.rpc('enable_roster_trigger');
-        
+
         if (error) {
           return await this.insertRosterOneByOne(rosterInserts);
         }
-        
+
         return data || rosterInserts;
       }
 
@@ -549,17 +550,17 @@ export class SupabaseDataManager {
   }
 
   async fallbackRosterInsert(rosterEntries) {
-    
+
     try {
       // Build values for bulk insert
       const insertQuery = `
         INSERT INTO rosters (user_id, team_id, player_id, roster_slot, acquisition_type, acquisition_week, cost)
-        VALUES ${rosterEntries.map((_, i) => 
-          `($${i * 7 + 1}, $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`
-        ).join(', ')}
+        VALUES ${rosterEntries.map((_, i) =>
+        `($${i * 7 + 1}, $${i * 7 + 2}, $${i * 7 + 3}, $${i * 7 + 4}, $${i * 7 + 5}, $${i * 7 + 6}, $${i * 7 + 7})`
+      ).join(', ')}
         RETURNING id;
       `;
-      
+
       const params = rosterEntries.flatMap(entry => [
         entry.user_id,
         entry.team_id,
@@ -569,38 +570,38 @@ export class SupabaseDataManager {
         entry.acquisition_week,
         entry.cost
       ]);
-      
+
       // Execute raw SQL that bypasses triggers
       const { data, error } = await this.client
         .rpc('execute_raw_sql', {
           query: insertQuery,
           parameters: params
         });
-        
+
       if (error) {
         // Last resort: Insert one by one with minimal error handling
         return await this.insertRosterOneByOne(rosterEntries);
       }
-      
+
       return data || rosterEntries;
     } catch (error) {
       return await this.insertRosterOneByOne(rosterEntries);
     }
   }
-  
+
   async insertRosterOneByOne(rosterEntries) {
     const inserted = [];
-    
+
     for (let i = 0; i < rosterEntries.length; i++) {
       const entry = rosterEntries[i];
-      
+
       try {
         const { data, error } = await this.client
           .from('rosters')
           .insert(entry)
           .select()
           .single();
-          
+
         if (error) {
         } else if (data) {
           inserted.push(data);
@@ -609,13 +610,13 @@ export class SupabaseDataManager {
       } catch (exception) {
       }
     }
-    
+
     return inserted;
   }
 
   async syncPlayerFromESPN(espnPlayerId, name, position, nflTeam, playerStats = {}) {
     await this.initialize();
-    
+
     try {
       // Build player data object
       const playerData = {
@@ -673,9 +674,9 @@ export class SupabaseDataManager {
         })
         .select('id')
         .single();
-        
+
       if (error) throw error;
-      
+
       return data.id;
     } catch (error) {
       handleSupabaseError(error, 'Sync player from ESPN');
@@ -685,16 +686,16 @@ export class SupabaseDataManager {
   // Helper function to map ESPN injury status to database-allowed values
   mapESPNInjuryStatus(espnInjuryStatus) {
     if (!espnInjuryStatus) return 'ACTIVE';
-    
+
     // Convert to uppercase and handle common ESPN injury status values
     const status = espnInjuryStatus.toString().toUpperCase().trim();
-    
+
     // Direct matches
     const validStatuses = ['ACTIVE', 'QUESTIONABLE', 'DOUBTFUL', 'OUT', 'IR', 'SUSPENDED', 'PUP'];
     if (validStatuses.includes(status)) {
       return status;
     }
-    
+
     // Handle common ESPN variations and mappings
     const statusMap = {
       'HEALTHY': 'ACTIVE',
@@ -712,7 +713,7 @@ export class SupabaseDataManager {
       'GTD': 'QUESTIONABLE', // Game Time Decision
       'GAME_TIME_DECISION': 'QUESTIONABLE'
     };
-    
+
     return statusMap[status] || 'ACTIVE'; // Default to ACTIVE for unknown statuses
   }
 
@@ -741,14 +742,14 @@ export class SupabaseDataManager {
       21: 'IR',  // IR
       23: 'FLEX' // Flex
     };
-    
+
     return slotMap[espnSlot] || 'BE';
   }
 
   // Roster management methods
   async getTeamRoster(teamId) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .from('rosters')
@@ -785,7 +786,7 @@ export class SupabaseDataManager {
 
   async getAllRosters(seasonId) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .from('rosters')
@@ -839,11 +840,11 @@ export class SupabaseDataManager {
           const slotOrder = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'D/ST', 'BE', 'IR'];
           const aSlotIndex = slotOrder.indexOf(a.rosterSlot) !== -1 ? slotOrder.indexOf(a.rosterSlot) : 999;
           const bSlotIndex = slotOrder.indexOf(b.rosterSlot) !== -1 ? slotOrder.indexOf(b.rosterSlot) : 999;
-          
+
           if (aSlotIndex !== bSlotIndex) {
             return aSlotIndex - bSlotIndex;
           }
-          
+
           // Then sort by player name
           const aName = a.player?.name || '';
           const bName = b.player?.name || '';
@@ -859,7 +860,7 @@ export class SupabaseDataManager {
 
   async getRosterStats(seasonId) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .from('rosters')
@@ -894,14 +895,14 @@ export class SupabaseDataManager {
             ir: 0
           };
         }
-        
+
         stats[teamId].totalPlayers++;
-        
+
         if (entry.player?.position) {
-          stats[teamId].positions[entry.player.position] = 
+          stats[teamId].positions[entry.player.position] =
             (stats[teamId].positions[entry.player.position] || 0) + 1;
         }
-        
+
         if (['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'D/ST'].includes(entry.roster_slot)) {
           stats[teamId].starters++;
         } else if (entry.roster_slot === 'BE') {
@@ -919,7 +920,7 @@ export class SupabaseDataManager {
 
   async getAllPlayers(seasonId = null) {
     await this.initialize();
-    
+
     try {
       let query = this.client
         .from('players')
@@ -1245,9 +1246,9 @@ export class SupabaseDataManager {
   // Game management with database functions
   async addGame(seasonId, week, team1Id, team2Id, team1Score = null, team2Score = null, type = 'regular') {
     await this.initialize();
-    
+
     const game = createGame(week, team1Id, team2Id, team1Score, team2Score, type);
-    
+
     if (!validateGame(game)) {
       throw new Error('Invalid game data');
     }
@@ -1265,9 +1266,9 @@ export class SupabaseDataManager {
 
       const { data, error } = await this.client
         .from('games')
-        .upsert(gameData, { 
+        .upsert(gameData, {
           onConflict: 'season_id,week,team1_id,team2_id',
-          ignoreDuplicates: false 
+          ignoreDuplicates: false
         })
         .select()
         .single();
@@ -1288,7 +1289,7 @@ export class SupabaseDataManager {
 
       // Clear season cache
       this.seasonsCache.delete(seasonId);
-      
+
       return formatFromDatabase(data);
     } catch (error) {
       handleSupabaseError(error, 'Add game');
@@ -1297,7 +1298,7 @@ export class SupabaseDataManager {
 
   async updateGameScore(seasonId, gameId, team1Score, team2Score) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .rpc('update_game_result', {
@@ -1310,7 +1311,7 @@ export class SupabaseDataManager {
 
       // Clear season cache
       this.seasonsCache.delete(seasonId);
-      
+
       return formatFromDatabase(data);
     } catch (error) {
       handleSupabaseError(error, 'Update game score');
@@ -1320,7 +1321,7 @@ export class SupabaseDataManager {
   // Week management
   async completeWeek(seasonId, weekNumber) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .from('weeks')
@@ -1345,7 +1346,7 @@ export class SupabaseDataManager {
 
       // Clear season cache
       this.seasonsCache.delete(seasonId);
-      
+
       return formatFromDatabase(data);
     } catch (error) {
       handleSupabaseError(error, 'Complete week');
@@ -1355,7 +1356,7 @@ export class SupabaseDataManager {
   // Analytics helpers
   async getCurrentWeek(seasonId) {
     await this.initialize();
-    
+
     try {
       // Check games table to determine completed weeks
       // A week is considered completed if all its games have scores
@@ -1386,7 +1387,7 @@ export class SupabaseDataManager {
       // Find the last completed week
       let lastCompletedWeek = 0;
       const weeks = Object.keys(weekStatus).map(Number).sort((a, b) => a - b);
-      
+
       for (const week of weeks) {
         const status = weekStatus[week];
         if (status.completed === status.total && status.total > 0) {
@@ -1408,7 +1409,7 @@ export class SupabaseDataManager {
   // Helper method to get the last completed week
   async getLastCompletedWeek(seasonId) {
     await this.initialize();
-    
+
     try {
       const currentWeek = await this.getCurrentWeek(seasonId);
       // Last completed week is current week - 1 (unless we're at week 1)
@@ -1422,7 +1423,7 @@ export class SupabaseDataManager {
   // Helper method to get all completed weeks as an array
   async getCompletedWeeks(seasonId) {
     await this.initialize();
-    
+
     try {
       // Check games table to get all completed weeks
       const { data: games, error } = await this.client
@@ -1468,7 +1469,7 @@ export class SupabaseDataManager {
 
   async getGamesForWeek(seasonId, weekNumber) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .from('games')
@@ -1488,7 +1489,7 @@ export class SupabaseDataManager {
 
   async getCompletedGames(seasonId, upToWeek = null) {
     await this.initialize();
-    
+
     try {
       let query = this.client
         .from('games')
@@ -1610,7 +1611,7 @@ export class SupabaseDataManager {
 
       // Create PowerRankingCalculator instance with divisions and regularSeasonWeeks
       const regularSeasonWeeks = season.regular_season_weeks || season.regularSeasonWeeks || 14;
-      
+
       console.log('[calculateLivePowerRankings] Creating PowerRankingCalculator:', {
         teamsCount: teamsWithRosters.length,
         divisionsCount: divisions?.length || 0,
@@ -1689,49 +1690,49 @@ export class SupabaseDataManager {
         }
 
         return {
-        teamId: team.id,
-        id: team.id,
-        name: team.name,
-        owner: team.owner,
-        rank: currentRank,
-        powerRating: team.powerRating || 0,
-        rankChange: rankChange,
-        previousRank: previousRank,
-        powerRatingComponents: team.powerRatingComponents || {
-          performanceScore: 0,
-          teamStrength: 0,
-          strengthOfSchedule: 0,
-          momentumScore: 0,
-          consistencyScore: 0,
-          injuryScore: 0,
-          clutchScore: 0,
-          allPlayWinPct: 0
-        },
-        wins: team.wins || 0,
-        losses: team.losses || 0,
-        ties: team.ties || 0,
-        pointsFor: team.pointsFor || 0,
-        pointsAgainst: team.pointsAgainst || 0,
-        winPercentage: team.winPercentage || 0,
-        pointDifferential: team.pointDifferential || 0,
-        gamesPlayed: team.gamesPlayed || 0,
-        averagePointsFor: team.averagePointsFor || 0,
-        averagePointsAgainst: team.averagePointsAgainst || 0,
-        // Add missing fields that the UI expects
-        strengthOfSchedule: team.strengthOfSchedule || 0,
-        opponentWinPercentage: team.opponentWinPercentage || 0,
-        recentForm: team.recentForm || 0,
-        currentStreak: team.currentStreak || { type: 'none', length: 0 },
-        qualityWins: team.qualityWins || 0,
-        badLosses: team.badLosses || 0,
-        blowoutWins: team.blowoutWins || 0,
-        closeWins: team.closeWins || 0,
-        closeLosses: team.closeLosses || 0,
-        // Playoff odds
-        playoffOdds: team.playoffOdds || 0
+          teamId: team.id,
+          id: team.id,
+          name: team.name,
+          owner: team.owner,
+          rank: currentRank,
+          powerRating: team.powerRating || 0,
+          rankChange: rankChange,
+          previousRank: previousRank,
+          powerRatingComponents: team.powerRatingComponents || {
+            performanceScore: 0,
+            teamStrength: 0,
+            strengthOfSchedule: 0,
+            momentumScore: 0,
+            consistencyScore: 0,
+            injuryScore: 0,
+            clutchScore: 0,
+            allPlayWinPct: 0
+          },
+          wins: team.wins || 0,
+          losses: team.losses || 0,
+          ties: team.ties || 0,
+          pointsFor: team.pointsFor || 0,
+          pointsAgainst: team.pointsAgainst || 0,
+          winPercentage: team.winPercentage || 0,
+          pointDifferential: team.pointDifferential || 0,
+          gamesPlayed: team.gamesPlayed || 0,
+          averagePointsFor: team.averagePointsFor || 0,
+          averagePointsAgainst: team.averagePointsAgainst || 0,
+          // Add missing fields that the UI expects
+          strengthOfSchedule: team.strengthOfSchedule || 0,
+          opponentWinPercentage: team.opponentWinPercentage || 0,
+          recentForm: team.recentForm || 0,
+          currentStreak: team.currentStreak || { type: 'none', length: 0 },
+          qualityWins: team.qualityWins || 0,
+          badLosses: team.badLosses || 0,
+          blowoutWins: team.blowoutWins || 0,
+          closeWins: team.closeWins || 0,
+          closeLosses: team.closeLosses || 0,
+          // Playoff odds
+          playoffOdds: team.playoffOdds || 0
         };
       }).sort((a, b) => b.powerRating - a.powerRating);
-      
+
     } catch (error) {
       handleSupabaseError(error, 'Calculate live power rankings');
       return [];
@@ -1740,22 +1741,22 @@ export class SupabaseDataManager {
 
   async getPowerRankingsForWeek(seasonId, weekNumber) {
     await this.initialize();
-    
+
     try {
       // Always calculate live rankings to ensure accuracy
       // Don't trust historical data - calculate fresh from game data
       const currentWeekRankings = await this.calculateLivePowerRankings(seasonId, weekNumber, true);
-      
+
       // Calculate previous week's rankings live to compare
       if (weekNumber > 1) {
         const previousWeekRankings = await this.calculateLivePowerRankings(seasonId, weekNumber - 1, true);
-        
+
         // Add rank changes by comparing live calculations
         currentWeekRankings.forEach(team => {
-          const prevEntry = previousWeekRankings.find(prev => 
+          const prevEntry = previousWeekRankings.find(prev =>
             prev.teamId === team.teamId || prev.id === team.id
           );
-          
+
           if (prevEntry) {
             team.previousRank = prevEntry.rank;
             team.rankChange = prevEntry.rank - team.rank; // Positive = moved up, negative = moved down
@@ -1771,7 +1772,7 @@ export class SupabaseDataManager {
           team.rankChange = 0;
         });
       }
-      
+
       return currentWeekRankings;
     } catch (error) {
       handleSupabaseError(error, 'Get power rankings for week');
@@ -1781,7 +1782,7 @@ export class SupabaseDataManager {
 
   async getPowerRankingsHistory(seasonId, weekNumber = null) {
     await this.initialize();
-    
+
     try {
       let query = this.client
         .from('power_rankings_history')
@@ -1809,11 +1810,11 @@ export class SupabaseDataManager {
 
   async saveWeeklyPowerRankingsSnapshot(seasonId, weekNumber, snapshotType = 'weekly') {
     await this.initialize();
-    
+
     try {
       // Calculate live power rankings using JavaScript PowerRankingCalculator
       const powerRankings = await this.calculateLivePowerRankings(seasonId, weekNumber);
-      
+
       if (!powerRankings || powerRankings.length === 0) {
         return 0;
       }
@@ -1832,7 +1833,7 @@ export class SupabaseDataManager {
       // Rank changes will be calculated dynamically when fetching data
       const snapshotData = powerRankings.map((team, index) => {
         const teamId = team.teamId || team.id;
-        
+
         return {
           season_id: seasonId,
           week_number: weekNumber,
@@ -1875,7 +1876,7 @@ export class SupabaseDataManager {
 
   async checkWeeklySnapshotStatus(seasonYear = 2025) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .rpc('should_trigger_weekly_snapshot', {
@@ -1893,7 +1894,7 @@ export class SupabaseDataManager {
 
   async executeWeeklySnapshotIfNeeded(seasonYear = 2025) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .rpc('execute_weekly_snapshot_if_needed', {
@@ -1911,7 +1912,7 @@ export class SupabaseDataManager {
 
   async getCurrentNFLWeek(seasonYear = 2025) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .rpc('get_current_nfl_week', {
@@ -1928,7 +1929,7 @@ export class SupabaseDataManager {
 
   async getAvailableSnapshotWeeks(seasonId) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .rpc('get_available_snapshot_weeks', {
@@ -1947,7 +1948,7 @@ export class SupabaseDataManager {
   // Schedule generation (remains mostly the same but saves to database)
   async generateRoundRobinSchedule(seasonId) {
     await this.initialize();
-    
+
     const season = await this.getSeason(seasonId);
     if (!season) {
       throw new Error('Season not found');
@@ -1955,7 +1956,7 @@ export class SupabaseDataManager {
 
     const teams = season.teams;
     const teamCount = teams.length;
-    
+
     if (teamCount % 2 !== 0) {
       throw new Error('Round robin requires even number of teams');
     }
@@ -1975,7 +1976,7 @@ export class SupabaseDataManager {
       for (let round = 0; round < rounds && week <= season.regularSeasonWeeks; round++) {
         for (let match = 0; match < matchesPerRound; match++) {
           let team1Index, team2Index;
-          
+
           if (match === 0) {
             team1Index = 0;
             team2Index = round + 1;
@@ -1986,7 +1987,7 @@ export class SupabaseDataManager {
 
           const team1 = teams[team1Index];
           const team2 = teams[team2Index];
-          
+
           if (team1 && team2) {
             games.push(formatForDatabase({
               seasonId,
@@ -2009,7 +2010,7 @@ export class SupabaseDataManager {
 
       // Clear season cache
       this.seasonsCache.delete(seasonId);
-      
+
       return data.map(formatFromDatabase);
     } catch (error) {
       handleSupabaseError(error, 'Generate schedule');
@@ -2019,24 +2020,24 @@ export class SupabaseDataManager {
   // ESPN Schedule Management Functions
   async getPendingScheduleImports() {
     await this.initialize();
-    
+
     try {
       // Check all ESPN tables to see if any data exists
       const importsCheck = await this.client
         .from('espn_schedule_imports')
         .select('*')
         .limit(5);
-      
+
       const teamsCheck = await this.client
         .from('espn_teams')
         .select('*')
         .limit(5);
-      
+
       const matchupsCheck = await this.client
         .from('espn_matchups')
         .select('*')
         .limit(5);
-      
+
       // Skip RLS by using direct query without user_id filtering
       const { data, error } = await this.client
         .from('espn_schedule_imports')
@@ -2052,18 +2053,18 @@ export class SupabaseDataManager {
         `)
         .eq('assignment_status', 'PENDING')
         .order('imported_at', { ascending: false });
-      
-      
+
+
       if (error) {
         throw error;
       }
-      
+
       // Format the data to match expected interface (id -> import_id)
       const formattedData = (data || []).map(item => ({
         ...item,
         import_id: item.id
       }));
-      
+
       return formattedData;
     } catch (error) {
       handleSupabaseError(error, 'Get pending schedule imports');
@@ -2220,33 +2221,33 @@ export class SupabaseDataManager {
 
   async getScheduleImportDetails(importId) {
     await this.initialize();
-    
+
     try {
       const { data: importData, error: importError } = await this.client
         .from('espn_schedule_imports')
         .select('*')
         .eq('id', importId)
         .single();
-      
+
       if (importError) throw importError;
-      
+
       const { data: teams, error: teamsError } = await this.client
         .from('espn_teams')
         .select('*')
         .eq('import_id', importId)
         .order('espn_team_id');
-      
+
       if (teamsError) throw teamsError;
-      
+
       const { data: matchups, error: matchupsError } = await this.client
         .from('espn_matchups')
         .select('*')
         .eq('import_id', importId)
         .order('week')
         .order('espn_matchup_id');
-      
+
       if (matchupsError) throw matchupsError;
-      
+
       return {
         import: importData,
         teams: teams || [],
@@ -2259,7 +2260,7 @@ export class SupabaseDataManager {
 
   async getAssignedSchedules(seasonId) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .from('espn_schedule_imports')
@@ -2270,9 +2271,9 @@ export class SupabaseDataManager {
         `)
         .eq('assigned_season_id', seasonId)
         .eq('assignment_status', 'ASSIGNED');
-      
+
       if (error) throw error;
-      
+
       return data || [];
     } catch (error) {
       handleSupabaseError(error, 'Get assigned schedules');
@@ -2281,7 +2282,7 @@ export class SupabaseDataManager {
 
   async rejectScheduleImport(importId, notes = null) {
     await this.initialize();
-    
+
     try {
       const { data, error } = await this.client
         .from('espn_schedule_imports')
@@ -2293,9 +2294,9 @@ export class SupabaseDataManager {
         .eq('id', importId)
         .select()
         .single();
-      
+
       if (error) throw error;
-      
+
       return data;
     } catch (error) {
       handleSupabaseError(error, 'Reject schedule import');
@@ -2538,9 +2539,9 @@ export class SupabaseDataManager {
         const { data: { user } } = await this.client.auth.getUser();
         if (user && userIds.includes(user.id)) {
           userDisplayNames[user.id] = user.user_metadata?.full_name ||
-                                      user.user_metadata?.name ||
-                                      user.email?.split('@')[0] ||
-                                      `User ${user.id.slice(0, 8)}`;
+            user.user_metadata?.name ||
+            user.email?.split('@')[0] ||
+            `User ${user.id.slice(0, 8)}`;
         }
       } catch (authError) {
         console.warn('Could not get current user details:', authError);
@@ -2648,7 +2649,7 @@ export class SupabaseDataManager {
           predictedWinnerName: formattedSubmission.predictedTeam?.name,
           actualWinnerTeamId: game?.winner_team_id,
           actualWinnerName: game?.winner_team_id === game?.team1?.id ? game?.team1?.name :
-                            game?.winner_team_id === game?.team2?.id ? game?.team2?.name : null,
+            game?.winner_team_id === game?.team2?.id ? game?.team2?.name : null,
           team1Id: game?.team1?.id,
           team2Id: game?.team2?.id,
           team1Name: game?.team1?.name,
@@ -3174,7 +3175,7 @@ export class SupabaseDataManager {
       data2025.forEach(row => {
         const ownerName = row.owner_name;
         const transactions2025 = (row.free_agent_adds || 0) + (row.waiver_claims || 0) +
-                                  (row.trades || 0) + (row.drops || 0);
+          (row.trades || 0) + (row.drops || 0);
 
         if (mergedByOwner[ownerName]) {
           // Add to existing franchise
@@ -3411,7 +3412,7 @@ export class SupabaseDataManager {
         ...row,
         year: 2025,
         total_transactions: (row.free_agent_adds || 0) + (row.waiver_claims || 0) +
-                           (row.trades || 0) + (row.drops || 0)
+          (row.trades || 0) + (row.drops || 0)
       }));
     } catch (error) {
       handleSupabaseError(error, 'Get current season transactions');
@@ -3446,11 +3447,248 @@ export class SupabaseDataManager {
         ...data,
         year: 2025,
         total_transactions: (data.free_agent_adds || 0) + (data.waiver_claims || 0) +
-                           (data.trades || 0) + (data.drops || 0)
+          (data.trades || 0) + (data.drops || 0)
       };
     } catch (error) {
       handleSupabaseError(error, 'Get current season transactions by owner');
       return null;
+    }
+  }
+
+  // Awards Management
+  async getAwards(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('awards_2025')
+        .select('*')
+        .eq('season_id', seasonId)
+        .order('display_order', { ascending: true });
+
+      if (error) throw error;
+
+      return formatFromDatabase(data || []);
+    } catch (error) {
+      handleSupabaseError(error, 'Get awards');
+    }
+  }
+
+  async createAward(seasonId, awardData) {
+    await this.initialize();
+
+    try {
+      const formattedData = formatForDatabase({
+        seasonId,
+        ...awardData
+      });
+
+      const { data, error } = await this.client
+        .from('awards_2025')
+        .insert(formattedData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return formatFromDatabase(data);
+    } catch (error) {
+      handleSupabaseError(error, 'Create award');
+    }
+  }
+
+  async updateAward(awardId, updates) {
+    await this.initialize();
+
+    try {
+      const formattedUpdates = formatForDatabase(updates);
+
+      console.log('Updating award with data:', formattedUpdates);
+
+      // First, do the update without trying to select the result
+      const { error: updateError } = await this.client
+        .from('awards_2025')
+        .update(formattedUpdates)
+        .eq('id', awardId);
+
+      if (updateError) {
+        console.error('Supabase update error:', updateError);
+        throw updateError;
+      }
+
+      // Then fetch the updated record separately
+      const { data, error: selectError } = await this.client
+        .from('awards_2025')
+        .select('*')
+        .eq('id', awardId)
+        .single();
+
+      if (selectError) {
+        console.error('Supabase select error:', selectError);
+        throw selectError;
+      }
+
+      return formatFromDatabase(data);
+    } catch (error) {
+      handleSupabaseError(error, 'Update award');
+    }
+  }
+
+  async deleteAward(awardId) {
+    await this.initialize();
+
+    try {
+      const { error } = await this.client
+        .from('awards_2025')
+        .delete()
+        .eq('id', awardId);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      handleSupabaseError(error, 'Delete award');
+    }
+  }
+
+  async getUserVotes(seasonId, userId) {
+    await this.initialize();
+
+    try {
+      // Join with awards to filter by season
+      const { data, error } = await this.client
+        .from('award_votes')
+        .select('*, awards_2025!inner(season_id)')
+        .eq('user_id', userId)
+        .eq('awards_2025.season_id', seasonId);
+
+      if (error) throw error;
+
+      return formatFromDatabase(data || []);
+    } catch (error) {
+      handleSupabaseError(error, 'Get user votes');
+    }
+  }
+
+  async submitAwardVotes(seasonId, votes) {
+    await this.initialize();
+
+    try {
+      const userId = (await this.client.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error('User not authenticated');
+
+      const formattedVotes = votes.map(vote => ({
+        award_id: vote.awardId,
+        user_id: userId,
+        vote_value: vote.voteValue,
+        updated_at: new Date().toISOString()
+      }));
+
+      const { data, error } = await this.client
+        .from('award_votes')
+        .upsert(formattedVotes, {
+          onConflict: 'award_id,user_id'
+        })
+        .select();
+
+      if (error) throw error;
+
+      return formatFromDatabase(data);
+    } catch (error) {
+      handleSupabaseError(error, 'Submit award votes');
+    }
+  }
+
+  async getAwardsUnlockStatus(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .rpc('check_awards_unlock_status', { season_id_param: seasonId });
+
+      if (error) throw error;
+
+      // Format the result from snake_case to camelCase
+      return formatFromDatabase(data);
+    } catch (error) {
+      handleSupabaseError(error, 'Get awards unlock status');
+    }
+  }
+
+  async releaseAwardResults(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('awards_metadata')
+        .upsert({
+          season_id: seasonId,
+          results_released: true,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return data;
+    } catch (error) {
+      handleSupabaseError(error, 'Release award results');
+    }
+  }
+
+  async toggleVotingAccess(seasonId, votingOpenToAll) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('awards_metadata')
+        .upsert({
+          season_id: seasonId,
+          voting_open_to_all: votingOpenToAll,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return data;
+    } catch (error) {
+      handleSupabaseError(error, 'Toggle voting access');
+    }
+  }
+
+  async getAwardResults(seasonId) {
+    await this.initialize();
+
+    try {
+      // Get all votes for the season
+      const { data, error } = await this.client
+        .from('award_votes')
+        .select(`
+          vote_value,
+          award_id,
+          awards_2025!inner(season_id)
+        `)
+        .eq('awards_2025.season_id', seasonId);
+
+      if (error) throw error;
+
+      // Aggregate results in memory (or could do via RPC)
+      const results = {};
+      data.forEach(vote => {
+        if (!results[vote.award_id]) {
+          results[vote.award_id] = {};
+        }
+        if (!results[vote.award_id][vote.vote_value]) {
+          results[vote.award_id][vote.vote_value] = 0;
+        }
+        results[vote.award_id][vote.vote_value]++;
+      });
+
+      return results;
+    } catch (error) {
+      handleSupabaseError(error, 'Get award results');
     }
   }
 }
