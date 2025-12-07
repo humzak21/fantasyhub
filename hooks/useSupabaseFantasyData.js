@@ -490,12 +490,7 @@ export const useSupabaseFantasyData = () => {
           .single()
       ]);
 
-      console.log('[useSupabaseFantasyData] Fetched data for power rankings:', {
-        teamsCount: teams.data?.length || 0,
-        divisionsCount: divisions.data?.length || 0,
-        gamesCount: games.data?.length || 0,
-        regularSeasonWeeks: season.data?.regular_season_weeks || season.data?.regularSeasonWeeks || 14
-      });
+
 
       // Get previous week's rankings for rank change calculation
       let previousRankings = null;

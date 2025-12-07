@@ -23,38 +23,24 @@ export class PlayoffOddsCalculator {
   calculateAllPlayoffOdds() {
     const playoffOdds = new Map();
 
-    // Debug logging
-    console.log('[PlayoffOdds] Starting calculation:', {
-      teamsCount: this.teams.length,
-      divisionsCount: this.divisions.length,
-      currentWeek: this.currentWeek,
-      regularSeasonWeeks: this.regularSeasonWeeks,
-      sampleTeam: this.teams[0]
-    });
+
 
     // Group teams by division
     const teamsByDivision = this.groupTeamsByDivision();
 
-    console.log('[PlayoffOdds] Teams grouped by division:', {
-      divisionCount: teamsByDivision.size,
-      divisions: Array.from(teamsByDivision.entries()).map(([divId, teams]) => ({
-        divisionId: divId,
-        teamCount: teams.length,
-        teamNames: teams.map(t => t.name)
-      }))
-    });
+
 
     // Calculate odds for each division
     for (const [divisionId, divisionTeams] of teamsByDivision.entries()) {
       const divisionOdds = this.calculateDivisionPlayoffOdds(divisionTeams);
-      
+
       // Store odds in the map
       for (const [teamId, odds] of divisionOdds.entries()) {
         playoffOdds.set(teamId, odds);
       }
     }
 
-    console.log('[PlayoffOdds] Final odds calculated:', Array.from(playoffOdds.entries()));
+
 
     return playoffOdds;
   }
@@ -66,29 +52,21 @@ export class PlayoffOddsCalculator {
   groupTeamsByDivision() {
     const teamsByDivision = new Map();
 
-    console.log('[PlayoffOdds] Grouping teams by division:', {
-      teamsCount: this.teams.length,
-      sampleTeamFields: this.teams[0] ? Object.keys(this.teams[0]) : [],
-      sampleTeamDivisionId: this.teams[0]?.divisionId,
-      sampleTeamDivision_id: this.teams[0]?.division_id
-    });
+
 
     for (const team of this.teams) {
       const divisionId = team.divisionId || team.division_id || 'unassigned';
-      
-      console.log(`[PlayoffOdds] Team "${team.name}" -> Division: ${divisionId}`);
-      
+
+
+
       if (!teamsByDivision.has(divisionId)) {
         teamsByDivision.set(divisionId, []);
       }
-      
+
       teamsByDivision.get(divisionId).push(team);
     }
 
-    console.log('[PlayoffOdds] Final grouping:', {
-      groups: Array.from(teamsByDivision.keys()),
-      counts: Array.from(teamsByDivision.entries()).map(([div, teams]) => `${div}: ${teams.length} teams`)
-    });
+
 
     return teamsByDivision;
   }
@@ -101,28 +79,21 @@ export class PlayoffOddsCalculator {
   calculateDivisionPlayoffOdds(divisionTeams) {
     const odds = new Map();
 
-    console.log('[PlayoffOdds] Calculating odds for division:', {
-      teamCount: divisionTeams.length,
-      teamNames: divisionTeams.map(t => t.name),
-      currentWeek: this.currentWeek,
-      regularSeasonWeeks: this.regularSeasonWeeks
-    });
+
 
     if (divisionTeams.length === 0) {
-      console.log('[PlayoffOdds] No teams in division, returning empty odds');
+
       return odds;
     }
 
     // Sort teams by current standings (wins desc, then points for desc)
     const sortedTeams = this.sortTeamsByStandings(divisionTeams);
 
-    console.log('[PlayoffOdds] Teams sorted by standings:', 
-      sortedTeams.map((t, i) => `${i+1}. ${t.name} (${t.wins}-${t.losses}, ${t.pointsFor || t.points_for || 0} PF)`)
-    );
+
 
     // Calculate remaining games for the season
     const gamesRemaining = this.regularSeasonWeeks - (this.currentWeek - 1);
-    console.log('[PlayoffOdds] Games remaining:', gamesRemaining);
+
 
     // If season is over, odds are 100% for top 3, 0% for others
     if (gamesRemaining <= 0) {
@@ -148,11 +119,11 @@ export class PlayoffOddsCalculator {
         cutoffPointsFor,
         gamesRemaining
       );
-      console.log(`[PlayoffOdds] ${team.name}: ${teamOdds}% odds (rank ${i+1}/${sortedTeams.length})`);
+
       odds.set(team.id, teamOdds);
     }
 
-    console.log('[PlayoffOdds] Division odds calculated:', Array.from(odds.entries()));
+
 
     return odds;
   }
@@ -192,7 +163,7 @@ export class PlayoffOddsCalculator {
     // Games behind/ahead factor
     const gamesFromCutoff = teamWins - cutoffWins;
     let gamesBehindFactor = 0;
-    
+
     if (gamesFromCutoff > 0) {
       // Team is ahead of cutoff
       gamesBehindFactor = Math.min(30, gamesFromCutoff * 10);
@@ -224,14 +195,14 @@ export class PlayoffOddsCalculator {
     let finalOdds = baseOdds + gamesBehindFactor + momentumFactor + scheduleAdjustment;
 
     // Apply special cases
-    
+
     // If mathematically clinched (top 3 with enough wins that others can't catch up)
     const maxPossibleWins = allTeams.map(t => {
       const tWins = t.wins || 0;
       const tLosses = t.losses || 0;
       return tWins + gamesRemaining;
     }).sort((a, b) => b - a);
-    
+
     const fourthPlaceMaxWins = maxPossibleWins[3] || 0;
     if (currentRank < 3 && teamWins > fourthPlaceMaxWins) {
       finalOdds = 100; // Clinched
@@ -262,12 +233,12 @@ export class PlayoffOddsCalculator {
     const remainingGames = this.games.filter(game => {
       const t1Id = game.team1Id || game.team1_id;
       const t2Id = game.team2Id || game.team2_id;
-      const completed = game.isCompleted || game.is_completed || 
-                       (game.team1_score !== null && game.team2_score !== null);
-      
+      const completed = game.isCompleted || game.is_completed ||
+        (game.team1_score !== null && game.team2_score !== null);
+
       return (t1Id === teamId || t2Id === teamId) &&
-             !completed &&
-             game.week < this.regularSeasonWeeks + 1;
+        !completed &&
+        game.week < this.regularSeasonWeeks + 1;
     });
 
     if (remainingGames.length === 0) return 0;
@@ -281,13 +252,13 @@ export class PlayoffOddsCalculator {
       const t2Id = game.team2Id || game.team2_id;
       const opponentId = t1Id === teamId ? t2Id : t1Id;
       const opponent = this.teams.find(t => t.id === opponentId);
-      
+
       if (opponent) {
         const oppWins = opponent.wins || 0;
         const oppLosses = opponent.losses || 0;
         const oppGames = oppWins + oppLosses;
         const oppWinPct = oppGames > 0 ? oppWins / oppGames : 0.5;
-        
+
         totalOpponentWinPct += oppWinPct;
         opponentCount++;
       }
@@ -304,7 +275,7 @@ export class PlayoffOddsCalculator {
     // If opponents are weaker (< 0.5), positive adjustment
     // If opponents are stronger (> 0.5), negative adjustment
     const difficultyDiff = leagueAvgWinPct - avgOpponentWinPct;
-    
+
     // Scale by number of games remaining (more games = bigger impact)
     const adjustment = difficultyDiff * gamesRemaining * 10;
 
@@ -321,12 +292,12 @@ export class PlayoffOddsCalculator {
     return [...teams].sort((a, b) => {
       const aWins = a.wins || 0;
       const bWins = b.wins || 0;
-      
+
       // Sort by wins first
       if (bWins !== aWins) {
         return bWins - aWins;
       }
-      
+
       // Tiebreaker: points for (handle both camelCase and snake_case)
       const aPointsFor = parseFloat(a.pointsFor || a.points_for || 0);
       const bPointsFor = parseFloat(b.pointsFor || b.points_for || 0);

@@ -30,9 +30,9 @@ export class PowerRankingCalculator {
     );
     const totalPoints = completedGames.reduce((sum, game) => sum + game.team1Score + game.team2Score, 0);
     const totalTeams = this.teams.length;
-    
+
     const teamWinPercentages = this.teams.map(team => {
-      const teamGames = completedGames.filter(game => 
+      const teamGames = completedGames.filter(game =>
         game.team1Id === team.id || game.team2Id === team.id
       );
       const wins = teamGames.filter(game => this.getWinnerFromGame(game) === team.id).length;
@@ -67,25 +67,25 @@ export class PowerRankingCalculator {
 
     // Sort games by week for trend analysis
     const sortedGames = teamGames.sort((a, b) => a.week - b.week);
-    
+
     // Calculate Last 3 Weeks (L3W) - weighted average
     const last3Games = sortedGames.slice(-3);
-    const l3wScores = last3Games.map(game => 
+    const l3wScores = last3Games.map(game =>
       game.team1Id === teamId ? game.team1Score : game.team2Score
     );
-    const l3w = last3Games.length > 0 ? 
+    const l3w = last3Games.length > 0 ?
       l3wScores.reduce((sum, score, idx) => {
-        const weight = idx === l3wScores.length - 1 ? 0.5 : 
-                      idx === l3wScores.length - 2 ? 0.3 : 0.2;
+        const weight = idx === l3wScores.length - 1 ? 0.5 :
+          idx === l3wScores.length - 2 ? 0.3 : 0.2;
         return sum + (score * weight);
       }, 0) : 0;
 
     // Calculate Last 5 Weeks (L5W) - simple average
     const last5Games = sortedGames.slice(-5);
-    const l5wScores = last5Games.map(game => 
+    const l5wScores = last5Games.map(game =>
       game.team1Id === teamId ? game.team1Score : game.team2Score
     );
-    const l5w = l5wScores.length > 0 ? 
+    const l5w = l5wScores.length > 0 ?
       l5wScores.reduce((sum, score) => sum + score, 0) / l5wScores.length : 0;
 
     // Season Points Per Game (SPG)
@@ -97,7 +97,7 @@ export class PowerRankingCalculator {
     // High Performance Weeks (HPW) - % of weeks scoring top 25% of league
     const allWeeklyScores = [];
     this.teams.forEach(team => {
-      const tGames = this.games.filter(g => 
+      const tGames = this.games.filter(g =>
         (g.team1Id === team.id || g.team2Id === team.id) && g.isCompleted
       );
       tGames.forEach(game => {
@@ -106,7 +106,7 @@ export class PowerRankingCalculator {
     });
     allWeeklyScores.sort((a, b) => b - a);
     const top25Threshold = allWeeklyScores[Math.floor(allWeeklyScores.length * 0.25)] || 0;
-    
+
     const teamHighScoreWeeks = teamGames.filter(game => {
       const teamScore = game.team1Id === teamId ? game.team1Score : game.team2Score;
       return teamScore >= top25Threshold;
@@ -126,14 +126,14 @@ export class PowerRankingCalculator {
     }
 
     // Consistency Bonus: If coefficient of variation < 0.15, multiply PS by 1.03
-    const weeklyScores = teamGames.map(game => 
+    const weeklyScores = teamGames.map(game =>
       game.team1Id === teamId ? game.team1Score : game.team2Score
     );
     const mean = weeklyScores.reduce((sum, score) => sum + score, 0) / weeklyScores.length;
     const variance = weeklyScores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / weeklyScores.length;
     const stdDev = Math.sqrt(variance);
     const cv = mean > 0 ? stdDev / mean : 0;
-    
+
     if (cv < THRESHOLDS.consistencyThreshold) {
       ps *= 1.03;
     }
@@ -214,7 +214,7 @@ export class PowerRankingCalculator {
 
       const position = playerData.position || player.position;
       positionCounts[position] = (positionCounts[position] || 0) + 1;
-      
+
       // Determine position weight (handle multiple players at same position)
       let positionWeight = 0;
       if (position === 'RB') {
@@ -326,7 +326,7 @@ export class PowerRankingCalculator {
     // Normalize against league average
     const allTeamStrengths = this.teams.map(team => this.calculateTeamStrength(team.id));
     const avgTeamStrength = allTeamStrengths.reduce((sum, strength) => sum + strength, 0) / allTeamStrengths.length;
-    
+
     return avgTeamStrength > 0 ? (combinedSOS - avgTeamStrength) / avgTeamStrength : 0;
   }
 
@@ -343,7 +343,7 @@ export class PowerRankingCalculator {
     // Win Streak (WS) - 40% (increased from 30%)
     const currentStreak = this.calculateCurrentStreak(teamId, teamGames);
     const ws = currentStreak.type === 'win' ? Math.min(currentStreak.length * 0.08, 0.30) :
-               currentStreak.type === 'loss' ? -Math.min(currentStreak.length * 0.08, 0.30) : 0;
+      currentStreak.type === 'loss' ? -Math.min(currentStreak.length * 0.08, 0.30) : 0;
 
     // Point Streak (PS) - 30%: Linear regression slope of last 4 weeks
     const last4Games = teamGames.slice(-4);
@@ -389,7 +389,7 @@ export class PowerRankingCalculator {
 
     if (teamGames.length < 2) return 0.5; // Neutral score for insufficient data
 
-    const scores = teamGames.map(game => 
+    const scores = teamGames.map(game =>
       game.team1Id === teamId ? game.team1Score : game.team2Score
     );
 
@@ -457,7 +457,7 @@ export class PowerRankingCalculator {
     allTeamStats.sort((a, b) => b.winPercentage - a.winPercentage);
     const topHalfTeams = allTeamStats.slice(0, Math.ceil(allTeamStats.length / 2));
     const topHalfTeamIds = new Set(topHalfTeams.map(stat => stat.teamId));
-    
+
     const vsTopHalfGames = teamGames.filter(game => {
       const opponentId = game.team1Id === teamId ? game.team2Id : game.team1Id;
       return topHalfTeamIds.has(opponentId);
@@ -469,7 +469,7 @@ export class PowerRankingCalculator {
   }
 
   calculateBasicStats(teamId) {
-    const teamGames = this.games.filter(game => 
+    const teamGames = this.games.filter(game =>
       (game.team1Id === teamId || game.team2Id === teamId) && game.isCompleted
     );
 
@@ -483,17 +483,17 @@ export class PowerRankingCalculator {
     if (teamGames.length === 0) return { type: 'none', length: 0 };
 
     const sortedGames = [...teamGames].sort((a, b) => b.week - a.week);
-    
+
     const firstResult = this.getWinnerFromGame(sortedGames[0]);
     if (firstResult === 'tie') return { type: 'tie', length: 1 };
-    
+
     const streakType = firstResult === teamId ? 'win' : 'loss';
     let streakLength = 1;
 
     for (let i = 1; i < sortedGames.length; i++) {
       const result = this.getWinnerFromGame(sortedGames[i]);
       if (result === 'tie') break;
-      
+
       const isWin = result === teamId;
       if ((streakType === 'win' && !isWin) || (streakType === 'loss' && isWin)) {
         break;
@@ -530,12 +530,12 @@ export class PowerRankingCalculator {
 
     const starters = team.roster.filter(player => player.isActive);
     const bench = team.roster.filter(player => !player.isActive);
-    
+
     const starterProjectedPoints = starters.reduce((sum, player) => {
       const playerData = this.players.find(p => p.id === player.playerId || p.espn_player_id === player.playerId);
       return sum + (playerData?.season_projected_points || playerData?.seasonProjectedPoints || 0);
     }, 0);
-    
+
     const benchProjectedPoints = bench.reduce((sum, player) => {
       const playerData = this.players.find(p => p.id === player.playerId || p.espn_player_id === player.playerId);
       return sum + (playerData?.season_projected_points || playerData?.seasonProjectedPoints || 0);
@@ -552,11 +552,11 @@ export class PowerRankingCalculator {
 
     const positionValues = Object.values(positionTotals);
     const maxPositionPoints = Math.max(...positionValues, 1);
-    const positionGroupBalance = totalRosterProjected > 0 ? 
+    const positionGroupBalance = totalRosterProjected > 0 ?
       1 - (maxPositionPoints / totalRosterProjected) : 0;
 
 
-    const benchDepthScore = totalRosterProjected > 0 ? 
+    const benchDepthScore = totalRosterProjected > 0 ?
       benchProjectedPoints / totalRosterProjected : 0;
 
     return {
@@ -585,16 +585,16 @@ export class PowerRankingCalculator {
     // ANALYTICS ENHANCEMENT: Get team analytics metrics if available
     let analyticsMetrics = null;
     let analyticsBonus = 0;
-    
+
     if (this.analyticsEnabled && this.analyticsService) {
       try {
         analyticsMetrics = await this.getTeamAnalyticsMetrics(teamId);
-        
+
         // Calculate analytics bonus based on trending players and consistency
         const trendingBonus = (analyticsMetrics.trendingUpPlayers - analyticsMetrics.trendingDownPlayers) * 0.5;
         const consistencyBonus = analyticsMetrics.consistencyRating * 2;
         const strengthBonus = analyticsMetrics.analyticsStrengthScore * 0.1;
-        
+
         analyticsBonus = trendingBonus + consistencyBonus + strengthBonus;
         analyticsBonus = Math.max(-5, Math.min(5, analyticsBonus)); // Cap at ±5 points
       } catch (error) {
@@ -608,21 +608,21 @@ export class PowerRankingCalculator {
 
     // Normalize components to 0-100 scale with proper handling of edge cases
     const normalizedPS = Math.min(100, Math.max(0, ps / 2)); // Assuming typical scores 0-200
-    
+
     // For team strength, if we don't have roster data, use a fallback based on performance
     const normalizedTS = ts > 0 ? Math.min(100, Math.max(0, ts / 10)) : normalizedPS * 0.8;
-    
+
     // For SOS, if we don't have data, use opponent win percentage as fallback
-    const normalizedSOS = sos !== 0 ? Math.min(100, Math.max(0, (sos + 1) * 50)) : 
-                          (teamStats.opponentWinPercentage || 0.5) * 100;
-    
+    const normalizedSOS = sos !== 0 ? Math.min(100, Math.max(0, (sos + 1) * 50)) :
+      (teamStats.opponentWinPercentage || 0.5) * 100;
+
     // Fix momentum normalization - use recent form as fallback if momentum is 0
     const normalizedMS = ms !== 0 ? Math.min(100, Math.max(0, (ms + 0.5) * 100)) :
-                         Math.min(100, Math.max(0, (teamStats.recentForm + 50) * 1));
-    
+      Math.min(100, Math.max(0, (teamStats.recentForm + 50) * 1));
+
     // Consistency score - use coefficient of variation of scores
     const normalizedCV = cv > 0 ? Math.min(100, Math.max(0, cv * 100)) : 50;
-    
+
     // Clutch score normalization
     const normalizedCS = cs > 0 ? Math.min(100, Math.max(0, cs * 100)) : 50;
     const normalizedAllPlay = allPlay * 100; // Already 0-1 scale
@@ -731,7 +731,7 @@ export class PowerRankingCalculator {
     const averagePointsAgainst = gamesPlayed > 0 ? pointsAgainst / gamesPlayed : 0;
 
     // Calculate advanced strength of schedule
-    const opponentIds = teamGames.map(game => 
+    const opponentIds = teamGames.map(game =>
       game.team1Id === teamId ? game.team2Id : game.team1Id
     );
     const opponentWinPercentage = this.calculateOpponentWinPercentage(opponentIds, teamId);
@@ -740,7 +740,7 @@ export class PowerRankingCalculator {
     // Calculate quality metrics
     const qualityWins = this.calculateQualityWins(teamId, teamGames);
     const badLosses = this.calculateBadLosses(teamId, teamGames);
-    
+
     const blowoutWins = teamGames.filter(game => {
       const teamScore = game.team1Id === teamId ? game.team1Score : game.team2Score;
       const oppScore = game.team1Id === teamId ? game.team2Score : game.team1Score;
@@ -791,15 +791,15 @@ export class PowerRankingCalculator {
     if (opponentIds.length === 0) return 0;
 
     const opponentStats = opponentIds.map(oppId => {
-      const oppGames = this.games.filter(game => 
-        (game.team1Id === oppId || game.team2Id === oppId) && 
+      const oppGames = this.games.filter(game =>
+        (game.team1Id === oppId || game.team2Id === oppId) &&
         game.isCompleted &&
-        game.team1Id !== excludeTeamId && 
+        game.team1Id !== excludeTeamId &&
         game.team2Id !== excludeTeamId
       );
-      
+
       if (oppGames.length === 0) return 0;
-      
+
       const oppWins = oppGames.filter(game => this.getWinnerFromGame(game) === oppId).length;
       return oppWins / oppGames.length;
     });
@@ -811,7 +811,7 @@ export class PowerRankingCalculator {
     return teamGames.filter(game => {
       const winner = this.getWinnerFromGame(game);
       const oppScore = game.team1Id === teamId ? game.team2Score : game.team1Score;
-      
+
       return winner === teamId && (oppScore >= this.leagueStats.averageScore * 1.1);
     }).length;
   }
@@ -820,7 +820,7 @@ export class PowerRankingCalculator {
     return teamGames.filter(game => {
       const winner = this.getWinnerFromGame(game);
       const oppScore = game.team1Id === teamId ? game.team2Score : game.team1Score;
-      
+
       return winner !== teamId && winner !== 'tie' && (oppScore <= this.leagueStats.averageScore * 0.8);
     }).length;
   }
@@ -849,18 +849,11 @@ export class PowerRankingCalculator {
    * @returns {Map} Map of teamId -> playoff odds percentage (0-100)
    */
   calculatePlayoffOdds() {
-    console.log('[PowerRankingCalculator] calculatePlayoffOdds called:', {
-      divisionsCount: this.divisions.length,
-      teamsCount: this.teams.length,
-      currentWeek: this.currentWeek,
-      regularSeasonWeeks: this.regularSeasonWeeks,
-      divisions: this.divisions,
-      sampleTeam: this.teams[0]
-    });
+
 
     if (this.divisions.length === 0 || this.teams.length === 0) {
       // Return 0% odds if no divisions configured
-      console.warn('[PowerRankingCalculator] No divisions or teams, returning 0 odds');
+
       const emptyOdds = new Map();
       this.teams.forEach(team => emptyOdds.set(team.id, 0));
       return emptyOdds;
@@ -886,7 +879,7 @@ export class PowerRankingCalculator {
       const { powerRating, components } = await this.calculatePowerRating(team.id);
       const rosterMetrics = this.teamRosterMetrics[team.id] || {};
       const playoffOdds = playoffOddsMap.get(team.id) || 0;
-      
+
       return {
         ...team,
         ...stats,
@@ -902,9 +895,9 @@ export class PowerRankingCalculator {
 
   async getRankings(previousRankings = null) {
     const teamStats = await this.calculateAllTeamStats();
-    
+
     const rankings = teamStats.sort((a, b) => b.powerRating - a.powerRating);
-    
+
     return rankings.map((team, index) => {
       const currentRank = index + 1;
       let rankChange = 0;
@@ -913,7 +906,7 @@ export class PowerRankingCalculator {
       if (previousRankings) {
         // Check both team.id and team.teamId for compatibility
         const teamIdentifier = team.id || team.teamId;
-        const prevEntry = previousRankings.find(prev => 
+        const prevEntry = previousRankings.find(prev =>
           prev.teamId === teamIdentifier || prev.teamId === team.teamId || prev.teamId === team.id
         );
         if (prevEntry) {
@@ -1103,10 +1096,10 @@ export class PowerRankingCalculator {
 
       // Analyze each active roster player
       for (const rosterPlayer of activeRoster) {
-        const playerData = this.players.find(p => 
+        const playerData = this.players.find(p =>
           p.id === rosterPlayer.playerId || p.espn_player_id === rosterPlayer.playerId
         );
-        
+
         if (!playerData) continue;
 
         try {
@@ -1153,7 +1146,7 @@ export class PowerRankingCalculator {
         metrics.avgPlayerRank = totalRanks > 0 ? totalRanks / validPlayerCount : null;
         metrics.avgTrendScore = totalTrendScores / validPlayerCount;
         metrics.consistencyRating = totalConsistency / validPlayerCount;
-        
+
         // Calculate analytics strength score
         metrics.analyticsStrengthScore = this.calculateTeamAnalyticsStrength(
           metrics.totalCeilingScore,
@@ -1190,7 +1183,7 @@ export class PowerRankingCalculator {
     const normalizedTrend = (avgTrendScore + 1) * 50; // Convert -1 to +1 range to 0-100
     const normalizedConsistency = consistencyRating * 100;
 
-    const strengthScore = 
+    const strengthScore =
       (normalizedCeiling * ceilingWeight) +
       (normalizedFloor * floorWeight) +
       (normalizedTrend * trendWeight) +
