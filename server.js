@@ -17,7 +17,6 @@ import dotenv from 'dotenv';
 
 // Import analytics API routes
 import analyticsRouter from './api/analytics/index.js';
-import createMovieTrackerApp from './movietracker/backend/app.js';
 
 // Import automation scheduler
 import { automationScheduler } from './services/automationScheduler.js';
@@ -72,10 +71,6 @@ app.get('/health', (req, res) => {
 
 // Analytics API routes
 app.use('/api/analytics', analyticsRouter);
-
-// MovieTracker API routes (mounted sub-app)
-const movieTrackerApp = createMovieTrackerApp();
-app.use('/api/movies', movieTrackerApp);
 
 // Automation API routes
 app.get('/api/automation/status', async (req, res) => {
