@@ -246,6 +246,8 @@ const PlayoffsBracketAdmin = ({
                             {Object.entries(picksByUser).map(([userId, userData]) => {
                                 const correctPicks = userData.picks.filter(p => p.isCorrect).length;
                                 const totalUserPicks = userData.picks.length;
+                                // Find championship pick to display point total
+                                const championshipPick = userData.picks.find(p => p.matchupId === 'championship');
 
                                 return (
                                     <div key={userId} className="border rounded-lg p-4">
@@ -261,11 +263,19 @@ const PlayoffsBracketAdmin = ({
                                                     </div>
                                                 </div>
                                             </div>
-                                            {bracketStatus?.resultsReleased && (
-                                                <Badge variant="outline">
-                                                    {correctPicks}/{totalUserPicks} correct
-                                                </Badge>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                {championshipPick?.championshipPointTotal && (
+                                                    <Badge variant="outline" className="bg-yellow-50 border-yellow-300">
+                                                        <Trophy className="h-3 w-3 mr-1" />
+                                                        {championshipPick.championshipPointTotal} pts
+                                                    </Badge>
+                                                )}
+                                                {bracketStatus?.resultsReleased && (
+                                                    <Badge variant="outline">
+                                                        {correctPicks}/{totalUserPicks} correct
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
