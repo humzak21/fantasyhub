@@ -153,9 +153,9 @@ app.post('/api/automation/restart', async (req, res) => {
 // Serve static files in production
 if (NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, 'dist')));
-  
-  // Handle client-side routing
-  app.get('*', (req, res) => {
+
+  // Handle client-side routing - catch all non-API routes
+  app.get(/^(?!\/api\/).*/, (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }
