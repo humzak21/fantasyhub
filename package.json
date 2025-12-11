@@ -32,6 +32,7 @@
     "postbuild": "echo 'Build completed successfully!'",
     "db:setup": "echo 'Run the SQL files in database/ folder in your Supabase SQL editor'",
     "db:reset": "echo 'Reset database by running schema.sql then functions.sql in Supabase'",
+    "sync-playoff-games": "node scripts/syncPlayoffGames.js",
     "automation:test": "node scripts/weeklyDataUpdate.js test",
     "automation:run": "node scripts/weeklyDataUpdate.js full",
     "automation:status": "curl -s http://localhost:3001/api/automation/status | jq",

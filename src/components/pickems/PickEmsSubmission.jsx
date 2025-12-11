@@ -76,9 +76,9 @@ const PickEmsSubmission = ({
     //   return;
     // }
 
-    // Validate that all games have picks
+    // Validate that all selectable games (non-bye) have picks
     const picksArray = games
-      .filter(game => !game.isCompleted) // Only submit picks for incomplete games
+      .filter(game => !game.isCompleted && !isByeWeek(game)) // Only submit picks for incomplete, non-bye games
       .map(game => {
         const pick = picks[game.id];
         if (!pick?.predictedWinnerTeamId) {
@@ -198,9 +198,16 @@ const PickEmsSubmission = ({
     }
   };
 
+  // Helper function to determine if a game is a bye week
+  const isByeWeek = (game) => {
+    return game.type === 'bye' || !game.team2 || game.team2 === null;
+  };
+
   const status = getPickEmStatus();
   const totalPicks = Object.keys(picks).length;
   const availableGames = games.filter(game => !game.isCompleted);
+  const selectableGames = availableGames.filter(game => !isByeWeek(game));
+  const byeGames = availableGames.filter(game => isByeWeek(game));
 
 
   return (
@@ -250,7 +257,7 @@ const PickEmsSubmission = ({
                   <span className="font-medium">
                     {hasSubmitted && !isEditing ? 'Picks Submitted:' : 'Picks Made:'}
                   </span>
-                  <span>{totalPicks}/{availableGames.length}</span>
+                  <span>{totalPicks}/{selectableGames.length}</span>
                 </div>
 
                 {hasSubmitted && !isEditing && (
@@ -260,7 +267,7 @@ const PickEmsSubmission = ({
                   </Badge>
                 )}
 
-                {!hasSubmitted && totalPicks === availableGames.length && (
+                {!hasSubmitted && totalPicks === selectableGames.length && (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                     Ready to Submit
                   </Badge>
@@ -301,7 +308,7 @@ const PickEmsSubmission = ({
                     )}
                     <Button
                       onClick={handleSubmit}
-                      disabled={submitting || totalPicks !== availableGames.length}
+                      disabled={submitting || totalPicks !== selectableGames.length}
                       className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white"
                     >
                       {submitting ? (
@@ -365,62 +372,80 @@ const PickEmsSubmission = ({
         </Card>
       ) : (
         <div className="space-y-4">
-          {availableGames.map((game, index) => (
-            <Card key={game.id} className="overflow-hidden">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  {/* Game matchup */}
-                  <div className="flex items-center space-x-6">
-                    <div className="text-sm text-muted-foreground font-medium w-16">
-                      Game {index + 1}
-                    </div>
+          {availableGames.map((game, index) => {
+            const isBye = isByeWeek(game);
+            return (
+              <Card key={game.id} className={`overflow-hidden ${isBye ? 'bg-muted/30' : ''}`}>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    {/* Game matchup */}
+                    <div className="flex items-center space-x-6">
+                      <div className="text-sm text-muted-foreground font-medium w-16">
+                        {isBye ? (
+                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                            BYE
+                          </Badge>
+                        ) : (
+                          `Game ${selectableGames.findIndex(g => g.id === game.id) + 1}`
+                        )}
+                      </div>
 
-                    <div className="flex items-center space-x-4">
-                      {/* Team 1 */}
-                      <button
-                        onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
-                        disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
-                        className={`
-                          flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
-                          ${picks[game.id]?.predictedWinnerTeamId === game.team1.id
-                            ? 'border-blue-600 bg-blue-600 text-white font-semibold'
-                            : 'border-muted hover:border-primary/50 hover:bg-muted/50'
-                          }
-                          ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
-                        `}
-                      >
-                        <div className="text-center w-full">
-                          <div className="font-medium truncate px-2">{getMaskedTeamName(game.team1, user, isAdmin, teamOwnerNames)}</div>
-                          <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team1, user, isAdmin, teamOwnerNames)}</div>
-                        </div>
-                      </button>
+                      <div className="flex items-center space-x-4">
+                        {/* Team 1 */}
+                        <button
+                          onClick={() => !isBye && user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
+                          disabled={isBye || !user || status.status !== 'open' || (hasSubmitted && !isEditing)}
+                          className={`
+                            flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
+                            ${isBye
+                              ? 'border-muted bg-muted/50 cursor-not-allowed opacity-60'
+                              : picks[game.id]?.predictedWinnerTeamId === game.team1.id
+                                ? 'border-blue-600 bg-blue-600 text-white font-semibold'
+                                : 'border-muted hover:border-primary/50 hover:bg-muted/50'
+                            }
+                            ${(!isBye && (!user || status.status !== 'open' || (hasSubmitted && !isEditing))) ? 'cursor-not-allowed opacity-100' : isBye ? '' : 'cursor-pointer'}
+                          `}
+                        >
+                          <div className="text-center w-full">
+                            <div className="font-medium truncate px-2">{getMaskedTeamName(game.team1, user, isAdmin, teamOwnerNames)}</div>
+                            <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team1, user, isAdmin, teamOwnerNames)}</div>
+                            {isBye && (
+                              <div className="text-xs font-semibold text-yellow-700 mt-1">ON BYE</div>
+                            )}
+                          </div>
+                        </button>
 
-                      <div className="text-muted-foreground font-medium text-center w-8">vs</div>
+                        {!isBye && (
+                          <>
+                            <div className="text-muted-foreground font-medium text-center w-8">vs</div>
 
-                      {/* Team 2 */}
-                      <button
-                        onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
-                        disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
-                        className={`
-                          flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
-                          ${picks[game.id]?.predictedWinnerTeamId === game.team2.id
-                            ? 'border-blue-600 bg-blue-600 text-white font-semibold'
-                            : 'border-muted hover:border-primary/50 hover:bg-muted/50'
-                          }
-                          ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
-                        `}
-                      >
-                        <div className="text-center w-full">
-                          <div className="font-medium truncate px-2">{getMaskedTeamName(game.team2, user, isAdmin, teamOwnerNames)}</div>
-                          <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team2, user, isAdmin, teamOwnerNames)}</div>
-                        </div>
-                      </button>
+                            {/* Team 2 */}
+                            <button
+                              onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
+                              disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
+                              className={`
+                                flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
+                                ${picks[game.id]?.predictedWinnerTeamId === game.team2.id
+                                  ? 'border-blue-600 bg-blue-600 text-white font-semibold'
+                                  : 'border-muted hover:border-primary/50 hover:bg-muted/50'
+                                }
+                                ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
+                              `}
+                            >
+                              <div className="text-center w-full">
+                                <div className="font-medium truncate px-2">{getMaskedTeamName(game.team2, user, isAdmin, teamOwnerNames)}</div>
+                                <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team2, user, isAdmin, teamOwnerNames)}</div>
+                              </div>
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
@@ -435,7 +460,7 @@ const PickEmsSubmission = ({
                   <span className="font-medium">
                     {hasSubmitted && !isEditing ? 'Picks Submitted:' : 'Picks Made:'}
                   </span>
-                  <span>{totalPicks}/{availableGames.length}</span>
+                  <span>{totalPicks}/{selectableGames.length}</span>
                 </div>
 
                 {hasSubmitted && !isEditing && (
@@ -445,7 +470,7 @@ const PickEmsSubmission = ({
                   </Badge>
                 )}
 
-                {!hasSubmitted && totalPicks === availableGames.length && (
+                {!hasSubmitted && totalPicks === selectableGames.length && (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                     Ready to Submit
                   </Badge>
@@ -488,7 +513,7 @@ const PickEmsSubmission = ({
                     )}
                     <Button
                       onClick={handleSubmit}
-                      disabled={submitting || totalPicks !== availableGames.length}
+                      disabled={submitting || totalPicks !== selectableGames.length}
                       size="lg"
                       className="flex items-center gap-2 px-8 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white"
                     >
@@ -522,6 +547,9 @@ const PickEmsSubmission = ({
                 <li>• Pick the winner for each matchup by clicking on a team</li>
                 <li>• Each correct pick earns 1 point</li>
                 <li>• You must make picks for all games before submitting</li>
+                {byeGames.length > 0 && (
+                  <li>• Teams on bye week are shown but cannot be selected</li>
+                )}
                 <li>• You can change your picks until the submission deadline</li>
                 <li>• Results will be revealed on {pickEmWeek && new Date(pickEmWeek.resultsRevealAt).toLocaleDateString()}</li>
               </ul>
