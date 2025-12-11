@@ -793,8 +793,8 @@ const PlayoffsBracket = ({
                                             <div className="text-xs text-muted-foreground text-center mb-2">Week 16</div>
                                             <BracketSlot
                                                 matchupId="fifth_place_wk16"
-                                                team1={fifthPlaceTeam1}
-                                                team2={fifthPlaceTeam2}
+                                                team1={div1R1Winner ? fifthPlaceTeam1 : null}
+                                                team2={div2R1Winner ? fifthPlaceTeam2 : null}
                                                 selectedTeam={getPick('fifth_place_wk16')}
                                                 actualWinner={getActualWinner(playoffs.fifthPlace[0])}
                                                 onSelect={(id, team) => handlePickChange(id, team, playoffs.fifthPlace[0]?.id)}
@@ -810,8 +810,8 @@ const PlayoffsBracket = ({
                                             <div className="text-xs text-muted-foreground text-center mb-2">Week 17</div>
                                             <BracketSlot
                                                 matchupId="fifth_place_wk17"
-                                                team1={fifthPlaceTeam1}
-                                                team2={fifthPlaceTeam2}
+                                                team1={div1R1Winner ? fifthPlaceTeam1 : null}
+                                                team2={div2R1Winner ? fifthPlaceTeam2 : null}
                                                 selectedTeam={getPick('fifth_place_wk17')}
                                                 actualWinner={getActualWinner(playoffs.fifthPlace[1])}
                                                 onSelect={(id, team) => handlePickChange(id, team, playoffs.fifthPlace[1]?.id)}
@@ -834,8 +834,8 @@ const PlayoffsBracket = ({
                                         <div className="text-xs text-muted-foreground text-center mb-2">Week 17</div>
                                         <BracketSlot
                                             matchupId="third_place"
-                                            team1={thirdPlaceTeam1}
-                                            team2={thirdPlaceTeam2}
+                                            team1={div1SemiWinner ? thirdPlaceTeam1 : null}
+                                            team2={div2SemiWinner ? thirdPlaceTeam2 : null}
                                             selectedTeam={getPick('third_place')}
                                             actualWinner={getActualWinner(playoffs.thirdPlace)}
                                             onSelect={(id, team) => handlePickChange(id, team, playoffs.thirdPlace?.id)}
