@@ -149,6 +149,7 @@ const PlayoffsBracket = ({
     const [hasSubmitted, setHasSubmitted] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [divisions, setDivisions] = useState([]);
+    const [championshipPointTotal, setChampionshipPointTotal] = useState('');
 
     // Load divisions
     useEffect(() => {
@@ -168,19 +169,26 @@ const PlayoffsBracket = ({
     useEffect(() => {
         if (userPicks && userPicks.length > 0) {
             const existingPicks = {};
+            let championshipTotal = '';
             userPicks.forEach(pick => {
                 existingPicks[pick.matchupId] = {
                     predictedWinnerTeamId: pick.predictedWinnerTeamId,
                     predictedWinner: pick.predictedWinner,
                     gameId: pick.gameId
                 };
+                // Load championship point total from championship matchup
+                if (pick.matchupId === 'championship' && pick.championshipPointTotal) {
+                    championshipTotal = pick.championshipPointTotal.toString();
+                }
             });
             setPicks(existingPicks);
+            setChampionshipPointTotal(championshipTotal);
             setHasSubmitted(true);
             setIsEditing(false);
             setHasChanges(false);
         } else {
             setPicks({});
+            setChampionshipPointTotal('');
             setHasSubmitted(false);
         }
     }, [userPicks]);
@@ -202,14 +210,26 @@ const PlayoffsBracket = ({
 
     // Handle submission
     const handleSubmit = async () => {
-        const picksArray = Object.entries(picks).map(([matchupId, pick]) => ({
-            matchup_id: matchupId,
-            predicted_winner_team_id: pick.predictedWinnerTeamId,
-            game_id: pick.gameId
-        }));
+        const picksArray = Object.entries(picks).map(([matchupId, pick]) => {
+            const pickData = {
+                matchup_id: matchupId,
+                predicted_winner_team_id: pick.predictedWinnerTeamId,
+                game_id: pick.gameId
+            };
+            // Add championship point total to the championship matchup
+            if (matchupId === 'championship') {
+                pickData.championship_point_total = parseFloat(championshipPointTotal);
+            }
+            return pickData;
+        });
 
         if (picksArray.length === 0) {
             setError('Please make at least one pick');
+            return;
+        }
+
+        if (!championshipPointTotal || isNaN(parseFloat(championshipPointTotal)) || parseFloat(championshipPointTotal) <= 0) {
+            setError('Please enter a valid championship point total');
             return;
         }
 
@@ -217,7 +237,7 @@ const PlayoffsBracket = ({
         setError(null);
 
         try {
-            await onSubmitPicks(picksArray);
+            await onSubmitPicks(picksArray, parseFloat(championshipPointTotal));
             setHasChanges(false);
             setHasSubmitted(true);
             setIsEditing(false);
@@ -234,16 +254,23 @@ const PlayoffsBracket = ({
         // Reset to original picks
         if (userPicks && userPicks.length > 0) {
             const originalPicks = {};
+            let championshipTotal = '';
             userPicks.forEach(pick => {
                 originalPicks[pick.matchupId] = {
                     predictedWinnerTeamId: pick.predictedWinnerTeamId,
                     predictedWinner: pick.predictedWinner,
                     gameId: pick.gameId
                 };
+                // Reset championship point total
+                if (pick.matchupId === 'championship' && pick.championshipPointTotal) {
+                    championshipTotal = pick.championshipPointTotal.toString();
+                }
             });
             setPicks(originalPicks);
+            setChampionshipPointTotal(championshipTotal);
         } else {
             setPicks({});
+            setChampionshipPointTotal('');
         }
         setIsEditing(false);
         setHasChanges(false);
@@ -444,7 +471,8 @@ const PlayoffsBracket = ({
         4;  // Consolation R3 (con_r3_0 to con_r3_3)
 
     const picksCount = Object.keys(picks).length;
-    const allPicksMade = picksCount >= totalMatchups;
+    const hasChampionshipTotal = championshipPointTotal !== '' && !isNaN(parseFloat(championshipPointTotal)) && parseFloat(championshipPointTotal) > 0;
+    const allPicksMade = picksCount >= totalMatchups && hasChampionshipTotal;
 
     // Get pick for a matchup
     const getPick = (matchupId) => {
@@ -550,6 +578,19 @@ const PlayoffsBracket = ({
                 </CardContent>
             </Card>
 
+            {/* Description/Info Blurb */}
+            <Card>
+                <CardContent className="p-4">
+                    <div className="text-sm text-muted-foreground space-y-2">
+                        <p>
+                            This is a March Madness style bracket challenge. Select all matchups to submit your picks. Each correct pick receives 1 point, and the championship combined point total prediction receives 3 bonus points for the closest prediction.
+                            Highest bracket point total wins $20 FAAB for next year!
+
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Confirmation */}
             {showConfirmation && (
                 <Alert className="border-green-200 bg-green-50">
@@ -575,7 +616,7 @@ const PlayoffsBracket = ({
                         <Trophy className="h-5 w-5 text-yellow-500" />
                         Playoff Bracket
                     </CardTitle>
-                    <CardDescription>Top 3 seeds from each division compete for the championship</CardDescription>
+                    <CardDescription>The top 3 seeds from each division!</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-8">
@@ -652,6 +693,35 @@ const PlayoffsBracket = ({
                                     isAdmin={isAdmin}
                                     teamOwnerNames={teamOwnerNames}
                                 />
+
+                                {/* Championship Point Total Prediction */}
+                                <div className="flex flex-col gap-2 p-3 bg-card rounded-lg border shadow-sm min-w-[180px]">
+                                    <div className="text-xs font-semibold text-center text-muted-foreground">
+                                        Championship Combined Point Total
+                                    </div>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={championshipPointTotal}
+                                        onChange={(e) => {
+                                            setChampionshipPointTotal(e.target.value);
+                                            setHasChanges(true);
+                                            setError(null);
+                                        }}
+                                        disabled={!canEdit || (hasSubmitted && !isEditing)}
+                                        placeholder="Enter total points (e.g., 124.34)"
+                                        className={`
+                                            w-full px-3 py-2 text-center font-medium rounded-md border-2 transition-all
+                                            ${championshipPointTotal ? 'border-blue-600 bg-blue-50 text-blue-900' : 'border-muted'}
+                                            ${!canEdit || (hasSubmitted && !isEditing) ? 'cursor-not-allowed bg-muted/20' : 'focus:outline-none focus:ring-2 focus:ring-blue-500'}
+                                            disabled:opacity-50
+                                        `}
+                                    />
+                                    <div className="text-xs text-center text-muted-foreground">
+                                        3 bonus points for closest prediction
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Week 16 - Semifinal */}

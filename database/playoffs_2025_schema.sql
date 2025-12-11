@@ -20,9 +20,11 @@ create table public.playoffs_2025 (
   actual_winner_team_id uuid null,
   is_correct boolean null,
   points_earned integer null default 0,
+  -- Championship combined point total prediction (3 bonus points for closest prediction)
+  championship_point_total float8 null,
   submitted_at timestamp with time zone default now(),
   updated_at timestamp with time zone default now(),
-  
+
   constraint playoffs_2025_pkey primary key (id),
   constraint playoffs_2025_user_matchup_unique unique (user_id, matchup_id),
   constraint playoffs_2025_season_id_fkey foreign key (season_id) references seasons(id) on delete cascade,
@@ -150,7 +152,8 @@ create trigger update_playoff_results_on_game_complete
 -- =============================================
 create or replace function submit_playoff_picks(
   p_season_id uuid,
-  p_picks jsonb -- Array of {matchup_id, predicted_winner_team_id, game_id?}
+  p_picks jsonb, -- Array of {matchup_id, predicted_winner_team_id, game_id?, championship_point_total?}
+  p_championship_point_total float8 default null
 )
 returns jsonb as $$
 declare
@@ -162,41 +165,49 @@ begin
   select submission_deadline into deadline
   from playoffs_2025_config
   where season_id = p_season_id;
-  
+
   if deadline is null then
     deadline := '2025-12-12 20:15:00-05'::timestamptz;
   end if;
-  
+
   if now() > deadline then
     raise exception 'Submission deadline has passed';
   end if;
-  
+
   -- Upsert each pick
   for pick_record in select * from jsonb_array_elements(p_picks)
   loop
     insert into playoffs_2025 (
-      user_id, 
-      season_id, 
-      matchup_id, 
+      user_id,
+      season_id,
+      matchup_id,
       game_id,
-      predicted_winner_team_id
+      predicted_winner_team_id,
+      championship_point_total
     )
     values (
       auth.uid(),
       p_season_id,
       pick_record->>'matchup_id',
       (pick_record->>'game_id')::uuid,
-      (pick_record->>'predicted_winner_team_id')::uuid
+      (pick_record->>'predicted_winner_team_id')::uuid,
+      -- Only store championship_point_total for the championship matchup
+      case
+        when pick_record->>'matchup_id' = 'championship'
+        then coalesce((pick_record->>'championship_point_total')::float8, p_championship_point_total)
+        else null
+      end
     )
-    on conflict (user_id, matchup_id) 
+    on conflict (user_id, matchup_id)
     do update set
       predicted_winner_team_id = excluded.predicted_winner_team_id,
       game_id = excluded.game_id,
+      championship_point_total = excluded.championship_point_total,
       updated_at = now();
-    
+
     result_count := result_count + 1;
   end loop;
-  
+
   return jsonb_build_object(
     'success', true,
     'picks_submitted', result_count
