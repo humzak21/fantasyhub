@@ -141,6 +141,18 @@ export default defineConfig({
     port: 3000,
     host: true,
     open: true,
+    proxy: {
+      '/api/movies': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/api/analytics': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   preview: {
     port: process.env.PORT || 4173,

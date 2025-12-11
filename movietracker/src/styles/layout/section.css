@@ -1,0 +1,77 @@
+.section {
+  padding: 155px 0 10px 0;
+  position: relative;
+}
+
+/* Add subtle backdrop effect for main content sections */
+.section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+[data-theme="dark"] .section::before {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .section::before {
+    background: rgba(0, 0, 0, 0.02);
+  }
+}
+
+/* Add padding to sections that come after slideshow */
+.slideshow-container + .section {
+  padding-top: 60px;
+}
+
+.section-title {
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 36px;
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+  margin-bottom: 48px;
+  color: var(--text-primary);
+}
+
+.section-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 32px;
+}
+
+.section-subtitle {
+  font-size: 18px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.auth-required-note {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .auth-required-note {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth-required-note {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+} 

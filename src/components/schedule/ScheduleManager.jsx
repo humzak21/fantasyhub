@@ -35,7 +35,11 @@ const ScheduleManager = ({
     return schedule.filter(game => game.week === week);
   };
 
-  const getTeamName = (teamId) => {
+  const getTeamName = (teamId, game = null) => {
+    // Handle bye weeks
+    if (game && game.type === 'bye' && teamId === game.team2Id) {
+      return 'BYE';
+    }
     const team = season.teams.find(t => t.id === teamId);
     return team ? team.name : 'Unknown Team';
   };
@@ -233,7 +237,11 @@ const FullScheduleView = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
-  const getTeamName = (teamId) => {
+  const getTeamName = (teamId, game = null) => {
+    // Handle bye weeks
+    if (game && game.type === 'bye' && teamId === game.team2Id) {
+      return 'BYE';
+    }
     const team = teams.find(t => t.id === teamId);
     return team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown Team';
   };
@@ -285,7 +293,7 @@ const FullScheduleView = ({
                         {/* Team 1 */}
                         <div className={`flex-1 flex items-center gap-2 ${isTeam1Winner ? 'font-bold' : 'font-medium'}`}>
                           <span className="flex-1 truncate dark:text-white">
-                            {getTeamName(game.team1Id)}
+                            {getTeamName(game.team1Id, game)}
                           </span>
                           {game.isCompleted && (
                             <span className={`text-lg font-bold min-w-[3rem] text-right ${
@@ -319,7 +327,7 @@ const FullScheduleView = ({
                             </span>
                           )}
                           <span className="flex-1 truncate text-right dark:text-white">
-                            {getTeamName(game.team2Id)}
+                            {getTeamName(game.team2Id, game)}
                           </span>
                         </div>
                       </div>
@@ -527,11 +535,13 @@ const GameCard = ({
   };
 
   const TeamCard = ({ teamId, score, isWinner }) => {
+    // Handle bye weeks
+    const isBye = game.type === 'bye' && teamId === game.team2Id;
     const team = teams.find(t => t.id === teamId);
     const stats = getTeamStats(teamId);
     const rank = getTeamRanking(teamId);
     const roster = rosters[teamId]?.roster || [];
-    const teamName = team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown Team';
+    const teamName = isBye ? 'BYE' : (team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown Team');
 
     return (
       <div className={`flex-1 p-3 rounded-lg border ${
@@ -544,13 +554,13 @@ const GameCard = ({
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
               <h4 className="font-bold text-base truncate dark:text-white">{teamName}</h4>
-              {team?.owner && (
+              {!isBye && team?.owner && (
                 <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
                   {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                 </div>
               )}
               {/* Record */}
-              {stats.gamesPlayed > 0 && (
+              {!isBye && stats.gamesPlayed > 0 && (
                 <div className="text-xs mt-1">
                   <span className="text-gray-600 dark:text-gray-400">Record: </span>
                   <span className={`font-semibold ${
@@ -568,7 +578,7 @@ const GameCard = ({
             </div>
 
             <div className="flex flex-col items-center gap-1">
-              {rank && (
+              {!isBye && rank && (
                 <div className={`px-2 py-1 rounded-full text-xs font-medium ${
                   rank === 1
                     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
@@ -581,7 +591,7 @@ const GameCard = ({
               )}
 
               {/* Score Display */}
-              {editing ? (
+              {!isBye && editing ? (
                 <input
                   type="number"
                   min="0"
@@ -603,7 +613,7 @@ const GameCard = ({
           </div>
 
           {/* Roster Preview */}
-          <TeamRosterPreview roster={roster} />
+          {!isBye && <TeamRosterPreview roster={roster} />}
         </div>
       </div>
     );

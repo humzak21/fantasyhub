@@ -28,6 +28,7 @@ import PowerRankingsVisualization from './src/components/power-rankings/PowerRan
 import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
 import PickEmsManager from './src/components/pickems/PickEmsManager.jsx';
 import AwardsManager from './src/components/awards/AwardsManager.jsx';
+import PlayoffsBracketManager from './src/components/playoffs/PlayoffsBracketManager.jsx';
 import ProjectionsManager from './src/components/projections/ProjectionsManager.jsx';
 import ResponsiveNavigation from './src/components/navigation/ResponsiveNavigation.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
@@ -36,7 +37,7 @@ import LeagueHistoryManager from './src/components/history/LeagueHistoryManager.
 const FantasyFootballApp = () => {
   const { user, isAuthenticated, isAdmin } = useAuth();
   // Allow viewing without auth, but only admin can edit
-  
+
   const {
     seasons,
     activeSeason,
@@ -225,7 +226,7 @@ const FantasyFootballApp = () => {
   useEffect(() => {
     if (activeSeason && !loading) {
       const calendarWeek = getCurrentWeek();
-      
+
       if (calendarWeek !== currentWeek) {
         setCurrentWeek(calendarWeek);
       }
@@ -323,7 +324,7 @@ const FantasyFootballApp = () => {
     const day = now.getDay(); // 0 = Sunday, 4 = Thursday
     const hours = now.getHours();
     const minutes = now.getMinutes();
-    
+
     // If it's Thursday (day 4)
     if (day === 4) {
       // Check if time is after 8:10 PM (20:10)
@@ -335,7 +336,7 @@ const FantasyFootballApp = () => {
     if (day === 5 || day === 6) {
       return false;
     }
-    
+
     return true; // Pickems are open
   };
 
@@ -346,12 +347,13 @@ const FantasyFootballApp = () => {
 
     return [
       { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
-      { id: 'projections', label: 'Projections', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
+      // { id: 'projections', label: 'Projections', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
       { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
       { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
       { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated && user?.user_metadata?.display_name && teamOwnerNames.includes(user.user_metadata.display_name) },
       { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
+      { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
     ];
   }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, teamOwnerNames]);
@@ -372,392 +374,409 @@ const FantasyFootballApp = () => {
 
   return (
     <ErrorBoundary>
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Header - Responsive Design */}
-      <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            {/* Left Section: Logo, Title, and Week Navigator */}
-            <div className="flex items-center">
-              {/* Logo and Title */}
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                  <img src="og jits logo.jpg" alt="og jits logo" className="w-full h-full object-cover" />
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        {/* Header - Responsive Design */}
+        <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex h-16 items-center justify-between">
+              {/* Left Section: Logo, Title, and Week Navigator */}
+              <div className="flex items-center">
+                {/* Logo and Title */}
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                    <img src="og jits logo.jpg" alt="og jits logo" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight">
+                      og jits
+                    </h1>
+                    {activeSeason && (
+                      <p className="text-sm text-muted-foreground">
+                        {activeSeason.name || `${activeSeason.year} Season`}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight">
-                    og jits
-                  </h1>
-                  {activeSeason && (
-                    <p className="text-sm text-muted-foreground">
-                      {activeSeason.name || `${activeSeason.year} Season`}
-                    </p>
-                  )}
-                </div>
+
+                {/* Inline Week Navigator - Desktop (Full) */}
+                {activeSeason && (
+                  <div className="hidden xl:block ml-8">
+                    <InlineWeekNavigator
+                      currentWeek={currentWeek}
+                      totalWeeks={activeSeason.totalWeeks}
+                      regularSeasonWeeks={activeSeason.regularSeasonWeeks}
+                      onWeekChange={setCurrentWeek}
+                      completedWeeks={completedWeeks}
+                      season={activeSeason}
+                      condensed={false}
+                    />
+                  </div>
+                )}
+
+                {/* Inline Week Navigator - Tablet/Mobile (Condensed) */}
+                {activeSeason && (
+                  <div className="hidden sm:block xl:hidden ml-4">
+                    <InlineWeekNavigator
+                      currentWeek={currentWeek}
+                      totalWeeks={activeSeason.totalWeeks}
+                      regularSeasonWeeks={activeSeason.regularSeasonWeeks}
+                      onWeekChange={setCurrentWeek}
+                      completedWeeks={completedWeeks}
+                      season={activeSeason}
+                      condensed={true}
+                    />
+                  </div>
+                )}
+
+                {/* Inline Week Navigator - Mobile Only (Condensed) */}
+                {activeSeason && (
+                  <div className="sm:hidden ml-2">
+                    <InlineWeekNavigator
+                      currentWeek={currentWeek}
+                      totalWeeks={activeSeason.totalWeeks}
+                      regularSeasonWeeks={activeSeason.regularSeasonWeeks}
+                      onWeekChange={setCurrentWeek}
+                      completedWeeks={completedWeeks}
+                      season={activeSeason}
+                      condensed={true}
+                    />
+                  </div>
+                )}
               </div>
-              
-              {/* Inline Week Navigator - Desktop (Full) */}
-              {activeSeason && (
-                <div className="hidden xl:block ml-8">
-                  <InlineWeekNavigator
-                    currentWeek={currentWeek}
-                    totalWeeks={activeSeason.totalWeeks}
-                    regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                    onWeekChange={setCurrentWeek}
-                    completedWeeks={completedWeeks}
-                    season={activeSeason}
-                    condensed={false}
-                  />
-                </div>
-              )}
 
-              {/* Inline Week Navigator - Tablet/Mobile (Condensed) */}
-              {activeSeason && (
-                <div className="hidden sm:block xl:hidden ml-4">
-                  <InlineWeekNavigator
-                    currentWeek={currentWeek}
-                    totalWeeks={activeSeason.totalWeeks}
-                    regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                    onWeekChange={setCurrentWeek}
-                    completedWeeks={completedWeeks}
-                    season={activeSeason}
-                    condensed={true}
-                  />
-                </div>
-              )}
+              {/* Main Navigation - Responsive */}
+              <ResponsiveNavigation
+                tabs={mainTabs.map(tab => ({
+                  ...tab,
+                  isDisabled: isAdmin && tab.requiresSeason && !activeSeason,
+                  showNotification: tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen()
+                }))}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                shouldShowTab={(tab) => {
+                  // Check auth requirements
+                  if (tab.requiresAuth && !isAdmin) return false;
+                  // Check custom access (can be boolean or function for backwards compatibility)
+                  if (tab.customAccess !== undefined) {
+                    const hasAccess = typeof tab.customAccess === 'function' ? tab.customAccess() : tab.customAccess;
+                    if (!hasAccess) return false;
+                  }
+                  return true;
+                }}
+              />
 
-              {/* Inline Week Navigator - Mobile Only (Condensed) */}
-              {activeSeason && (
-                <div className="sm:hidden ml-2">
-                  <InlineWeekNavigator
-                    currentWeek={currentWeek}
-                    totalWeeks={activeSeason.totalWeeks}
-                    regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                    onWeekChange={setCurrentWeek}
-                    completedWeeks={completedWeeks}
-                    season={activeSeason}
-                    condensed={true}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Main Navigation - Responsive */}
-            <ResponsiveNavigation
-              tabs={mainTabs.map(tab => ({
-                ...tab,
-                isDisabled: isAdmin && tab.requiresSeason && !activeSeason,
-                showNotification: tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen()
-              }))}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              shouldShowTab={(tab) => {
-                // Check auth requirements
-                if (tab.requiresAuth && !isAdmin) return false;
-                // Check custom access (can be boolean or function for backwards compatibility)
-                if (tab.customAccess !== undefined) {
-                  const hasAccess = typeof tab.customAccess === 'function' ? tab.customAccess() : tab.customAccess;
-                  if (!hasAccess) return false;
-                }
-                return true;
-              }}
-            />
-
-            {/* Right Section: Login */}
-            <div className="flex items-center space-x-2">
-              <LoginDropdown />
+              {/* Right Section: Login */}
+              <div className="flex items-center space-x-2">
+                <LoginDropdown />
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Main Content */}
+        <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
 
-        {/* Error Display */}
-        {error && (
-          <Card className="mb-6 border-destructive">
-            <CardContent className="p-4">
-              <p className="text-destructive">{error}</p>
-            </CardContent>
-          </Card>
-        )}
+          {/* Error Display */}
+          {error && (
+            <Card className="mb-6 border-destructive">
+              <CardContent className="p-4">
+                <p className="text-destructive">{error}</p>
+              </CardContent>
+            </Card>
+          )}
 
-        {/* Tab Content */}
-        <div className="space-y-6">
-          {activeTab === 'rankings' && (
-            <ErrorBoundary key="rankings-error-boundary">
-            <div className="space-y-6">
-              <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CardTitle>Week {currentWeek} Power Rankings</CardTitle>
-                        <Badge variant="outline">
-                          {new Date().toLocaleDateString()}
-                        </Badge>
-                      </div>
-                      
-                      {/* View Switcher */}
-                      <div className="flex items-center gap-4">
-                        {rankingsView === 'table' && (
-                          <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-2">
-                              <Switch
-                                id="advanced-stats"
-                                checked={showAdvancedStats}
-                                onCheckedChange={setShowAdvancedStats}
-                              />
-                              <Label htmlFor="advanced-stats" className="cursor-pointer">
-                                Advanced Stats
-                              </Label>
-                            </div>
-                            
-                            {analyticsEnabled && (
-                              <div className="flex items-center space-x-2">
-                                {(analyticsLoading || hasAnalyticsData) && (
-                                  <Badge
-                                    variant={hasAnalyticsData ? "default" : "secondary"}
-                                    className="text-xs"
-                                  >
-                                    {analyticsLoading ? "Loading..." : "Analytics Active"}
-                                  </Badge>
-                                )}
-                                {hasAnalyticsData && (
-                                  <Button
-                                    onClick={refreshAnalytics}
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={analyticsLoading}
-                                    className="text-xs flex items-center gap-1"
-                                  >
-                                    <RefreshCw className={`h-3 w-3 ${analyticsLoading ? 'animate-spin' : ''}`} />
-                                    Refresh
-                                  </Button>
+          {/* Tab Content */}
+          <div className="space-y-6">
+            {activeTab === 'rankings' && (
+              <ErrorBoundary key="rankings-error-boundary">
+                <div className="space-y-6">
+                  <div className="space-y-6">
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <CardTitle>Week {currentWeek} Power Rankings</CardTitle>
+                            <Badge variant="outline">
+                              {new Date().toLocaleDateString()}
+                            </Badge>
+                          </div>
+
+                          {/* View Switcher */}
+                          <div className="flex items-center gap-4">
+                            {rankingsView === 'table' && (
+                              <div className="flex items-center space-x-4">
+                                <div className="flex items-center space-x-2">
+                                  <Switch
+                                    id="advanced-stats"
+                                    checked={showAdvancedStats}
+                                    onCheckedChange={setShowAdvancedStats}
+                                  />
+                                  <Label htmlFor="advanced-stats" className="cursor-pointer">
+                                    Advanced Stats
+                                  </Label>
+                                </div>
+
+                                {analyticsEnabled && (
+                                  <div className="flex items-center space-x-2">
+                                    {(analyticsLoading || hasAnalyticsData) && (
+                                      <Badge
+                                        variant={hasAnalyticsData ? "default" : "secondary"}
+                                        className="text-xs"
+                                      >
+                                        {analyticsLoading ? "Loading..." : "Analytics Active"}
+                                      </Badge>
+                                    )}
+                                    {hasAnalyticsData && (
+                                      <Button
+                                        onClick={refreshAnalytics}
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={analyticsLoading}
+                                        className="text-xs flex items-center gap-1"
+                                      >
+                                        <RefreshCw className={`h-3 w-3 ${analyticsLoading ? 'animate-spin' : ''}`} />
+                                        Refresh
+                                      </Button>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )}
+
+                            <Button
+                              onClick={() => setRankingsView(rankingsView === 'table' ? 'analysis' : 'table')}
+                              variant="outline"
+                              size="sm"
+                              className="text-xs font-medium"
+                            >
+                              {rankingsView === 'table' ? 'Advanced Analysis' : 'Rankings Table'}
+                            </Button>
                           </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        {rankingsView === 'table' ? (
+                          <PowerRankingsTable
+                            rankings={weeklyRankings}
+                            currentWeek={currentWeek}
+                            showAdvanced={showAdvancedStats}
+                            loading={rankingsLoading || analyticsLoading}
+                            showAnalytics={analyticsEnabled && hasAnalyticsData}
+                            analyticsData={analyticsData}
+                            onExportAnalytics={exportAnalyticsData}
+                            user={user}
+                            isAdmin={isAdmin}
+                            teamOwnerNames={teamOwnerNames}
+                            initializing={!initialized}
+                          />
+                        ) : (
+                          <PowerRankingsVisualization
+                            rankings={weeklyRankings}
+                            currentWeek={currentWeek}
+                            loading={rankingsLoading || analyticsLoading}
+                            showAnalyticsSection={analyticsEnabled && hasAnalyticsData}
+                            analyticsData={analyticsData}
+                            user={user}
+                            teamOwnerNames={teamOwnerNames}
+                            isAdmin={isAdmin}
+                          />
                         )}
-                        
-                        <Button
-                          onClick={() => setRankingsView(rankingsView === 'table' ? 'analysis' : 'table')}
-                          variant="outline"
-                          size="sm"
-                          className="text-xs font-medium"
-                        >
-                          {rankingsView === 'table' ? 'Advanced Analysis' : 'Rankings Table'}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {rankingsView === 'table' ? (
-                      <PowerRankingsTable
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              </ErrorBoundary>
+            )}
+
+
+            {activeTab === 'statistics' && (
+              <ErrorBoundary key="statistics-error-boundary">
+                <div className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>League Analytics</CardTitle>
+                      <CardDescription>
+                        Comprehensive statistics and insights for your league
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <StatisticsPanel
                         rankings={weeklyRankings}
                         currentWeek={currentWeek}
-                        showAdvanced={showAdvancedStats}
-                        loading={rankingsLoading || analyticsLoading}
-                        showAnalytics={analyticsEnabled && hasAnalyticsData}
-                        analyticsData={analyticsData}
-                        onExportAnalytics={exportAnalyticsData}
+                        season={activeSeason}
+                        loading={rankingsLoading}
                         user={user}
                         isAdmin={isAdmin}
                         teamOwnerNames={teamOwnerNames}
-                        initializing={!initialized}
                       />
-                    ) : (
-                      <PowerRankingsVisualization
-                        rankings={weeklyRankings}
-                        currentWeek={currentWeek}
-                        loading={rankingsLoading || analyticsLoading}
-                        showAnalyticsSection={analyticsEnabled && hasAnalyticsData}
-                        analyticsData={analyticsData}
-                        user={user}
-                        teamOwnerNames={teamOwnerNames}
-                        isAdmin={isAdmin}
-                      />
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-            </ErrorBoundary>
-          )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </ErrorBoundary>
+            )}
 
-
-          {activeTab === 'statistics' && (
-            <ErrorBoundary key="statistics-error-boundary">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>League Analytics</CardTitle>
-                  <CardDescription>
-                    Comprehensive statistics and insights for your league
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <StatisticsPanel
-                    rankings={weeklyRankings}
-                    currentWeek={currentWeek}
+            {activeTab === 'schedule' && (
+              <ErrorBoundary key="schedule-error-boundary">
+                <div className="space-y-6">
+                  <ScheduleManager
                     season={activeSeason}
-                    loading={rankingsLoading}
+                    schedule={activeSeason?.schedule || []}
+                    currentWeek={currentWeek}
+                    onUpdateGame={isAdmin ? handleGameUpdate : null}
+                    onDeleteGame={isAdmin ? handleGameDelete : null}
+                    onWeekChange={setCurrentWeek}
+                    loading={loading}
+                    isAuthenticated={isAdmin}
+                    user={user}
+                    isAdmin={isAdmin}
+                    powerRankings={powerRankings}
+                    rosters={rosters}
+                    teamOwnerNames={teamOwnerNames}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
+
+            {activeTab === 'teams' && (
+              <ErrorBoundary key="teams-error-boundary">
+                <div className="space-y-6">
+                  <TeamsAndRosters
+                    teams={activeSeason?.teams || []}
+                    rosters={rosters}
+                    onAddTeam={isAdmin ? addTeam : null}
+                    onUpdateTeam={isAdmin ? updateTeam : null}
+                    onRemoveTeam={isAdmin ? removeTeam : null}
+                    loading={loading}
+                    powerRankings={powerRankings}
+                    isAuthenticated={isAdmin}
                     user={user}
                     isAdmin={isAdmin}
                     teamOwnerNames={teamOwnerNames}
                   />
-                </CardContent>
-              </Card>
-            </div>
-            </ErrorBoundary>
-          )}
+                </div>
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'schedule' && (
-            <ErrorBoundary key="schedule-error-boundary">
-            <div className="space-y-6">
-              <ScheduleManager
-                season={activeSeason}
-                schedule={activeSeason?.schedule || []}
-                currentWeek={currentWeek}
-                onUpdateGame={isAdmin ? handleGameUpdate : null}
-                onDeleteGame={isAdmin ? handleGameDelete : null}
-                onWeekChange={setCurrentWeek}
-                loading={loading}
-                isAuthenticated={isAdmin}
-                user={user}
-                isAdmin={isAdmin}
-                powerRankings={powerRankings}
-                rosters={rosters}
-                teamOwnerNames={teamOwnerNames}
-              />
-            </div>
-            </ErrorBoundary>
-          )}
+            {activeTab === 'projections' && (
+              <ErrorBoundary key="projections-error-boundary">
+                <div className="space-y-6">
+                  <ProjectionsManager
+                    season={activeSeason}
+                    teams={activeSeason?.teams || []}
+                    games={activeSeason?.schedule || []}
+                    divisions={divisions}
+                    currentWeek={currentWeek}
+                    loading={loading}
+                    user={user}
+                    isAdmin={isAdmin}
+                    teamOwnerNames={teamOwnerNames}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'teams' && (
-            <ErrorBoundary key="teams-error-boundary">
-            <div className="space-y-6">
-              <TeamsAndRosters
-                teams={activeSeason?.teams || []}
-                rosters={rosters}
-                onAddTeam={isAdmin ? addTeam : null}
-                onUpdateTeam={isAdmin ? updateTeam : null}
-                onRemoveTeam={isAdmin ? removeTeam : null}
-                loading={loading}
-                powerRankings={powerRankings}
-                isAuthenticated={isAdmin}
-                user={user}
-                isAdmin={isAdmin}
-                teamOwnerNames={teamOwnerNames}
-              />
-            </div>
-            </ErrorBoundary>
-          )}
+            {activeTab === 'pickems' && (
+              <ErrorBoundary key="pickems-error-boundary">
+                <div className="space-y-6">
+                  <PickEmsManager
+                    season={activeSeason}
+                    currentWeek={currentWeek}
+                    dataManager={dataManager}
+                    loading={loading}
+                    isAuthenticated={isAuthenticated}
+                    isAdmin={isAdmin}
+                    user={user}
+                    initializing={!initialized}
+                    preloadedData={preloadedPickemsData}
+                    preloadingInProgress={pickemPreloadingInProgress}
+                    teamOwnerNames={teamOwnerNames}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'projections' && (
-            <ErrorBoundary key="projections-error-boundary">
-            <div className="space-y-6">
-              <ProjectionsManager
-                season={activeSeason}
-                teams={activeSeason?.teams || []}
-                games={activeSeason?.schedule || []}
-                divisions={divisions}
-                currentWeek={currentWeek}
-                loading={loading}
-                user={user}
-                isAdmin={isAdmin}
-                teamOwnerNames={teamOwnerNames}
-              />
-            </div>
-            </ErrorBoundary>
-          )}
+            {activeTab === 'awards' && (
+              <ErrorBoundary key="awards-error-boundary">
+                <div className="space-y-6">
+                  <AwardsManager
+                    season={activeSeason}
+                    currentWeek={currentWeek}
+                    dataManager={dataManager}
+                    loading={loading}
+                    isAuthenticated={isAuthenticated}
+                    isAdmin={isAdmin}
+                    user={user}
+                    teamOwnerNames={teamOwnerNames}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'pickems' && (
-            <ErrorBoundary key="pickems-error-boundary">
-            <div className="space-y-6">
-            <PickEmsManager
-              season={activeSeason}
-              currentWeek={currentWeek}
-              dataManager={dataManager}
-              loading={loading}
-              isAuthenticated={isAuthenticated}
-              isAdmin={isAdmin}
-              user={user}
-              initializing={!initialized}
-              preloadedData={preloadedPickemsData}
-              preloadingInProgress={pickemPreloadingInProgress}
-              teamOwnerNames={teamOwnerNames}
-            />
-            </div>
-            </ErrorBoundary>
-          )}
+            {activeTab === 'playoffs' && (
+              <ErrorBoundary key="playoffs-error-boundary">
+                <div className="space-y-6">
+                  <PlayoffsBracketManager
+                    season={activeSeason}
+                    currentWeek={currentWeek}
+                    dataManager={dataManager}
+                    loading={loading}
+                    isAuthenticated={isAuthenticated}
+                    isAdmin={isAdmin}
+                    user={user}
+                    teamOwnerNames={teamOwnerNames}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'awards' && (
-            <ErrorBoundary key="awards-error-boundary">
-            <div className="space-y-6">
-            <AwardsManager
-              season={activeSeason}
-              currentWeek={currentWeek}
-              dataManager={dataManager}
-              loading={loading}
-              isAuthenticated={isAuthenticated}
-              isAdmin={isAdmin}
-              user={user}
-              teamOwnerNames={teamOwnerNames}
-            />
-            </div>
-            </ErrorBoundary>
-          )}
+            {activeTab === 'history' && (
+              <ErrorBoundary key="history-error-boundary">
+                <div className="space-y-6">
+                  <LeagueHistoryManager
+                    user={user}
+                    isAdmin={isAdmin}
+                    teamOwnerNames={teamOwnerNames}
+                    activeSeason={activeSeason}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
 
-          {activeTab === 'history' && (
-            <ErrorBoundary key="history-error-boundary">
-            <div className="space-y-6">
-            <LeagueHistoryManager
-              user={user}
-              isAdmin={isAdmin}
-              teamOwnerNames={teamOwnerNames}
-              activeSeason={activeSeason}
-            />
-            </div>
-            </ErrorBoundary>
-          )}
+          </div>
+        </main>
 
-        </div>
-      </main>
+        {/* Standings Drawer */}
+        {activeSeason && (
+          <StandingsDrawer
+            teams={activeSeason.teams || []}
+            divisions={divisions}
+            standings={standings}
+            currentWeek={currentWeek}
+            loading={loading}
+            isAuthenticated={isAdmin}
+            user={user}
+            isAdmin={isAdmin}
+            onDivisionRename={renameDivision}
+            onTeamDivisionChange={assignTeamToDivision}
+            onCreateDivision={createDivision}
+            games={activeSeason.schedule || []}
+            teamOwnerNames={teamOwnerNames}
+          />
+        )}
 
-      {/* Standings Drawer */}
-      {activeSeason && (
-        <StandingsDrawer
-          teams={activeSeason.teams || []}
-          divisions={divisions}
-          standings={standings}
-          currentWeek={currentWeek}
-          loading={loading}
-          isAuthenticated={isAdmin}
-          user={user}
-          isAdmin={isAdmin}
-          onDivisionRename={renameDivision}
-          onTeamDivisionChange={assignTeamToDivision}
-          onCreateDivision={createDivision}
-          games={activeSeason.schedule || []}
-          teamOwnerNames={teamOwnerNames}
-        />
-      )}
-
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-              <span>Loading...</span>
-            </div>
-          </Card>
-        </div>
-      )}
-    </div>
+        {/* Loading Overlay */}
+        {loading && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <Card className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                <span>Loading...</span>
+              </div>
+            </Card>
+          </div>
+        )}
+      </div>
     </ErrorBoundary>
   );
 };

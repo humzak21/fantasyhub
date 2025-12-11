@@ -1,0 +1,145 @@
+.btn {
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn:hover {
+  background: var(--primary-blue-hover);
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: var(--primary-blue);
+  color: white;
+  border-color: var(--primary-blue);
+}
+
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  margin: 40px 0;
+}
+
+.load-more-btn {
+  background: var(--primary-blue);
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 24px;
+  font-size: 16px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.load-more-btn:disabled {
+  background: var(--border);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+.load-more-btn:disabled:hover {
+  transform: none;
+}
+
+.floating-add-button {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+}
+
+.floating-add-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary-blue);
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 122, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floating-add-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 30px rgba(0, 122, 255, 0.4);
+}
+
+.floating-add-btn:active {
+  transform: scale(0.95);
+}
+
+[data-theme="dark"] .floating-add-btn {
+  box-shadow: 0 4px 20px rgba(10, 132, 255, 0.3);
+}
+
+[data-theme="dark"] .floating-add-btn:hover {
+  box-shadow: 0 6px 30px rgba(10, 132, 255, 0.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .floating-add-btn {
+    box-shadow: 0 4px 20px rgba(10, 132, 255, 0.3);
+  }
+
+  :root:not([data-theme="light"]) .floating-add-btn:hover {
+    box-shadow: 0 6px 30px rgba(10, 132, 255, 0.4);
+  }
+}
+
+.watched-date-quick-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.watched-date-quick-btn:hover {
+  background: var(--primary-blue);
+  color: white;
+  border-color: var(--primary-blue);
+  transform: translateY(-1px);
+}
+
+.watched-date-quick-btn:active {
+  transform: translateY(0);
+}
+
+.watched-date-quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.watched-date-quick-btn:disabled:hover {
+  background: var(--surface);
+  color: var(--text-secondary);
+  border-color: var(--border);
+  transform: none;
+} 
