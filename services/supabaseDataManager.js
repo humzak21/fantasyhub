@@ -339,6 +339,25 @@ export class SupabaseDataManager {
     }
   }
 
+  async getDivisions(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('divisions')
+        .select('*')
+        .eq('season_id', seasonId)
+        .order('display_order');
+
+      if (error) throw error;
+
+      return data || [];
+    } catch (error) {
+      handleSupabaseError(error, 'Get divisions');
+      return [];
+    }
+  }
+
   // Team management
   async addTeamToSeason(seasonId, name, owner = '') {
     await this.initialize();
@@ -3689,6 +3708,400 @@ export class SupabaseDataManager {
       return results;
     } catch (error) {
       handleSupabaseError(error, 'Get award results');
+    }
+  }
+
+  // ============================================================================
+  // PLAYOFFS 2025 BRACKET CHALLENGE
+  // ============================================================================
+
+  /**
+   * Get playoff bracket configuration for a season
+   */
+  async getPlayoffBracketConfig(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('playoffs_2025_config')
+        .select('*')
+        .eq('season_id', seasonId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+
+      return data ? formatFromDatabase(data) : null;
+    } catch (error) {
+      handleSupabaseError(error, 'Get playoff bracket config');
+      return null;
+    }
+  }
+
+  /**
+   * Create or update playoff bracket configuration (admin only)
+   */
+  async upsertPlayoffBracketConfig(seasonId, configData) {
+    await this.initialize();
+
+    try {
+      const formattedData = formatForDatabase({
+        seasonId,
+        ...configData,
+        updatedAt: new Date().toISOString()
+      });
+
+      const { data, error } = await this.client
+        .from('playoffs_2025_config')
+        .upsert(formattedData, { onConflict: 'season_id' })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return formatFromDatabase(data);
+    } catch (error) {
+      handleSupabaseError(error, 'Upsert playoff bracket config');
+    }
+  }
+
+  /**
+   * Get playoff matchup data from games table
+   * Returns games with type starting with 'playoff' or 'consolation'
+   */
+  async getPlayoffGames(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('games')
+        .select(`
+          id,
+          week,
+          type,
+          slot,
+          team1_id,
+          team2_id,
+          team1_score,
+          team2_score,
+          is_completed,
+          winner_team_id,
+          team1:teams!games_team1_id_fkey(id, name, owner),
+          team2:teams!games_team2_id_fkey(id, name, owner)
+        `)
+
+        .eq('season_id', seasonId)
+        .or('type.like.playoff%,type.like.consolation%,type.eq.bye')
+        .order('week')
+        .order('type');
+
+      if (error) throw error;
+
+      return (data || []).map(game => formatFromDatabase(game));
+    } catch (error) {
+      handleSupabaseError(error, 'Get playoff games');
+      return [];
+    }
+  }
+
+  /**
+   * Get user's playoff bracket picks
+   */
+  async getUserPlayoffPicks(seasonId, userId = null) {
+    await this.initialize();
+
+    try {
+      // Get current user if not specified
+      const { data: { session } } = await this.client.auth.getSession();
+      const targetUserId = userId || session?.user?.id;
+
+      if (!targetUserId) {
+        return [];
+      }
+
+      const { data, error } = await this.client
+        .from('playoffs_2025')
+        .select(`
+          *,
+          predicted_winner:teams!playoffs_2025_predicted_winner_fkey(id, name, owner),
+          actual_winner:teams!playoffs_2025_actual_winner_fkey(id, name, owner),
+          game:games!playoffs_2025_game_id_fkey(id, week, type, winner_team_id)
+        `)
+        .eq('season_id', seasonId)
+        .eq('user_id', targetUserId);
+
+      if (error) throw error;
+
+      return (data || []).map(pick => ({
+        ...formatFromDatabase(pick),
+        predictedWinner: pick.predicted_winner ? formatFromDatabase(pick.predicted_winner) : null,
+        actualWinner: pick.actual_winner ? formatFromDatabase(pick.actual_winner) : null,
+        game: pick.game ? formatFromDatabase(pick.game) : null
+      }));
+    } catch (error) {
+      handleSupabaseError(error, 'Get user playoff picks');
+      return [];
+    }
+  }
+
+  /**
+   * Submit playoff bracket picks
+   * Uses RPC function that enforces deadline
+   */
+  async submitPlayoffPicks(seasonId, picks) {
+    await this.initialize();
+
+    if (!Array.isArray(picks) || picks.length === 0) {
+      throw new Error('Picks must be a non-empty array');
+    }
+
+    try {
+      const { data, error } = await this.client.rpc('submit_playoff_picks', {
+        p_season_id: seasonId,
+        p_picks: picks
+      });
+
+      if (error) throw error;
+
+      return data;
+    } catch (error) {
+      handleSupabaseError(error, 'Submit playoff picks');
+    }
+  }
+
+  /**
+   * Get all playoff picks for a season (admin or after results released)
+   */
+  async getAllPlayoffPicks(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('playoffs_2025')
+        .select(`
+          *,
+          predicted_winner:teams!playoffs_2025_predicted_winner_fkey(id, name, owner),
+          actual_winner:teams!playoffs_2025_actual_winner_fkey(id, name, owner)
+        `)
+        .eq('season_id', seasonId);
+
+      if (error) throw error;
+
+      // Get display names for all users
+      const userIds = [...new Set((data || []).map(p => p.user_id))];
+      const displayNames = await this.getUserDisplayNames(userIds);
+
+      return (data || []).map(pick => ({
+        ...formatFromDatabase(pick),
+        displayName: displayNames[pick.user_id] || `User ${pick.user_id.slice(0, 8)}`,
+        predictedWinner: pick.predicted_winner ? formatFromDatabase(pick.predicted_winner) : null,
+        actualWinner: pick.actual_winner ? formatFromDatabase(pick.actual_winner) : null
+      }));
+    } catch (error) {
+      handleSupabaseError(error, 'Get all playoff picks');
+      return [];
+    }
+  }
+
+  /**
+   * Get playoff bracket standings/leaderboard
+   */
+  async getPlayoffStandings(seasonId) {
+    await this.initialize();
+
+    try {
+      const allPicks = await this.getAllPlayoffPicks(seasonId);
+
+      if (!allPicks || allPicks.length === 0) {
+        return [];
+      }
+
+      // Group picks by user and calculate scores
+      const userStats = {};
+
+      allPicks.forEach(pick => {
+        const userId = pick.userId;
+        if (!userStats[userId]) {
+          userStats[userId] = {
+            userId,
+            displayName: pick.displayName,
+            totalPicks: 0,
+            correctPicks: 0,
+            totalPoints: 0,
+            picks: []
+          };
+        }
+
+        userStats[userId].totalPicks++;
+        userStats[userId].picks.push(pick);
+
+        if (pick.isCorrect) {
+          userStats[userId].correctPicks++;
+          userStats[userId].totalPoints += pick.pointsEarned || 1;
+        }
+      });
+
+      // Convert to array and sort
+      const standingsArray = Object.values(userStats).map(stats => ({
+        userId: stats.userId,
+        displayName: stats.displayName,
+        totalPicks: stats.totalPicks,
+        correctPicks: stats.correctPicks,
+        totalPoints: stats.totalPoints,
+        accuracyPercentage: stats.totalPicks > 0
+          ? (stats.correctPicks / stats.totalPicks) * 100
+          : 0
+      }));
+
+      // Sort by points, then accuracy
+      standingsArray.sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+        return b.accuracyPercentage - a.accuracyPercentage;
+      });
+
+      // Assign ranks
+      return standingsArray.map((standing, index) => ({
+        ...standing,
+        rank: index + 1
+      }));
+    } catch (error) {
+      handleSupabaseError(error, 'Get playoff standings');
+      return [];
+    }
+  }
+
+  /**
+   * Get playoff bracket status (deadline, results released, etc.)
+   */
+  async getPlayoffBracketStatus(seasonId) {
+    await this.initialize();
+
+    try {
+      const config = await this.getPlayoffBracketConfig(seasonId);
+      const now = new Date();
+
+      // Default deadline: December 12, 2025 at 8:15 PM EST
+      const deadline = config?.submissionDeadline
+        ? new Date(config.submissionDeadline)
+        : new Date('2025-12-12T20:15:00-05:00');
+
+      const isBeforeDeadline = now < deadline;
+      const resultsReleased = config?.resultsReleased || false;
+
+      // Calculate time remaining
+      let timeRemaining = null;
+      if (isBeforeDeadline) {
+        const diff = deadline - now;
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+        if (days > 0) {
+          timeRemaining = `${days}d ${hours}h remaining`;
+        } else if (hours > 0) {
+          timeRemaining = `${hours}h ${minutes}m remaining`;
+        } else {
+          timeRemaining = `${minutes}m remaining`;
+        }
+      }
+
+      return {
+        canSubmit: isBeforeDeadline,
+        deadline: deadline.toISOString(),
+        deadlineFormatted: deadline.toLocaleString('en-US', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          timeZoneName: 'short'
+        }),
+        timeRemaining,
+        resultsReleased,
+        bracketData: config?.bracketData || null
+      };
+    } catch (error) {
+      handleSupabaseError(error, 'Get playoff bracket status');
+      return {
+        canSubmit: false,
+        deadline: null,
+        resultsReleased: false
+      };
+    }
+  }
+
+  /**
+   * Release playoff bracket results (admin only)
+   */
+  async releasePlayoffResults(seasonId) {
+    await this.initialize();
+
+    try {
+      const { data, error } = await this.client
+        .from('playoffs_2025_config')
+        .upsert({
+          season_id: seasonId,
+          results_released: true,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'season_id' })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return formatFromDatabase(data);
+    } catch (error) {
+      handleSupabaseError(error, 'Release playoff results');
+    }
+  }
+
+  /**
+   * Update slot assignments for consolation games (admin only)
+   * Slots are used to determine ladder positioning (0 = highest seeds, 3 = lowest seeds)
+   */
+  async updateConsolationGameSlots(seasonId, slotAssignments) {
+
+    await this.initialize();
+
+    try {
+      // Validate inputs
+      if (!slotAssignments || typeof slotAssignments !== 'object') {
+        throw new Error('slotAssignments must be an object');
+      }
+
+      // Update each game's slot
+      const updates = [];
+      for (const [slot, gameId] of Object.entries(slotAssignments)) {
+        if (gameId) {
+          const slotNumber = parseInt(slot, 10);
+          if (slotNumber < 0 || slotNumber > 3) {
+            throw new Error(`Slot must be between 0 and 3, got ${slotNumber}`);
+          }
+
+          updates.push(
+            this.client
+              .from('games')
+              .update({ slot: slotNumber })
+              .eq('id', gameId)
+              .eq('season_id', seasonId)
+              .eq('type', 'playoff_consolation_quarterfinals')
+              .eq('week', 15)
+          );
+        }
+      }
+
+      // Execute all updates
+      const results = await Promise.all(updates);
+
+      // Check for errors
+      for (const { error } of results) {
+        if (error) throw error;
+      }
+
+      return { success: true, updatedCount: updates.length };
+    } catch (error) {
+      handleSupabaseError(error, 'Update consolation game slots');
+      throw error;
     }
   }
 }
