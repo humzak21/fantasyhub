@@ -1,7 +1,16 @@
+// ⚠️  SECURITY: the espn_s2 / SWID pair below is a live credential for the
+// ESPN account and it is committed to git. Deleting it here would not fix the
+// exposure -- it must be rotated in ESPN and purged from history first.
+// See REFACTOR_ANALYSIS.md §2.1. Left untouched deliberately so nothing
+// silently breaks before that happens.
+//
+// leagueId / seasonYear are fallbacks only. The active season row owns them
+// (seasons.espn_league_id, seasons.espn_season_year); scripts/weeklyUpdate.js
+// reads the season first and only falls back to these.
 export const ESPN_CONFIG = {
-  leagueId: '67674700',
-  seasonYear: 2025,
-  
+  leagueId: process.env.ESPN_LEAGUE_ID || '67674700',
+  seasonYear: process.env.ESPN_SEASON_YEAR ? Number(process.env.ESPN_SEASON_YEAR) : null,
+
   espnS2: '***REMOVED-ESPN-S2***',
   swid: '{REMOVED-SWID}'
 };

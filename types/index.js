@@ -1,5 +1,7 @@
 // Data models and types for fantasy football power rankings system
 
+import { derivePickEmSchedule, getSeasonConfig } from '../utils/seasonConfig.js';
+
 export const PLAYOFF_TYPES = {
   PLAYOFF: 'playoff',
   CHAMPIONSHIP: 'championship',
@@ -385,33 +387,20 @@ export const getPickEmTimeStatus = (submissionOpensAt, submissionClosesAt, resul
   }
 };
 
-// Calculate default pick'em schedule based on fantasy week system
+// Calculate default pick'em schedule based on fantasy week system.
+//
+// This used to carry its own copy of the season start date ('2025-09-02T03:00'
+// EST) which disagreed with the one in utils/weekCalculator.js ('2025-09-02'
+// midnight EDT), and hardcoded the open/close/reveal offsets. All of it now
+// comes off the active season row.
 export const calculatePickEmSchedule = (weekNumber) => {
-  // Week 1 starts September 2nd, 2025 at 3AM EST
-  const SEASON_START_DATE = new Date('2025-09-02T03:00:00-05:00'); // EST timezone
-
-  // Calculate the start of the fantasy week
-  const weekStartDate = new Date(SEASON_START_DATE);
-  weekStartDate.setDate(SEASON_START_DATE.getDate() + (weekNumber - 1) * 7);
-
-  // Pick'ems open when the fantasy week opens (same time as WeekNavigator)
-  const submissionOpens = new Date(weekStartDate); // Same as week start: 3AM EST
-
-  // Pick'ems close Thursday 8PM EST of that week
-  const submissionCloses = new Date(weekStartDate);
-  submissionCloses.setDate(weekStartDate.getDate() + 2); // Thursday of that week
-  submissionCloses.setHours(20, 0, 0, 0); // 8PM EST
-
-  // Results reveal following Tuesday 12PM EST (next week's Tuesday)
-  const resultsReveal = new Date(weekStartDate);
-  resultsReveal.setDate(weekStartDate.getDate() + 7); // Following Tuesday
-  resultsReveal.setHours(12, 0, 0, 0); // 12PM EST
-
-  return {
-    submissionOpensAt: submissionOpens.toISOString(),
-    submissionClosesAt: submissionCloses.toISOString(),
-    resultsRevealAt: resultsReveal.toISOString()
-  };
+  const config = getSeasonConfig();
+  if (!config?.startDate) {
+    throw new Error(
+      'Cannot build a pick\'em schedule: no active season config loaded.'
+    );
+  }
+  return derivePickEmSchedule(config, weekNumber);
 };
 
 // ============================================================================

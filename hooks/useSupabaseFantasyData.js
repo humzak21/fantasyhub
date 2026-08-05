@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SupabaseDataManager } from '../services/supabaseDataManager.js';
 import { PowerRankingCalculator } from '../services/powerRankingCalculator.js';
+import { setSeasonConfig } from '../utils/seasonConfig.js';
 
 let dataManagerInstance = null;
 
@@ -51,6 +52,10 @@ export const useSupabaseFantasyData = () => {
       ]);
 
       setSeasons(allSeasons);
+
+      // Publish the season's dates before anything derives from them: week
+      // math, pick'em windows and the awards gate all read this.
+      setSeasonConfig(active);
 
       // If we have an active season, load its games as schedule
       if (active) {
@@ -568,7 +573,7 @@ export const useSupabaseFantasyData = () => {
 
   const checkWeeklySnapshotStatus = useCallback(async () => {
     try {
-      return await dataManager.checkWeeklySnapshotStatus(activeSeason?.year || 2025);
+      return await dataManager.checkWeeklySnapshotStatus(activeSeason?.year);
     } catch (err) {
       return { should_trigger: false, reason: 'Error checking status' };
     }
@@ -576,7 +581,7 @@ export const useSupabaseFantasyData = () => {
 
   const executeWeeklySnapshotIfNeeded = useCallback(async () => {
     try {
-      return await dataManager.executeWeeklySnapshotIfNeeded(activeSeason?.year || 2025);
+      return await dataManager.executeWeeklySnapshotIfNeeded(activeSeason?.year);
     } catch (err) {
       setError(err.message);
       return { status: 'error', error_message: err.message };
@@ -585,7 +590,7 @@ export const useSupabaseFantasyData = () => {
 
   const getCurrentNFLWeek = useCallback(async () => {
     try {
-      return await dataManager.getCurrentNFLWeek(activeSeason?.year || 2025);
+      return await dataManager.getCurrentNFLWeek(activeSeason?.year);
     } catch (err) {
       return 1;
     }

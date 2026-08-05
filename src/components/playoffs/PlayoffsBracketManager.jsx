@@ -8,6 +8,7 @@ import { Trophy, Target, Settings, AlertCircle, Clock, Users } from 'lucide-reac
 
 import PlayoffsBracket from './PlayoffsBracket';
 import PlayoffsBracketAdmin from './PlayoffsBracketAdmin';
+import { getSeasonConfig } from '../../../utils/seasonConfig.js';
 
 const PlayoffsBracketManager = ({
     season,
@@ -122,7 +123,7 @@ const PlayoffsBracketManager = ({
                         <div>
                             <CardTitle className="flex items-center gap-2">
                                 <Trophy className="h-5 w-5 text-yellow-500" />
-                                2025 Playoff Bracket Challenge
+                                {getSeasonConfig()?.year ?? ''} Playoff Bracket Challenge
                             </CardTitle>
                             <CardDescription>
                                 Predict the playoff and consolation bracket winners
@@ -157,7 +158,7 @@ const PlayoffsBracketManager = ({
                             <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-orange-600" />
                                 <span className="font-medium">Deadline:</span>
-                                <span>{bracketStatus?.deadlineFormatted || 'December 12, 2025 at 8:15 PM EST'}</span>
+                                <span>{bracketStatus?.deadlineFormatted || 'Not set'}</span>
                             </div>
                         </div>
 
