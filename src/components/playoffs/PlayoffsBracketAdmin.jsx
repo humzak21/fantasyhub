@@ -209,7 +209,7 @@ const PlayoffsBracketAdmin = ({
                         <div>
                             <div className="font-medium">Submission Deadline</div>
                             <div className="text-muted-foreground">
-                                {bracketStatus?.deadlineFormatted || 'December 12, 2025 at 8:15 PM EST'}
+                                {bracketStatus?.deadlineFormatted || 'Not set'}
                             </div>
                         </div>
                         {bracketStatus?.canSubmit ? (

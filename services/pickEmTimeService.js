@@ -1,6 +1,8 @@
 // Pick'ems Time Management Service
 // Handles automatic status updates and time-based controls
 
+import { calculatePickEmSchedule } from '../types/index.js';
+
 export class PickEmTimeService {
   constructor(dataManager) {
     this.dataManager = dataManager;
@@ -158,33 +160,11 @@ export class PickEmTimeService {
     }
   }
 
-  // Calculate default pick'em schedule for a week (aligned with fantasy week system)
+  // Calculate default pick'em schedule for a week (aligned with fantasy week system).
+  // This was a fourth copy of the season start date and the open/close/reveal
+  // offsets; it now defers to the one derivation in utils/seasonConfig.js.
   calculateWeekSchedule(weekNumber) {
-    // Week 1 starts September 2nd, 2025 at 3AM EST
-    const SEASON_START_DATE = new Date('2025-09-02T03:00:00-05:00'); // EST timezone
-
-    // Calculate the start of the fantasy week
-    const weekStartDate = new Date(SEASON_START_DATE);
-    weekStartDate.setDate(SEASON_START_DATE.getDate() + (weekNumber - 1) * 7);
-
-    // Pick'ems open when the fantasy week opens (same time as WeekNavigator)
-    const submissionOpens = new Date(weekStartDate); // Same as week start: 3AM EST
-
-    // Pick'ems close Thursday 8PM EST of that week
-    const submissionCloses = new Date(weekStartDate);
-    submissionCloses.setDate(weekStartDate.getDate() + 2); // Thursday of that week
-    submissionCloses.setHours(20, 0, 0, 0); // 8PM EST
-
-    // Results reveal following Tuesday 12PM EST (next week's Tuesday)
-    const resultsReveal = new Date(weekStartDate);
-    resultsReveal.setDate(weekStartDate.getDate() + 7); // Following Tuesday
-    resultsReveal.setHours(12, 0, 0, 0); // 12PM EST
-
-    return {
-      submissionOpensAt: submissionOpens.toISOString(),
-      submissionClosesAt: submissionCloses.toISOString(),
-      resultsRevealAt: resultsReveal.toISOString()
-    };
+    return calculatePickEmSchedule(weekNumber);
   }
 
   // Clean up all intervals

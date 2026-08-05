@@ -9,26 +9,65 @@ import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { SupabaseDataManager } from '../services/supabaseDataManager.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
-
-// ====== CONFIGURATION ======
-// Set your default season ID here if you want to skip the argument
-const DEFAULT_SEASON_ID = '96925672-2fd4-4cf6-a86b-eec9b9303e89'; // currently season 6, 2025 NFL season
-// ====== END CONFIGURATION ======
+import { deriveCurrentWeek, toSeasonConfig } from '../utils/seasonConfig.js';
 
 const config = ESPN_CONFIG;
+
+/**
+ * Resolve what to sync from the database rather than from arguments.
+ * The active season row owns the season id, the week count, the playoff
+ * boundary and the ESPN league/season — none of which live in this file
+ * any more.
+ */
+async function resolveTarget({ seasonIdArg, weekArg }) {
+  const dataManager = new SupabaseDataManager();
+  await dataManager.initialize();
+
+  const query = dataManager.client.from(seasonIdArg ? 'seasons' : 'v_active_season').select('*');
+  const { data, error } = seasonIdArg
+    ? await query.eq('id', seasonIdArg).single()
+    : await query.single();
+
+  if (error || !data) {
+    throw new Error(
+      seasonIdArg
+        ? `Season ${seasonIdArg} not found: ${error?.message ?? 'no row'}`
+        : `No active season found. Mark one with seasons.is_active = true. (${error?.message ?? ''})`
+    );
+  }
+
+  const season = toSeasonConfig(data);
+
+  return {
+    dataManager,
+    season,
+    seasonId: season.id,
+    weekNumber: weekArg || deriveCurrentWeek(season),
+    espn: {
+      leagueId: season.espnLeagueId || config.leagueId,
+      seasonYear: season.espnSeasonYear || config.seasonYear,
+      espnS2: config.espnS2,
+      swid: config.swid
+    }
+  };
+}
 
 function printUsage() {
   console.log(`
 🏈 Weekly Fantasy Football Update
 ==================================
 
-Usage: node scripts/weeklyUpdate.js <week-number> [season-id] [options]
+Usage: node scripts/weeklyUpdate.js [week-number] [season-id] [options]
 
 This script combines roster updates and score updates in one process.
+With no arguments it syncs the current week of the active season, which is
+what the scheduled job runs.
 
 Arguments:
-  week-number    - The week number to update scores for (1-17)
-  season-id      - Your Supabase season ID (optional, uses DEFAULT_SEASON_ID if omitted)
+  week-number    - Week to sync (optional; defaults to the current week
+                   derived from the season's start date)
+  season-id      - Supabase season ID (optional; defaults to the season
+                   marked is_active)
 
 Options:
   --skip-rosters      - Skip the ESPN roster update
@@ -36,36 +75,34 @@ Options:
   --skip-transactions - Skip the transaction count update
 
 Examples:
-  # Full weekly update using default season ID
+  # Sync the current week of the active season
+  node scripts/weeklyUpdate.js
+
+  # Re-sync a specific week
   node scripts/weeklyUpdate.js 5
 
-  # Full weekly update with specific season ID
+  # Target a specific season explicitly
   node scripts/weeklyUpdate.js 5 abc123-def4-5678-9012-34567890abcd
 
   # Skip roster updates, only update scores
-  node scripts/weeklyUpdate.js 5 abc123-def4-5678-9012-34567890abcd --skip-rosters
-
-  # Skip score updates, only update rosters
-  node scripts/weeklyUpdate.js 5 abc123-def4-5678-9012-34567890abcd --skip-scores
+  node scripts/weeklyUpdate.js 5 --skip-rosters
 `);
 }
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const parsed = {
-    weekNumber: parseInt(args[0]),
-    seasonId: args[1] || DEFAULT_SEASON_ID,
-    options: {}
-  };
+  const positional = args.filter(arg => !arg.startsWith('--'));
+  const options = {};
 
-  for (let i = 2; i < args.length; i++) {
-    const arg = args[i];
-    if (arg.startsWith('--')) {
-      parsed.options[arg.substring(2)] = true;
-    }
+  for (const arg of args) {
+    if (arg.startsWith('--')) options[arg.substring(2)] = true;
   }
 
-  return parsed;
+  return {
+    weekArg: positional[0] ? parseInt(positional[0], 10) : null,
+    seasonIdArg: positional[1] || null,
+    options
+  };
 }
 
 async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
@@ -188,7 +225,7 @@ async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
   };
 }
 
-async function updateTransactionCounts(seasonId) {
+async function updateTransactionCounts(seasonId, espn) {
   console.log(`\n🔄 Updating transaction counts...`);
 
   let dataManager;
@@ -208,14 +245,14 @@ async function updateTransactionCounts(seasonId) {
 
   // Create transaction fetcher
   const fetcher = new ESPNTransactionFetcher(
-    config.leagueId,
-    config.seasonYear,
-    config.espnS2,
-    config.swid
+    espn.leagueId,
+    espn.seasonYear,
+    espn.espnS2,
+    espn.swid
   );
 
-  // Fetch transaction summary for current season
-  const transactionSummary = await fetcher.getSeasonTransactionSummary(config.seasonYear);
+  // Fetch transaction summary for the season being synced
+  const transactionSummary = await fetcher.getSeasonTransactionSummary(espn.seasonYear);
 
   if (!transactionSummary || transactionSummary.length === 0) {
     console.warn('⚠️ No transaction data found');
@@ -258,10 +295,21 @@ async function updateTransactionCounts(seasonId) {
       const teamId = team ? team.id : null;
       if (!teamId) continue;
 
-      // Upsert transaction data
+      const franchiseId = team.franchiseId ?? team.franchise_id ?? null;
+      if (!franchiseId) {
+        errors.push({
+          team: teamData.ownerName,
+          error: 'Team has no franchise_id; cannot key transactions by season'
+        });
+        continue;
+      }
+
+      // Upsert into the season-keyed transactions table (was transactions_2025).
       const { error: upsertError } = await dataManager.client
-        .from('transactions_2025')
+        .from('transactions')
         .upsert({
+          season_id: seasonId,
+          franchise_id: franchiseId,
           team_id: teamId,
           owner_name: teamData.ownerName,
           espn_team_id: teamData.espnTeamId,
@@ -272,7 +320,7 @@ async function updateTransactionCounts(seasonId) {
           faab_spent: teamData.faab_spent,
           last_synced_at: new Date().toISOString()
         }, {
-          onConflict: 'team_id',
+          onConflict: 'franchise_id,season_id',
           ignoreDuplicates: false
         });
 
@@ -316,51 +364,57 @@ async function updateTransactionCounts(seasonId) {
 }
 
 async function main() {
-  const { seasonId, weekNumber, options } = parseArgs();
+  const { weekArg, seasonIdArg, options } = parseArgs();
 
-  if (!weekNumber) {
-    console.error('❌ Error: Week number is required');
-    console.error('');
+  if (weekArg !== null && Number.isNaN(weekArg)) {
+    console.error('❌ Error: Week number must be a number');
     printUsage();
     process.exit(1);
   }
 
-  if (isNaN(weekNumber) || weekNumber < 1 || weekNumber > 17) {
-    console.error('❌ Error: Week number must be between 1 and 17');
+  let target;
+  try {
+    target = await resolveTarget({ seasonIdArg, weekArg });
+  } catch (error) {
+    console.error(`❌ ${error.message}`);
     process.exit(1);
   }
 
-  if (!seasonId) {
-    console.error('❌ Error: Season ID is required (either pass as argument or set DEFAULT_SEASON_ID)');
-    console.error('');
-    printUsage();
+  const { season, seasonId, weekNumber, espn } = target;
+
+  if (weekNumber < 1 || weekNumber > season.weekCount) {
+    console.error(`❌ Error: Week number must be between 1 and ${season.weekCount}`);
     process.exit(1);
   }
 
-  if (!config.leagueId) {
+  if (!espn.leagueId) {
     console.error('❌ Error: League ID not configured');
-    console.error('Run: node scripts/setupESPN.js');
-    console.error('Then edit config/espn-config.js with your league details');
+    console.error('Set seasons.espn_league_id for this season, or run: node scripts/setupESPN.js');
     process.exit(1);
   }
 
   try {
     console.log(`🔧 Initializing Weekly Update...`);
-    console.log(`   Season ID: ${seasonId}`);
-    console.log(`   Week: ${weekNumber}`);
-    console.log(`   League ID: ${config.leagueId}`);
-    console.log(`   Private League: ${config.espnS2 ? 'Yes' : 'No'}`);
+    console.log(`   Season: ${season.year} (${seasonId})`);
+    console.log(`   Week: ${weekNumber} of ${season.weekCount}${weekArg === null ? ' (derived)' : ''}`);
+    console.log(`   League ID: ${espn.leagueId}`);
+    console.log(`   Private League: ${espn.espnS2 ? 'Yes' : 'No'}`);
     console.log('');
 
     // ===== UPDATE ROSTERS =====
-    if (!options['skip-rosters']) {
+    // Roster syncing stops once the playoffs start, so team records stay
+    // frozen at the end of the regular season. The boundary comes from the
+    // season row (regular_season_weeks + 1), not a hardcoded week 15.
+    const isPlayoffWeek = weekNumber >= season.playoffStartWeek;
+
+    if (!options['skip-rosters'] && !isPlayoffWeek) {
       console.log('📋 Step 1: Updating ESPN rosters...');
       try {
         const rosterScript = await createRosterUpdateScript(
-          config.leagueId,
-          config.seasonYear,
-          config.espnS2,
-          config.swid
+          espn.leagueId,
+          espn.seasonYear,
+          espn.espnS2,
+          espn.swid
         );
 
         await rosterScript.runWeeklyUpdate();
@@ -369,6 +423,9 @@ async function main() {
         console.error('❌ Roster update failed:', error.message);
         throw error;
       }
+    } else if (isPlayoffWeek && !options['skip-rosters']) {
+      console.log(`📋 Step 1: Skipping roster updates (Week ${season.playoffStartWeek}+ - Playoffs)`);
+      console.log(`   Team records are frozen at end of regular season (Week ${season.regularSeasonWeeks})`);
     }
 
     // ===== UPDATE SCORES =====
@@ -376,10 +433,10 @@ async function main() {
       console.log('\n📊 Step 2: Updating scores from ESPN...');
       try {
         const scheduleFetcher = await createScheduleFetcher(
-          config.leagueId,
-          config.seasonYear,
-          config.espnS2,
-          config.swid
+          espn.leagueId,
+          espn.seasonYear,
+          espn.espnS2,
+          espn.swid
         );
 
         // Fetch the week's schedule from ESPN
@@ -408,7 +465,7 @@ async function main() {
     if (!options['skip-transactions']) {
       console.log('\n📊 Step 3: Updating transaction counts from ESPN...');
       try {
-        const transactionResult = await updateTransactionCounts(seasonId);
+        const transactionResult = await updateTransactionCounts(seasonId, espn);
 
         if (!transactionResult.success) {
           console.warn('⚠️ Some transaction updates failed. Check errors above.');

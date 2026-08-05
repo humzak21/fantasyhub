@@ -3,6 +3,7 @@ import { Trophy, Calendar, BarChart3, Users, Target, RefreshCw, Award, TrendingU
 import { useAuth } from './src/contexts/AuthContext';
 import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
 import { getCurrentWeek } from './utils/weekCalculator.js';
+import { arePickEmsOpen, areAwardsReleased, getSeasonConfig } from './utils/seasonConfig.js';
 import { getTeamOwnerNames } from './src/utils/displayNameUtils';
 import { Button } from './src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src/components/ui/card';
@@ -299,51 +300,24 @@ const FantasyFootballApp = () => {
 
   // Check if awards are accessible
   const isAwardsAccessible = () => {
-    console.log('isAwardsAccessible check:', {
-      isAdmin,
-      isAuthenticated,
-      votingOpenToAll: awardsUnlockStatus?.votingOpenToAll,
-      awardsUnlockStatus
-    });
-
     // Admins always have access
     if (isAdmin) return true;
 
     // Check if voting is open to all authenticated users
     if (isAuthenticated && awardsUnlockStatus?.votingOpenToAll) return true;
 
-    // Fallback to date check (legacy support)
-    const now = new Date();
-    const awardsReleaseDate = new Date('2025-12-09T00:00:00');
-    return now >= awardsReleaseDate;
+    // Otherwise the season's own release date decides.
+    return areAwardsReleased(getSeasonConfig());
   };
 
-  // Check if pickems are still open (closes at 8:10 PM on Thursdays)
-  const arePickemsOpen = () => {
-    const now = new Date();
-    const day = now.getDay(); // 0 = Sunday, 4 = Thursday
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-
-    // If it's Thursday (day 4)
-    if (day === 4) {
-      // Check if time is after 8:10 PM (20:10)
-      if (hours > 20 || (hours === 20 && minutes >= 10)) {
-        return false; // Pickems are closed
-      }
-    }
-    // If it's Friday or Saturday (5, 6), pickems are definitely closed
-    if (day === 5 || day === 6) {
-      return false;
-    }
-
-    return true; // Pickems are open
-  };
+  // Check if pickems are still open. The window comes from the season row
+  // (open Tuesday 04:00, close Thursday 20:00 in the league's time zone),
+  // not from a weekday/hour rule duplicated in the view layer.
+  const arePickemsOpen = () => arePickEmsOpen(getSeasonConfig(), currentWeek);
 
   // Main navigation tabs - use useMemo to recalculate when dependencies change
   const mainTabs = useMemo(() => {
     const awardsAccessible = isAwardsAccessible();
-    console.log('mainTabs computed - awardsAccessible:', awardsAccessible);
 
     return [
       { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },

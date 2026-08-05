@@ -1893,13 +1893,31 @@ export class SupabaseDataManager {
     }
   }
 
-  async checkWeeklySnapshotStatus(seasonYear = 2025) {
+  /**
+   * Season year to operate on when a caller does not name one.
+   * Reads the active season instead of assuming a year, so these methods do
+   * not silently keep pointing at 2025 forever.
+   */
+  async resolveSeasonYear(seasonYear) {
+    if (seasonYear) return seasonYear;
+
     await this.initialize();
+    const { data } = await this.client
+      .from('v_active_season')
+      .select('year')
+      .single();
+
+    return data?.year ?? null;
+  }
+
+  async checkWeeklySnapshotStatus(seasonYear) {
+    await this.initialize();
+    const year = await this.resolveSeasonYear(seasonYear);
 
     try {
       const { data, error } = await this.client
         .rpc('should_trigger_weekly_snapshot', {
-          season_year: seasonYear
+          season_year: year
         });
 
       if (error) throw error;
@@ -1911,13 +1929,14 @@ export class SupabaseDataManager {
     }
   }
 
-  async executeWeeklySnapshotIfNeeded(seasonYear = 2025) {
+  async executeWeeklySnapshotIfNeeded(seasonYear) {
     await this.initialize();
+    const year = await this.resolveSeasonYear(seasonYear);
 
     try {
       const { data, error } = await this.client
         .rpc('execute_weekly_snapshot_if_needed', {
-          season_year: seasonYear
+          season_year: year
         });
 
       if (error) throw error;
@@ -1929,13 +1948,14 @@ export class SupabaseDataManager {
     }
   }
 
-  async getCurrentNFLWeek(seasonYear = 2025) {
+  async getCurrentNFLWeek(seasonYear) {
     await this.initialize();
+    const year = await this.resolveSeasonYear(seasonYear);
 
     try {
       const { data, error } = await this.client
         .rpc('get_current_nfl_week', {
-          season_year: seasonYear
+          season_year: year
         });
 
       if (error) throw error;
@@ -3427,9 +3447,11 @@ export class SupabaseDataManager {
         throw error;
       }
 
+      const seasonYear = await this.resolveSeasonYear();
+
       return (data || []).map(row => ({
         ...row,
-        year: 2025,
+        year: seasonYear,
         total_transactions: (row.free_agent_adds || 0) + (row.waiver_claims || 0) +
           (row.trades || 0) + (row.drops || 0)
       }));
@@ -3464,7 +3486,7 @@ export class SupabaseDataManager {
 
       return {
         ...data,
-        year: 2025,
+        year: await this.resolveSeasonYear(),
         total_transactions: (data.free_agent_adds || 0) + (data.waiver_claims || 0) +
           (data.trades || 0) + (data.drops || 0)
       };
@@ -3979,12 +4001,14 @@ export class SupabaseDataManager {
       const config = await this.getPlayoffBracketConfig(seasonId);
       const now = new Date();
 
-      // Default deadline: December 12, 2025 at 8:15 PM EST
+      // The deadline belongs to playoff_config. With no row there is nothing
+      // to fall back to that would still be right next season, so treat the
+      // bracket as closed rather than inventing a date.
       const deadline = config?.submissionDeadline
         ? new Date(config.submissionDeadline)
-        : new Date('2025-12-12T20:15:00-05:00');
+        : null;
 
-      const isBeforeDeadline = now < deadline;
+      const isBeforeDeadline = deadline !== null && now < deadline;
       const resultsReleased = config?.resultsReleased || false;
 
       // Calculate time remaining
@@ -4006,16 +4030,18 @@ export class SupabaseDataManager {
 
       return {
         canSubmit: isBeforeDeadline,
-        deadline: deadline.toISOString(),
-        deadlineFormatted: deadline.toLocaleString('en-US', {
-          weekday: 'long',
-          month: 'long',
-          day: 'numeric',
-          year: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-          timeZoneName: 'short'
-        }),
+        deadline: deadline ? deadline.toISOString() : null,
+        deadlineFormatted: deadline
+          ? deadline.toLocaleString('en-US', {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZoneName: 'short'
+          })
+          : null,
         timeRemaining,
         resultsReleased,
         bracketData: config?.bracketData || null

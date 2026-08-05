@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Badge } from '../../ui/badge';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatSeasonYear } from '../utils/statFormatters';
+import { isCurrentSeason } from '../../../../utils/seasonConfig.js';
 
 const HistoryTimeline = ({
   seasons = [],
@@ -36,7 +37,7 @@ const HistoryTimeline = ({
       <CardContent>
         <div className="space-y-4">
           {sortedSeasons.map((season) => {
-            const isCurrentSeason = season.year === 2025;
+            const seasonIsCurrent = isCurrentSeason(season);
             const results = season.playoff_results || {};
             const champion = results.champion;
             const runnerUp = results.runner_up;
@@ -59,7 +60,7 @@ const HistoryTimeline = ({
                         className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md ${
                           champion
                             ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white'
-                            : isCurrentSeason
+                            : seasonIsCurrent
                             ? 'bg-gradient-to-br from-blue-400 to-blue-600 text-white'
                             : 'bg-gradient-to-br from-muted to-muted-foreground/20 text-muted-foreground'
                         }`}
@@ -69,7 +70,7 @@ const HistoryTimeline = ({
                       <div>
                         <h3 className="font-semibold text-lg flex items-center gap-2">
                           {formatSeasonYear(season.year)}
-                          {isCurrentSeason && (
+                          {seasonIsCurrent && (
                             <Badge variant="secondary" className="text-xs bg-blue-500/20 text-blue-400 border-blue-500/30">
                               Live
                             </Badge>
@@ -155,7 +156,7 @@ const HistoryTimeline = ({
                   )}
 
                   {/* In progress indicator */}
-                  {isCurrentSeason && (
+                  {seasonIsCurrent && (
                     <p className="text-xs text-muted-foreground italic mt-3 pt-3 border-t border-border/50">
                       Season in progress. Final standings TBD.
                     </p>

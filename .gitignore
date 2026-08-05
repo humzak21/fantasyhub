@@ -102,7 +102,13 @@ coverage/
 .nyc_output
 
 # Test directories
+# NOTE: ignoring tests wholesale is a mistake -- it is why only 3 of the ~30
+# test files in this repo are tracked. Kept for now to avoid dumping the
+# dormant ffAnalytics suites into the working tree (see REFACTOR_ANALYSIS.md
+# §7.4, §8.3); tests that are meant to be committed are negated below.
 **/__tests__/
+!utils/__tests__/
+!utils/__tests__/**
 
 # Dependency directories
 jspm_packages/
@@ -212,3 +218,6 @@ authorized_keys
 .env.production.local
 .env.staging
 .env.staging.local
+# Supabase CLI local state (migrations themselves ARE tracked)
+supabase/.temp/
+supabase/.branches/
