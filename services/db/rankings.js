@@ -123,7 +123,6 @@ export async function calculateLivePowerRankings(ctx, seasonId, weekNumber = nul
       currentWeek,
       players,
       null, // viewingWeek (use current)
-      null, // analyticsService
       divisions || [],
       regularSeasonWeeks
     );

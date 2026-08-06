@@ -1,14 +1,15 @@
-# August 2026 Refactor — Sections 3, 4 & 5
+# August 2026 Refactor — Sections 3 through 8
 
-Implementation record for sections **3 (Database Architecture)**, **4 (The
-Hardcoded-Year Problem)** and **5 (Data Access Layer)** of
+Implementation record for sections **3 (Database Architecture)** through
+**8 (Repo Hygiene & Tooling)** of
 [`REFACTOR_ANALYSIS.md`](../REFACTOR_ANALYSIS.md), plus the 2025 postseason data
 fix that fell out of §3.
 
-- **Dates:** 2026-08-03 → 2026-08-05
+- **Dates:** 2026-08-03 → 2026-08-06
 - **Database:** Supabase project `kvcnijyyfylxfarrlxkv`
-- **Status:** all six migrations applied to production and verified; the data
-  access layer split and verified against production
+- **Status:** §§3–8 complete. All eight migrations applied to production and
+  verified. **§2 (P0 security) is the remaining phase** — see
+  [`05-open-items.md`](05-open-items.md) items 1 and 2.
 
 | Document | Contents |
 |---|---|
@@ -18,7 +19,9 @@ fix that fell out of §3.
 | [`04-verification.md`](04-verification.md) | What was checked, and the numbers it produced |
 | [`05-open-items.md`](05-open-items.md) | What was deliberately left undone, and why |
 | [`06-data-layer.md`](06-data-layer.md) | §5: the god-class split, one client, typed errors, generated types |
-| [`07-frontend.md`](07-frontend.md) | §6 stages 1–2: TanStack Query, week state, and deleting the god class |
+| [`07-frontend.md`](07-frontend.md) | §6: TanStack Query, week state, the mobile fork, one ui tree, code splitting |
+| [`08-automation.md`](08-automation.md) | §7: killing ffAnalytics, one deploy topology, the scheduled sync job |
+| [`09-hygiene.md`](09-hygiene.md) | §8: scripts pruned, real type-checking, tests rescued, CI |
 
 ---
 

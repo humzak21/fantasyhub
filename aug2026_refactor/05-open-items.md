@@ -2,10 +2,13 @@
 
 Things deliberately left undone, and why. Ordered by urgency.
 
-> Updated 2026-08-06 after **all of §6** (query layer, week state, god-class
-> deletion, mobile fork, ui trees, code splitting). Items 1, 2, 3 and 5 are
-> unchanged by that work. **Items 4 and 6 are resolved**; see
-> [`07-frontend.md`](07-frontend.md).
+> Updated 2026-08-06 after **§7 and §8** (ffAnalytics killed, one deploy
+> topology, the scheduled sync job, scripts pruned, real type-checking, tests
+> and CI). **Items 4, 6 and 7 are resolved**, and item 8 is largely cleared;
+> see [`08-automation.md`](08-automation.md) and [`09-hygiene.md`](09-hygiene.md).
+>
+> **Items 1 and 2 — the whole of §2, P0 security — are now the only major phase
+> left.** Everything else in `REFACTOR_ANALYSIS.md` is done.
 
 ## 1. ESPN credentials are still live in git — §2.1
 
@@ -29,16 +32,22 @@ Until step 1 happens, the exposure is unchanged by anything in this refactor.
 
 Untouched. `is_admin()` now exists but nothing has been retrofitted onto it:
 
-- 46 `SECURITY DEFINER` functions still executable by `anon`, including
+- 48 `SECURITY DEFINER` functions still executable by `anon`, including
   `execute_trade`, `drop_player_from_roster`, `disable_roster_trigger`
-- RLS still disabled on `team_analytics_summary`
 - Always-true policies still on `divisions` and `pick_em_submissions_backup`
 - `seasons` / `teams` / `games` / `weeks` still allow writes from **any**
   authenticated user (`auth.uid() IS NOT NULL`), not just the admin
 
 Two migrations here did add `search_path` pinning to the functions they touched
 (`refresh_team_stats`, `update_playoff_pick_results`), chipping at the 66
-flagged for mutable search paths.
+flagged for mutable search paths (62 remain).
+
+**§7.4 resolved one line of this by deletion**: `team_analytics_summary` — the
+RLS-disabled table, the project's highest-severity finding — was dropped with
+the ffAnalytics subsystem, along with two of the three SECURITY DEFINER views.
+The advisor now reports **1 ERROR** (the `roster_stats` view, deliberately kept
+because it reads real data) where it reported two. The other 162 lints are
+untouched: 48 functions still executable by `anon`, 48 by `authenticated`.
 
 ## 3. Nothing has been dropped yet
 
@@ -103,21 +112,13 @@ deletion. Still a candidate for a domain function.
 §6 is now complete. What it left behind is listed in
 [`07-frontend.md`](07-frontend.md) §11.
 
-## 7. TypeScript types are generated but nothing type-checks them — §5.3
+## 7. ~~TypeScript types are generated but nothing type-checks them~~ — RESOLVED
 
-`types/supabase.ts` is committed and regenerable with `npm run db:types`. It is
-already load-bearing: the case-mapping test reads it as data and asserts every
-column in the schema round-trips.
-
-But `npm run type-check` still does nothing — there is no `tsconfig.json`, only
-`tsconfig.node.json`, so `tsc --noEmit` prints its help text and exits 0. This
-is the §8.3 "type-check is theater" finding, unchanged.
-
-Adding a `tsconfig.json` was deliberately not done here: the repo has a
-`jsconfig.json`, and TypeScript ignores it entirely once a `tsconfig.json`
-exists, which would change editor behaviour across ~100k lines of untyped JS as
-a side effect of a data-layer change. Do it as its own step, scoped to `.ts`
-files with `checkJs: false`.
+Done in §8.3, exactly as scoped here: `tsconfig.json` includes `**/*.ts` only,
+with `allowJs: false` and `checkJs: false`, so `jsconfig.json`'s editor
+behaviour over the untyped JS is unaffected. It checks one file today
+(`types/supabase.ts`) and grows as modules are renamed to `.ts` —
+`services/db/` first. Verified non-vacuous with a planted type error.
 
 ## 8. Smaller loose ends
 
@@ -130,14 +131,16 @@ files with `checkJs: false`.
   matchups (`div1_semi`, `championship`, `con_r2_*`, …) still have a null
   `game_id`, so `update_playoff_pick_results` has nothing to update. Scoring
   those picks needs the games linked.
-- **`**/__tests__/` is still broadly gitignored**, now negated for `utils/` and
-  `services/db/`. Roughly 25 test files remain untracked and failing. **Five of
-  them now import `Mobile*` components deleted in §6.1** and cannot pass. They
-  are untracked, so removing them is the user's call — resolve alongside the
-  ffAnalytics keep-or-kill decision (§7.4).
-- **`ffAnalyticsRetry.calculateDelay` is flaky by construction.** It clamps to
-  `maxDelay` and *then* adds ±10% jitter, so `should respect max delay` fails
-  whenever `Math.random() > 0.5`. Apply the jitter before the clamp.
+- ~~**`**/__tests__/` is still broadly gitignored**~~ — resolved in §8.3. The
+  ignore is gone, the surviving 23 files are tracked, and the suite is green.
+  Most of the "broken" files turned out to be broken only by a stale import path
+  or a missing provider; see [`09-hygiene.md`](09-hygiene.md) §4.
+- ~~**`ffAnalyticsRetry.calculateDelay` is flaky by construction.**~~ — gone
+  with the subsystem (§7.4). The suite is no longer flaky because it no longer
+  exists.
+- **`LEAGUE_HISTORY_README.md` is stale.** It documents `supabaseDataManager`,
+  `useSupabaseFantasyData` and the `historical_*` tables — all deleted or
+  superseded. Rewrite it alongside the `leagueHistoryManager` deletion below.
 - **`services/leagueHistoryManager.js` (1,888 lines) was not split.** §5.1 names
   only the data manager, and most of that file is the live+historical merge code
   that §3's views already made redundant — it should be deleted against
@@ -146,16 +149,35 @@ files with `checkJs: false`.
   manager**~~ — `espnScheduleFetcher` and `espnRosterUpdater` now take a `ctx` /
   `db`; `espnTransactionFetcher` held one it never used and no longer builds it.
   `pickEmTimeService` takes a raw client, not a data manager, and is unchanged.
-- **`scripts/backfillTransactions2025.js` is broken and should be deleted.** It
-  still writes to the `transactions_2025` compatibility *view* and fails with
-  "cannot insert into view". It is a completed one-off; §8.2 says delete.
-- **Scripts run on import.** None of `scripts/*.js` guard their top-level
-  invocation, so `import('./scripts/weeklyUpdate.js')` performs a full
-  production sync. Add an `import.meta.main`-style guard before anything
-  imports them programmatically. See [`07-frontend.md`](07-frontend.md) §7.
+- ~~**`scripts/backfillTransactions2025.js` is broken**~~ — deleted in §8.2
+  along with 37 other completed one-offs and applied SQL files.
+- ~~**Scripts run on import.**~~ — resolved in §7. All eight surviving scripts
+  guard their entry point, and `config/espn-config.js` no longer prints its
+  usage banner on import either.
 - **`refresh_team_stats` computes win% as `wins / games`**, ignoring ties as
   half-wins the way `v_team_standings` does. No ties exist in any season on
   record, so the two agree today.
-- **The duelling week effects in `FantasyFootballApp.jsx` remain** (§6.4).
-  Week derivation now has one source, but *viewed* week and *actual* week are
-  still not cleanly separated.
+- ~~**The duelling week effects in `FantasyFootballApp.jsx` remain**~~ — this
+  bullet was already stale when §6 shipped and is corrected here: the file
+  contains **no `useEffect` at all**, and `useViewedWeek()` hands back
+  `viewedWeek` (UI state) and `actualWeek` (derived) as separate values that
+  never write to each other, exactly as §6.4 required.
+
+## 9. Left open by §7 and §8
+
+- **The scheduled sync has never fired.** `.github/workflows/sync-week.yml` is
+  correct as far as a `--dry-run` against production can show, but the 2025
+  season is over, so a real run was deliberately not triggered. Its first live
+  exercise will be the 2026 season. The workflow needs four repository secrets
+  set before then: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ESPN_S2`,
+  `ESPN_SWID`.
+- **Lint is not a gate.** 265 eslint errors predate this work, so CI runs lint
+  with `continue-on-error: true`. Removing that flag is a backlog task, not a
+  config change.
+- **28 test cases are skipped**, each commented. They assert on exact Tailwind
+  class strings and label text that changed in §6. Rewriting them against the
+  current markup is a real (small) task.
+- **`vendor-charts` (275 kB) is still eager**, unchanged from §6.
+- **Pick'ems / awards / playoffs internals** still manage their own
+  `useState` + `useEffect` load cycles rather than using the query hooks,
+  unchanged from §6.

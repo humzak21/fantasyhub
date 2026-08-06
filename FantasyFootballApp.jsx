@@ -1,5 +1,5 @@
 import { useState, useMemo, lazy, Suspense } from 'react';
-import { Trophy, Calendar, BarChart3, Users, Target, RefreshCw, Award, TrendingUp, History } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History } from 'lucide-react';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -24,7 +24,6 @@ import './globals.css';
 
 // Components
 import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTable.jsx';
-import useAnalyticsData from './hooks/useAnalyticsData.js';
 
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
 
@@ -103,16 +102,6 @@ const FantasyFootballApp = () => {
   const [activeTab, setActiveTab] = useState('rankings');
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
-
-  // Analytics data integration
-  const {
-    analyticsData,
-    hasAnalyticsData,
-    loading: analyticsLoading,
-    refreshAnalytics,
-    exportAnalyticsData,
-    isEnabled: analyticsEnabled
-  } = useAnalyticsData(weeklyRankings, viewedWeek, true);
 
   // Check if awards are accessible
   const isAwardsAccessible = () => {
@@ -314,31 +303,6 @@ const FantasyFootballApp = () => {
                                     Advanced Stats
                                   </Label>
                                 </div>
-
-                                {analyticsEnabled && (
-                                  <div className="flex items-center space-x-2">
-                                    {(analyticsLoading || hasAnalyticsData) && (
-                                      <Badge
-                                        variant={hasAnalyticsData ? "default" : "secondary"}
-                                        className="text-xs"
-                                      >
-                                        {analyticsLoading ? "Loading..." : "Analytics Active"}
-                                      </Badge>
-                                    )}
-                                    {hasAnalyticsData && (
-                                      <Button
-                                        onClick={refreshAnalytics}
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={analyticsLoading}
-                                        className="text-xs flex items-center gap-1"
-                                      >
-                                        <RefreshCw className={`h-3 w-3 ${analyticsLoading ? 'animate-spin' : ''}`} />
-                                        Refresh
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
                               </div>
                             )}
 
@@ -355,17 +319,11 @@ const FantasyFootballApp = () => {
                       </CardHeader>
                       <CardContent>
                         {rankingsView === 'table' ? (
-                          /* Analytics is an optional overlay with its own badge,
-                             so `loading` is the ranking query alone: a slow or
-                             hanging analytics fetch must not hide the rankings. */
                           <PowerRankingsTable
                             rankings={weeklyRankings}
                             currentWeek={viewedWeek}
                             showAdvanced={showAdvancedStats}
                             loading={rankingsLoading}
-                            showAnalytics={analyticsEnabled && hasAnalyticsData}
-                            analyticsData={analyticsData}
-                            onExportAnalytics={exportAnalyticsData}
                             initializing={isLoading}
                           />
                         ) : (
@@ -373,8 +331,6 @@ const FantasyFootballApp = () => {
                             rankings={weeklyRankings}
                             currentWeek={viewedWeek}
                             loading={rankingsLoading}
-                            showAnalyticsSection={analyticsEnabled && hasAnalyticsData}
-                            analyticsData={analyticsData}
                           />
                         )}
                       </CardContent>

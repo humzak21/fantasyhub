@@ -1,81 +1,365 @@
 #!/usr/bin/env node
 
 /**
- * Sync Analytics for Specific Week
- * 
- * Usage: node scripts/sync-week.js [week_number]
- * Example: node scripts/sync-week.js 2
+ * The weekly ESPN sync (§7.2).
+ *
+ * Replaces `weeklyUpdate.js`, which needed a human to pass a week number, was
+ * pinned to a hardcoded `DEFAULT_SEASON_ID`, wrote to a year-suffixed table by
+ * name, and left no record that it had run.
+ *
+ * Everything it needs comes from the active season row: the season id, the week
+ * count, the playoff boundary and the ESPN league/season. With no arguments it
+ * syncs the current week of the active season, which is exactly what the
+ * scheduled job does — see `.github/workflows/sync-week.yml`.
+ *
+ * Every step is an idempotent upsert against ESPN, the source of truth, so a
+ * failed or partial run is fixed by running it again. Each run writes a
+ * `sync_runs` row.
+ *
+ * Usage:
+ *   node scripts/sync-week.js                 # current week of the active season
+ *   node scripts/sync-week.js 5               # re-sync a specific week
+ *   node scripts/sync-week.js 5 <season-id>   # target a season explicitly
+ *
+ * Options: --skip-rosters --skip-scores --skip-transactions --skip-snapshot
+ *          --dry-run   resolve and report the target, write nothing
  */
 
-import { FFAnalyticsService } from '../services/ffAnalyticsService.js';
-import { supabaseAdmin } from '../services/supabaseClient.server.js';
+import '../services/db/client.server.js';
 
-async function syncWeek() {
-  const weekArg = process.argv[2];
-  const week = weekArg ? parseInt(weekArg) : 2; // Default to week 2
-  
-  console.log(`🏈 Starting analytics sync for Week ${week}...\n`);
+import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
+import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
+import { getDb, getContext } from '../services/db/index.js';
+import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
+import { ESPN_CONFIG } from '../config/espn-config.js';
+import { deriveCurrentWeek, toSeasonConfig } from '../utils/seasonConfig.js';
+
+/**
+ * Resolve what to sync from the database rather than from arguments.
+ */
+async function resolveTarget({ seasonIdArg, weekArg }) {
+  const client = getContext().client;
+
+  const query = client.from(seasonIdArg ? 'seasons' : 'v_active_season').select('*');
+  const { data, error } = seasonIdArg
+    ? await query.eq('id', seasonIdArg).single()
+    : await query.single();
+
+  if (error || !data) {
+    throw new Error(
+      seasonIdArg
+        ? `Season ${seasonIdArg} not found: ${error?.message ?? 'no row'}`
+        : `No active season found. Mark one with seasons.is_active = true. (${error?.message ?? ''})`
+    );
+  }
+
+  const season = toSeasonConfig(data);
+
+  return {
+    season,
+    seasonId: season.id,
+    weekNumber: weekArg || deriveCurrentWeek(season),
+    weekWasDerived: !weekArg,
+    espn: {
+      leagueId: season.espnLeagueId || ESPN_CONFIG.leagueId,
+      seasonYear: season.espnSeasonYear || ESPN_CONFIG.seasonYear,
+      espnS2: ESPN_CONFIG.espnS2,
+      swid: ESPN_CONFIG.swid
+    }
+  };
+}
+
+function parseArgs(argv) {
+  const positional = argv.filter(arg => !arg.startsWith('--'));
+  const options = {};
+  for (const arg of argv) {
+    if (arg.startsWith('--')) options[arg.slice(2)] = true;
+  }
+
+  return {
+    weekArg: positional[0] ? Number.parseInt(positional[0], 10) : null,
+    seasonIdArg: positional[1] || null,
+    options
+  };
+}
+
+/** Match ESPN team ids to database teams, falling back to the stable owner name. */
+function buildTeamIndex(teams) {
+  const byEspnId = new Map();
+  const byOwner = new Map();
+
+  for (const team of teams) {
+    if (team.espnTeamId != null) byEspnId.set(String(team.espnTeamId), team);
+    if (team.ownerName) byOwner.set(team.ownerName.trim().toLowerCase(), team);
+  }
+
+  return {
+    find(espnTeamId, ownerName) {
+      return (
+        byEspnId.get(String(espnTeamId)) ??
+        (ownerName ? byOwner.get(ownerName.trim().toLowerCase()) : undefined) ??
+        null
+      );
+    }
+  };
+}
+
+async function syncScores(seasonId, weekNumber, espnMatchups) {
+  const db = getDb();
+  const season = await db.seasons.getSeason(seasonId);
+  const games = await db.games.getGamesForWeek(seasonId, weekNumber);
+
+  if (!games || games.length === 0) {
+    throw new Error(`No games scheduled for week ${weekNumber}; import the schedule first`);
+  }
+
+  const teams = buildTeamIndex(season.teams);
+  let updated = 0;
+  let unchanged = 0;
+  const errors = [];
+
+  for (const matchup of espnMatchups) {
+    if (matchup.week !== weekNumber && matchup.scoringPeriodId !== weekNumber) continue;
+
+    const homeTeam = teams.find(matchup.homeTeam.teamId, matchup.homeTeam.ownerName);
+    const awayTeam = teams.find(matchup.awayTeam.teamId, matchup.awayTeam.ownerName);
+    if (!homeTeam || !awayTeam) continue;
+
+    const game = games.find(g =>
+      (g.team1Id === homeTeam.id && g.team2Id === awayTeam.id) ||
+      (g.team1Id === awayTeam.id && g.team2Id === homeTeam.id)
+    );
+    if (!game) continue;
+
+    const team1IsHome = game.team1Id === homeTeam.id;
+    const team1Score = team1IsHome ? matchup.homeTeam.score : matchup.awayTeam.score;
+    const team2Score = team1IsHome ? matchup.awayTeam.score : matchup.homeTeam.score;
+
+    // Skip the write when ESPN agrees with what is stored. This is what makes
+    // re-running the job free rather than 120 no-op UPDATEs.
+    if (game.team1Score === team1Score && game.team2Score === team2Score) {
+      unchanged += 1;
+      continue;
+    }
+
+    // Only the two score columns are written. `type` is deliberately untouched:
+    // the 2025 postseason game types were corrected by hand in migration
+    // 20260805100000 and an ESPN sync must never undo that.
+    const { error } = await getContext().client
+      .from('games')
+      .update({ team1_score: team1Score, team2_score: team2Score })
+      .eq('id', game.id);
+
+    if (error) {
+      errors.push({ game: game.id, error: error.message });
+      continue;
+    }
+    updated += 1;
+  }
+
+  return { updated, unchanged, errors };
+}
+
+async function syncTransactions(seasonId, espn) {
+  const db = getDb();
+  const season = await db.seasons.getSeason(seasonId);
+
+  const fetcher = new ESPNTransactionFetcher(
+    espn.leagueId, espn.seasonYear, espn.espnS2, espn.swid
+  );
+  const summary = await fetcher.getSeasonTransactionSummary(espn.seasonYear);
+
+  if (!summary || summary.length === 0) {
+    return { updated: 0, errors: [{ error: 'ESPN returned no transaction data' }] };
+  }
+
+  const teams = buildTeamIndex(season.teams);
+  const rows = [];
+  const errors = [];
+
+  for (const entry of summary) {
+    const team = teams.find(entry.espnTeamId, entry.ownerName);
+    if (!team) {
+      errors.push({ team: entry.ownerName, error: 'no matching team in this season' });
+      continue;
+    }
+
+    const franchiseId = team.franchiseId ?? team.franchise_id ?? null;
+    if (!franchiseId) {
+      errors.push({ team: entry.ownerName, error: 'team has no franchise_id' });
+      continue;
+    }
+
+    rows.push({
+      season_id: seasonId,
+      franchise_id: franchiseId,
+      team_id: team.id,
+      owner_name: entry.ownerName,
+      espn_team_id: entry.espnTeamId,
+      free_agent_adds: entry.free_agent_adds,
+      waiver_claims: entry.waiver_claims,
+      trades: entry.trades,
+      drops: entry.drops,
+      faab_spent: entry.faab_spent,
+      last_synced_at: new Date().toISOString()
+    });
+  }
+
+  if (rows.length === 0) return { updated: 0, errors };
+
+  // One upsert for the whole league rather than 14 round trips.
+  const { error } = await getContext().client
+    .from('transactions')
+    .upsert(rows, { onConflict: 'franchise_id,season_id', ignoreDuplicates: false });
+
+  if (error) {
+    errors.push({ error: error.message });
+    return { updated: 0, errors };
+  }
+
+  return { updated: rows.length, errors };
+}
+
+/**
+ * Snapshot the completed week's power rankings.
+ *
+ * `saveWeeklyPowerRankingsSnapshot` clears the week before inserting, so
+ * re-running replaces the snapshot rather than duplicating it.
+ */
+async function snapshotRankings(seasonId, weekNumber) {
+  const db = getDb();
+  const rows = await db.rankings.saveWeeklyPowerRankingsSnapshot(seasonId, weekNumber, 'weekly');
+  return { teamsSnapshotted: rows };
+}
+
+async function openRunLog(seasonId, weekNumber, trigger) {
+  const { data, error } = await getContext().client
+    .from('sync_runs')
+    .insert({ season_id: seasonId, week_number: weekNumber, trigger, status: 'running' })
+    .select('id')
+    .single();
+
+  // A missing run log must not stop the sync — the sync is the point, the log
+  // is the record of it.
+  if (error) {
+    console.warn(`⚠️  could not open a sync_runs row: ${error.message}`);
+    return null;
+  }
+  return data.id;
+}
+
+async function closeRunLog(runId, { status, steps, error }) {
+  if (!runId) return;
+  const { error: updateError } = await getContext().client
+    .from('sync_runs')
+    .update({ status, steps, error: error ?? null, finished_at: new Date().toISOString() })
+    .eq('id', runId);
+
+  if (updateError) console.warn(`⚠️  could not close sync_runs row: ${updateError.message}`);
+}
+
+export async function syncWeek(argv = []) {
+  const { weekArg, seasonIdArg, options } = parseArgs(argv);
+
+  if (weekArg !== null && Number.isNaN(weekArg)) {
+    throw new Error('Week number must be a number');
+  }
+
+  const { season, seasonId, weekNumber, weekWasDerived, espn } =
+    await resolveTarget({ seasonIdArg, weekArg });
+
+  if (weekNumber < 1 || weekNumber > season.weekCount) {
+    throw new Error(`Week ${weekNumber} is outside this season's 1..${season.weekCount}`);
+  }
+  if (!espn.leagueId) {
+    throw new Error('No ESPN league id. Set seasons.espn_league_id for this season.');
+  }
+
+  console.log(`🏈 Syncing ${season.year} week ${weekNumber}${weekWasDerived ? ' (derived)' : ''}`);
+  console.log(`   season ${seasonId} · ESPN league ${espn.leagueId} · private: ${espn.espnS2 ? 'yes' : 'no'}`);
+
+  if (options['dry-run']) {
+    console.log('   --dry-run: resolved the target, writing nothing.');
+    return { dryRun: true, seasonId, weekNumber };
+  }
+
+  const runId = await openRunLog(seasonId, weekNumber, options.manual ? 'manual' : 'cron');
+  const steps = {};
 
   try {
-    // Create analytics service
-    const analyticsService = new FFAnalyticsService(supabaseAdmin);
-    
-    // Initialize service
-    console.log('🔧 Initializing analytics service...');
-    await analyticsService.initialize();
-    console.log('✅ Service initialized successfully\n');
+    // Roster syncing stops once the playoffs start so team records stay frozen
+    // at the end of the regular season. The boundary is the season row's
+    // regular_season_weeks + 1, not a hardcoded week 15.
+    const isPlayoffWeek = weekNumber >= season.playoffStartWeek;
 
-    // Sync analytics for the specified week
-    console.log(`📊 Syncing analytics data for Week ${week}...`);
-    const results = await analyticsService.updateAllPlayerAnalytics(week, true);
-    
-    console.log('\n🎉 Sync completed successfully!');
-    console.log('📈 Results:');
-    console.log(`   Week: ${results.week}`);
-    console.log(`   Season: ${results.season}`);
-    console.log(`   Duration: ${Math.round(results.duration / 1000)}s`);
-    console.log(`   Players Processed: ${results.playersProcessed}`);
-    console.log(`   Players Matched: ${results.playersMatched}`);
-    console.log(`   Players Updated: ${results.playersUpdated}`);
-    console.log(`   Teams Updated: ${results.teamsUpdated}`);
-    console.log(`   Timestamp: ${results.timestamp}`);
+    if (options['skip-rosters'] || isPlayoffWeek) {
+      steps.rosters = { skipped: isPlayoffWeek ? 'playoff week' : 'flag' };
+      console.log(`📋 rosters: skipped (${steps.rosters.skipped})`);
+    } else {
+      const rosterScript = await createRosterUpdateScript(
+        espn.leagueId, espn.seasonYear, espn.espnS2, espn.swid
+      );
+      await rosterScript.runWeeklyUpdate();
+      steps.rosters = { ok: true };
+      console.log('📋 rosters: synced');
+    }
 
-    // Get service stats
-    const stats = analyticsService.getStats();
-    console.log('\n📊 Service Statistics:');
-    console.log(`   Total Syncs: ${stats.totalSyncs}`);
-    console.log(`   Successful Syncs: ${stats.successfulSyncs}`);
-    console.log(`   Failed Syncs: ${stats.failedSyncs}`);
-    console.log(`   Success Rate: ${Math.round((stats.successfulSyncs / stats.totalSyncs) * 100)}%`);
+    if (options['skip-scores']) {
+      steps.scores = { skipped: 'flag' };
+    } else {
+      const fetcher = await createScheduleFetcher(
+        espn.leagueId, espn.seasonYear, espn.espnS2, espn.swid
+      );
+      const weekData = await fetcher.getSingleWeek(weekNumber);
 
+      if (!weekData?.matchups?.length) {
+        throw new Error(`ESPN returned no matchups for week ${weekNumber}`);
+      }
+
+      steps.scores = await syncScores(seasonId, weekNumber, weekData.matchups);
+      console.log(`📊 scores: ${steps.scores.updated} updated, ${steps.scores.unchanged} already current`);
+    }
+
+    // Transactions are non-critical: a failure here is recorded but does not
+    // fail the run, because scores and rosters are what the site reads.
+    if (options['skip-transactions']) {
+      steps.transactions = { skipped: 'flag' };
+    } else {
+      try {
+        steps.transactions = await syncTransactions(seasonId, espn);
+        console.log(`🔁 transactions: ${steps.transactions.updated} teams`);
+      } catch (error) {
+        steps.transactions = { failed: error.message };
+        console.warn(`⚠️  transactions: ${error.message}`);
+      }
+    }
+
+    if (options['skip-snapshot']) {
+      steps.snapshot = { skipped: 'flag' };
+    } else {
+      steps.snapshot = await snapshotRankings(seasonId, weekNumber);
+      console.log(`📸 snapshot: ${steps.snapshot.teamsSnapshotted} teams at week ${weekNumber}`);
+    }
+
+    await closeRunLog(runId, { status: 'success', steps });
+    console.log('✅ sync complete');
+    return { seasonId, weekNumber, steps };
   } catch (error) {
-    console.error('\n❌ Sync failed:', error.message);
-    
-    if (error.type) {
-      console.error(`   Error Type: ${error.type}`);
-    }
-    
-    if (error.retryable) {
-      console.error('   This error is retryable - you can try running the sync again');
-    }
-    
-    if (error.details) {
-      console.error('   Details:', JSON.stringify(error.details, null, 2));
-    }
-    
-    console.log('\n🔧 Troubleshooting:');
-    console.log('1. Check your internet connection');
-    console.log('2. Verify R and ffanalytics are properly installed');
-    console.log('3. Ensure Supabase credentials are correct');
-    console.log('4. Check if fantasy football data sources are available');
-    
-    process.exit(1);
+    await closeRunLog(runId, { status: 'failed', steps, error: error.message });
+    throw error;
   }
 }
 
-// Run if called directly
+/**
+ * Only run when executed directly. Importing this module must not sync
+ * production — the mistake recorded in aug2026_refactor/07-frontend.md §7.
+ */
 if (import.meta.url === `file://${process.argv[1]}`) {
-  syncWeek();
+  syncWeek(process.argv.slice(2)).catch(error => {
+    console.error(`❌ ${error.message}`);
+    if (/401|403/.test(error.message)) {
+      console.error('   Private league — check ESPN_S2 / ESPN_SWID.');
+    }
+    process.exit(1);
+  });
 }
-
-export { syncWeek };

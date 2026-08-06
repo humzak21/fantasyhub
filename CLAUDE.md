@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Environment
 
-This is a React-based fantasy football power rankings application built with Vite, Tailwind CSS, and Supabase. The app uses modern tooling including ESLint, TypeScript checking, and Railway deployment.
+This is a React-based fantasy football power rankings application built with
+Vite, Tailwind CSS, and Supabase. It deploys as a **static bundle** — there is
+no application server. The weekly ESPN sync runs as a GitHub Actions cron
+(`.github/workflows/sync-week.yml`), not as an in-process scheduler.
 
 ## Available Commands
 
@@ -12,7 +15,7 @@ This is a React-based fantasy football power rankings application built with Vit
 - `npm run dev` - Start development server (opens on localhost:3000)
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build locally
-- `npm start` - Start production server (for Railway deployment)
+- `npm start` - Serve the built `dist/` statically (Railway/Docker entry point)
 
 ### Code Quality
 - `npm run lint` - Run ESLint to check for code issues
@@ -20,8 +23,14 @@ This is a React-based fantasy football power rankings application built with Vit
 - `npm run type-check` - Run TypeScript checking without emitting files
 
 ### Database
-- `npm run db:setup` - Instructions for running SQL files in Supabase
-- `npm run db:reset` - Instructions for resetting database schema
+- `npm run db:push` / `db:push:dry` - Apply migrations in `supabase/migrations/`
+- `npm run db:diff` - Diff the local schema against the remote
+- `npm run db:types` - Regenerate `types/supabase.ts` from the live schema
+
+### Sync
+- `npm run sync-week` - Sync the current week of the active season from ESPN.
+  Zero arguments; pass `--dry-run` to resolve the target without writing.
+- `npm run sync-playoff-games` - Create playoff matchups at the bracket boundary
 
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
@@ -86,9 +95,28 @@ This is a React-based fantasy football power rankings application built with Vit
 were deleted on 2026-08-06. Nothing should reference them.
 
 ### Scripts write to production
-`scripts/*.js` execute on import — there is no `import.meta.main` guard. Never
-`import()` one to test it; use `node --check`. `scripts/weeklyUpdate.js` in
-particular performs a full ESPN sync as a side effect of being loaded.
+Every script in `scripts/` guards its entry point (`import.meta.url ===
+\`file://${process.argv[1]}\``), so importing one is safe — this was **not**
+true before 2026-08-06 and an unguarded import ran a full production sync.
+**Keep the guard when adding a script.**
+
+`scripts/sync-week.js` is the weekly job. It takes no arguments: the active
+season row supplies the season, week, playoff boundary and ESPN league. Every
+step is an idempotent upsert against ESPN, so re-running a failed sync is the
+fix. Each run writes a `sync_runs` row.
+
+### No analytics subsystem
+The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,
+`server.js`, `useAnalyticsData`) was **deleted on 2026-08-06**, along with the
+`weekly_player_stats` and `team_analytics_summary` tables. Do not reintroduce
+references to it. `PowerRankingCalculator` takes no `analyticsService`.
+
+### Tests and CI
+Tests are tracked (the blanket `**/__tests__/` ignore is gone) and live beside
+their subject. Components that consume `ViewerContext`, `ViewedWeekProvider` or
+TanStack Query must be rendered through `src/test/renderWithProviders.jsx`, not
+bare `render`. CI (`.github/workflows/ci.yml`) gates type-check, tests and
+build; lint is advisory until its pre-existing error backlog is cleared.
 
 ## Data Models
 

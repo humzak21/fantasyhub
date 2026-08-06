@@ -162,8 +162,14 @@ function runCommand(command, args) {
   });
 }
 
-// Run validation
-validateBuild().catch(error => {
-  log.error(`Validation script failed: ${error.message}`);
-  process.exit(1);
-});
+
+// Only run when executed directly. Importing this module must not touch
+// production — see aug2026_refactor/07-frontend.md §7.
+const isMain = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMain) {
+  validateBuild().catch(error => {
+    log.error(`Validation script failed: ${error.message}`);
+    process.exit(1);
+  });
+}

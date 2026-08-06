@@ -1,0 +1,44 @@
+{
+  // §8.3: `npm run type-check` ran `tsc --noEmit` with no tsconfig at all, so
+  // TypeScript printed its help text and exited 0 — the script was theater.
+  //
+  // Scope is deliberately narrow: TypeScript ignores jsconfig.json entirely
+  // once a tsconfig.json exists, so widening `include` to the ~89k lines of
+  // untyped JS would turn every editor in the repo red as a side effect. This
+  // checks .ts/.tsx only. `allowJs` stays off so importing a .js module from a
+  // .ts file is opaque rather than an error.
+  //
+  // To adopt TypeScript incrementally: rename a module to .ts and it starts
+  // being checked here. `services/db/` is the intended first target — it is the
+  // layer with generated row types to check against.
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": false,
+    "checkJs": false,
+    "baseUrl": ".",
+    // Mirrors jsconfig.json so editors resolve the same aliases either way.
+    "paths": {
+      "@/*": ["./src/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/utils/*": ["./utils/*"],
+      "@/types/*": ["./types/*"],
+      "@/services/*": ["./services/*"],
+      "@/hooks/*": ["./hooks/*"],
+      "@/styles/*": ["./styles/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist", "supabase"]
+}

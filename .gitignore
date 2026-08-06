@@ -101,16 +101,10 @@ coverage/
 # NYC test coverage
 .nyc_output
 
-# Test directories
-# NOTE: ignoring tests wholesale is a mistake -- it is why only 3 of the ~30
-# test files in this repo are tracked. Kept for now to avoid dumping the
-# dormant ffAnalytics suites into the working tree (see REFACTOR_ANALYSIS.md
-# §7.4, §8.3); tests that are meant to be committed are negated below.
-**/__tests__/
-!utils/__tests__/
-!utils/__tests__/**
-!services/db/__tests__/
-!services/db/__tests__/**
+# Tests are source. They were ignored wholesale because the dormant ffAnalytics
+# suites dominated the directory; those are gone with the subsystem (§7.4), the
+# suites written against the deleted architecture are gone with it (§8.3), and
+# what remains is tracked and green in CI.
 
 # Dependency directories
 jspm_packages/

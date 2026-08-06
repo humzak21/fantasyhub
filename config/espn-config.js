@@ -1,18 +1,23 @@
 // ⚠️  SECURITY: the espn_s2 / SWID pair below is a live credential for the
 // ESPN account and it is committed to git. Deleting it here would not fix the
 // exposure -- it must be rotated in ESPN and purged from history first.
-// See REFACTOR_ANALYSIS.md §2.1. Left untouched deliberately so nothing
-// silently breaks before that happens.
+// See REFACTOR_ANALYSIS.md §2.1. Left in place as a fallback deliberately so
+// nothing silently breaks before that happens.
+//
+// Step 2 of that rotation plan is done: ESPN_S2 / ESPN_SWID are read from the
+// environment and win when set, which is how the scheduled sync
+// (.github/workflows/sync-week.yml) supplies them. Once the credential is
+// rotated, drop the literals and this file becomes a pure loader.
 //
 // leagueId / seasonYear are fallbacks only. The active season row owns them
-// (seasons.espn_league_id, seasons.espn_season_year); scripts/weeklyUpdate.js
+// (seasons.espn_league_id, seasons.espn_season_year); scripts/sync-week.js
 // reads the season first and only falls back to these.
 export const ESPN_CONFIG = {
   leagueId: process.env.ESPN_LEAGUE_ID || '67674700',
   seasonYear: process.env.ESPN_SEASON_YEAR ? Number(process.env.ESPN_SEASON_YEAR) : null,
 
-  espnS2: '***REMOVED-ESPN-S2***',
-  swid: '{REMOVED-SWID}'
+  espnS2: process.env.ESPN_S2 || '***REMOVED-ESPN-S2***',
+  swid: process.env.ESPN_SWID || '{REMOVED-SWID}'
 };
 
 export const USAGE_INSTRUCTIONS = `
@@ -69,4 +74,8 @@ Run this command weekly to keep rosters updated:
 node scripts/updateRosters.js weekly
 `;
 
-console.log(USAGE_INSTRUCTIONS);
+// Printing on import used to spray this banner into every script and job that
+// merely read a league id. Callers that want it call printUsage().
+export function printUsage() {
+  console.log(USAGE_INSTRUCTIONS);
+}
