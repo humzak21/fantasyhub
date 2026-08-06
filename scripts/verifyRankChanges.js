@@ -9,22 +9,21 @@
  *   node scripts/verifyRankChanges.js              (defaults: auto 1 auto)
  */
 
-import { SupabaseDataManager } from '../services/supabaseDataManager.js';
+import { getDb, getContext } from '../services/db/index.js';
 import { config } from 'dotenv';
 
 config({ path: '.env.local' });
 
-const dataManager = new SupabaseDataManager();
+const dataManager = getDb();
 
 async function verifyRankChanges(seasonId, startWeek, endWeek) {
   try {
-    await dataManager.initialize();
     console.log('✓ DataManager initialized\n');
 
     // If no season ID provided or 'auto', get the active season
     if (!seasonId || seasonId === 'auto') {
       console.log('Fetching active season...');
-      const activeSeason = await dataManager.getActiveSeason();
+      const activeSeason = await dataManager.seasons.getActiveSeason();
 
       if (!activeSeason) {
         console.error('No active season found. Please create a season first.');
@@ -37,7 +36,7 @@ async function verifyRankChanges(seasonId, startWeek, endWeek) {
 
     // If endWeek is 'auto', detect the last completed week
     if (endWeek === 'auto' || !endWeek) {
-      const lastCompleted = await dataManager.getLastCompletedWeek(seasonId);
+      const lastCompleted = await dataManager.games.getLastCompletedWeek(seasonId);
       endWeek = lastCompleted;
       console.log(`Auto-detected last completed week: ${lastCompleted}\n`);
     }
@@ -53,7 +52,7 @@ async function verifyRankChanges(seasonId, startWeek, endWeek) {
 
       try {
         // Get rankings for this week (calculated live)
-        const rankings = await dataManager.getPowerRankingsForWeek(seasonId, week);
+        const rankings = await dataManager.rankings.getPowerRankingsForWeek(seasonId, week);
 
         if (!rankings || rankings.length === 0) {
           console.log(`   ⚠️  No rankings data for week ${week} (possibly no games yet)`);

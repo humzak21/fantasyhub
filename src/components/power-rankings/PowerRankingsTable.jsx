@@ -200,9 +200,20 @@ const PowerRankingsTable = ({
     );
   };
 
-  // During initialization or data loading, don't show placeholder states (full-screen overlay handles loading)
+  // This used to `return null`, on the reasoning that the app shell's
+  // full-screen overlay was showing the loading state. That overlay is gone —
+  // it blocked the entire page on every mutation — so the table now owns its
+  // own loading state. Returning null here rendered a blank main screen for as
+  // long as anything upstream was in flight.
   if (initializing || loading) {
-    return null;
+    return (
+      <Card className="p-8">
+        <CardContent className="flex items-center justify-center gap-3 text-muted-foreground">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+          <span>Calculating week {currentWeek} rankings…</span>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (!rankings.length) {

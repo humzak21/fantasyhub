@@ -1,5 +1,4 @@
-// Dynamic import of SupabaseDataManager to ensure env vars are loaded first
-let SupabaseDataManager;
+import { getDb } from './db/index.js';
 import { extractOwnerInfo, findMatchingTeam } from '../utils/ownerUtils.js';
 
 export class ESPNRosterUpdater {
@@ -9,18 +8,12 @@ export class ESPNRosterUpdater {
     this.espnS2 = espnS2;
     this.swid = swid;
     this.baseUrl = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons';
-    // Initialize dataManager lazily to ensure env vars are loaded
-    this.dataManager = null;
+    // Resolved lazily so the process has finished loading env vars first.
+    this.db = null;
   }
 
   async initializeDataManager() {
-    if (!this.dataManager) {
-      if (!SupabaseDataManager) {
-        const module = await import('./supabaseDataManager.js');
-        SupabaseDataManager = module.SupabaseDataManager;
-      }
-      this.dataManager = new SupabaseDataManager();
-    }
+    if (!this.db) this.db = getDb();
   }
 
   async fetchLeagueData() {
@@ -180,8 +173,8 @@ export class ESPNRosterUpdater {
       }
 
       const activeSeason = seasonId ? 
-        await this.dataManager.getSeason(seasonId) : 
-        await this.dataManager.getActiveSeason();
+        await this.db.seasons.getSeason(seasonId) : 
+        await this.db.seasons.getActiveSeason();
 
       if (!activeSeason) {
         throw new Error('No active season found. Please create a season first.');
@@ -215,7 +208,7 @@ export class ESPNRosterUpdater {
             };
 
             
-            await this.dataManager.updateTeam(activeSeason.id, existingTeam.id, rosterUpdate);
+            await this.db.teams.updateTeam(activeSeason.id, existingTeam.id, rosterUpdate);
             
             updateResults.updated.push({
               teamId: existingTeam.id,
@@ -313,8 +306,8 @@ export class ESPNRosterUpdater {
       try {
         await this.initializeDataManager();
         const activeSeason = seasonId ? 
-          await this.dataManager.getSeason(seasonId) : 
-          await this.dataManager.getActiveSeason();
+          await this.db.seasons.getSeason(seasonId) : 
+          await this.db.seasons.getActiveSeason();
 
         if (activeSeason && activeSeason.teams) {
           console.log('\nTeams in your local fantasy system:');

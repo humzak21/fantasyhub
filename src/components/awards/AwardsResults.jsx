@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Pie, PieChart, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { getDb } from '../../../services/db/index.js';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1'];
 
-const AwardsResults = ({ awards, season, dataManager, loading }) => {
+const AwardsResults = ({ awards, season,loading }) => {
     const [results, setResults] = useState({});
     const [loadingResults, setLoadingResults] = useState(true);
 
     useEffect(() => {
         const fetchResults = async () => {
-            if (!season || !dataManager) return;
+            if (!season) return;
             setLoadingResults(true);
             try {
-                const data = await dataManager.getAwardResults(season.id);
+                const data = await getDb().awards.getAwardResults(season.id);
                 setResults(data || {});
             } catch (err) {
                 console.error('Failed to load results:', err);
@@ -23,7 +24,7 @@ const AwardsResults = ({ awards, season, dataManager, loading }) => {
         };
 
         fetchResults();
-    }, [season, dataManager]);
+    }, [season]);
 
     if (loading || loadingResults) return <div>Loading results...</div>;
 

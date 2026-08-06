@@ -15,7 +15,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
-import { SupabaseDataManager } from '../services/supabaseDataManager.js';
+import { getDb, getContext } from '../services/db/index.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
 
 const config = ESPN_CONFIG;
@@ -29,15 +29,14 @@ async function backfillTransactions() {
   // Initialize data manager
   let dataManager;
   try {
-    dataManager = new SupabaseDataManager();
-    await dataManager.initialize();
+    dataManager = getDb();
   } catch (error) {
     console.error('❌ Failed to initialize database:', error.message);
     process.exit(1);
   }
 
   // Get current season
-  const { data: seasons, error: seasonError } = await dataManager.client
+  const { data: seasons, error: seasonError } = await getContext().client
     .from('seasons')
     .select('id, name, year, teams(*)')
     .eq('year', 2025)
@@ -117,7 +116,7 @@ async function backfillTransactions() {
                                (teamData.drops || 0);
 
       // Upsert transaction data
-      const { error: upsertError } = await dataManager.client
+      const { error: upsertError } = await getContext().client
         .from('transactions_2025')
         .upsert({
           team_id: team.id,

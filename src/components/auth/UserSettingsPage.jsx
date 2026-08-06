@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { supabase } from '../../../services/supabaseClient.js'
-import { useSupabaseFantasyData } from '../../../hooks/useSupabaseFantasyData.js'
+import { useSeasons, useActiveSeason, useLeagueMutations } from '../../../hooks/queries/index.js'
+import { getDb } from '../../../services/db/index.js'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
@@ -23,16 +24,36 @@ export const UserSettingsPage = () => {
   const [shouldCrash, setShouldCrash] = useState(false)
 
   // Fantasy data for admin settings
-  const {
-    seasons,
-    activeSeason,
-    loading: dataLoading,
-    createSeason,
-    setActiveSeasonById,
-    deleteSeason,
-    exportSeason,
-    importSeason,
-  } = useSupabaseFantasyData()
+  const { data: seasons = [], isLoading: seasonsLoading } = useSeasons()
+  const { data: activeSeason } = useActiveSeason()
+  const seasonMutations = useLeagueMutations(activeSeason?.id ?? null)
+
+  const dataLoading =
+    seasonsLoading ||
+    seasonMutations.createSeason.isPending ||
+    seasonMutations.setActiveSeason.isPending ||
+    seasonMutations.deleteSeason.isPending
+
+  const handleCreateSeason = (year, name, leagueSize, regularSeasonWeeks, playoffWeeks) =>
+    seasonMutations.createSeason.mutateAsync({
+      year,
+      name,
+      leagueSize,
+      regularSeasonWeeks,
+      playoffWeeks,
+    })
+
+  const handleSetActiveSeason = (seasonId) =>
+    seasonMutations.setActiveSeason.mutateAsync(seasonId)
+
+  const handleDeleteSeason = (seasonId) => seasonMutations.deleteSeason.mutateAsync(seasonId)
+
+  const handleExportSeason = (seasonId) => getDb().seasons.exportSeasonData(seasonId)
+
+  // Season import was never implemented — the old hook's `importSeason` threw
+  // 'Import functionality needs to be implemented for Supabase' on every call.
+  // Passing null hides the form instead of offering a button that always fails.
+  const handleImportSeason = null
 
   // Initialize display name from user metadata
   useEffect(() => {
@@ -325,11 +346,11 @@ export const UserSettingsPage = () => {
               <SeasonManager
                 seasons={seasons}
                 activeSeason={activeSeason}
-                onCreateSeason={createSeason}
-                onSetActiveSeason={setActiveSeasonById}
-                onDeleteSeason={deleteSeason}
-                onExportSeason={exportSeason}
-                onImportSeason={importSeason}
+                onCreateSeason={handleCreateSeason}
+                onSetActiveSeason={handleSetActiveSeason}
+                onDeleteSeason={handleDeleteSeason}
+                onExportSeason={handleExportSeason}
+                onImportSeason={handleImportSeason}
                 loading={dataLoading}
                 isAuthenticated={isAdmin}
               />

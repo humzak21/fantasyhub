@@ -37,14 +37,28 @@ This is a React-based fantasy football power rankings application built with Vit
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
   - `services/espnRosterUpdater.js` - ESPN integration for roster updates
-- **State Management**: `hooks/useSupabaseFantasyData.js` - Central hook managing all application state
+- **State Management**: `hooks/queries/` - TanStack Query hooks, one per domain.
+  **Components read and write data through these, not through a shared
+  instance.**
 - **Components**: Modular React components in `/components` directory
 
 ### Key Data Flow
-1. `useSupabaseFantasyData` hook manages singleton `SupabaseDataManager` instance
-2. `SupabaseDataManager` is a thin facade that delegates to `services/db/`
+1. Components call a hook from `hooks/queries/` (`useLeagueData`,
+   `useViewedWeekRankings`, `usePickEmWeek`, …)
+2. Those hooks call `getDb().<domain>.<method>()` from `services/db/`
 3. `PowerRankingCalculator` processes team/game data using weighted algorithms
-4. Components receive state/actions through the central hook
+4. Mutations invalidate only the keys they changed — never refetch the league
+
+### Working in `hooks/queries/`
+- **Every query key lives in `keys.js`.** Never build one inline; the
+  invalidation side has to be able to find it.
+- Keys run general → specific (`['games', seasonId, 'week', 3]`) so a mutation
+  can invalidate a whole domain by prefix.
+- A mutation's `onSuccess` names the domains it actually changed. If you find
+  yourself invalidating everything, the key design is wrong.
+- **Week state:** `useActualWeek()` is derived from the season row and is
+  read-only. `useViewedWeek()` is UI state the user owns. Neither writes to the
+  other; do not add an effect that syncs them.
 
 ### Working in `services/db/`
 - Every domain function takes a shared `ctx` (`{ client, seasonsCache, activeSeasonId }`) as its first argument. `getDb()` returns the same modules with `ctx` pre-applied for app code.
@@ -57,10 +71,18 @@ This is a React-based fantasy football power rankings application built with Vit
 - `types/index.js` - Contains all data models, validation functions, and configuration constants including `POWER_RANKING_WEIGHTS` and `THRESHOLDS`
 - `types/supabase.ts` - Generated from the live schema; regenerate with `npm run db:types`
 - `FantasyFootballApp.jsx` - Main component with auth integration and navigation
-- `services/db/index.js` - Data layer entry point
-- `services/supabaseDataManager.js` - Compatibility facade over `services/db/` (being retired in P3)
-- `hooks/useSupabaseFantasyData.js` - Reactive state management layer
+- `services/db/index.js` - Data layer entry point (`getDb()`, `getContext()`)
+- `hooks/queries/index.js` - Query layer entry point; all data hooks
+- `hooks/queries/keys.js` - Every query key
 - `utils/seasonConfig.js` - Single source for season dates, week math and deadlines
+
+**Note:** `services/supabaseDataManager.js` and `hooks/useSupabaseFantasyData.js`
+were deleted on 2026-08-06. Nothing should reference them.
+
+### Scripts write to production
+`scripts/*.js` execute on import — there is no `import.meta.main` guard. Never
+`import()` one to test it; use `node --check`. `scripts/weeklyUpdate.js` in
+particular performs a full ESPN sync as a side effect of being loaded.
 
 ## Data Models
 

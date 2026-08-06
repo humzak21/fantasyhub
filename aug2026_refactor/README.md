@@ -18,6 +18,7 @@ fix that fell out of §3.
 | [`04-verification.md`](04-verification.md) | What was checked, and the numbers it produced |
 | [`05-open-items.md`](05-open-items.md) | What was deliberately left undone, and why |
 | [`06-data-layer.md`](06-data-layer.md) | §5: the god-class split, one client, typed errors, generated types |
+| [`07-frontend.md`](07-frontend.md) | §6 stages 1–2: TanStack Query, week state, and deleting the god class |
 
 ---
 

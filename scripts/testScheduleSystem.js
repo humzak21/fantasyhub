@@ -6,7 +6,7 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-import { SupabaseDataManager } from '../services/supabaseDataManager.js';
+import { getDb, getContext } from '../services/db/index.js';
 
 async function testScheduleSystem() {
   console.log('🧪 Testing ESPN Schedule Storage System');
@@ -14,13 +14,12 @@ async function testScheduleSystem() {
 
   try {
     // Initialize data manager
-    const dataManager = new SupabaseDataManager();
-    await dataManager.initialize();
+    const dataManager = getDb();
     console.log('✅ Data manager initialized\n');
 
     // Test 1: Get pending schedule imports
     console.log('📋 Testing: Get pending schedule imports');
-    const pendingImports = await dataManager.getPendingScheduleImports();
+    const pendingImports = await dataManager.schedule.getPendingScheduleImports();
     console.log(`Found ${pendingImports.length} pending imports:`);
     
     pendingImports.forEach((importItem, index) => {
@@ -33,7 +32,7 @@ async function testScheduleSystem() {
 
     // Test 2: Get available seasons
     console.log('🏆 Testing: Get available seasons');
-    const seasons = await dataManager.getSeasons();
+    const seasons = await dataManager.seasons.getAllSeasons();
     console.log(`Found ${seasons.length} seasons:`);
     
     seasons.forEach((season, index) => {
@@ -44,7 +43,7 @@ async function testScheduleSystem() {
     // Test 3: Get import details (if we have pending imports)
     if (pendingImports.length > 0) {
       console.log('📊 Testing: Get import details for first pending import');
-      const importDetails = await dataManager.getScheduleImportDetails(pendingImports[0].import_id);
+      const importDetails = await dataManager.schedule.getScheduleImportDetails(pendingImports[0].import_id);
       
       console.log(`Import: ${importDetails.import.league_name} (${importDetails.import.season_year})`);
       console.log(`Teams: ${importDetails.teams.length}`);
@@ -79,7 +78,7 @@ async function testScheduleSystem() {
     console.log('To test assignment, uncomment the code below and provide valid IDs:');
     console.log('');
     console.log('// Example assignment:');
-    console.log('// const result = await dataManager.assignScheduleToSeason(');
+    console.log('// const result = await dataManager.schedule.assignScheduleToSeason(');
     console.log('//   "import-id-here",');
     console.log('//   "season-id-here",');
     console.log('//   "Test assignment from script"');
@@ -91,7 +90,7 @@ async function testScheduleSystem() {
     // Uncomment this section to test actual assignment
     if (pendingImports.length > 0 && seasons.length > 0) {
       console.log('🔗 Testing: Assign schedule to season');
-      const result = await dataManager.assignScheduleToSeason(
+      const result = await dataManager.schedule.assignScheduleToSeason(
         pendingImports[0].import_id,
         seasons[0].id,
         'Test assignment from script'

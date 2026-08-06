@@ -4,7 +4,6 @@ import { Trophy, Award, Star, Target, TrendingUp, Crown, Zap } from 'lucide-reac
 const MobileAwards = ({
   season,
   currentWeek,
-  dataManager,
   loading = false,
   isAuthenticated = false,
   isAdmin = false,

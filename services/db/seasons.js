@@ -263,6 +263,28 @@ export async function exportSeasonData(ctx, seasonId) {
   }
 }
 
+/**
+ * Drop cached season objects so the next read hits the database.
+ *
+ * `ctx.seasonsCache` predates any client-side query cache: `getSeason` and
+ * `getActiveSeason` return the cached object forever once populated. That is
+ * fine for a script, but a UI cache sitting on top would refetch after a
+ * mutation and be handed the same stale object. Call this before refetching.
+ *
+ * @param {Object} ctx
+ * @param {string} [seasonId] - one season, or every season when omitted.
+ */
+export function forgetSeason(ctx, seasonId = null) {
+  if (seasonId) {
+    ctx.seasonsCache.delete(seasonId);
+    if (ctx.activeSeasonId === seasonId) ctx.activeSeasonId = null;
+    return;
+  }
+
+  ctx.seasonsCache.clear();
+  ctx.activeSeasonId = null;
+}
+
 export async function resolveSeasonYear(ctx, seasonYear) {
   if (seasonYear) return seasonYear;
 

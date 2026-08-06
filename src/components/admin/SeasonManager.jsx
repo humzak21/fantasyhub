@@ -58,9 +58,11 @@ const SeasonManager = ({
     }
   };
 
-  const handleExport = (season) => {
+  const handleExport = async (season) => {
     try {
-      const data = onExportSeason(season.id);
+      // `onExportSeason` is async. Without the await this stringified a pending
+      // Promise, so every export downloaded the two bytes `{}`.
+      const data = await onExportSeason(season.id);
       const dataStr = JSON.stringify(data, null, 2);
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(dataBlob);
@@ -94,13 +96,16 @@ const SeasonManager = ({
         </h2>
         {isAuthenticated && (
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowImportForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <Upload size={16} />
-              Import
-            </button>
+            {/* Season import has no implementation; the shell passes null. */}
+            {onImportSeason && (
+              <button
+                onClick={() => setShowImportForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <Upload size={16} />
+                Import
+              </button>
+            )}
             <button
               onClick={() => setShowCreateForm(true)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
