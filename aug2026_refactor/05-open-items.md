@@ -10,23 +10,35 @@ Things deliberately left undone, and why. Ordered by urgency.
 > **Items 1 and 2 — the whole of §2, P0 security — are now the only major phase
 > left.** Everything else in `REFACTOR_ANALYSIS.md` is done.
 
-## 1. ESPN credentials are still live in git — §2.1
+## 1. ESPN credentials — code side done, rotation is the owner's
 
-`config/espn-config.js` still contains a working `espn_s2` / `SWID` pair for the
-ESPN account, and it is in git history.
+**`config/espn-config.js` no longer contains a credential.** It is a pure
+environment loader: `ESPN_S2` and `ESPN_SWID` come from `process.env`, with no
+literal fallback. `.env.local` (gitignored) holds them locally;
+`.github/workflows/sync-week.yml` reads them from repository secrets.
+`.env.example` documents both. The file stays tracked — there is nothing secret
+in it any more, so gitignoring it would only mean every clone has to recreate a
+loader.
 
-**This was left in place on purpose.** Deleting it from the working tree would
-break the sync scripts while fixing nothing, because the credential is already
-in every clone of the history. The fix has an order:
+`requireEspnCredentials()` is available for callers that should fail loudly
+rather than silently fetching a public-league shape.
 
-1. **Rotate first** — log out of ESPN everywhere to invalidate the session
-2. Move the new values to `ESPN_S2` / `ESPN_SWID` environment variables
-   (`leagueId` and `seasonYear` already read from `process.env`)
-3. Purge from history (`git filter-repo --path config/espn-config.js
-   --invert-paths`), then force-push
-4. Add the file to `.gitignore` with a committed `espn-config.example.js`
+SWID is normalised to its brace-wrapped form. **Both forms were tested against
+the live league and both authenticate**, so this is convenience, not a fix — the
+stored value can be pasted with or without braces.
 
-Until step 1 happens, the exposure is unchanged by anything in this refactor.
+### Still outstanding, and deliberately not done here
+
+1. **Rotation.** As of 2026-08-06 the value in `.env.local` is byte-identical to
+   the one that was committed — the credential was relocated, not rotated. The
+   owner is handling this.
+2. **History purge.** Skipped by decision. The secret remains in 4 commits
+   across `main`, `awards`, `movie_tracker` and this branch, plus their remotes.
+
+Mitigating context for both: the repository is **private with 0 forks**, so the
+exposure is bounded by repo access rather than public. Once the cookie is
+rotated the committed one is worthless and the purge becomes cosmetic — which is
+why the order matters and why purging first was declined.
 
 ## 2. The rest of §2 (P0 security)
 
