@@ -11,11 +11,11 @@ import AwardsVoting from './AwardsVoting';
 import AwardsResults from './AwardsResults';
 import AwardsGallery from './AwardsGallery';
 import AwardsAdmin from './AwardsAdmin';
+import { getDb } from '../../../services/db/index.js';
 
 const AwardsManager = ({
   season,
   currentWeek,
-  dataManager,
   loading = false,
   isAuthenticated = false,
   isAdmin = false,
@@ -30,22 +30,22 @@ const AwardsManager = ({
   const [error, setError] = useState(null);
 
   const loadAwardsData = useCallback(async () => {
-    if (!season || !dataManager) return;
+    if (!season) return;
 
     setDataLoading(true);
     setError(null);
 
     try {
       const [awardsData, unlockData] = await Promise.all([
-        dataManager.getAwards(season.id),
-        dataManager.getAwardsUnlockStatus(season.id)
+        getDb().awards.getAwards(season.id),
+        getDb().awards.getAwardsUnlockStatus(season.id)
       ]);
 
       setAwards(awardsData || []);
       setUnlockStatus(unlockData || { unique_voters: 0, required_voters: 14, unlocked: false });
 
       if (user) {
-        const votesData = await dataManager.getUserVotes(season.id, user.id);
+        const votesData = await getDb().awards.getUserVotes(season.id, user.id);
         setUserVotes(votesData || []);
       }
     } catch (err) {
@@ -54,7 +54,7 @@ const AwardsManager = ({
     } finally {
       setDataLoading(false);
     }
-  }, [season, dataManager, user]);
+  }, [season,user]);
 
   useEffect(() => {
     loadAwardsData();
@@ -73,7 +73,7 @@ const AwardsManager = ({
 
     setDataLoading(true);
     try {
-      await dataManager.releaseAwardResults(season.id);
+      await getDb().awards.releaseAwardResults(season.id);
       await loadAwardsData();
     } catch (err) {
       setError(err.message || 'Failed to release results');
@@ -152,7 +152,6 @@ const AwardsManager = ({
             awards={awards.filter(a => a.category === 'voted')}
             userVotes={userVotes}
             onVote={loadAwardsData} // Reload to update vote counts/status
-            dataManager={dataManager}
             season={season}
             user={user}
             loading={dataLoading}
@@ -164,7 +163,6 @@ const AwardsManager = ({
           <AwardsResults
             awards={awards.filter(a => a.category === 'voted')}
             season={season}
-            dataManager={dataManager}
             loading={dataLoading}
           />
         </TabsContent>
@@ -182,7 +180,6 @@ const AwardsManager = ({
             <AwardsAdmin
               awards={awards}
               season={season}
-              dataManager={dataManager}
               onUpdate={loadAwardsData}
               loading={dataLoading}
               teamOwnerNames={teamOwnerNames}

@@ -6,7 +6,7 @@ dotenv.config({ path: '.env.local' });
 
 import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
-import { SupabaseDataManager } from '../services/supabaseDataManager.js';
+import { getDb, getContext } from '../services/db/index.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
 import { deriveCurrentWeek, toSeasonConfig } from '../utils/seasonConfig.js';
@@ -20,10 +20,9 @@ const config = ESPN_CONFIG;
  * any more.
  */
 async function resolveTarget({ seasonIdArg, weekArg }) {
-  const dataManager = new SupabaseDataManager();
-  await dataManager.initialize();
+  const dataManager = getDb();
 
-  const query = dataManager.client.from(seasonIdArg ? 'seasons' : 'v_active_season').select('*');
+  const query = getContext().client.from(seasonIdArg ? 'seasons' : 'v_active_season').select('*');
   const { data, error } = seasonIdArg
     ? await query.eq('id', seasonIdArg).single()
     : await query.single();
@@ -110,21 +109,20 @@ async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
 
   let dataManager;
   try {
-    dataManager = new SupabaseDataManager();
-    await dataManager.initialize();
+    dataManager = getDb();
   } catch (error) {
     console.error(`❌ Failed to initialize database: ${error.message}`);
     throw new Error('Database initialization failed');
   }
 
   // Get season and teams
-  const season = await dataManager.getSeason(seasonId);
+  const season = await dataManager.seasons.getSeason(seasonId);
   if (!season) {
     throw new Error(`Season ${seasonId} not found`);
   }
 
   // Get games for this week
-  const games = await dataManager.getGamesForWeek(seasonId, weekNumber);
+  const games = await dataManager.games.getGamesForWeek(seasonId, weekNumber);
   if (!games || games.length === 0) {
     throw new Error(`No games found for week ${weekNumber}`);
   }
@@ -178,7 +176,7 @@ async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
       }
 
       // Update the game
-      const { error: updateError } = await dataManager.client
+      const { error: updateError } = await getContext().client
         .from('games')
         .update({
           team1_score: team1Score,
@@ -230,15 +228,14 @@ async function updateTransactionCounts(seasonId, espn) {
 
   let dataManager;
   try {
-    dataManager = new SupabaseDataManager();
-    await dataManager.initialize();
+    dataManager = getDb();
   } catch (error) {
     console.error(`❌ Failed to initialize database: ${error.message}`);
     throw new Error('Database initialization failed');
   }
 
   // Get season and teams
-  const season = await dataManager.getSeason(seasonId);
+  const season = await dataManager.seasons.getSeason(seasonId);
   if (!season) {
     throw new Error(`Season ${seasonId} not found`);
   }
@@ -305,7 +302,7 @@ async function updateTransactionCounts(seasonId, espn) {
       }
 
       // Upsert into the season-keyed transactions table (was transactions_2025).
-      const { error: upsertError } = await dataManager.client
+      const { error: upsertError } = await getContext().client
         .from('transactions')
         .upsert({
           season_id: seasonId,

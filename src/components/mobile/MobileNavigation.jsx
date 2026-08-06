@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
 import { useDarkMode } from '../../contexts/DarkModeContext.jsx';
 import { MobileLoginForm } from './MobileLoginForm.jsx';
+import { getDb } from '../../../services/db/index.js';
 
 /**
  * Mobile Navigation System
@@ -19,7 +20,6 @@ const MobileNavigation = ({
   isAdmin,
   activeSeason,
   currentWeek,
-  dataManager
 }) => {
   const { user, signOut } = useAuth();
   const { isDarkMode, isAutoDetect, getThemeName, setDarkMode, enableAutoDetect } = useDarkMode();
@@ -103,7 +103,7 @@ const MobileNavigation = ({
 
   // Check if user has submitted picks for current week
   const checkUserPicksSubmission = async () => {
-    if (!isAuthenticated || !user || !activeSeason || !currentWeek || !dataManager) {
+    if (!isAuthenticated || !user || !activeSeason || !currentWeek) {
       setHasUserSubmittedPicks(false);
       return;
     }
@@ -111,14 +111,14 @@ const MobileNavigation = ({
     setPickemNotificationLoading(true);
     try {
       // Get pick'em week data for current week
-      const pickEmWeekData = await dataManager.getPickEmWeek(activeSeason.id, currentWeek);
+      const pickEmWeekData = await getDb().pickems.getPickEmWeek(activeSeason.id, currentWeek);
       if (!pickEmWeekData) {
         setHasUserSubmittedPicks(false);
         return;
       }
 
       // Get user picks for this week
-      const userPicks = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
+      const userPicks = await getDb().pickems.getUserPicksForWeek(pickEmWeekData.id);
       const hasSubmitted = userPicks && userPicks.length > 0;
       setHasUserSubmittedPicks(hasSubmitted);
     } catch (err) {
@@ -132,7 +132,7 @@ const MobileNavigation = ({
   // Check picks submission when relevant data changes
   useEffect(() => {
     checkUserPicksSubmission();
-  }, [isAuthenticated, user, activeSeason, currentWeek, dataManager]);
+  }, [isAuthenticated, user, activeSeason, currentWeek]);
 
   // Prevent body scroll when menu is open
   useEffect(() => {

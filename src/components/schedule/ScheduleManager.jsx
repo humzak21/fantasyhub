@@ -671,13 +671,17 @@ const GameCard = ({
                 >
                   <Edit3 size={14} />
                 </button>
-                <button
-                  onClick={handleDelete}
-                  className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors dark:text-red-400 dark:hover:text-red-200 dark:hover:bg-red-900/30"
-                  title="Delete game"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {/* Deletion has no implementation; the shell passes null and
+                    the button stays hidden rather than raising an alert. */}
+                {onDeleteGame && (
+                  <button
+                    onClick={handleDelete}
+                    className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors dark:text-red-400 dark:hover:text-red-200 dark:hover:bg-red-900/30"
+                    title="Delete game"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </>
             )}
           </div>

@@ -39,12 +39,16 @@ export async function createPickEmWeek(ctx, seasonId, weekNumber, customSchedule
 export async function getPickEmWeek(ctx, seasonId, weekNumber) {
 
   try {
+    // `maybeSingle`, not `single`: a week with no pick'em row is normal (the
+    // playoff weeks have none), and `single` made PostgREST answer 406 with
+    // PGRST116. The code already treated that as "no row", but the failed
+    // request still showed up as a console error on every load.
     const { data, error } = await ctx.client
       .from('pick_em_weeks')
       .select('*')
       .eq('season_id', seasonId)
       .eq('week_number', weekNumber)
-      .single();
+      .maybeSingle();
 
     if (error && error.code !== 'PGRST116') throw error;
 

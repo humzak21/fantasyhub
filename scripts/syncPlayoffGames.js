@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
-import { SupabaseDataManager } from '../services/supabaseDataManager.js';
+import { getDb, getContext } from '../services/db/index.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
 
 // ====== CONFIGURATION ======
@@ -57,8 +57,7 @@ async function syncPlayoffGames(seasonId, weekNumber) {
 
   let dataManager;
   try {
-    dataManager = new SupabaseDataManager();
-    await dataManager.initialize();
+    dataManager = getDb();
   } catch (error) {
     console.error(`❌ Failed to initialize database: ${error.message}`);
     throw new Error('Database initialization failed');
@@ -68,7 +67,7 @@ async function syncPlayoffGames(seasonId, weekNumber) {
   // Admin email is humzak2001@gmail.com per CLAUDE.md
   let adminUserId;
 
-  const { data: adminUsers, error: adminError } = await dataManager.client
+  const { data: adminUsers, error: adminError } = await getContext().client
     .from('profiles')
     .select('id')
     .eq('email', 'humzak2001@gmail.com')
@@ -76,7 +75,7 @@ async function syncPlayoffGames(seasonId, weekNumber) {
 
   if (adminError || !adminUsers || adminUsers.length === 0) {
     // Fallback: get the first user from the season's teams
-    const { data: firstTeam, error: teamError } = await dataManager.client
+    const { data: firstTeam, error: teamError } = await getContext().client
       .from('teams')
       .select('user_id')
       .eq('season_id', seasonId)
@@ -99,7 +98,7 @@ async function syncPlayoffGames(seasonId, weekNumber) {
   }
 
   // Get season and teams
-  const season = await dataManager.getSeason(seasonId);
+  const season = await dataManager.seasons.getSeason(seasonId);
   if (!season) {
     throw new Error(`Season ${seasonId} not found`);
   }
@@ -254,7 +253,7 @@ async function syncPlayoffGames(seasonId, weekNumber) {
 
       if (isBye) {
         // Check if BYE already exists for this team/week
-        const { data: existingBye, error: checkError } = await dataManager.client
+        const { data: existingBye, error: checkError } = await getContext().client
           .from('games')
           .select('*')
           .eq('season_id', seasonId)
@@ -269,7 +268,7 @@ async function syncPlayoffGames(seasonId, weekNumber) {
 
         if (existingBye) {
           // Update existing BYE
-          const { data: updated, error: updateErr } = await dataManager.client
+          const { data: updated, error: updateErr } = await getContext().client
             .from('games')
             .update(gameData)
             .eq('id', existingBye.id)
@@ -279,7 +278,7 @@ async function syncPlayoffGames(seasonId, weekNumber) {
           insertError = updateErr;
         } else {
           // Insert new BYE
-          const { data: inserted, error: insertErr } = await dataManager.client
+          const { data: inserted, error: insertErr } = await getContext().client
             .from('games')
             .insert(gameData)
             .select()
@@ -289,7 +288,7 @@ async function syncPlayoffGames(seasonId, weekNumber) {
         }
       } else {
         // Normal game with two teams
-        const { data: inserted, error: insertErr } = await dataManager.client
+        const { data: inserted, error: insertErr } = await getContext().client
           .from('games')
           .upsert(gameData, {
             onConflict: 'season_id,week,team1_id,team2_id',

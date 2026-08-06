@@ -1,9 +1,16 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Trophy, Calendar, BarChart3, Users, Target, RefreshCw, Award, TrendingUp, History } from 'lucide-react';
 import { useAuth } from './src/contexts/AuthContext';
-import { useSupabaseFantasyData } from './hooks/useSupabaseFantasyData.js';
-import { getCurrentWeek } from './utils/weekCalculator.js';
-import { arePickEmsOpen, areAwardsReleased, getSeasonConfig } from './utils/seasonConfig.js';
+import {
+  useLeagueData,
+  useLeagueMutations,
+  useViewedWeek,
+  useViewedWeekRankings,
+  useHasSubmittedPicks,
+  useAwardsUnlockStatus,
+  useSeasonConfig
+} from './hooks/queries/index.js';
+import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { getTeamOwnerNames } from './src/utils/displayNameUtils';
 import { Button } from './src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src/components/ui/card';
@@ -39,29 +46,46 @@ const FantasyFootballApp = () => {
   const { user, isAuthenticated, isAdmin } = useAuth();
   // Allow viewing without auth, but only admin can edit
 
+  // One query per thing, each with its own loading state. Replaces the
+  // 60-callback mega-hook whose every mutation refetched the entire league.
   const {
-    seasons,
     activeSeason,
-    currentWeek,
-    loading,
-    error,
-    initialized,
-    powerRankings,
-    rosters,
     divisions,
     standings,
+    rosters,
+    completedWeeks,
+    isLoading,
+    error
+  } = useLeagueData();
+
+  const seasonId = activeSeason?.id ?? null;
+  const seasonConfig = useSeasonConfig();
+
+  // `viewedWeek` is UI state the user owns; `actualWeek` is derived from the
+  // season start date. Neither writes to the other — see hooks/queries/useWeek.
+  const { viewedWeek, setViewedWeek, actualWeek } = useViewedWeek();
+
+  const {
     addTeam,
     updateTeam,
     removeTeam,
-    addWeekScores,
-    getPowerRankingsForWeek,
-    setCurrentWeek,
     addGame,
-    renameDivision,
-    assignTeamToDivision,
     createDivision,
-    dataManager
-  } = useSupabaseFantasyData();
+    renameDivision,
+    assignTeamToDivision
+  } = useLeagueMutations(seasonId);
+
+  const { data: weeklyRankings = [], isPending: rankingsLoading } =
+    useViewedWeekRankings(seasonId);
+
+  // The nav dot asks "have you submitted *this week's* picks", so it follows the
+  // actual week. Browsing back to week 3 must not light it up. The pick'ems tab
+  // itself still follows `viewedWeek`.
+  const { hasSubmitted: hasUserSubmittedPicks, isLoading: pickemNotificationLoading } =
+    useHasSubmittedPicks(seasonId, actualWeek, { enabled: isAuthenticated && Boolean(user) });
+
+  const { status: awardsUnlockStatus } = useAwardsUnlockStatus(seasonId);
+
 
   // Extract team owner names from active season for mask authentication
   const teamOwnerNames = useMemo(() => {
@@ -71,48 +95,6 @@ const FantasyFootballApp = () => {
   const [activeTab, setActiveTab] = useState('rankings');
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
-  const [hasUserSubmittedPicks, setHasUserSubmittedPicks] = useState(false);
-  const [pickemNotificationLoading, setPickemNotificationLoading] = useState(false);
-
-  // Pickems preloading state
-  const [preloadedPickemsData, setPreloadedPickemsData] = useState(null);
-  const [pickemPreloadingInProgress, setPickemPreloadingInProgress] = useState(false);
-
-
-  // Week-specific power rankings state
-  const [weeklyRankings, setWeeklyRankings] = useState([]);
-  const [rankingsLoading, setRankingsLoading] = useState(true);
-
-  // Awards unlock status
-  const [awardsUnlockStatus, setAwardsUnlockStatus] = useState({ votingOpenToAll: false });
-
-  // Check if user has submitted picks for current week
-  const checkUserPicksSubmission = async () => {
-    if (!isAuthenticated || !user || !activeSeason || !currentWeek || !dataManager) {
-      setHasUserSubmittedPicks(false);
-      return;
-    }
-
-    setPickemNotificationLoading(true);
-    try {
-      // Get pick'em week data for current week
-      const pickEmWeekData = await dataManager.getPickEmWeek(activeSeason.id, currentWeek);
-      if (!pickEmWeekData) {
-        setHasUserSubmittedPicks(false);
-        return;
-      }
-
-      // Get user picks for this week
-      const userPicks = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
-      const hasSubmitted = userPicks && userPicks.length > 0;
-      setHasUserSubmittedPicks(hasSubmitted);
-    } catch (err) {
-      console.error('Error checking user picks:', err);
-      setHasUserSubmittedPicks(false);
-    } finally {
-      setPickemNotificationLoading(false);
-    }
-  };
 
   // Analytics data integration
   const {
@@ -122,181 +104,7 @@ const FantasyFootballApp = () => {
     refreshAnalytics,
     exportAnalyticsData,
     isEnabled: analyticsEnabled
-  } = useAnalyticsData(weeklyRankings, currentWeek, true);
-
-  // Check picks submission when relevant data changes
-  useEffect(() => {
-    checkUserPicksSubmission();
-  }, [isAuthenticated, user, activeSeason, currentWeek, dataManager]);
-
-  // Preload pickems data in the background when season loads
-  useEffect(() => {
-    const preloadPickemsData = async () => {
-      if (!activeSeason || !dataManager || !initialized) {
-        return;
-      }
-
-      setPickemPreloadingInProgress(true);
-      try {
-        // Load pick'em data for current week
-        const pickEmWeekData = await dataManager.getPickEmWeek(activeSeason.id, currentWeek);
-
-        if (!pickEmWeekData) {
-          setPickemPreloadingInProgress(false);
-          return;
-        }
-
-        // Load the data in parallel
-        const [gameData, statusData] = await Promise.all([
-          dataManager.getPickEmGameData(activeSeason.id, currentWeek),
-          dataManager.getPickEmStatus(activeSeason.id)
-        ]);
-
-        // Load additional data (standings, picks, etc)
-        const [standingsData, allSeasonPicksData] = await Promise.all([
-          dataManager.getSeasonPickEmStandings(activeSeason.id),
-          dataManager.getAllSeasonPicks(activeSeason.id)
-        ]);
-
-        // Check if results are available
-        const resultsAvailable = statusData?.find(s => s.weekNumber === currentWeek)?.resultsAvailable || false;
-
-        let allPicksData = null;
-        let scoresData = null;
-
-        // If results are available, load those too
-        if (resultsAvailable) {
-          [allPicksData, scoresData] = await Promise.all([
-            dataManager.getAllPicksForWeek(pickEmWeekData.id),
-            dataManager.getWeeklyPickEmScores(pickEmWeekData.id)
-          ]);
-        }
-
-        // Load user picks if authenticated
-        let userPicksData = null;
-        if (isAuthenticated && user) {
-          userPicksData = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
-        }
-
-        // Store all preloaded data
-        setPreloadedPickemsData({
-          pickEmWeek: pickEmWeekData,
-          games: gameData,
-          status: statusData,
-          standings: standingsData,
-          allSeasonPicks: allSeasonPicksData,
-          allPicks: allPicksData,
-          scores: scoresData,
-          userPicks: userPicksData,
-          resultsAvailable: resultsAvailable
-        });
-
-        setPickemPreloadingInProgress(false);
-      } catch (err) {
-        console.error('Error preloading pickems data:', err);
-        setPickemPreloadingInProgress(false);
-        // Don't fail - let PickEmsManager load data normally if preload fails
-      }
-    };
-
-    preloadPickemsData();
-  }, [activeSeason, dataManager, initialized, currentWeek, isAuthenticated, user]);
-
-  // Initialize current week based on calendar date and keep it updated
-  useEffect(() => {
-    // Set initial week
-    const calendarWeek = getCurrentWeek();
-
-    if (calendarWeek !== currentWeek) {
-      setCurrentWeek(calendarWeek);
-    }
-
-    // Set up interval to check for week changes every hour
-    const weekCheckInterval = setInterval(() => {
-      const newCalendarWeek = getCurrentWeek();
-      if (newCalendarWeek !== currentWeek) {
-        setCurrentWeek(newCalendarWeek);
-      }
-    }, 60 * 60 * 1000); // Check every hour
-
-    // Cleanup interval on unmount
-    return () => clearInterval(weekCheckInterval);
-  }, []); // Only run on mount to avoid interfering with manual navigation
-
-  // Force calendar week after data loads (override database value)
-  useEffect(() => {
-    if (activeSeason && !loading) {
-      const calendarWeek = getCurrentWeek();
-
-      if (calendarWeek !== currentWeek) {
-        setCurrentWeek(calendarWeek);
-      }
-    }
-  }, [activeSeason, loading]); // Run when season loads
-
-  // Fetch week-specific power rankings when week or season changes
-  useEffect(() => {
-    const fetchWeeklyRankings = async () => {
-      if (!activeSeason || !currentWeek) {
-        setWeeklyRankings([]);
-        return;
-      }
-
-      setRankingsLoading(true);
-      try {
-        // Pass the viewing week to get historical data correctly
-        // When viewing week 3, we want rankings based on weeks 1-2 data
-        const rankings = await getPowerRankingsForWeek(currentWeek, currentWeek);
-        setWeeklyRankings(rankings);
-      } catch (err) {
-        setWeeklyRankings([]);
-      } finally {
-        setRankingsLoading(false);
-      }
-    };
-
-    fetchWeeklyRankings();
-  }, [activeSeason, currentWeek, getPowerRankingsForWeek]);
-
-
-  // Get completed weeks for navigation
-  const completedWeeks = activeSeason?.weeks
-    ?.filter(week => week.isCompleted)
-    ?.map(week => week.weekNumber) || [];
-
-  // Load awards unlock status
-  useEffect(() => {
-    const loadAwardsStatus = async () => {
-      if (!activeSeason || !dataManager) return;
-
-      try {
-        const status = await dataManager.getAwardsUnlockStatus(activeSeason.id);
-        console.log('Loaded awards unlock status:', status);
-        setAwardsUnlockStatus(status || { votingOpenToAll: false });
-      } catch (err) {
-        console.error('Failed to load awards unlock status:', err);
-        setAwardsUnlockStatus({ votingOpenToAll: false });
-      }
-    };
-
-    loadAwardsStatus();
-  }, [activeSeason, dataManager]);
-
-  // Reload awards unlock status when switching to awards tab
-  useEffect(() => {
-    const reloadAwardsStatus = async () => {
-      if (activeTab === 'awards' && activeSeason && dataManager) {
-        try {
-          const status = await dataManager.getAwardsUnlockStatus(activeSeason.id);
-          setAwardsUnlockStatus(status || { votingOpenToAll: false });
-        } catch (err) {
-          console.error('Failed to reload awards unlock status:', err);
-        }
-      }
-    };
-
-    reloadAwardsStatus();
-  }, [activeTab, activeSeason, dataManager]);
+  } = useAnalyticsData(weeklyRankings, viewedWeek, true);
 
   // Check if awards are accessible
   const isAwardsAccessible = () => {
@@ -307,13 +115,13 @@ const FantasyFootballApp = () => {
     if (isAuthenticated && awardsUnlockStatus?.votingOpenToAll) return true;
 
     // Otherwise the season's own release date decides.
-    return areAwardsReleased(getSeasonConfig());
+    return areAwardsReleased(seasonConfig);
   };
 
   // Check if pickems are still open. The window comes from the season row
   // (open Tuesday 04:00, close Thursday 20:00 in the league's time zone),
   // not from a weekday/hour rule duplicated in the view layer.
-  const arePickemsOpen = () => arePickEmsOpen(getSeasonConfig(), currentWeek);
+  const arePickemsOpen = () => arePickEmsOpen(seasonConfig, actualWeek);
 
   // Main navigation tabs - use useMemo to recalculate when dependencies change
   const mainTabs = useMemo(() => {
@@ -334,13 +142,20 @@ const FantasyFootballApp = () => {
 
 
 
-  const handleGameUpdate = async (week, team1Id, team2Id, team1Score, team2Score) => {
-    await addGame(week, team1Id, team2Id, team1Score, team2Score);
-  };
+  // Mutations arrive as TanStack objects; the tab components still take plain
+  // callbacks, so adapt at the boundary rather than rewriting every child.
+  const handleGameUpdate = (week, team1Id, team2Id, team1Score, team2Score) =>
+    addGame.mutateAsync({ week, team1Id, team2Id, team1Score, team2Score });
 
-  const handleGameDelete = async (gameId) => {
-    alert('Game deletion not yet implemented');
-  };
+  const handleAddTeam = (name, owner) => addTeam.mutateAsync({ name, owner });
+  const handleUpdateTeam = (teamId, updates) => updateTeam.mutateAsync({ teamId, updates });
+  const handleRemoveTeam = (teamId) => removeTeam.mutateAsync(teamId);
+  const handleCreateDivision = (name, displayOrder) =>
+    createDivision.mutateAsync({ name, displayOrder });
+  const handleRenameDivision = (divisionId, name) =>
+    renameDivision.mutateAsync({ divisionId, name });
+  const handleTeamDivisionChange = (teamId, divisionId) =>
+    assignTeamToDivision.mutateAsync({ teamId, divisionId });
 
 
   // Note: Allow users to stay on any tab even without an active season
@@ -376,10 +191,10 @@ const FantasyFootballApp = () => {
                 {activeSeason && (
                   <div className="hidden xl:block ml-8">
                     <InlineWeekNavigator
-                      currentWeek={currentWeek}
+                      currentWeek={viewedWeek}
                       totalWeeks={activeSeason.totalWeeks}
                       regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                      onWeekChange={setCurrentWeek}
+                      onWeekChange={setViewedWeek}
                       completedWeeks={completedWeeks}
                       season={activeSeason}
                       condensed={false}
@@ -391,10 +206,10 @@ const FantasyFootballApp = () => {
                 {activeSeason && (
                   <div className="hidden sm:block xl:hidden ml-4">
                     <InlineWeekNavigator
-                      currentWeek={currentWeek}
+                      currentWeek={viewedWeek}
                       totalWeeks={activeSeason.totalWeeks}
                       regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                      onWeekChange={setCurrentWeek}
+                      onWeekChange={setViewedWeek}
                       completedWeeks={completedWeeks}
                       season={activeSeason}
                       condensed={true}
@@ -406,10 +221,10 @@ const FantasyFootballApp = () => {
                 {activeSeason && (
                   <div className="sm:hidden ml-2">
                     <InlineWeekNavigator
-                      currentWeek={currentWeek}
+                      currentWeek={viewedWeek}
                       totalWeeks={activeSeason.totalWeeks}
                       regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                      onWeekChange={setCurrentWeek}
+                      onWeekChange={setViewedWeek}
                       completedWeeks={completedWeeks}
                       season={activeSeason}
                       condensed={true}
@@ -470,7 +285,7 @@ const FantasyFootballApp = () => {
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <CardTitle>Week {currentWeek} Power Rankings</CardTitle>
+                            <CardTitle>Week {viewedWeek} Power Rankings</CardTitle>
                             <Badge variant="outline">
                               {new Date().toLocaleDateString()}
                             </Badge>
@@ -531,24 +346,27 @@ const FantasyFootballApp = () => {
                       </CardHeader>
                       <CardContent>
                         {rankingsView === 'table' ? (
+                          /* Analytics is an optional overlay with its own badge,
+                             so `loading` is the ranking query alone: a slow or
+                             hanging analytics fetch must not hide the rankings. */
                           <PowerRankingsTable
                             rankings={weeklyRankings}
-                            currentWeek={currentWeek}
+                            currentWeek={viewedWeek}
                             showAdvanced={showAdvancedStats}
-                            loading={rankingsLoading || analyticsLoading}
+                            loading={rankingsLoading}
                             showAnalytics={analyticsEnabled && hasAnalyticsData}
                             analyticsData={analyticsData}
                             onExportAnalytics={exportAnalyticsData}
                             user={user}
                             isAdmin={isAdmin}
                             teamOwnerNames={teamOwnerNames}
-                            initializing={!initialized}
+                            initializing={isLoading}
                           />
                         ) : (
                           <PowerRankingsVisualization
                             rankings={weeklyRankings}
-                            currentWeek={currentWeek}
-                            loading={rankingsLoading || analyticsLoading}
+                            currentWeek={viewedWeek}
+                            loading={rankingsLoading}
                             showAnalyticsSection={analyticsEnabled && hasAnalyticsData}
                             analyticsData={analyticsData}
                             user={user}
@@ -577,7 +395,7 @@ const FantasyFootballApp = () => {
                     <CardContent>
                       <StatisticsPanel
                         rankings={weeklyRankings}
-                        currentWeek={currentWeek}
+                        currentWeek={viewedWeek}
                         season={activeSeason}
                         loading={rankingsLoading}
                         user={user}
@@ -596,15 +414,15 @@ const FantasyFootballApp = () => {
                   <ScheduleManager
                     season={activeSeason}
                     schedule={activeSeason?.schedule || []}
-                    currentWeek={currentWeek}
+                    currentWeek={viewedWeek}
                     onUpdateGame={isAdmin ? handleGameUpdate : null}
-                    onDeleteGame={isAdmin ? handleGameDelete : null}
-                    onWeekChange={setCurrentWeek}
-                    loading={loading}
+                    onDeleteGame={null}
+                    onWeekChange={setViewedWeek}
+                    loading={isLoading}
                     isAuthenticated={isAdmin}
                     user={user}
                     isAdmin={isAdmin}
-                    powerRankings={powerRankings}
+                    powerRankings={weeklyRankings}
                     rosters={rosters}
                     teamOwnerNames={teamOwnerNames}
                   />
@@ -618,11 +436,11 @@ const FantasyFootballApp = () => {
                   <TeamsAndRosters
                     teams={activeSeason?.teams || []}
                     rosters={rosters}
-                    onAddTeam={isAdmin ? addTeam : null}
-                    onUpdateTeam={isAdmin ? updateTeam : null}
-                    onRemoveTeam={isAdmin ? removeTeam : null}
-                    loading={loading}
-                    powerRankings={powerRankings}
+                    onAddTeam={isAdmin ? handleAddTeam : null}
+                    onUpdateTeam={isAdmin ? handleUpdateTeam : null}
+                    onRemoveTeam={isAdmin ? handleRemoveTeam : null}
+                    loading={isLoading}
+                    powerRankings={weeklyRankings}
                     isAuthenticated={isAdmin}
                     user={user}
                     isAdmin={isAdmin}
@@ -640,8 +458,8 @@ const FantasyFootballApp = () => {
                     teams={activeSeason?.teams || []}
                     games={activeSeason?.schedule || []}
                     divisions={divisions}
-                    currentWeek={currentWeek}
-                    loading={loading}
+                    currentWeek={viewedWeek}
+                    loading={isLoading}
                     user={user}
                     isAdmin={isAdmin}
                     teamOwnerNames={teamOwnerNames}
@@ -655,15 +473,12 @@ const FantasyFootballApp = () => {
                 <div className="space-y-6">
                   <PickEmsManager
                     season={activeSeason}
-                    currentWeek={currentWeek}
-                    dataManager={dataManager}
-                    loading={loading}
+                    currentWeek={viewedWeek}
+                    loading={isLoading}
                     isAuthenticated={isAuthenticated}
                     isAdmin={isAdmin}
                     user={user}
-                    initializing={!initialized}
-                    preloadedData={preloadedPickemsData}
-                    preloadingInProgress={pickemPreloadingInProgress}
+                    initializing={isLoading}
                     teamOwnerNames={teamOwnerNames}
                   />
                 </div>
@@ -675,9 +490,8 @@ const FantasyFootballApp = () => {
                 <div className="space-y-6">
                   <AwardsManager
                     season={activeSeason}
-                    currentWeek={currentWeek}
-                    dataManager={dataManager}
-                    loading={loading}
+                    currentWeek={viewedWeek}
+                    loading={isLoading}
                     isAuthenticated={isAuthenticated}
                     isAdmin={isAdmin}
                     user={user}
@@ -692,9 +506,8 @@ const FantasyFootballApp = () => {
                 <div className="space-y-6">
                   <PlayoffsBracketManager
                     season={activeSeason}
-                    currentWeek={currentWeek}
-                    dataManager={dataManager}
-                    loading={loading}
+                    currentWeek={viewedWeek}
+                    loading={isLoading}
                     isAuthenticated={isAuthenticated}
                     isAdmin={isAdmin}
                     user={user}
@@ -726,21 +539,27 @@ const FantasyFootballApp = () => {
             teams={activeSeason.teams || []}
             divisions={divisions}
             standings={standings}
-            currentWeek={currentWeek}
-            loading={loading}
+            currentWeek={viewedWeek}
+            loading={isLoading}
             isAuthenticated={isAdmin}
             user={user}
             isAdmin={isAdmin}
-            onDivisionRename={renameDivision}
-            onTeamDivisionChange={assignTeamToDivision}
-            onCreateDivision={createDivision}
+            onDivisionRename={handleRenameDivision}
+            onTeamDivisionChange={handleTeamDivisionChange}
+            onCreateDivision={handleCreateDivision}
             games={activeSeason.schedule || []}
             teamOwnerNames={teamOwnerNames}
           />
         )}
 
-        {/* Loading Overlay */}
-        {loading && (
+        {/*
+          First load only. This used to be `{loading && ...}` on the mega-hook's
+          single flag, which every mutation set — so saving one score blacked out
+          the whole page behind a modal until seasons, teams, games, rosters,
+          divisions and standings had all been refetched. Widgets now show their
+          own loading state and the page stays usable.
+        */}
+        {isLoading && !activeSeason && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <Card className="p-6">
               <div className="flex items-center space-x-3">

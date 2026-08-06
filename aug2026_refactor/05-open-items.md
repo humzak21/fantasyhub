@@ -2,8 +2,10 @@
 
 Things deliberately left undone, and why. Ordered by urgency.
 
-> Updated 2026-08-05 after §5 (data access layer). Items 1, 2 and 4 are
-> unchanged by that work; §5's own leftovers are items 7 and 8.
+> Updated 2026-08-06 after §6 stages 1–2 (query layer, week state, god-class
+> deletion). Items 1, 2, 3 and 5 are unchanged by that work. **Item 4 is
+> resolved** and **item 6 is resolved**; see
+> [`07-frontend.md`](07-frontend.md).
 
 ## 1. ESPN credentials are still live in git — §2.1
 
@@ -66,12 +68,13 @@ class against production, and changing the queries in the same pass would have
 made that comparison meaningless. Repointing them onto the generic tables is now
 a small, contained edit in one module each.
 
-## 4. `trigger_create_default_divisions` still fabricates divisions
+## 4. ~~`trigger_create_default_divisions` fabricates divisions~~ — RESOLVED
 
-Every `seasons` INSERT creates divisions named `Donkeys` and `Ninjas`. It fired
-during the 2026 rollover test. This is the server-side twin of the
-`useSupabaseFantasyData` side effect flagged in §6.3 and both should go together
-— removing one alone would leave new seasons with no divisions at all.
+Both halves moved together, as this item required. The client side effect went
+with `useSupabaseFantasyData`; the trigger was kept (a season with zero
+divisions breaks standings, playoff odds and the ranking inputs) but its names
+are now `Division 1` / `Division 2` instead of one past season's lore —
+`20260806120000_neutral_default_divisions.sql`.
 
 ## 5. No baseline schema dump
 
@@ -87,24 +90,19 @@ npx supabase db pull baseline_schema
 
 Do this before authoring further migrations.
 
-## 6. `SupabaseDataManager` still exists, as a facade — §5.1
+## 6. ~~`SupabaseDataManager` still exists, as a facade~~ — RESOLVED
 
-691 lines of pure delegation onto `services/db/`. The roadmap's exit criterion
-for P2 is that the file is *deleted*, and it is not, because deleting it means
-editing the 16 components, 8 scripts and 3 services that construct one — and
-those components are being rewritten anyway in §6 (P3), where the data-manager
-instance is replaced by TanStack Query hooks. Deleting it now would mean editing
-every call site twice.
+Deleted, along with the 16 components, 7 scripts and 3 services that held one.
+TanStack Query is in and `useSupabaseFantasyData` is gone. Details in
+[`07-frontend.md`](07-frontend.md).
 
-Likewise **TanStack Query is not in yet**. The P2 row of the roadmap lists it
-("mutations invalidate only their own cache keys"), but it is a frontend change:
-it replaces `useSupabaseFantasyData`, which is §6.3. §5 is what it needs to sit
-on, and that now exists.
+`pickEmTimeService` is the one remaining holder of a raw client; it takes the
+client directly rather than a data manager, so it was out of scope for the
+deletion. Still a candidate for a domain function.
 
-The seven raw `dataManager.client.from(…)` queries are gone from the hook, but
-`dataManager.client` is still exposed and still used by scripts and by
-`espnScheduleFetcher`/`pickEmTimeService`. Each is a candidate for a domain
-function.
+**§6 is not finished** — the mobile fork (§6.1), the duplicate `ui/` trees
+(§6.2) and the code-splitting/context work (§6.5) are stages 3 and 4. See
+[`07-frontend.md`](07-frontend.md) §8.
 
 ## 7. TypeScript types are generated but nothing type-checks them — §5.3
 
@@ -141,8 +139,17 @@ files with `checkJs: false`.
   only the data manager, and most of that file is the live+historical merge code
   that §3's views already made redundant — it should be deleted against
   `v_franchise_career` / `v_head_to_head`, not reorganised.
-- **`espnScheduleFetcher` and `pickEmTimeService` still take a data manager**
-  and query through `this.dataManager.client`. They can take a `ctx` instead.
+- ~~**`espnScheduleFetcher` and `pickEmTimeService` still take a data
+  manager**~~ — `espnScheduleFetcher` and `espnRosterUpdater` now take a `ctx` /
+  `db`; `espnTransactionFetcher` held one it never used and no longer builds it.
+  `pickEmTimeService` takes a raw client, not a data manager, and is unchanged.
+- **`scripts/backfillTransactions2025.js` is broken and should be deleted.** It
+  still writes to the `transactions_2025` compatibility *view* and fails with
+  "cannot insert into view". It is a completed one-off; §8.2 says delete.
+- **Scripts run on import.** None of `scripts/*.js` guard their top-level
+  invocation, so `import('./scripts/weeklyUpdate.js')` performs a full
+  production sync. Add an `import.meta.main`-style guard before anything
+  imports them programmatically. See [`07-frontend.md`](07-frontend.md) §7.
 - **`refresh_team_stats` computes win% as `wins / games`**, ignoring ties as
   half-wins the way `v_team_standings` does. No ties exist in any season on
   record, so the two agree today.

@@ -4,12 +4,12 @@ import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Alert, AlertDescription } from '../ui/alert';
 import { CheckCircle2, Save, AlertCircle } from 'lucide-react';
+import { getDb } from '../../../services/db/index.js';
 
 const AwardsVoting = ({
     awards,
     userVotes,
     onVote,
-    dataManager,
     season,
     user,
     loading,
@@ -50,7 +50,7 @@ const AwardsVoting = ({
                 voteValue
             }));
 
-            await dataManager.submitAwardVotes(season.id, votesToSubmit);
+            await getDb().awards.submitAwardVotes(season.id, votesToSubmit);
             await onVote(); // Reload data
             setSuccess(true);
         } catch (err) {
