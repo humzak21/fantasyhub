@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, Menu, X, User, Save, CheckCircle, AlertCircle, Shield, Award } from 'lucide-react';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -8,18 +9,24 @@ import {
   useViewedWeekRankings
 } from '../../../hooks/queries/index.js';
 import { supabase } from '../../../services/supabaseClient.js';
-import { getTeamOwnerNames } from '../../utils/displayNameUtils.js';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import MobileNavigation from './MobileNavigation.jsx';
-import MobilePowerRankings from './MobilePowerRankings.jsx';
-import MobileStatistics from './MobileStatistics.jsx';
-import MobileScheduleManager from './MobileScheduleManager.jsx';
-import MobileTeamsAndRosters from './MobileTeamsAndRosters.jsx';
 import MobileWeekSelector from './MobileWeekSelector.jsx';
-import MobilePickEms from './MobilePickEms.jsx';
-import MobileAwards from './MobileAwards.jsx';
+
+// The feature components are the shared, responsive ones. Only the shell —
+// navigation, the week selector and the touch primitives — stays mobile-only.
+// Each of these replaced a Mobile* twin that reimplemented the same feature.
+import PowerRankingsTable from '../power-rankings/PowerRankingsTable.jsx';
+
+// One chunk per tab, same as the desktop shell. The landing tab's
+// table stays eager so the first paint needs no chunk.
+const StatisticsPanel = lazy(() => import('../dashboard/StatisticsPanel.jsx'));
+const ScheduleManager = lazy(() => import('../schedule/ScheduleManager.jsx'));
+const TeamsAndRosters = lazy(() => import('../teams/TeamsAndRosters.jsx'));
+const PickEmsManager = lazy(() => import('../pickems/PickEmsManager.jsx'));
+const AwardsManager = lazy(() => import('../awards/AwardsManager.jsx'));
 import MobileUserSettingsPage from './MobileUserSettingsPage.jsx';
 import { MobileInput } from './MobileInput.jsx';
 import MobileButton from './MobileButton.jsx';
@@ -41,7 +48,7 @@ import { MobileTouchButton, useMobileTouch } from '../../../utils/mobileTouch.js
 import '../../../styles/mobile.css';
 
 const MobileFantasyFootballApp = () => {
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useViewer();
 
   // Same query layer as the desktop shell, so both read one cache: switching
   // between them (or resizing across the breakpoint) refetches nothing.
@@ -62,11 +69,6 @@ const MobileFantasyFootballApp = () => {
   const { data: weeklyRankings = [], isPending: rankingsLoading } =
     useViewedWeekRankings(seasonId);
 
-
-  // Extract team owner names from active season for mask authentication
-  const teamOwnerNames = useMemo(() => {
-    return getTeamOwnerNames(activeSeason);
-  }, [activeSeason]);
 
   const handleAddTeam = (name, owner) => addTeam.mutateAsync({ name, owner });
   const handleUpdateTeam = (teamId, updates) => updateTeam.mutateAsync({ teamId, updates });
@@ -208,7 +210,6 @@ const MobileFantasyFootballApp = () => {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         isAuthenticated={isAuthenticated}
-        isAdmin={isAdmin}
         activeSeason={activeSeason}
         currentWeek={viewedWeek}
       />
@@ -289,38 +290,42 @@ const MobileFantasyFootballApp = () => {
                     )}
                   </div>
                 ) : (
-                  /* Mobile Content Components */
+                  /* Feature content — shared responsive components */
+                  <Suspense
+                    fallback={
+                      <Card className="p-6">
+                        <CardContent className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                          <span>Loading…</span>
+                        </CardContent>
+                      </Card>
+                    }
+                  >
                   <div>
-                    {/* Mobile Power Rankings */}
+                    {/* Power Rankings */}
                     {activeTab === 'rankings' && (
-                      <MobilePowerRankings
+                      <PowerRankingsTable
                         rankings={weeklyRankings}
                         currentWeek={viewedWeek}
                         loading={rankingsLoading}
                         showAdvanced={true}
                         analyticsData={{}}
                         showAnalytics={false}
-                        user={user}
-                        isAdmin={isAdmin}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
-                    {/* Mobile Statistics */}
+                    {/* Statistics */}
                     {activeTab === 'statistics' && (
-                      <MobileStatistics
+                      <StatisticsPanel
                         rankings={weeklyRankings}
                         currentWeek={viewedWeek}
                         season={activeSeason}
-                        user={user}
-                        isAdmin={isAdmin}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
-                    {/* Mobile Schedule */}
+                    {/* Schedule */}
                     {activeTab === 'schedule' && (
-                      <MobileScheduleManager
+                      <ScheduleManager
                         season={activeSeason}
                         schedule={activeSeason?.schedule || []}
                         currentWeek={viewedWeek}
@@ -330,15 +335,12 @@ const MobileFantasyFootballApp = () => {
                         isAuthenticated={isAdmin}
                         powerRankings={weeklyRankings}
                         rosters={rosters}
-                        user={user}
-                        isAdmin={isAdmin}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
-                    {/* Mobile Teams & Rosters */}
+                    {/* Teams & Rosters */}
                     {activeTab === 'teams' && (
-                      <MobileTeamsAndRosters
+                      <TeamsAndRosters
                         teams={activeSeason?.teams || []}
                         rosters={rosters}
                         onAddTeam={handleAddTeam}
@@ -347,31 +349,25 @@ const MobileFantasyFootballApp = () => {
                         loading={isLoading}
                         powerRankings={weeklyRankings}
                         isAuthenticated={isAdmin}
-                        user={user}
                       />
                     )}
 
-                    {/* Mobile Pick'ems */}
+                    {/* Pick'ems */}
                     {activeTab === 'pickems' && (
-                      <MobilePickEms
+                      <PickEmsManager
                         season={activeSeason}
                         currentWeek={viewedWeek}
                         loading={isLoading}
                         isAuthenticated={isAuthenticated}
-                        isAdmin={isAdmin}
-                        user={user}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
                     {activeTab === 'awards' && (
-                      <MobileAwards
+                      <AwardsManager
                         season={activeSeason}
                         currentWeek={viewedWeek}
                         loading={isLoading}
                         isAuthenticated={isAuthenticated}
-                        isAdmin={isAdmin}
-                        user={user}
                       />
                     )}
 
@@ -383,39 +379,26 @@ const MobileFantasyFootballApp = () => {
                       </div>
                     )}
 
-                    {/* Placeholder for other tabs */}
-                    {!['rankings', 'statistics', 'schedule', 'teams', 'pickems', 'settings'].includes(activeTab) && (
+                    {/* Admin-only tabs live on the settings page, not here.
+                        This used to be a build-log placeholder listing which
+                        Mobile* components had been written — and because
+                        'awards' was missing from its exclusion list, the awards
+                        tab rendered the real component *and* a "will be
+                        implemented in subsequent tasks" notice underneath it. */}
+                    {!['rankings', 'statistics', 'schedule', 'teams', 'pickems', 'awards', 'settings'].includes(activeTab) && (
                       <div className="text-center py-12">
                         <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                          {activeTab === 'pickems' && <Target className="h-8 w-8 text-primary" />}
                           {activeTab === 'seasons' && <Settings className="h-8 w-8 text-primary" />}
                           {activeTab === 'import' && <Download className="h-8 w-8 text-primary" />}
                         </div>
-                        <h3 className="text-lg font-semibold mb-2">
-                          Mobile {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} View
-                        </h3>
-                        <p className="text-muted-foreground text-sm mb-4">
-                          Mobile-specific {activeTab} component will be implemented in subsequent tasks.
+                        <h3 className="text-lg font-semibold mb-2">Not available on mobile</h3>
+                        <p className="text-muted-foreground text-sm">
+                          League administration is available on the settings page.
                         </p>
-                        <div className="bg-muted/50 rounded-lg p-4 text-left">
-                          <p className="text-xs text-muted-foreground font-medium mb-2">
-                            Implementation Status:
-                          </p>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            <li>✅ Mobile app shell with navigation system</li>
-                            <li>✅ Touch-optimized header and menu</li>
-                            <li>✅ Mobile-specific layout structure</li>
-                            <li>✅ Mobile Power Rankings component</li>
-                            <li>✅ Mobile Statistics component</li>
-                            <li>✅ Mobile Schedule component</li>
-                            <li>✅ Mobile Teams & Rosters component</li>
-                            <li>✅ Mobile Pick'ems component</li>
-                            <li>⏳ Mobile-specific {activeTab} component (next task)</li>
-                          </ul>
-                        </div>
                       </div>
                     )}
                   </div>
+                  </Suspense>
                 )}
               </CardContent>
               </Card>

@@ -40,7 +40,13 @@ This is a React-based fantasy football power rankings application built with Vit
 - **State Management**: `hooks/queries/` - TanStack Query hooks, one per domain.
   **Components read and write data through these, not through a shared
   instance.**
-- **Components**: Modular React components in `/components` directory
+- **Components**: `src/components/` — **one tree**. The root-level
+  `components/ui/` shadcn tree was deleted; `@/components/ui/*` resolves here.
+- **Mobile**: `src/components/mobile/` is the phone *shell* only (header,
+  navigation, week selector, touch primitives). Feature components are shared
+  with desktop and responsive — do not add a `Mobile*` twin of a feature.
+- **Viewer identity**: `user`, `isAdmin` and `teamOwnerNames` come from
+  `useViewer()` (`src/contexts/ViewerContext.jsx`), not from props.
 
 ### Key Data Flow
 1. Components call a hook from `hooks/queries/` (`useLeagueData`,
@@ -105,7 +111,7 @@ This fantasy football module integrates with:
 - **ESPN API**: Schedule and roster data fetching
 - **Authentication**: Uses `useAuth` context for user management
 - **React Router**: Navigation
-- **UI components**: From `../components/ui/` (button, card, tabs, badge) using shadcn/ui
+- **UI components**: From `src/components/ui/` (button, card, tabs, badge) using shadcn/ui
 - **Tailwind CSS**: Styling with custom design system
 
 ## Development Notes

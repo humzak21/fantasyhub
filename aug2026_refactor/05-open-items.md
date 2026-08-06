@@ -2,9 +2,9 @@
 
 Things deliberately left undone, and why. Ordered by urgency.
 
-> Updated 2026-08-06 after §6 stages 1–2 (query layer, week state, god-class
-> deletion). Items 1, 2, 3 and 5 are unchanged by that work. **Item 4 is
-> resolved** and **item 6 is resolved**; see
+> Updated 2026-08-06 after **all of §6** (query layer, week state, god-class
+> deletion, mobile fork, ui trees, code splitting). Items 1, 2, 3 and 5 are
+> unchanged by that work. **Items 4 and 6 are resolved**; see
 > [`07-frontend.md`](07-frontend.md).
 
 ## 1. ESPN credentials are still live in git — §2.1
@@ -100,9 +100,8 @@ TanStack Query is in and `useSupabaseFantasyData` is gone. Details in
 client directly rather than a data manager, so it was out of scope for the
 deletion. Still a candidate for a domain function.
 
-**§6 is not finished** — the mobile fork (§6.1), the duplicate `ui/` trees
-(§6.2) and the code-splitting/context work (§6.5) are stages 3 and 4. See
-[`07-frontend.md`](07-frontend.md) §8.
+§6 is now complete. What it left behind is listed in
+[`07-frontend.md`](07-frontend.md) §11.
 
 ## 7. TypeScript types are generated but nothing type-checks them — §5.3
 
@@ -132,9 +131,13 @@ files with `checkJs: false`.
   `game_id`, so `update_playoff_pick_results` has nothing to update. Scoring
   those picks needs the games linked.
 - **`**/__tests__/` is still broadly gitignored**, now negated for `utils/` and
-  `services/db/`. Roughly 25 test files remain untracked, and 44 of them fail on
-  a clean checkout. Resolve alongside the ffAnalytics keep-or-kill decision
-  (§7.4).
+  `services/db/`. Roughly 25 test files remain untracked and failing. **Five of
+  them now import `Mobile*` components deleted in §6.1** and cannot pass. They
+  are untracked, so removing them is the user's call — resolve alongside the
+  ffAnalytics keep-or-kill decision (§7.4).
+- **`ffAnalyticsRetry.calculateDelay` is flaky by construction.** It clamps to
+  `maxDelay` and *then* adds ±10% jitter, so `should respect max delay` fails
+  whenever `Math.random() > 0.5`. Apply the jitter before the clamp.
 - **`services/leagueHistoryManager.js` (1,888 lines) was not split.** §5.1 names
   only the data manager, and most of that file is the live+historical merge code
   that §3's views already made redundant — it should be deleted against

@@ -26,13 +26,12 @@ import MatchupDetail from './headtohead/MatchupDetail';
 // Import records and awards components
 import RecordBook from './records/RecordBook';
 import AwardsGallery from './awards/AwardsGallery';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const LeagueHistoryManager = ({
-  user = null,
-  isAdmin = false,
-  teamOwnerNames = [],
   activeSeason = null
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   // Use league history hook
   const {
     franchises,

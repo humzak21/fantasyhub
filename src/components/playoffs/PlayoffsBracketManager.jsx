@@ -10,16 +10,15 @@ import PlayoffsBracket from './PlayoffsBracket';
 import PlayoffsBracketAdmin from './PlayoffsBracketAdmin';
 import { getSeasonConfig } from '../../../utils/seasonConfig.js';
 import { getDb } from '../../../services/db/index.js';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const PlayoffsBracketManager = ({
     season,
     currentWeek,
     loading = false,
     isAuthenticated = false,
-    isAdmin = false,
-    user = null,
-    teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
     const [activeTab, setActiveTab] = useState('bracket');
     const [bracketStatus, setBracketStatus] = useState(null);
     const [userPicks, setUserPicks] = useState([]);

@@ -16,8 +16,10 @@ import RankingsMovementChart from '../statistics/charts/RankingsMovementChart';
 import AllPlayRecordsChart from '../statistics/charts/AllPlayRecordsChart';
 import PointsPerGameChart from '../statistics/charts/PointsPerGameChart';
 import FloatingTeamFilter from '../ui/FloatingTeamFilter';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
-const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, user = null, isAdmin = false, teamOwnerNames = [] }) => {
+const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   // State management for chart filtering
   const [selectedTeams, setSelectedTeams] = useState([]);
   const [minWeek, setMinWeek] = useState(1);

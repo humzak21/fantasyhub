@@ -4,6 +4,7 @@ import { Badge } from '../ui/badge';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import SeasonProgressBar from '../season/SeasonProgressBar';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const ScheduleManager = ({
   season = null,
@@ -14,12 +15,10 @@ const ScheduleManager = ({
   onWeekChange, // Added to handle week navigation from progress bar
   loading = false,
   isAuthenticated = false, // This now represents isAdmin from parent
-  user = null,
   powerRankings = [],
   rosters = {},
-  isAdmin = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
 
   if (!season) {
@@ -688,8 +687,10 @@ const GameCard = ({
         )}
       </div>
 
-      {/* Versus Layout */}
-      <div className="flex items-start gap-3">
+      {/* Versus Layout — stacked on phones, side by side from `sm` up. The
+          mobile shell renders this same component, and two roster cards side
+          by side at 390px pushed the second one out of view. */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3">
         <TeamCard
           teamId={game.team1Id}
           score={game.team1Score}

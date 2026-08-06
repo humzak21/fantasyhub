@@ -19,7 +19,6 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@/components/*": ["./components/*"],
       "@/lib/*": ["./lib/*"],
       "@/utils/*": ["./utils/*"],
       "@/types/*": ["./types/*"],
@@ -30,7 +29,6 @@
   },
   "include": [
     "src",
-    "components",
     "hooks", 
     "services",
     "types",

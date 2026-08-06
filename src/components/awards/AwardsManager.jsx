@@ -12,16 +12,15 @@ import AwardsResults from './AwardsResults';
 import AwardsGallery from './AwardsGallery';
 import AwardsAdmin from './AwardsAdmin';
 import { getDb } from '../../../services/db/index.js';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const AwardsManager = ({
   season,
   currentWeek,
   loading = false,
   isAuthenticated = false,
-  isAdmin = false,
-  user = null,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [activeTab, setActiveTab] = useState('voting');
   const [awards, setAwards] = useState([]);
   const [userVotes, setUserVotes] = useState([]);
