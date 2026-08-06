@@ -151,4 +151,15 @@ This fantasy football module integrates with:
 - Responsive design with mobile-first approach
 - This project has 1 admin user. All other users are authenticated to create pick'ems, but any user can visualize the data (without logging in). RLS policies should reflect this. Only authenticated users can change their own pickems, but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
 - Owner names eg: "Humza Khalil" are stored in the database and should be the first thing to check against when looking for data for a team. Team names often change but owner names are consistent.
-- Admin user is humzak2001@gmail.com, use auth.jwt and specifically target this email when creating RLS policies for admin users. 
+- Admin user is humzak2001@gmail.com. **Do not inline that email in new
+  policies** — use `public.is_admin()`, which is the single definition of who
+  the admin is. All league tables are public-read / `is_admin()`-write.
+- **In privileged SQL functions use `public.can_write_league()`, not
+  `is_admin()`.** `is_admin()` reads the JWT email and the service role has
+  none, so an `is_admin()` guard returns false for every script and would break
+  the weekly sync. `can_write_league()` covers the admin, `service_role`, and
+  direct backend connections. Never test `current_user` inside a SECURITY
+  DEFINER function — it is the owner, not the caller.
+- When revoking function grants, revoke from `public` as well as `anon` and
+  `authenticated`. Postgres grants EXECUTE to PUBLIC by default and `anon`
+  inherits it, so revoking only the named roles is a silent no-op. 

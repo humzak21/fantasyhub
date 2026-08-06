@@ -226,9 +226,13 @@ export async function getTeamRoster(ctx, teamId) {
         )
       `)
       .eq('team_id', teamId)
+      // Ordering by a column of an embedded resource needs `referencedTable`.
+      // Written as `.order('player.position')` this produced the literal order
+      // key `player.position`, which PostgREST rejects with "failed to parse
+      // order (...)" — so every call 400'd rather than returning a roster.
       .order('roster_slot')
-      .order('player.position')
-      .order('player.name');
+      .order('position', { referencedTable: 'player' })
+      .order('name', { referencedTable: 'player' });
 
     if (error) throw error;
 

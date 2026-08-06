@@ -7,8 +7,10 @@ Things deliberately left undone, and why. Ordered by urgency.
 > and CI). **Items 4, 6 and 7 are resolved**, and item 8 is largely cleared;
 > see [`08-automation.md`](08-automation.md) and [`09-hygiene.md`](09-hygiene.md).
 >
-> **Items 1 and 2 — the whole of §2, P0 security — are now the only major phase
-> left.** Everything else in `REFACTOR_ANALYSIS.md` is done.
+> Updated again 2026-08-06 after **§2 (P0 security)** — see
+> [`10-security.md`](10-security.md). **Item 2 is resolved.** Every phase of
+> `REFACTOR_ANALYSIS.md` is now complete; the one substantive thing outstanding
+> is **rotating the ESPN credential** (item 1), which is the owner's to do.
 
 ## 1. ESPN credentials — code side done, rotation is the owner's
 
@@ -40,26 +42,29 @@ exposure is bounded by repo access rather than public. Once the cookie is
 rotated the committed one is worthless and the purge becomes cosmetic — which is
 why the order matters and why purging first was declined.
 
-## 2. The rest of §2 (P0 security)
+## 2. ~~The rest of §2 (P0 security)~~ — RESOLVED
 
-Untouched. `is_admin()` now exists but nothing has been retrofitted onto it:
+Done 2026-08-06 across nine migrations; see [`10-security.md`](10-security.md).
+Supabase security lints **169 → 52, ERRORs 2 → 0**.
 
-- 48 `SECURITY DEFINER` functions still executable by `anon`, including
-  `execute_trade`, `drop_player_from_roster`, `disable_roster_trigger`
-- Always-true policies still on `divisions` and `pick_em_submissions_backup`
-- `seasons` / `teams` / `games` / `weeks` still allow writes from **any**
-  authenticated user (`auth.uid() IS NOT NULL`), not just the admin
+- 48 SECURITY DEFINER functions callable by `anon` → 21, all read-only
+- 16 tables writable by any authenticated user → 0; all public-read /
+  `is_admin()`-write
+- `team_analytics_summary` (RLS disabled, the highest-severity finding) dropped
+  with ffAnalytics in §7.4
+- Always-true policies on `divisions`, `transactions_2025_legacy` and
+  `pick_em_submissions_backup` replaced
+- `roster_stats` recreated with `security_invoker`; the other two definer views
+  went with ffAnalytics
+- 62 functions with mutable `search_path` → 0
 
-Two migrations here did add `search_path` pinning to the functions they touched
-(`refresh_team_stats`, `update_playoff_pick_results`), chipping at the 66
-flagged for mutable search paths (62 remain).
+Two things this could not do:
 
-**§7.4 resolved one line of this by deletion**: `team_analytics_summary` — the
-RLS-disabled table, the project's highest-severity finding — was dropped with
-the ffAnalytics subsystem, along with two of the three SECURITY DEFINER views.
-The advisor now reports **1 ERROR** (the `roster_stats` view, deliberately kept
-because it reads real data) where it reported two. The other 162 lints are
-untouched: 48 functions still executable by `anon`, 48 by `authenticated`.
+- **Leaked-password protection** remains off. It is an Auth dashboard toggle
+  (Authentication → Policies → Password protection), not settable from SQL or
+  the management API.
+- **The 3 materialised views selectable over the API** are left alone. §2.5
+  says that is fine when intentionally public, and the History tab renders them.
 
 ## 3. Nothing has been dropped yet
 
