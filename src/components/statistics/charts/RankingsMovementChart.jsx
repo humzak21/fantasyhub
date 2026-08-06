@@ -118,7 +118,6 @@ const RankingsMovementChart = ({
               currentWeek,
               players || [],
               week, // viewingWeek parameter
-              null, // analyticsService
               divisions || [],
               regularSeasonWeeks
             );

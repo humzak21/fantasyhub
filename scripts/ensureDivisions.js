@@ -107,15 +107,21 @@ async function ensureDivisions() {
   }
 }
 
-// Run the script
-ensureDivisions()
-  .then(() => {
-    console.log('\n✓ Script completed');
-    process.exit(0);
-  })
-  .catch(error => {
-    console.error('\n✗ Script failed:', error);
-    process.exit(1);
-  });
+
+// Only run when executed directly. Importing this module must not touch
+// production — see aug2026_refactor/07-frontend.md §7.
+const isMain = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMain) {
+  ensureDivisions()
+    .then(() => {
+      console.log('\n✓ Script completed');
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error('\n✗ Script failed:', error);
+      process.exit(1);
+    });
+}
 
 

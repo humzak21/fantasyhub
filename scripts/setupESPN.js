@@ -104,4 +104,9 @@ function main() {
   showInstructions();
 }
 
-main();
+
+// Only run when executed directly. Importing this module must not touch
+// production — see aug2026_refactor/07-frontend.md §7.
+const isMain = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMain) main();

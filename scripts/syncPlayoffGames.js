@@ -386,7 +386,7 @@ async function main() {
 
     console.log('\n✅ Playoff games sync completed successfully!');
     console.log('\n💡 Tip: Now you can run the weekly update script to pull scores:');
-    console.log(`   node scripts/weeklyUpdate.js ${weekNumber}`);
+    console.log(`   node scripts/sync-week.js ${weekNumber}`);
 
   } catch (error) {
     console.error('❌ Script failed:', error.message);
@@ -404,4 +404,9 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+
+// Only run when executed directly. Importing this module must not touch
+// production — see aug2026_refactor/07-frontend.md §7.
+const isMain = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMain) main().catch(console.error);

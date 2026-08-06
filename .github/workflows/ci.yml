@@ -1,0 +1,71 @@
+name: CI
+
+# §8.3: there was no CI. Lint, types, tests and migration validity are checked
+# here on every PR so they stop being things someone remembers to run.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Lint is advisory for now: the repo carries ~800 pre-existing errors from
+      # before this refactor, so a hard gate would fail every PR on day one.
+      # Drop `continue-on-error` once that backlog is worked off.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Tests
+        run: npm run test:run
+
+      - name: Build
+        run: npm run build
+
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Applies every migration to a throwaway local Postgres. Catches invalid
+      # SQL and ordering mistakes without touching the production project, and
+      # needs no secrets — which is why it is a separate job.
+      #
+      # Only the database container is started; the rest of the stack (studio,
+      # realtime, storage, auth…) is irrelevant here and roughly triples the
+      # startup time. Migrations are applied during startup, so a bad migration
+      # fails this step.
+      - name: Apply migrations to a throwaway database
+        run: |
+          supabase start \
+            -x studio,realtime,storage-api,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor
+
+      - name: Report drift between migrations and the applied schema
+        run: supabase db diff --local
+
+      - name: Tear down
+        if: always()
+        run: supabase stop --no-backup
