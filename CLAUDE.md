@@ -30,8 +30,10 @@ This is a React-based fantasy football power rankings application built with Vit
 
 ### Core Structure
 - **Main App**: `FantasyFootballApp.jsx` - Primary application component with tab-based navigation
-- **Data Layer**: 
-  - `services/supabaseDataManager.js` - Handles all CRUD operations and Supabase persistence
+- **Data Layer**: `services/db/` - one module per domain (`seasons`, `teams`,
+  `divisions`, `rosters`, `players`, `games`, `rankings`, `schedule`, `pickems`,
+  `awards`, `playoffs`, `transactions`, `users`, `espnMapping`). **Write new
+  data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
   - `services/espnRosterUpdater.js` - ESPN integration for roster updates
@@ -40,16 +42,25 @@ This is a React-based fantasy football power rankings application built with Vit
 
 ### Key Data Flow
 1. `useSupabaseFantasyData` hook manages singleton `SupabaseDataManager` instance
-2. `SupabaseDataManager` handles persistence via Supabase database
+2. `SupabaseDataManager` is a thin facade that delegates to `services/db/`
 3. `PowerRankingCalculator` processes team/game data using weighted algorithms
 4. Components receive state/actions through the central hook
 
+### Working in `services/db/`
+- Every domain function takes a shared `ctx` (`{ client, seasonsCache, activeSeasonId }`) as its first argument. `getDb()` returns the same modules with `ctx` pre-applied for app code.
+- `createClient()` is called in exactly one place, `services/db/client.js`. Never call it anywhere else — a second anon client is a second GoTrue instance fighting over the same session.
+- Throw `DbError` (via `throwDbError`/`unwrap` from `services/db/errors.js`). Never swallow an error into `return []`; callers cannot tell that apart from an empty league.
+- Log through `createLogger('db:<module>')`, not `console.*`. `debug`/`info` are silent in production.
+- camelCase ⇄ snake_case conversion lives only in `services/db/caseMap.js`. Do not hand-write per-field maps; a test asserts every schema column round-trips.
+
 ### Critical Files
 - `types/index.js` - Contains all data models, validation functions, and configuration constants including `POWER_RANKING_WEIGHTS` and `THRESHOLDS`
+- `types/supabase.ts` - Generated from the live schema; regenerate with `npm run db:types`
 - `FantasyFootballApp.jsx` - Main component with auth integration and navigation
-- `services/supabaseDataManager.js` - Core business logic for seasons, teams, games, schedules
+- `services/db/index.js` - Data layer entry point
+- `services/supabaseDataManager.js` - Compatibility facade over `services/db/` (being retired in P3)
 - `hooks/useSupabaseFantasyData.js` - Reactive state management layer
-- `services/supabaseClient.js` - Supabase configuration and helpers
+- `utils/seasonConfig.js` - Single source for season dates, week math and deadlines
 
 ## Data Models
 

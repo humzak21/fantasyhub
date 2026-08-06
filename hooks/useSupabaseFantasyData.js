@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { SupabaseDataManager } from '../services/supabaseDataManager.js';
-import { PowerRankingCalculator } from '../services/powerRankingCalculator.js';
 import { setSeasonConfig } from '../utils/seasonConfig.js';
 
 let dataManagerInstance = null;
@@ -61,27 +60,9 @@ export const useSupabaseFantasyData = () => {
       if (active) {
         const [week, games, teams, seasonRosters, seasonDivisions, seasonStandings] = await Promise.all([
           dataManager.getCurrentWeek(active.id),
-          // Get games for this season (both completed and upcoming)
-          dataManager.client
-            .from('games')
-            .select('*')
-            .eq('season_id', active.id)
-            .order('week', { ascending: true })
-            .order('id', { ascending: true })
-            .then(({ data, error }) => {
-              if (error) throw error;
-              return data || [];
-            }),
-          // Get teams for this season
-          dataManager.client
-            .from('teams')
-            .select('*')
-            .eq('season_id', active.id)
-            .order('id', { ascending: true })
-            .then(({ data, error }) => {
-              if (error) throw error;
-              return data || [];
-            }),
+          // Games for this season (completed and upcoming), already in UI shape
+          dataManager.getSeasonGames(active.id),
+          dataManager.getTeamsForSeason(active.id),
           // Get ALL rosters for this season
           dataManager.getAllRosters(active.id),
           // Get divisions for this season
@@ -90,19 +71,8 @@ export const useSupabaseFantasyData = () => {
           dataManager.getStandingsByDivision(active.id)
         ]);
 
-        // Format games to match structure
-        const formattedGames = games.map(game => ({
-          ...game,
-          team1Id: game.team1_id,  // Map database field to expected frontend field
-          team2Id: game.team2_id,  // Map database field to expected frontend field
-          team1Score: game.team1_score,  // Map score fields
-          team2Score: game.team2_score,  // Map score fields
-          winnerTeamId: game.winner_team_id,  // Map winner field
-          isCompleted: game.team1_score !== null && game.team2_score !== null
-        }));
-
         // Attach games as schedule and teams to the active season
-        active.schedule = formattedGames;
+        active.schedule = games;
         active.teams = teams;
         setCurrentWeek(week);
         setRosters(seasonRosters || {});
@@ -472,76 +442,11 @@ export const useSupabaseFantasyData = () => {
     if (!activeSeason) return [];
 
     try {
-      // Get all necessary data for the calculator including divisions
-      const [teams, games, players, divisions, season] = await Promise.all([
-        dataManager.client
-          .from('teams')
-          .select('*')
-          .eq('season_id', activeSeason.id),
-        dataManager.client
-          .from('games')
-          .select('*')
-          .eq('season_id', activeSeason.id),
-        dataManager.getAllPlayers(activeSeason.id),
-        dataManager.client
-          .from('divisions')
-          .select('*')
-          .eq('season_id', activeSeason.id)
-          .order('display_order', { ascending: true }),
-        dataManager.client
-          .from('seasons')
-          .select('*')
-          .eq('id', activeSeason.id)
-          .single()
-      ]);
-
-
-
-      // Get previous week's rankings for rank change calculation
-      let previousRankings = null;
-      if (week > 1) {
-        try {
-          const { data: prevWeekData, error: prevError } = await dataManager.client
-            .from('power_rankings_history')
-            .select('team_id, rank')
-            .eq('season_id', activeSeason.id)
-            .eq('week_number', week - 1);
-
-          if (!prevError && prevWeekData && prevWeekData.length > 0) {
-            previousRankings = prevWeekData.map(row => ({
-              teamId: row.team_id,
-              rank: row.rank
-            }));
-          }
-        } catch (prevErr) {
-          console.warn('Could not fetch previous week rankings:', prevErr);
-        }
-      }
-
-      // Get regularSeasonWeeks from season data
-      const regularSeasonWeeks = season.data?.regular_season_weeks || season.data?.regularSeasonWeeks || 14;
-
-      // Create calculator with divisions and regularSeasonWeeks for playoff odds
-      const calculator = new PowerRankingCalculator(
-        teams.data || [],
-        games.data?.map(g => ({
-          ...g,
-          team1Id: g.team1_id,
-          team2Id: g.team2_id,
-          team1Score: g.team1_score,
-          team2Score: g.team2_score,
-          isCompleted: g.team1_score !== null && g.team2_score !== null
-        })) || [],
-        currentWeek,
-        players || [],
-        viewingWeek || week, // Pass viewing week for historical calculations
-        null, // analyticsService
-        divisions.data || [],
-        regularSeasonWeeks
-      );
-
-      const rankings = await calculator.getRankings(previousRankings);
-      return rankings;
+      return await dataManager.calculateRankingsForViewedWeek(activeSeason.id, {
+        week,
+        viewingWeek,
+        currentWeek
+      });
     } catch (err) {
       setError(err.message);
       return [];
