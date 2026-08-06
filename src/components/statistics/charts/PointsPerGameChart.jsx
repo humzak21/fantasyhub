@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../../../components/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 /**

@@ -1,6 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { Trophy, Calendar, BarChart3, Users, Target, RefreshCw, Award, TrendingUp, History } from 'lucide-react';
-import { useAuth } from './src/contexts/AuthContext';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -11,7 +10,7 @@ import {
   useSeasonConfig
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
-import { getTeamOwnerNames } from './src/utils/displayNameUtils';
+import { useViewer } from './src/contexts/ViewerContext.jsx';
 import { Button } from './src/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src/components/ui/card';
 import { Switch } from './src/components/ui/switch';
@@ -27,24 +26,38 @@ import './globals.css';
 import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTable.jsx';
 import useAnalyticsData from './hooks/useAnalyticsData.js';
 
-import StatisticsPanel from './src/components/dashboard/StatisticsPanel.jsx';
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
-import ScheduleManager from './src/components/schedule/ScheduleManager.jsx';
-import TeamsAndRosters from './src/components/teams/TeamsAndRosters.jsx';
-import PowerRankingsVisualization from './src/components/power-rankings/PowerRankingsVisualization.jsx';
 
 import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
-import PickEmsManager from './src/components/pickems/PickEmsManager.jsx';
-import AwardsManager from './src/components/awards/AwardsManager.jsx';
-import PlayoffsBracketManager from './src/components/playoffs/PlayoffsBracketManager.jsx';
-import ProjectionsManager from './src/components/projections/ProjectionsManager.jsx';
 import ResponsiveNavigation from './src/components/navigation/ResponsiveNavigation.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
-import LeagueHistoryManager from './src/components/history/LeagueHistoryManager.jsx';
+
+// One chunk per tab. Every tab, both app shells and recharts used to ship in
+// the initial bundle; only the landing tab's table is eager now.
+const StatisticsPanel = lazy(() => import('./src/components/dashboard/StatisticsPanel.jsx'));
+const ScheduleManager = lazy(() => import('./src/components/schedule/ScheduleManager.jsx'));
+const TeamsAndRosters = lazy(() => import('./src/components/teams/TeamsAndRosters.jsx'));
+const PowerRankingsVisualization = lazy(() => import('./src/components/power-rankings/PowerRankingsVisualization.jsx'));
+const PickEmsManager = lazy(() => import('./src/components/pickems/PickEmsManager.jsx'));
+const AwardsManager = lazy(() => import('./src/components/awards/AwardsManager.jsx'));
+const PlayoffsBracketManager = lazy(() => import('./src/components/playoffs/PlayoffsBracketManager.jsx'));
+const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueHistoryManager.jsx'));
+
+/** Shown while a tab's chunk is in flight. */
+const TabFallback = () => (
+  <Card className="p-8">
+    <CardContent className="flex items-center justify-center gap-3 text-muted-foreground">
+      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+      <span>Loading…</span>
+    </CardContent>
+  </Card>
+);
 
 const FantasyFootballApp = () => {
-  const { user, isAuthenticated, isAdmin } = useAuth();
-  // Allow viewing without auth, but only admin can edit
+  // Viewer identity and what they may see. `isTeamOwner` replaces an inline
+  // `teamOwnerNames.includes(user.user_metadata.display_name)` that decided
+  // History-tab access from the shell.
+  const { user, isAuthenticated, isAdmin, isTeamOwner } = useViewer();
 
   // One query per thing, each with its own loading state. Replaces the
   // 60-callback mega-hook whose every mutation refetched the entire league.
@@ -87,11 +100,6 @@ const FantasyFootballApp = () => {
   const { status: awardsUnlockStatus } = useAwardsUnlockStatus(seasonId);
 
 
-  // Extract team owner names from active season for mask authentication
-  const teamOwnerNames = useMemo(() => {
-    return getTeamOwnerNames(activeSeason);
-  }, [activeSeason]);
-
   const [activeTab, setActiveTab] = useState('rankings');
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
@@ -129,16 +137,15 @@ const FantasyFootballApp = () => {
 
     return [
       { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
-      // { id: 'projections', label: 'Projections', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
       { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
       { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
-      { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated && user?.user_metadata?.display_name && teamOwnerNames.includes(user.user_metadata.display_name) },
+      { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isTeamOwner },
       { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
       { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
     ];
-  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, teamOwnerNames]);
+  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner]);
 
 
 
@@ -275,8 +282,10 @@ const FantasyFootballApp = () => {
             </Card>
           )}
 
-          {/* Tab Content */}
+          {/* Tab Content. One Suspense boundary covers every lazy tab; the
+              landing tab's table is eager so the first paint needs no chunk. */}
           <div className="space-y-6">
+            <Suspense fallback={<TabFallback />}>
             {activeTab === 'rankings' && (
               <ErrorBoundary key="rankings-error-boundary">
                 <div className="space-y-6">
@@ -357,9 +366,6 @@ const FantasyFootballApp = () => {
                             showAnalytics={analyticsEnabled && hasAnalyticsData}
                             analyticsData={analyticsData}
                             onExportAnalytics={exportAnalyticsData}
-                            user={user}
-                            isAdmin={isAdmin}
-                            teamOwnerNames={teamOwnerNames}
                             initializing={isLoading}
                           />
                         ) : (
@@ -369,9 +375,6 @@ const FantasyFootballApp = () => {
                             loading={rankingsLoading}
                             showAnalyticsSection={analyticsEnabled && hasAnalyticsData}
                             analyticsData={analyticsData}
-                            user={user}
-                            teamOwnerNames={teamOwnerNames}
-                            isAdmin={isAdmin}
                           />
                         )}
                       </CardContent>
@@ -398,9 +401,6 @@ const FantasyFootballApp = () => {
                         currentWeek={viewedWeek}
                         season={activeSeason}
                         loading={rankingsLoading}
-                        user={user}
-                        isAdmin={isAdmin}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     </CardContent>
                   </Card>
@@ -420,11 +420,8 @@ const FantasyFootballApp = () => {
                     onWeekChange={setViewedWeek}
                     loading={isLoading}
                     isAuthenticated={isAdmin}
-                    user={user}
-                    isAdmin={isAdmin}
                     powerRankings={weeklyRankings}
                     rosters={rosters}
-                    teamOwnerNames={teamOwnerNames}
                   />
                 </div>
               </ErrorBoundary>
@@ -442,27 +439,6 @@ const FantasyFootballApp = () => {
                     loading={isLoading}
                     powerRankings={weeklyRankings}
                     isAuthenticated={isAdmin}
-                    user={user}
-                    isAdmin={isAdmin}
-                    teamOwnerNames={teamOwnerNames}
-                  />
-                </div>
-              </ErrorBoundary>
-            )}
-
-            {activeTab === 'projections' && (
-              <ErrorBoundary key="projections-error-boundary">
-                <div className="space-y-6">
-                  <ProjectionsManager
-                    season={activeSeason}
-                    teams={activeSeason?.teams || []}
-                    games={activeSeason?.schedule || []}
-                    divisions={divisions}
-                    currentWeek={viewedWeek}
-                    loading={isLoading}
-                    user={user}
-                    isAdmin={isAdmin}
-                    teamOwnerNames={teamOwnerNames}
                   />
                 </div>
               </ErrorBoundary>
@@ -476,10 +452,7 @@ const FantasyFootballApp = () => {
                     currentWeek={viewedWeek}
                     loading={isLoading}
                     isAuthenticated={isAuthenticated}
-                    isAdmin={isAdmin}
-                    user={user}
                     initializing={isLoading}
-                    teamOwnerNames={teamOwnerNames}
                   />
                 </div>
               </ErrorBoundary>
@@ -493,9 +466,6 @@ const FantasyFootballApp = () => {
                     currentWeek={viewedWeek}
                     loading={isLoading}
                     isAuthenticated={isAuthenticated}
-                    isAdmin={isAdmin}
-                    user={user}
-                    teamOwnerNames={teamOwnerNames}
                   />
                 </div>
               </ErrorBoundary>
@@ -509,9 +479,6 @@ const FantasyFootballApp = () => {
                     currentWeek={viewedWeek}
                     loading={isLoading}
                     isAuthenticated={isAuthenticated}
-                    isAdmin={isAdmin}
-                    user={user}
-                    teamOwnerNames={teamOwnerNames}
                   />
                 </div>
               </ErrorBoundary>
@@ -521,15 +488,12 @@ const FantasyFootballApp = () => {
               <ErrorBoundary key="history-error-boundary">
                 <div className="space-y-6">
                   <LeagueHistoryManager
-                    user={user}
-                    isAdmin={isAdmin}
-                    teamOwnerNames={teamOwnerNames}
                     activeSeason={activeSeason}
                   />
                 </div>
               </ErrorBoundary>
             )}
-
+            </Suspense>
           </div>
         </main>
 
@@ -542,13 +506,10 @@ const FantasyFootballApp = () => {
             currentWeek={viewedWeek}
             loading={isLoading}
             isAuthenticated={isAdmin}
-            user={user}
-            isAdmin={isAdmin}
             onDivisionRename={handleRenameDivision}
             onTeamDivisionChange={handleTeamDivisionChange}
             onCreateDivision={handleCreateDivision}
             games={activeSeason.schedule || []}
-            teamOwnerNames={teamOwnerNames}
           />
         )}
 

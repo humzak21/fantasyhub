@@ -10,16 +10,15 @@ import {
 } from '../ui/dropdown-menu';
 import AnalyticsExport from '../analytics/AnalyticsExport';
 import { getMaskedTeamName } from '../../utils/displayNameUtils';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const PowerRankingsVisualization = ({
   rankings = [],
   currentWeek = 1,
   analyticsData = {},
   showAnalyticsSection = false,
-  user = null,
-  isAdmin = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [showAllTeams, setShowAllTeams] = useState(false);
   const visualizationData = useMemo(() => {
     if (!rankings.length || !rankings[0]?.powerRatingComponents) return null;

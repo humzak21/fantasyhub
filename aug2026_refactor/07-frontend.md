@@ -1,13 +1,15 @@
 # §6 — Frontend architecture (P3)
 
-Stages 1 and 2 of four. Sections **6.3 (the mega-hook)** and **6.4 (week state
-has three owners)** are done, and the P2 exit criterion that §5 deliberately
-left open — deleting `SupabaseDataManager` — is now met.
+All four stages. **§6.1** (the mobile fork), **§6.2** (duplicate `ui/` trees),
+**§6.3** (the mega-hook), **§6.4** (week state) and **§6.5** (code splitting,
+prop drilling, dead UI) are done, along with the P2 exit criterion that §5
+deliberately left open — deleting `SupabaseDataManager`.
 
 - **Date:** 2026-08-06
-- **Order:** data layer first, then the mobile fork (§6.1), then the ui-tree and
-  cleanup work (§6.2, §6.5). Both remain.
-- **Net:** 505 insertions, 2,312 deletions across 47 files
+- **Order:** data layer, then the god class, then the mobile fork, then the
+  ui-tree and cleanup work
+- **Net:** ~882 insertions, ~15,293 deletions across 148 files. Total JS/JSX
+  drops from ~100,800 to **89,247** lines.
 
 ---
 
@@ -143,15 +145,20 @@ to move together.
 ## 6. Verification
 
 - **Build:** `vite build` succeeds.
-- **Tests:** 44 failed files / 61 failed tests / 527 passed — **identical to the
-  §5 baseline**. The 44 are the dormant ffAnalytics and mobile suites.
-- **Lint:** 813 errors before, 813 after (all pre-existing, none in changed
-  files); warnings 574 → 555.
-- **Browser:** all seven tabs driven with Playwright against production data —
-  Power Rankings (14 rows), Statistics, Schedule, Teams & Rosters, Pick'ems,
-  Playoffs, Awards — all render, no new console errors. The remaining errors are
+- **Tests:** 527 passed at the §5 baseline, 526 after. The single difference is
+  `ffAnalyticsRetry > calculateDelay > should respect max delay`, which is
+  **flaky by construction** and in a file this work never touched:
+  `calculateDelay` clamps to `maxDelay` and *then* adds ±10% jitter, so it
+  exceeds the cap whenever `Math.random() > 0.5` — a coin flip on every run.
+- **Lint:** 813 errors before, 809 after; warnings 574 → 461. No new errors.
+- **Browser, desktop:** all seven tabs driven with Playwright against production
+  data — Power Rankings (14 rows), Statistics, Schedule, Teams & Rosters,
+  Pick'ems, Playoffs, Awards — all render with content identical to before the
+  change, no new console errors. The only remaining errors are
   `/api/analytics/team/*` 500s: the dormant ffAnalytics subsystem (§7.4) with no
   Express server in dev.
+- **Browser, mobile:** all six tabs at a 390×844 iPhone viewport, zero
+  horizontal page overflow on any of them.
 - **Week navigation:** the heading holds at the navigated week instead of being
   snapped back, confirming §6.4.
 
@@ -187,21 +194,103 @@ and should be deleted per §8.2.
 importing one runs it. Check them with `node --check` or a parse, never an
 import.
 
-## 8. Still open in §6
+## 8. The mobile fork is 75% gone (§6.1)
 
-- **§6.1 — the mobile fork.** Untouched. Per the agreed approach the mobile
-  shell, navigation, week selector and touch primitives stay; the feature
-  components (`MobilePowerRankings`, `MobileStatistics`, `MobileSchedule*`,
-  `MobileTeams*`, `MobilePickEms*`, `MobileAwards`) get replaced by the shared
-  responsive ones.
-- **§6.2 — two `ui/` trees.** `components/ui` (55 files, reached via
-  `@/components/ui/*`) and `src/components/ui` (21 files, reached via
-  `../ui/*`) both still exist.
-- **§6.5 — remaining.** No `React.lazy` per tab; `user` / `isAdmin` /
-  `teamOwnerNames` are still prop-drilled into every tab rather than living in
-  context.
-- **Pick'ems / awards / playoffs internals.** Those components now call
+The agreed approach was **keep the shell, share the features**. Phones still get
+the mobile header, hamburger navigation, week selector and touch primitives;
+every actual feature is now the same component the desktop renders.
+
+`src/components/mobile/`: **10,435 lines across 29 files → 2,582 across 8.**
+
+| Kept (the shell) | Deleted |
+|---|---|
+| `MobileFantasyFootballApp`, `MobileNavigation`, `MobileWeekSelector`, `MobileButton`, `MobileInput`, `MobileLoginForm`, `MobileScreenManager`, `MobileUserSettingsPage` | the six feature twins (`MobilePowerRankings`, `MobileStatistics`, `MobileScheduleManager`, `MobileTeamsAndRosters`, `MobilePickEms` + its four children, `MobileAwards`) and **10 files nothing rendered at all** (`MobileSchedule`, `MobileTeamManager`, `MobileSeasonManager`, `MobileTouchInteraction`, `MobileCheckboxRadio`, `MobileForm`, `MobileFormValidation`, `MobileLoadingSpinner`, `MobileGameDetailScreen`, `MobileTeamDetailScreen`, `MobileStatisticsDetailScreen`) |
+
+The 10 unreachable files were 3,602 lines kept alive only by test files. All
+five of those test files were already failing, so no working coverage was lost —
+but they now import deleted modules and should be removed with the §8.3
+tests/gitignore decision. They are untracked, so that is the user's call.
+
+Verified at a 390×844 iPhone viewport with Playwright: all six tabs render, and
+**no page has horizontal overflow**. One responsive fix was needed — the
+schedule's versus layout put two roster cards side by side, so the second was
+pushed off-screen at 390px. It is now `flex-col sm:flex-row`, which changes
+nothing at desktop widths.
+
+Two bugs fell out:
+
+- `MobileNavigation` gated the awards tab on a hardcoded
+  `new Date('2025-12-09T00:00:00')` — **a fourth copy of the awards gate, and
+  the one §4 missed**, which would have unlocked the 2026 awards nine months
+  early. It reads the season row now.
+- The mobile awards tab rendered the real component *and*, underneath it, a
+  build-log placeholder reading "Mobile Awards component will be implemented in
+  subsequent tasks" — because `awards` was missing from that placeholder's
+  exclusion list.
+
+## 9. One `ui/` tree (§6.2)
+
+`components/ui` (55 files) is **deleted**. It turned out to be almost entirely
+self-referential: every `@/components/ui/*` import came from another file
+*inside that same tree*. The only thing the application used from it was
+`chart.jsx`, via six statistics charts.
+
+Since those six consumers were on the root copy, that copy was promoted over
+`src/components/ui/chart.jsx` (which nothing imported) rather than the other way
+round — the root version filters `type === "none"` payload entries and uses
+optional chaining, and dropping to the other copy would have regressed both.
+
+The `@/components` alias is gone from `vite.config.js` and `jsconfig.json`, so
+`@/components/ui/*` now resolves through `@ → ./src` to the surviving tree.
+
+## 10. Code splitting and prop drilling (§6.5)
+
+**`React.lazy` per tab.** Only the landing tab's table is eager.
+
+| Chunk | Before | After |
+|---|---:|---:|
+| `desktop-bundle.js` | 353.71 kB | **97.21 kB** |
+| `mobile-bundle.js` | 140.86 kB | **39.32 kB** |
+| `desktop-bundle.css` | 154.07 kB | 112.12 kB |
+
+Each tab is now its own chunk (`LeagueHistoryManager` 69 kB, `PickEmsManager`
+35 kB, `PlayoffsBracketManager` 34 kB, `StatisticsPanel` 28 kB, …), fetched on
+first visit. `manualChunks` no longer names the deleted `Mobile*` feature
+components — listing them would have duplicated the shared components into both
+bundles.
+
+**`ViewerContext`.** `user`, `isAdmin` and `teamOwnerNames` were threaded as
+props into every tab by both shells, and they always travel together because
+every consumer feeds all three into the same helper:
+
+```js
+getMaskedTeamName(team, user, isAdmin, teamOwnerNames)
+canViewFullData(user, isAdmin, teamOwnerNames)
+```
+
+They are one concept, so they are one context. Components destructure the same
+three names they used to receive, so all ~205 `getMasked*` call sites are
+untouched. `teamOwnerNames` was derived from the active season identically in
+both shells; it is derived once now. `isTeamOwner` replaces the inline
+`teamOwnerNames.includes(user.user_metadata.display_name)` that decided
+History-tab access from inside the desktop shell's tab list.
+
+Scope: the ten tab-level components, which is exactly what §6.5 names. Their
+own internal sub-components still receive props from their parent, which is
+ordinary composition rather than drilling.
+
+**Dead UI:** the Projections tab — commented out of the nav but still fully
+wired and imported — is gone.
+
+## 11. Still open
+
+- **Pick'ems / awards / playoffs internals.** Those components call
   `services/db/` directly, which removed the prop drilling and the god class,
   but they still manage their own `useState` + `useEffect` load cycles rather
   than using the hooks in `usePickEms.js` / `useAwards.js`. Converting them is a
   contained follow-up per component.
+- **`vendor-charts` (275 kB) is still eager.** Recharts is reachable from the
+  landing tab; moving the chart-bearing widgets behind the same lazy boundary
+  would drop it out of the initial load.
+- **Five untracked test files import deleted `Mobile*` components.** Resolve
+  with the §8.3 tests/gitignore decision.

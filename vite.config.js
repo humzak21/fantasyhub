@@ -35,8 +35,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // '@/components' used to point at a second, root-level shadcn tree.
+      // That tree is deleted; '@' -> ./src now covers @/components/ui/*.
       '@': path.resolve(__dirname, './src'),
-      '@/components': path.resolve(__dirname, './components'),
       '@/lib': path.resolve(__dirname, './lib'),
       '@/utils': path.resolve(__dirname, './utils'),
       '@/types': path.resolve(__dirname, './types'),
@@ -102,11 +103,12 @@ export default defineConfig({
             return 'vendor-ui';
           }
 
-          // Mobile-specific bundles
+          // Mobile shell. The feature components are shared with desktop and
+          // deliberately are not listed here — chunking them as "mobile" would
+          // duplicate them into both bundles.
           if (id.includes('MobileFantasyFootballApp') ||
               id.includes('MobileNavigation') ||
-              id.includes('MobilePowerRankings') ||
-              id.includes('MobileStatistics') ||
+              id.includes('MobileWeekSelector') ||
               id.includes('mobile.css') ||
               id.includes('mobileDetection')) {
             return 'mobile-bundle';

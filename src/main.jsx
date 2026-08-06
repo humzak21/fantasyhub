@@ -7,6 +7,7 @@ import { AuthProvider } from './contexts/AuthContext.jsx'
 import { DarkModeProvider } from './contexts/DarkModeContext.jsx'
 import { createQueryClient } from '../hooks/queries/index.js'
 import { ViewedWeekProvider } from '../hooks/queries/useWeek.jsx'
+import { ViewerProvider } from './contexts/ViewerContext.jsx'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
 import '../globals.css'
 import '../styles/fantasy-utilities.css'
@@ -26,7 +27,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <AuthProvider>
               {/* Above the app so desktop and mobile shells share one viewed week */}
               <ViewedWeekProvider>
-                <App />
+                {/* Viewer identity + name-masking access, derived once */}
+                <ViewerProvider>
+                  <App />
+                </ViewerProvider>
               </ViewedWeekProvider>
             </AuthProvider>
           </DarkModeProvider>

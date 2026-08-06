@@ -15,6 +15,7 @@ import TrendingPlayerIndicators from '../analytics/TrendingPlayerIndicators';
 import AnalyticsInsights from '../analytics/AnalyticsInsights';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const PowerRankingsTable = ({
   rankings = [],
@@ -25,11 +26,9 @@ const PowerRankingsTable = ({
   analyticsData = {},
   showAnalytics = false,
   onExportAnalytics = null,
-  user = null,
   initializing = false,
-  isAdmin = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [analyticsExpandedRows, setAnalyticsExpandedRows] = useState(new Set());
   

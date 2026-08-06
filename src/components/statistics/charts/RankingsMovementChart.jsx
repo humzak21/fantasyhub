@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../../../components/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 import { PowerRankingCalculator } from '../../../../services/powerRankingCalculator.js';
 

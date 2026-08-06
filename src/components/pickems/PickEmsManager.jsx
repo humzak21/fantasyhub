@@ -12,19 +12,18 @@ import PickEmsResults from './PickEmsResults';
 import PickEmsAdminSubmissions from './PickEmsAdminSubmissions';
 import PickEmsSeasonStandings from './PickEmsSeasonStandings';
 import { getDb } from '../../../services/db/index.js';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const PickEmsManager = ({
   season,
   currentWeek,
   loading = false,
   isAuthenticated = false,
-  isAdmin = false,
-  user = null,
   initializing = false,
   preloadedData = null,
   preloadingInProgress = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
   const [games, setGames] = useState([]);
