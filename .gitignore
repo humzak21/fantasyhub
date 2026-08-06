@@ -109,6 +109,8 @@ coverage/
 **/__tests__/
 !utils/__tests__/
 !utils/__tests__/**
+!services/db/__tests__/
+!services/db/__tests__/**
 
 # Dependency directories
 jspm_packages/

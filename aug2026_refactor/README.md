@@ -1,12 +1,14 @@
-# August 2026 Refactor — Sections 3 & 4
+# August 2026 Refactor — Sections 3, 4 & 5
 
-Implementation record for sections **3 (Database Architecture)** and **4 (The
-Hardcoded-Year Problem)** of [`REFACTOR_ANALYSIS.md`](../REFACTOR_ANALYSIS.md),
-plus the 2025 postseason data fix that fell out of it.
+Implementation record for sections **3 (Database Architecture)**, **4 (The
+Hardcoded-Year Problem)** and **5 (Data Access Layer)** of
+[`REFACTOR_ANALYSIS.md`](../REFACTOR_ANALYSIS.md), plus the 2025 postseason data
+fix that fell out of §3.
 
 - **Dates:** 2026-08-03 → 2026-08-05
 - **Database:** Supabase project `kvcnijyyfylxfarrlxkv`
-- **Status:** all six migrations applied to production and verified
+- **Status:** all six migrations applied to production and verified; the data
+  access layer split and verified against production
 
 | Document | Contents |
 |---|---|
@@ -15,6 +17,7 @@ plus the 2025 postseason data fix that fell out of it.
 | [`03-2025-playoff-fix.md`](03-2025-playoff-fix.md) | The mistyped postseason games and the standings correction |
 | [`04-verification.md`](04-verification.md) | What was checked, and the numbers it produced |
 | [`05-open-items.md`](05-open-items.md) | What was deliberately left undone, and why |
+| [`06-data-layer.md`](06-data-layer.md) | §5: the god-class split, one client, typed errors, generated types |
 
 ---
 
@@ -47,6 +50,14 @@ No DDL, no code edits, no archive-copy step. This was tested end-to-end against
 production with a throwaway 2026 row, which produced correct week boundaries
 (`week 1 → 2026-09-08 04:00Z`, `week 15 → 2026-12-15 05:00Z`) and was then
 deleted.
+
+**Then the code that reads it.** `services/supabaseDataManager.js` was a
+4,132-line class of about a hundred methods spanning every domain in the
+product, with three competing Supabase client factories around it and two copies
+of the camelCase ⇄ snake_case converters. It is now 691 lines of delegation over
+`services/db/` — fourteen domain modules, one client, one case-mapping layer,
+typed errors, and a dev-gated logger. See
+[`06-data-layer.md`](06-data-layer.md).
 
 ## Guiding principle
 
