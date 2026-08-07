@@ -102,54 +102,32 @@ divisions breaks standings, playoff odds and the ranking inputs) but its names
 are now `Division 1` / `Division 2` instead of one past season's lore —
 `20260806120000_neutral_default_divisions.sql`.
 
-## 5. No baseline schema dump — now blocking CI
+## 5. ~~No baseline schema dump~~ — RESOLVED
 
-Migration `00000000000000_baseline_placeholder.sql` is a no-op marker; the
-pre-existing schema (40 tables, ~66 functions) has no captured definition.
+Outstanding since P1, and it surfaced as a CI failure on 2026-08-06: the
+migration job replays the chain onto an empty database and died on the first
+real migration, because nothing in the chain created `public.seasons`.
 
-This stopped being theoretical on 2026-08-06: the CI migration job replays the
-chain onto an empty database and died on the first real migration —
+`supabase/migrations/00000000000000_baseline_schema.sql` is now a real pg_dump
+of production, and the 18 migrations it already contains were archived to
+[`migrations-history/`](migrations-history/) — they could not stay in the
+replay path, being non-idempotent (they backfill `seasons`, `teams` and `games`
+from the `historical_*` tables and add constraints and views without guards).
 
-```
-ERROR: relation "public.seasons" does not exist (SQLSTATE 42P01)
-At statement: 0  -- 20260803120100_season_config_backbone.sql
-```
+Verified object-for-object against production: **36 tables, 39 triggers, 71
+functions, 12 views, 3 matviews, 82 policies**, and the index count reconciles
+exactly — 113 `CREATE INDEX` plus 36 primary-key and 29 unique constraints is
+production's 178. The 291 `GRANT` / 47 `REVOKE` statements carry the §2
+lockdown, so a replayed database has the same *authorization* surface and not
+merely the same tables.
 
-There is no `seasons` table to alter, because nothing in the chain creates it.
+CI now replays it on every PR and reports **"No schema changes found"** — the
+files and the database they describe agree.
 
-**The replay is skipped for now rather than failing.** `.github/workflows/ci.yml`
-checks whether `00000000000000_*.sql` contains real DDL and turns the replay
-back on automatically when it does — no further edits needed.
-
-### What has to happen, in this order
-
-Capturing the dump needs the database password, so it is the owner's to run:
-
-```bash
-npx supabase login
-npx supabase link --project-ref kvcnijyyfylxfarrlxkv
-npx supabase db dump -f supabase/migrations/00000000000000_baseline_schema.sql
-git rm supabase/migrations/00000000000000_baseline_placeholder.sql
-```
-
-Then archive the migrations the dump already contains:
-
-```bash
-mkdir -p aug2026_refactor/migrations-history
-git mv supabase/migrations/2026*.sql aug2026_refactor/migrations-history/
-```
-
-**The archive step is mandatory, not tidying.** The P1 migrations are not
-idempotent — they backfill `seasons`, `teams` and `games` from the `historical_*`
-tables and add constraints and views without `if not exists`. Replayed on top of
-a baseline that already contains their results they would double-insert rows and
-fail on duplicate constraints. A dump-plus-full-chain repo is broken in a way
-the placeholder at least made obvious.
-
-Production is unaffected either way: its `schema_migrations` ledger retains every
-version, and `db push` only applies what the remote has not seen. The files move
-to `aug2026_refactor/` rather than being deleted because their commentary is the
-record of why the schema looks the way it does.
+Production was untouched throughout: its `schema_migrations` ledger retains all
+19 versions, and `db push` only applies files the remote has not seen. A
+`supabase migration list` will therefore show 18 remote-only entries; that is
+expected after a squash, not drift.
 
 ## 6. ~~`SupabaseDataManager` still exists, as a facade~~ — RESOLVED
 

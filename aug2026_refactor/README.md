@@ -24,6 +24,7 @@ fix that fell out of §3.
 | [`08-automation.md`](08-automation.md) | §7: killing ffAnalytics, one deploy topology, the scheduled sync job |
 | [`09-hygiene.md`](09-hygiene.md) | §8: scripts pruned, real type-checking, tests rescued, CI |
 | [`10-security.md`](10-security.md) | §2: RPC lockdown, admin-only RLS, definer views, search paths |
+| [`migrations-history/`](migrations-history/) | The 18 migrations that built §§2–7, squashed into the baseline |
 
 ---
 
