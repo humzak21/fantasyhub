@@ -102,19 +102,54 @@ divisions breaks standings, playoff odds and the ranking inputs) but its names
 are now `Division 1` / `Division 2` instead of one past season's lore —
 `20260806120000_neutral_default_divisions.sql`.
 
-## 5. No baseline schema dump
+## 5. No baseline schema dump — now blocking CI
 
-Migration `00000000000000_baseline_placeholder.sql` is a no-op marker. The
-pre-existing schema (40 tables, ~66 functions) has no captured definition. Run
-`npx supabase db pull baseline_schema` once the CLI is linked:
+Migration `00000000000000_baseline_placeholder.sql` is a no-op marker; the
+pre-existing schema (40 tables, ~66 functions) has no captured definition.
+
+This stopped being theoretical on 2026-08-06: the CI migration job replays the
+chain onto an empty database and died on the first real migration —
+
+```
+ERROR: relation "public.seasons" does not exist (SQLSTATE 42P01)
+At statement: 0  -- 20260803120100_season_config_backbone.sql
+```
+
+There is no `seasons` table to alter, because nothing in the chain creates it.
+
+**The replay is skipped for now rather than failing.** `.github/workflows/ci.yml`
+checks whether `00000000000000_*.sql` contains real DDL and turns the replay
+back on automatically when it does — no further edits needed.
+
+### What has to happen, in this order
+
+Capturing the dump needs the database password, so it is the owner's to run:
 
 ```bash
 npx supabase login
 npx supabase link --project-ref kvcnijyyfylxfarrlxkv
-npx supabase db pull baseline_schema
+npx supabase db dump -f supabase/migrations/00000000000000_baseline_schema.sql
+git rm supabase/migrations/00000000000000_baseline_placeholder.sql
 ```
 
-Do this before authoring further migrations.
+Then archive the migrations the dump already contains:
+
+```bash
+mkdir -p aug2026_refactor/migrations-history
+git mv supabase/migrations/2026*.sql aug2026_refactor/migrations-history/
+```
+
+**The archive step is mandatory, not tidying.** The P1 migrations are not
+idempotent — they backfill `seasons`, `teams` and `games` from the `historical_*`
+tables and add constraints and views without `if not exists`. Replayed on top of
+a baseline that already contains their results they would double-insert rows and
+fail on duplicate constraints. A dump-plus-full-chain repo is broken in a way
+the placeholder at least made obvious.
+
+Production is unaffected either way: its `schema_migrations` ledger retains every
+version, and `db push` only applies what the remote has not seen. The files move
+to `aug2026_refactor/` rather than being deleted because their commentary is the
+record of why the schema looks the way it does.
 
 ## 6. ~~`SupabaseDataManager` still exists, as a facade~~ — RESOLVED
 
