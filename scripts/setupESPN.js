@@ -3,51 +3,42 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+
+// Without this the check below reads an empty process.env and always reports
+// the credentials as missing.
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function createConfigFile() {
-  const configDir = path.join(__dirname, '../config');
-  const configPath = path.join(configDir, 'espn-config.js');
-  const examplePath = path.join(configDir, 'espn-config.example.js');
+/**
+ * `config/espn-config.js` is committed and is a pure environment loader, so
+ * there is no config file to generate any more. This used to write a template
+ * that hardcoded the real espn_s2 / SWID pair, the 2025 season and the league
+ * id -- a second live copy of the credential, and one that would have undone
+ * the move to environment variables for anyone who ran it. (It was also
+ * syntactically invalid: the values were emitted unquoted.)
+ *
+ * Setup is now "put the two cookies in .env.local", which this checks for.
+ */
+function checkCredentials() {
+  const envPath = path.join(__dirname, '../.env.local');
+  const present = (name) => Boolean(process.env[name]);
 
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true });
-  }
-
-  if (fs.existsSync(configPath)) {
-    console.log('✅ ESPN config file already exists at config/espn-config.js');
+  if (!fs.existsSync(envPath)) {
+    console.log('⚠️  No .env.local found. Copy .env.example to .env.local and fill it in.');
     return;
   }
 
-  const configTemplate = `export const ESPN_CONFIG = {
-  // Required: Your ESPN Fantasy Football League ID
-  // Find this in your league URL: fantasy.espn.com/football/league?leagueId=YOUR_ID_HERE
-  leagueId: 67674700,  // e.g., 123456
-  
-  // Required: Current season year
-  seasonYear: 2025,
-  
-  // Required for Private Leagues: ESPN authentication cookies
-  // Leave as null for public leagues
-  espnS2: ***REMOVED-ESPN-S2***,  // Long string from espn_s2 cookie
-  swid: {REMOVED-SWID}     // String with curly braces from SWID cookie
-};
-
-// Instructions for finding your cookies (private leagues only):
-/*
-1. Go to your ESPN fantasy league in browser
-2. Open Developer Tools (F12)
-3. Go to Application > Cookies > espn.com
-4. Copy values for 'espn_s2' and 'SWID' cookies
-5. Paste them above (keep the quotes!)
-*/
-`;
-
-  fs.writeFileSync(configPath, configTemplate);
-  console.log('✅ Created ESPN config file at config/espn-config.js');
-  console.log('📝 Please edit the file and add your league details');
+  const missing = ['ESPN_S2', 'ESPN_SWID'].filter((name) => !present(name));
+  if (missing.length === 0) {
+    console.log('✅ ESPN_S2 and ESPN_SWID are set.');
+  } else {
+    console.log(`⚠️  Missing in the environment: ${missing.join(', ')}`);
+    console.log('   Add them to .env.local (see .env.example).');
+  }
 }
 
 function showInstructions() {
@@ -99,7 +90,7 @@ Need Help?
 function main() {
   console.log('🔧 Setting up ESPN Fantasy Football Roster Updater...\n');
   
-  createConfigFile();
+  checkCredentials();
   console.log('');
   showInstructions();
 }
