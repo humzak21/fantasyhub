@@ -39,6 +39,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # The build succeeding says nothing about the bundle being loadable. A
+      # circular static import between eager chunks exits 0 here and white-
+      # screens in production, which is exactly what shipped on 2026-08-07.
+      - name: Check the bundle is loadable
+        run: npm run check-bundle
+
   migrations:
     runs-on: ubuntu-latest
     timeout-minutes: 10
