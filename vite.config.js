@@ -72,67 +72,56 @@ export default defineConfig({
         'path'
       ],
       output: {
+        // Chunking rule: a manual chunk must never import another manual chunk
+        // that imports it back. A circular edge between two eagerly-loaded
+        // chunks means one evaluates while the other's exports are still
+        // uninitialised, and the app dies before it renders.
+        //
+        // That is exactly what the previous version did. It grouped React with
+        // `id.includes('node_modules/react')`, a prefix match that also
+        // swallowed react-day-picker, react-hook-form, react-resizable-panels
+        // and react-router-dom. Dragging those *consumers* into the React core
+        // chunk gave it outbound imports — react-day-picker pulls in date-fns,
+        // which sat in vendor-misc alongside @tanstack/react-query, which
+        // imports React straight back. The result was
+        //
+        //   Uncaught TypeError: Cannot read properties of undefined
+        //   (reading 'createContext')   at QueryClientProvider
+        //
+        // and a white screen in production only — dev serves modules
+        // unbundled, so nothing about it reproduces locally with `npm run dev`.
+        //
+        // It also hand-split app code into desktop-bundle / mobile-bundle /
+        // shared-services, which mutually import each other and cycled too.
+        // App-level splitting is now left to Rollup, which follows the real
+        // import graph; the per-tab chunks come from `React.lazy` in
+        // FantasyFootballApp.jsx and still work exactly as before.
         manualChunks: (id) => {
-          // Core vendor libraries - keep ALL React-related in same chunk
-          if (id.includes('node_modules/react') ||
-              id.includes('node_modules/react-dom') ||
-              id.includes('node_modules/use-sync-external-store') ||
-              id.includes('node_modules/use-callback-ref') ||
-              id.includes('node_modules/scheduler')) {
-            return 'vendor-react';
-          }
-          if (id.includes('node_modules/react-router-dom')) {
-            return 'vendor-router';
-          }
-          if (id.includes('node_modules/lucide-react')) {
-            return 'vendor-icons';
-          }
-          if (id.includes('node_modules/recharts')) {
-            return 'vendor-charts';
-          }
-          if (id.includes('node_modules/@supabase')) {
-            return 'vendor-supabase';
-          }
-          if (id.includes('node_modules/@radix-ui')) {
-            return 'vendor-ui';
-          }
-          if (id.includes('node_modules/@floating-ui')) {
-            return 'vendor-ui';
-          }
-          if (id.includes('node_modules/use-callback-ref')) {
-            return 'vendor-ui';
-          }
+          // App code: Rollup decides, using the actual dependency graph.
+          if (!id.includes('node_modules')) return;
 
-          // Mobile shell. The feature components are shared with desktop and
-          // deliberately are not listed here — chunking them as "mobile" would
-          // duplicate them into both bundles.
-          if (id.includes('MobileFantasyFootballApp') ||
-              id.includes('MobileNavigation') ||
-              id.includes('MobileWeekSelector') ||
-              id.includes('mobile.css') ||
-              id.includes('mobileDetection')) {
-            return 'mobile-bundle';
-          }
+          const pkg = /node_modules\/(?:\.pnpm\/)?((?:@[^/]+\/)?[^/]+)/.exec(id)?.[1];
 
-          // Desktop-specific bundles
-          if (id.includes('FantasyFootballApp') && !id.includes('Mobile')) {
-            return 'desktop-bundle';
-          }
+          // recharts is reachable only from lazily-loaded chart widgets. Left
+          // unassigned it rides along with them instead of being pulled into
+          // the eager vendor chunk, which is what §6.5 wanted anyway. Nothing
+          // inside `vendor` imports recharts, so this adds no edge back.
+          if (pkg === 'recharts') return;
 
-          // Exclude Node.js utilities from browser bundle
-          if (id.includes('utils/rExecutor')) {
-            return undefined; // Don't include in any chunk
-          }
-
-          // Shared utilities and services
-          if (id.includes('services/') || id.includes('hooks/') || id.includes('utils/')) {
-            return 'shared-services';
-          }
-
-          // Other node_modules
-          if (id.includes('node_modules')) {
-            return 'vendor-misc';
-          }
+          // Everything else — React included — in one chunk. A single chunk
+          // cannot cycle with itself, which is the whole point.
+          //
+          // React core was briefly given its own `vendor-react` chunk with an
+          // exact package-name match, and that still cycled: Vite's CommonJS
+          // interop helpers are a *virtual* module, so they are not under
+          // node_modules, fell through to Rollup, and landed in `vendor`.
+          // React's CJS builds import those helpers, so vendor-react gained an
+          // outbound edge to vendor while vendor still imported React back.
+          //
+          // Splitting React out is what creates the hazard in the first place,
+          // and it buys only cache granularity on a chunk that is eager
+          // regardless. Correctness wins.
+          return 'vendor';
         },
       },
     },
