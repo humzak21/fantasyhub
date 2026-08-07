@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { TrendingUp, TrendingDown, Target, Zap, Shield, Heart, Award, BarChart3, ChevronDown, Info, Activity, Users, Star } from 'lucide-react';
+import { TrendingUp, Target, Zap, Shield, Award, BarChart3, ChevronDown, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import {
@@ -8,18 +8,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '../ui/dropdown-menu';
-import AnalyticsExport from '../analytics/AnalyticsExport';
 import { getMaskedTeamName } from '../../utils/displayNameUtils';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const PowerRankingsVisualization = ({
   rankings = [],
   currentWeek = 1,
-  analyticsData = {},
-  showAnalyticsSection = false,
-  user = null,
-  isAdmin = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [showAllTeams, setShowAllTeams] = useState(false);
   const visualizationData = useMemo(() => {
     if (!rankings.length || !rankings[0]?.powerRatingComponents) return null;
@@ -174,111 +170,8 @@ const PowerRankingsVisualization = ({
     );
   };
 
-  // Calculate analytics overview
-  const analyticsOverview = useMemo(() => {
-    if (!showAnalyticsSection || Object.keys(analyticsData).length === 0) return null;
-
-    const teamsWithAnalytics = rankings.filter(team => 
-      analyticsData[team.teamId || team.id]
-    );
-
-    if (teamsWithAnalytics.length === 0) return null;
-
-    const totalTrendingUp = teamsWithAnalytics.reduce((sum, team) => {
-      const analytics = analyticsData[team.teamId || team.id];
-      return sum + (analytics?.trendingUpPlayers || 0);
-    }, 0);
-
-    const totalTrendingDown = teamsWithAnalytics.reduce((sum, team) => {
-      const analytics = analyticsData[team.teamId || team.id];
-      return sum + (analytics?.trendingDownPlayers || 0);
-    }, 0);
-
-    const avgAnalyticsStrength = teamsWithAnalytics.reduce((sum, team) => {
-      const analytics = analyticsData[team.teamId || team.id];
-      return sum + (analytics?.analyticsStrengthScore || 0);
-    }, 0) / teamsWithAnalytics.length;
-
-    const topAnalyticsTeam = teamsWithAnalytics.reduce((best, team) => {
-      const analytics = analyticsData[team.teamId || team.id];
-      const bestAnalytics = analyticsData[best?.teamId || best?.id];
-      return (analytics?.analyticsStrengthScore || 0) > (bestAnalytics?.analyticsStrengthScore || 0) ? 
-        team : best;
-    }, teamsWithAnalytics[0]);
-
-    return {
-      teamsAnalyzed: teamsWithAnalytics.length,
-      totalTrendingUp,
-      totalTrendingDown,
-      avgAnalyticsStrength,
-      topAnalyticsTeam
-    };
-  }, [rankings, analyticsData, showAnalyticsSection]);
-
   return (
     <div className="space-y-6">
-      {/* Analytics Overview Section */}
-      {showAnalyticsSection && analyticsOverview && (
-        <div>
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <Activity className="text-blue-600" size={20} />
-            Analytics Overview - Week {currentWeek}
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <Card>
-              <CardContent className="p-4 text-center">
-                <Users className="h-6 w-6 mx-auto mb-2 text-blue-600" />
-                <div className="text-2xl font-bold">{analyticsOverview.teamsAnalyzed}</div>
-                <div className="text-sm text-muted-foreground">Teams Analyzed</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4 text-center">
-                <TrendingUp className="h-6 w-6 mx-auto mb-2 text-green-600" />
-                <div className="text-2xl font-bold text-green-600">{analyticsOverview.totalTrendingUp}</div>
-                <div className="text-sm text-muted-foreground">Players Trending Up</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4 text-center">
-                <TrendingDown className="h-6 w-6 mx-auto mb-2 text-red-600" />
-                <div className="text-2xl font-bold text-red-600">{analyticsOverview.totalTrendingDown}</div>
-                <div className="text-sm text-muted-foreground">Players Trending Down</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4 text-center">
-                <Star className="h-6 w-6 mx-auto mb-2 text-purple-600" />
-                <div className="text-2xl font-bold text-purple-600">
-                  {Math.round(analyticsOverview.avgAnalyticsStrength)}
-                </div>
-                <div className="text-sm text-muted-foreground">Avg Analytics Score</div>
-              </CardContent>
-            </Card>
-          </div>
-          
-          {analyticsOverview.topAnalyticsTeam && (
-            <Card className="mb-6">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <Award className="h-6 w-6 text-yellow-600" />
-                  <div>
-                    <h4 className="font-semibold">Top Analytics Team</h4>
-                    <p className="text-sm text-muted-foreground">
-                      <strong>{getMaskedTeamName(analyticsOverview.topAnalyticsTeam, user, isAdmin, teamOwnerNames)}</strong> leads with an analytics strength score of{' '}
-                      <strong>{Math.round(analyticsData[analyticsOverview.topAnalyticsTeam.teamId || analyticsOverview.topAnalyticsTeam.id]?.analyticsStrengthScore || 0)}</strong>
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
       {/* League Standouts */}
       <div>
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
@@ -524,23 +417,6 @@ const PowerRankingsVisualization = ({
         </CardContent>
       </Card>
 
-      {/* Analytics Export Section */}
-      {showAnalyticsSection && Object.keys(analyticsData).length > 0 && (
-        <div>
-          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-            <BarChart3 className="text-green-600" size={20} />
-            Export Analytics Data
-          </h3>
-          <AnalyticsExport
-            rankings={rankings}
-            currentWeek={currentWeek}
-            analyticsData={analyticsData}
-            onExport={(exportInfo) => {
-              console.log('Analytics data exported:', exportInfo);
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 };

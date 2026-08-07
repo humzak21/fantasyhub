@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Trophy, Target, Clock, CheckCircle2, AlertCircle, Save, Edit3, X } from 'lucide-react';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { getDb } from '../../../services/db/index.js';
 
 /**
  * Bracket matchup slot component
@@ -139,7 +140,6 @@ const PlayoffsBracket = ({
     user = null,
     isAdmin = false,
     teamOwnerNames = [],
-    dataManager // Accept as prop
 }) => {
     const [picks, setPicks] = useState({});
     const [hasChanges, setHasChanges] = useState(false);
@@ -154,16 +154,16 @@ const PlayoffsBracket = ({
     // Load divisions
     useEffect(() => {
         const loadDivisions = async () => {
-            if (!season?.id || !dataManager) return;
+            if (!season?.id) return;
             try {
-                const divs = await dataManager.getDivisions(season.id);
+                const divs = await getDb().divisions.getDivisions(season.id);
                 setDivisions(divs || []);
             } catch (err) {
                 console.error('Error loading divisions:', err);
             }
         };
         loadDivisions();
-    }, [season?.id, dataManager]);
+    }, [season?.id]);
 
     // Initialize picks from existing user picks
     useEffect(() => {

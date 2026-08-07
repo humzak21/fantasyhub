@@ -6,7 +6,7 @@ dotenv.config({ path: '.env.local' });
 
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
-import { SupabaseDataManager } from '../services/supabaseDataManager.js';
+import { getDb, getContext } from '../services/db/index.js';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
 
@@ -118,8 +118,7 @@ async function importTeamsToSeason(seasonId, teamsData) {
 
   let dataManager;
   try {
-    dataManager = new SupabaseDataManager();
-    await dataManager.initialize();
+    dataManager = getDb();
   } catch (error) {
     console.error(`❌ Failed to initialize database connection: ${error.message}`);
     console.error(`\n💡 Make sure your .env.local file contains the required Supabase configuration:`);
@@ -136,7 +135,7 @@ async function importTeamsToSeason(seasonId, teamsData) {
     try {
       console.log(`   Adding: ${team.teamName} (Owner: ${team.ownerName || 'Unknown'})`);
 
-      const addedTeam = await dataManager.addTeamToSeason(
+      const addedTeam = await dataManager.teams.addTeamToSeason(
         seasonId,
         team.teamName,
         team.ownerName || team.abbreviation || ''
@@ -144,7 +143,7 @@ async function importTeamsToSeason(seasonId, teamsData) {
 
       // Update the team with ESPN team ID for future reference
       if (addedTeam && team.teamId) {
-        await dataManager.updateTeam(seasonId, addedTeam.id, {
+        await dataManager.teams.updateTeam(seasonId, addedTeam.id, {
           espnTeamId: team.teamId
         });
       }
@@ -184,21 +183,20 @@ async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
 
   let dataManager;
   try {
-    dataManager = new SupabaseDataManager();
-    await dataManager.initialize();
+    dataManager = getDb();
   } catch (error) {
     console.error(`❌ Failed to initialize database: ${error.message}`);
     throw new Error('Database initialization failed');
   }
 
   // Get season and teams
-  const season = await dataManager.getSeason(seasonId);
+  const season = await dataManager.seasons.getSeason(seasonId);
   if (!season) {
     throw new Error(`Season ${seasonId} not found`);
   }
 
   // Get games for this week
-  const games = await dataManager.getGamesForWeek(seasonId, weekNumber);
+  const games = await dataManager.games.getGamesForWeek(seasonId, weekNumber);
   if (!games || games.length === 0) {
     throw new Error(`No games found for week ${weekNumber}`);
   }
@@ -252,7 +250,7 @@ async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
       }
 
       // Update the game
-      const { error: updateError } = await dataManager.client
+      const { error: updateError } = await getContext().client
         .from('games')
         .update({
           team1_score: team1Score,
@@ -580,4 +578,9 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+
+// Only run when executed directly. Importing this module must not touch
+// production — see aug2026_refactor/07-frontend.md §7.
+const isMain = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMain) main().catch(console.error);

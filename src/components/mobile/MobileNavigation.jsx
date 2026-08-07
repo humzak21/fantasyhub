@@ -5,6 +5,8 @@ import { Badge } from '../ui/badge';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
 import { useDarkMode } from '../../contexts/DarkModeContext.jsx';
 import { MobileLoginForm } from './MobileLoginForm.jsx';
+import { getDb } from '../../../services/db/index.js';
+import { areAwardsReleased, getSeasonConfig } from '../../../utils/seasonConfig.js';
 
 /**
  * Mobile Navigation System
@@ -19,7 +21,6 @@ const MobileNavigation = ({
   isAdmin,
   activeSeason,
   currentWeek,
-  dataManager
 }) => {
   const { user, signOut } = useAuth();
   const { isDarkMode, isAutoDetect, getThemeName, setDarkMode, enableAutoDetect } = useDarkMode();
@@ -30,13 +31,13 @@ const MobileNavigation = ({
   const [hasUserSubmittedPicks, setHasUserSubmittedPicks] = useState(false);
   const [pickemNotificationLoading, setPickemNotificationLoading] = useState(false);
 
-  // Check if awards are accessible (Dec 9th midnight or admin)
+  // Check if awards are accessible. This was a hardcoded `2025-12-09` literal —
+  // the fourth copy of the awards gate, and the one §4 missed — which would
+  // have unlocked the 2026 awards nine months early. The date lives on the
+  // season row.
   const isAwardsAccessible = () => {
     if (isAdmin) return true;
-    
-    const now = new Date();
-    const awardsReleaseDate = new Date('2025-12-09T00:00:00');
-    return now >= awardsReleaseDate;
+    return areAwardsReleased(getSeasonConfig());
   };
 
   // Check if pickems are still open (closes at 8:10 PM on Thursdays)
@@ -103,7 +104,7 @@ const MobileNavigation = ({
 
   // Check if user has submitted picks for current week
   const checkUserPicksSubmission = async () => {
-    if (!isAuthenticated || !user || !activeSeason || !currentWeek || !dataManager) {
+    if (!isAuthenticated || !user || !activeSeason || !currentWeek) {
       setHasUserSubmittedPicks(false);
       return;
     }
@@ -111,14 +112,14 @@ const MobileNavigation = ({
     setPickemNotificationLoading(true);
     try {
       // Get pick'em week data for current week
-      const pickEmWeekData = await dataManager.getPickEmWeek(activeSeason.id, currentWeek);
+      const pickEmWeekData = await getDb().pickems.getPickEmWeek(activeSeason.id, currentWeek);
       if (!pickEmWeekData) {
         setHasUserSubmittedPicks(false);
         return;
       }
 
       // Get user picks for this week
-      const userPicks = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
+      const userPicks = await getDb().pickems.getUserPicksForWeek(pickEmWeekData.id);
       const hasSubmitted = userPicks && userPicks.length > 0;
       setHasUserSubmittedPicks(hasSubmitted);
     } catch (err) {
@@ -132,7 +133,7 @@ const MobileNavigation = ({
   // Check picks submission when relevant data changes
   useEffect(() => {
     checkUserPicksSubmission();
-  }, [isAuthenticated, user, activeSeason, currentWeek, dataManager]);
+  }, [isAuthenticated, user, activeSeason, currentWeek]);
 
   // Prevent body scroll when menu is open
   useEffect(() => {

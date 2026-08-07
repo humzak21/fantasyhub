@@ -3,6 +3,7 @@ import { ArrowLeft, Calendar, Crown, Medal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
+import { isCurrentSeason } from '../../../../utils/seasonConfig.js';
 import {
   Table,
   TableBody,
@@ -128,7 +129,7 @@ const SeasonDetail = ({
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
             {currentSeason.year} Season
-            {currentSeason.year === 2025 && (
+            {isCurrentSeason(currentSeason) && (
               <Badge variant="secondary" className="ml-2 bg-blue-500/20 text-blue-400">
                 In Progress
               </Badge>

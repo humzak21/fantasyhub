@@ -18,6 +18,7 @@ import {
 } from '../ui/alert-dialog';
 import { moveUserTeamToFirst } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const TeamsAndRosters = ({
   teams = [],
@@ -28,10 +29,8 @@ const TeamsAndRosters = ({
   loading = false,
   powerRankings = [],
   isAuthenticated = false, // This now represents isAdmin from parent
-  user = null,
-  isAdmin = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
   const [formData, setFormData] = useState({

@@ -1,138 +1,144 @@
 /**
  * Fantasy Football Week Calculator
- * Week 1 starts September 2nd, 2025 at 12:00 AM EDT
- * Weeks change over every Tuesday for 18 weeks total
+ *
+ * Every value here used to come from a hardcoded SEASON_START_DATE and a
+ * TOTAL_WEEKS constant, which meant the whole UI's week math had to be edited
+ * each September. It now derives from the active season row via
+ * utils/seasonConfig.js — call `setSeasonConfig(activeSeasonRow)` once the
+ * season loads and these functions follow it automatically.
+ *
+ * The exported signatures are unchanged so existing call sites keep working.
  */
 
-// Week 1 start: September 2nd, 2025 at 12:00 AM EDT
-const SEASON_START_DATE = new Date('2025-09-02T00:00:00-04:00'); // EDT timezone (September is daylight time)
-const TOTAL_WEEKS = 18;
+import {
+  deriveCurrentWeek,
+  deriveWeekEnd,
+  deriveWeekStart,
+  getSeasonConfig,
+  hasSeasonConfig
+} from './seasonConfig.js';
+
+const requireConfig = () => {
+  const config = getSeasonConfig();
+  if (!config?.startDate) {
+    throw new Error(
+      'Season config not loaded. Call setSeasonConfig(activeSeason) before using weekCalculator.'
+    );
+  }
+  return config;
+};
+
+/** Total weeks in the active season, or 0 before the season loads. */
+export const getTotalWeeks = () => getSeasonConfig()?.weekCount ?? 0;
 
 /**
- * Calculate the current fantasy football week based on the current date
- * @returns {number} Current week number (1-18), or 1 if before season starts, or 18 if after season ends
+ * Calculate the current fantasy week from the current date.
+ * Returns 1 before the season starts (and before config loads), and never
+ * exceeds the season's week count.
+ *
+ * @returns {number}
  */
 export const getCurrentWeek = () => {
-  const now = new Date();
-
-  // If before season starts, return week 1
-  if (now < SEASON_START_DATE) {
-    return 1;
-  }
-
-  // Calculate milliseconds since season start
-  const timeDiff = now.getTime() - SEASON_START_DATE.getTime();
-
-  // Convert to days and calculate week
-  const daysDiff = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-  const weekNumber = Math.floor(daysDiff / 7) + 1;
-
-  const finalWeek = Math.min(weekNumber, TOTAL_WEEKS);
-
-  // Cap at week 18
-  return finalWeek;
+  if (!hasSeasonConfig()) return 1;
+  return deriveCurrentWeek(getSeasonConfig());
 };
 
 /**
- * Get the start date for a specific week
- * @param {number} weekNumber - Week number (1-17)
- * @returns {Date} Start date of the specified week
+ * Get the start date for a specific week.
+ * @param {number} weekNumber
+ * @returns {Date}
  */
 export const getWeekStartDate = (weekNumber) => {
-  if (weekNumber < 1 || weekNumber > TOTAL_WEEKS) {
-    throw new Error(`Week number must be between 1 and ${TOTAL_WEEKS}`);
+  const config = requireConfig();
+  if (weekNumber < 1 || weekNumber > config.weekCount) {
+    throw new Error(`Week number must be between 1 and ${config.weekCount}`);
   }
-  
-  const weekStartTime = new Date(SEASON_START_DATE);
-  weekStartTime.setDate(weekStartTime.getDate() + (weekNumber - 1) * 7);
-  return weekStartTime;
+  return deriveWeekStart(config, weekNumber);
 };
 
 /**
- * Get the end date for a specific week
- * @param {number} weekNumber - Week number (1-17)
- * @returns {Date} End date of the specified week (6 days, 23 hours, 59 minutes after start)
+ * Get the end date for a specific week (just before the next week starts).
+ * @param {number} weekNumber
+ * @returns {Date}
  */
-export const getWeekEndDate = (weekNumber) => {
-  const startDate = getWeekStartDate(weekNumber);
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + 7);
-  endDate.setMilliseconds(endDate.getMilliseconds() - 1); // End just before next week starts
-  return endDate;
-};
+export const getWeekEndDate = (weekNumber) => deriveWeekEnd(requireConfig(), weekNumber);
 
 /**
- * Check if a specific week is currently active
- * @param {number} weekNumber - Week number to check
- * @returns {boolean} True if the week is currently active
+ * Check if a specific week is currently active.
+ * @param {number} weekNumber
+ * @returns {boolean}
  */
-export const isWeekActive = (weekNumber) => {
-  return getCurrentWeek() === weekNumber;
-};
+export const isWeekActive = (weekNumber) => getCurrentWeek() === weekNumber;
 
 /**
- * Get formatted date range for a week
- * @param {number} weekNumber - Week number (1-17)
- * @returns {string} Formatted date range (e.g., "Sep 2 - Sep 8, 2025")
+ * Get formatted date range for a week (e.g. "Sep 2 - Sep 8, 2025").
+ * @param {number} weekNumber
+ * @returns {string}
  */
 export const getWeekDateRange = (weekNumber) => {
+  const config = requireConfig();
   const startDate = getWeekStartDate(weekNumber);
-  const endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + 6); // 6 days later for display
-  
-  const formatOptions = { month: 'short', day: 'numeric' };
+  const endDate = new Date(startDate.getTime() + 6 * 24 * 60 * 60 * 1000);
+
+  // Render in the season's zone, not the viewer's, so a west-coast visitor
+  // does not see the week starting a day early.
+  const formatOptions = { month: 'short', day: 'numeric', timeZone: config.timeZone };
   const startFormatted = startDate.toLocaleDateString('en-US', formatOptions);
   const endFormatted = endDate.toLocaleDateString('en-US', formatOptions);
-  const year = startDate.getFullYear();
-  
+  const year = startDate.toLocaleDateString('en-US', {
+    year: 'numeric',
+    timeZone: config.timeZone
+  });
+
   return `${startFormatted} - ${endFormatted}, ${year}`;
 };
 
 /**
- * Get time remaining until next week starts
- * @returns {Object} Object with days, hours, minutes until next week
+ * Get time remaining until next week starts.
+ * @returns {{days:number, hours:number, minutes:number, isSeasonOver:boolean}}
  */
 export const getTimeUntilNextWeek = () => {
+  const config = requireConfig();
   const currentWeek = getCurrentWeek();
-  const nextWeekStart = getWeekStartDate(Math.min(currentWeek + 1, TOTAL_WEEKS));
-  const now = new Date();
-  
-  if (currentWeek >= TOTAL_WEEKS) {
+
+  if (currentWeek >= config.weekCount) {
     return { days: 0, hours: 0, minutes: 0, isSeasonOver: true };
   }
-  
-  const timeDiff = nextWeekStart.getTime() - now.getTime();
-  
+
+  const timeDiff = getWeekStartDate(currentWeek + 1).getTime() - Date.now();
+
   if (timeDiff <= 0) {
     return { days: 0, hours: 0, minutes: 0, isSeasonOver: false };
   }
-  
-  const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
-  
-  return { days, hours, minutes, isSeasonOver: false };
+
+  return {
+    days: Math.floor(timeDiff / (1000 * 60 * 60 * 24)),
+    hours: Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+    minutes: Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60)),
+    isSeasonOver: false
+  };
 };
 
 /**
- * Get all week information for the season
- * @returns {Array} Array of week objects with number, startDate, endDate, dateRange, isActive
+ * Get all week information for the season.
+ * @returns {Array<{number:number, startDate:Date, endDate:Date, dateRange:string, isActive:boolean, isPast:boolean, isFuture:boolean}>}
  */
 export const getAllWeeks = () => {
-  const weeks = [];
+  if (!hasSeasonConfig()) return [];
+
+  const config = getSeasonConfig();
   const currentWeek = getCurrentWeek();
-  
-  for (let i = 1; i <= TOTAL_WEEKS; i++) {
-    weeks.push({
-      number: i,
-      startDate: getWeekStartDate(i),
-      endDate: getWeekEndDate(i),
-      dateRange: getWeekDateRange(i),
-      isActive: i === currentWeek,
-      isPast: i < currentWeek,
-      isFuture: i > currentWeek
-    });
-  }
-  
-  return weeks;
+
+  return Array.from({ length: config.weekCount }, (_, index) => {
+    const number = index + 1;
+    return {
+      number,
+      startDate: getWeekStartDate(number),
+      endDate: getWeekEndDate(number),
+      dateRange: getWeekDateRange(number),
+      isActive: number === currentWeek,
+      isPast: number < currentWeek,
+      isFuture: number > currentWeek
+    };
+  });
 };

@@ -5,6 +5,7 @@ import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatSeasonYear } from '../utils/statFormatters';
+import { isCurrentSeason } from '../../../../utils/seasonConfig.js';
 
 const SeasonArchive = ({
   seasons = [],
@@ -38,13 +39,13 @@ const SeasonArchive = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sortedSeasons.map(season => {
-          const isCurrentSeason = season.year === 2025;
+          const seasonIsCurrent = isCurrentSeason(season);
           return (
             <Card key={season.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onSeasonClick(season.year)}>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>{season.year}</span>
-                  {isCurrentSeason && (
+                  {seasonIsCurrent && (
                     <Badge variant="secondary">In Progress</Badge>
                   )}
                 </CardTitle>

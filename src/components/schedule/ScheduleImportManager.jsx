@@ -1,71 +1,45 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '../ui/alert-dialog';
-import { useSupabaseFantasyData } from '../../../hooks/useSupabaseFantasyData.js';
+import { useSeasons } from '../../../hooks/queries/index.js';
+import {
+  usePendingScheduleImports,
+  useScheduleImportDetails,
+  useScheduleImportMutations
+} from '../../../hooks/queries/useScheduleImports.js';
 
 const ScheduleImportManager = () => {
-  const {
-    dataManager,
-    initialized,
-    getPendingScheduleImports,
-    getScheduleImportDetails,
-    assignScheduleToSeason,
-    rejectScheduleImport,
-    seasons
-  } = useSupabaseFantasyData();
-  const [pendingImports, setPendingImports] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: seasons = [] } = useSeasons();
+  const { data: pendingImports = [], isLoading: loading } = usePendingScheduleImports();
+  const mutations = useScheduleImportMutations();
+
   const [selectedImport, setSelectedImport] = useState(null);
-  const [importDetails, setImportDetails] = useState(null);
   const [assignmentNotes, setAssignmentNotes] = useState('');
   const [selectedSeason, setSelectedSeason] = useState('');
 
-  useEffect(() => {
-    if (initialized) {
-      loadData();
-    }
-  }, [initialized]);
+  // Details follow the selection rather than being copied into state by a
+  // click handler, so a second click on the same row is a cache hit.
+  const { data: importDetails } = useScheduleImportDetails(selectedImport);
 
-  const loadData = async () => {
-    if (!initialized || !dataManager) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const importsData = await getPendingScheduleImports();
-
-      setPendingImports(importsData || []);
-    } catch (error) {
-      // Error handling can be added here if needed
-    } finally {
-      setLoading(false);
-    }
+  const clearSelection = () => {
+    setSelectedImport(null);
+    setAssignmentNotes('');
   };
 
-  const loadImportDetails = async (importId) => {
-    try {
-      const details = await getScheduleImportDetails(importId);
-      setImportDetails(details);
-      setSelectedImport(importId);
-    } catch (error) {
-      // Error handling can be added here if needed
-    }
-  };
+  const loadImportDetails = (importId) => setSelectedImport(importId);
 
   const assignToSeason = async (importId, seasonId) => {
     try {
-      const result = await assignScheduleToSeason(importId, seasonId, assignmentNotes);
-      
+      const result = await mutations.assignToSeason.mutateAsync({
+        importId,
+        seasonId,
+        notes: assignmentNotes
+      });
+
       if (result.success) {
-        // Refresh the pending imports list
-        await loadData();
-        setSelectedImport(null);
-        setImportDetails(null);
-        setAssignmentNotes('');
+        clearSelection();
         alert('Schedule successfully assigned to season!');
       } else {
         alert(`Assignment failed: ${result.error}`);
@@ -77,11 +51,8 @@ const ScheduleImportManager = () => {
 
   const rejectImport = async (importId) => {
     try {
-      await rejectScheduleImport(importId, assignmentNotes);
-      await loadData();
-      setSelectedImport(null);
-      setImportDetails(null);
-      setAssignmentNotes('');
+      await mutations.reject.mutateAsync({ importId, notes: assignmentNotes });
+      clearSelection();
       alert('Schedule import rejected');
     } catch (error) {
       alert('Error rejecting schedule import');
@@ -329,11 +300,7 @@ const ScheduleImportManager = () => {
 
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setSelectedImport(null);
-                      setImportDetails(null);
-                      setAssignmentNotes('');
-                    }}
+                    onClick={clearSelection}
                   >
                     Close
                   </Button>

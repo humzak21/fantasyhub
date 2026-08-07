@@ -8,8 +8,9 @@ import { Textarea } from '../ui/textarea';
 import { Plus, Trash2, Edit2, Save, X, CheckSquare, Square, Circle, CheckCircle2, Lock, Unlock } from 'lucide-react';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Switch } from '../ui/switch';
+import { getDb } from '../../../services/db/index.js';
 
-const AwardsAdmin = ({ awards, season, dataManager, onUpdate, loading, teamOwnerNames = [], unlockStatus = {} }) => {
+const AwardsAdmin = ({ awards, season,onUpdate, loading, teamOwnerNames = [], unlockStatus = {} }) => {
     const [isCreating, setIsCreating] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [formData, setFormData] = useState({
@@ -144,9 +145,9 @@ const AwardsAdmin = ({ awards, season, dataManager, onUpdate, loading, teamOwner
             console.log('Winner data:', { type: formData.winner.type, teamId: formData.winner.teamId, customWinner: formData.winner.customWinner });
 
             if (isCreating) {
-                await dataManager.createAward(season.id, saveData);
+                await getDb().awards.createAward(season.id, saveData);
             } else if (editingId) {
-                await dataManager.updateAward(editingId, saveData);
+                await getDb().awards.updateAward(editingId, saveData);
             }
             await onUpdate();
             handleCancel();
@@ -162,7 +163,7 @@ const AwardsAdmin = ({ awards, season, dataManager, onUpdate, loading, teamOwner
 
         setSaving(true);
         try {
-            await dataManager.deleteAward(id);
+            await getDb().awards.deleteAward(id);
             await onUpdate();
         } catch (err) {
             setError(err.message || 'Failed to delete award');
@@ -175,7 +176,7 @@ const AwardsAdmin = ({ awards, season, dataManager, onUpdate, loading, teamOwner
         setSaving(true);
         setError(null);
         try {
-            await dataManager.toggleVotingAccess(season.id, isOpen);
+            await getDb().awards.toggleVotingAccess(season.id, isOpen);
             await onUpdate();
         } catch (err) {
             console.error('Error toggling voting access:', err);
