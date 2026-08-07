@@ -4,11 +4,11 @@ import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { UserCheck, Calendar, AlertCircle } from 'lucide-react';
 import { getMaskedTeamName, getMaskedOwnerName, getMaskedUserName } from '../../utils/displayNameUtils';
+import { getDb } from '../../../services/db/index.js';
 
 const PickEmsAdminSubmissions = ({
   currentWeek,
   pickEmWeek,
-  dataManager,
   loading = false,
   user = null,
   isAdmin = false
@@ -19,20 +19,20 @@ const PickEmsAdminSubmissions = ({
 
   // Load admin submissions data
   const loadSubmissions = useCallback(async () => {
-    if (!pickEmWeek || !dataManager) return;
+    if (!pickEmWeek) return;
 
     setDataLoading(true);
     setError(null);
 
     try {
-      const submissionsData = await dataManager.getAdminSubmissionsForWeek(pickEmWeek.id);
+      const submissionsData = await getDb().pickems.getAdminSubmissionsForWeek(pickEmWeek.id);
       setSubmissions(submissionsData || []);
     } catch (err) {
       setError(err.message || 'Failed to load submissions');
     } finally {
       setDataLoading(false);
     }
-  }, [pickEmWeek, dataManager]);
+  }, [pickEmWeek]);
 
   useEffect(() => {
     loadSubmissions();

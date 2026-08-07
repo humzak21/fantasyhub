@@ -8,17 +8,17 @@ import { Trophy, Target, Settings, AlertCircle, Clock, Users } from 'lucide-reac
 
 import PlayoffsBracket from './PlayoffsBracket';
 import PlayoffsBracketAdmin from './PlayoffsBracketAdmin';
+import { getSeasonConfig } from '../../../utils/seasonConfig.js';
+import { getDb } from '../../../services/db/index.js';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const PlayoffsBracketManager = ({
     season,
     currentWeek,
-    dataManager,
     loading = false,
     isAuthenticated = false,
-    isAdmin = false,
-    user = null,
-    teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
     const [activeTab, setActiveTab] = useState('bracket');
     const [bracketStatus, setBracketStatus] = useState(null);
     const [userPicks, setUserPicks] = useState([]);
@@ -30,15 +30,15 @@ const PlayoffsBracketManager = ({
 
     // Load bracket data
     const loadBracketData = useCallback(async () => {
-        if (!season || !dataManager) return;
+        if (!season) return;
 
         setDataLoading(true);
         setError(null);
 
         try {
             const [statusData, gamesData] = await Promise.all([
-                dataManager.getPlayoffBracketStatus(season.id),
-                dataManager.getPlayoffGames(season.id)
+                getDb().playoffs.getPlayoffBracketStatus(season.id),
+                getDb().playoffs.getPlayoffGames(season.id)
             ]);
 
             setBracketStatus(statusData);
@@ -46,15 +46,15 @@ const PlayoffsBracketManager = ({
 
             // Load user picks if authenticated
             if (user) {
-                const userPicksData = await dataManager.getUserPlayoffPicks(season.id);
+                const userPicksData = await getDb().playoffs.getUserPlayoffPicks(season.id);
                 setUserPicks(userPicksData || []);
             }
 
             // Load all picks and standings if results are released or admin
             if (statusData?.resultsReleased || isAdmin) {
                 const [allPicksData, standingsData] = await Promise.all([
-                    dataManager.getAllPlayoffPicks(season.id),
-                    dataManager.getPlayoffStandings(season.id)
+                    getDb().playoffs.getAllPlayoffPicks(season.id),
+                    getDb().playoffs.getPlayoffStandings(season.id)
                 ]);
                 setAllPicks(allPicksData || []);
                 setStandings(standingsData || []);
@@ -64,7 +64,7 @@ const PlayoffsBracketManager = ({
         } finally {
             setDataLoading(false);
         }
-    }, [season, dataManager, user, isAdmin]);
+    }, [season,user, isAdmin]);
 
     useEffect(() => {
         loadBracketData();
@@ -73,27 +73,27 @@ const PlayoffsBracketManager = ({
     // Handle pick submission
     const handleSubmitPicks = useCallback(async (picks) => {
         try {
-            await dataManager.submitPlayoffPicks(season.id, picks);
+            await getDb().playoffs.submitPlayoffPicks(season.id, picks);
             // Reload user picks after submission
-            const userPicksData = await dataManager.getUserPlayoffPicks(season.id);
+            const userPicksData = await getDb().playoffs.getUserPlayoffPicks(season.id);
             setUserPicks(userPicksData || []);
             return { success: true };
         } catch (err) {
             throw new Error(err.message || 'Failed to submit picks');
         }
-    }, [dataManager, season]);
+    }, [season]);
 
     // Handle results release (admin)
     const handleReleaseResults = useCallback(async () => {
         if (!isAdmin) return;
 
         try {
-            await dataManager.releasePlayoffResults(season.id);
+            await getDb().playoffs.releasePlayoffResults(season.id);
             await loadBracketData();
         } catch (err) {
             setError(err.message || 'Failed to release results');
         }
-    }, [isAdmin, dataManager, season, loadBracketData]);
+    }, [isAdmin,season, loadBracketData]);
 
     if (dataLoading && !bracketStatus) {
         return null;
@@ -122,7 +122,7 @@ const PlayoffsBracketManager = ({
                         <div>
                             <CardTitle className="flex items-center gap-2">
                                 <Trophy className="h-5 w-5 text-yellow-500" />
-                                2025 Playoff Bracket Challenge
+                                {getSeasonConfig()?.year ?? ''} Playoff Bracket Challenge
                             </CardTitle>
                             <CardDescription>
                                 Predict the playoff and consolation bracket winners
@@ -157,7 +157,7 @@ const PlayoffsBracketManager = ({
                             <div className="flex items-center gap-2">
                                 <Clock className="h-4 w-4 text-orange-600" />
                                 <span className="font-medium">Deadline:</span>
-                                <span>{bracketStatus?.deadlineFormatted || 'December 12, 2025 at 8:15 PM EST'}</span>
+                                <span>{bracketStatus?.deadlineFormatted || 'Not set'}</span>
                             </div>
                         </div>
 
@@ -215,7 +215,6 @@ const PlayoffsBracketManager = ({
                         user={user}
                         isAdmin={isAdmin}
                         teamOwnerNames={teamOwnerNames}
-                        dataManager={dataManager}
                     />
                 </TabsContent>
 
@@ -286,7 +285,6 @@ const PlayoffsBracketManager = ({
                             allPicks={allPicks}
                             standings={standings}
                             bracketStatus={bracketStatus}
-                            dataManager={dataManager}
                             onUpdate={loadBracketData}
                             loading={dataLoading}
                             teamOwnerNames={teamOwnerNames}

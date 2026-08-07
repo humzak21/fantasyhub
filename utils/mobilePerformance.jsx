@@ -256,22 +256,26 @@ const mobilePrefetch = {
    * @param {string} componentName - Component name to prefetch
    */
   route: function(componentName) {
-    // Predefined component map for Vite static analysis
+    // Predefined component map for Vite static analysis.
+    //
+    // These used to point at the `Mobile*` twins. The mobile shell now renders
+    // the shared responsive components, so prefetching warms the same modules
+    // the desktop shell uses — the map no longer names a parallel tree.
     const componentMap = {
-      'MobileStatistics': () => import('../src/components/mobile/MobileStatistics.jsx'),
-      'MobilePowerRankings': () => import('../src/components/mobile/MobilePowerRankings.jsx'),
-      'MobileSchedule': () => import('../src/components/mobile/MobileSchedule.jsx'),
-      'MobileTeamsAndRosters': () => import('../src/components/mobile/MobileTeamsAndRosters.jsx'),
-      'MobileSeasonManager': () => import('../src/components/mobile/MobileSeasonManager.jsx'),
-      'MobileGameDetailScreen': () => import('../src/components/mobile/MobileGameDetailScreen.jsx'),
-      'MobileTeamDetailScreen': () => import('../src/components/mobile/MobileTeamDetailScreen.jsx'),
-      'MobileStatisticsDetailScreen': () => import('../src/components/mobile/MobileStatisticsDetailScreen.jsx')
+      'Statistics': () => import('../src/components/dashboard/StatisticsPanel.jsx'),
+      'PowerRankings': () => import('../src/components/power-rankings/PowerRankingsTable.jsx'),
+      'Schedule': () => import('../src/components/schedule/ScheduleManager.jsx'),
+      'TeamsAndRosters': () => import('../src/components/teams/TeamsAndRosters.jsx'),
+      'PickEms': () => import('../src/components/pickems/PickEmsManager.jsx'),
+      'Awards': () => import('../src/components/awards/AwardsManager.jsx')
     };
 
-    // Extract component name from path if a path was passed
-    const componentKey = componentName.includes('/')
+    // Extract component name from path if a path was passed, and tolerate the
+    // legacy `Mobile` prefix that call sites used to pass.
+    const componentKey = (componentName.includes('/')
       ? componentName.split('/').pop().replace('.jsx', '')
-      : componentName;
+      : componentName
+    ).replace(/^Mobile/, '');
 
     const importFn = componentMap[componentKey];
 

@@ -5,8 +5,6 @@
  * Aggregates transaction counts by team and type per season.
  */
 
-// Dynamic import of SupabaseDataManager to ensure env vars are loaded first
-let SupabaseDataManager;
 import { extractOwnerInfo } from '../utils/ownerUtils.js';
 
 // Transaction type mappings from ESPN API
@@ -42,19 +40,11 @@ export class ESPNTransactionFetcher {
     this.swid = swid;
     this.baseUrl = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons';
     this.historyUrl = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/leagueHistory';
-    // Initialize dataManager lazily to ensure env vars are loaded
-    this.dataManager = null;
   }
 
-  async initializeDataManager() {
-    if (!this.dataManager) {
-      if (!SupabaseDataManager) {
-        const module = await import('./supabaseDataManager.js');
-        SupabaseDataManager = module.SupabaseDataManager;
-      }
-      this.dataManager = new SupabaseDataManager();
-    }
-  }
+  // This class held a lazily-constructed data manager and an
+  // `initializeDataManager()` to build it, but never called a single method on
+  // it — it only reads from ESPN and returns parsed data. Both are gone.
 
   /**
    * Fetch transaction data from ESPN API for a specific season

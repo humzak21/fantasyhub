@@ -4,13 +4,13 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Users, Trophy, Settings, Clock, CheckCircle2 } from 'lucide-react';
 import { getMaskedTeamName } from '../../utils/displayNameUtils';
+import { getDb } from '../../../services/db/index.js';
 
 const PlayoffsBracketAdmin = ({
     season,
     allPicks = [],
     standings = [],
     bracketStatus,
-    dataManager,
     onUpdate,
     loading = false,
     teamOwnerNames = [],
@@ -90,7 +90,7 @@ const PlayoffsBracketAdmin = ({
 
     const handleSaveAssignments = async () => {
         try {
-            await dataManager.updateConsolationGameSlots(season.id, slotAssignments);
+            await getDb().playoffs.updateConsolationGameSlots(season.id, slotAssignments);
             alert('Slot assignments saved successfully!');
             if (onUpdate) {
                 await onUpdate(); // Refresh data
@@ -125,7 +125,7 @@ const PlayoffsBracketAdmin = ({
 
         setReleasing(true);
         try {
-            await dataManager.releasePlayoffResults(season.id);
+            await getDb().playoffs.releasePlayoffResults(season.id);
             await onUpdate();
         } catch (err) {
             console.error('Failed to release results:', err);
@@ -209,7 +209,7 @@ const PlayoffsBracketAdmin = ({
                         <div>
                             <div className="font-medium">Submission Deadline</div>
                             <div className="text-muted-foreground">
-                                {bracketStatus?.deadlineFormatted || 'December 12, 2025 at 8:15 PM EST'}
+                                {bracketStatus?.deadlineFormatted || 'Not set'}
                             </div>
                         </div>
                         {bracketStatus?.canSubmit ? (

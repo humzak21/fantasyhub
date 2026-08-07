@@ -1,5 +1,4 @@
-// Dynamic import of SupabaseDataManager to ensure env vars are loaded first
-let SupabaseDataManager;
+import { getContext } from './db/index.js';
 import { extractOwnerInfo } from '../utils/ownerUtils.js';
 
 export class ESPNScheduleFetcher {
@@ -9,19 +8,14 @@ export class ESPNScheduleFetcher {
     this.espnS2 = espnS2;
     this.swid = swid;
     this.baseUrl = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons';
-    // Initialize dataManager lazily to ensure env vars are loaded
-    this.dataManager = null;
+    // Resolved lazily so the process has finished loading env vars first. The
+    // dynamic import this replaces existed for the same reason; `getContext()`
+    // resolves its client on first call, so a static import is now enough.
+    this.ctx = null;
   }
 
   async initializeDataManager() {
-    if (!this.dataManager) {
-      if (!SupabaseDataManager) {
-        const module = await import('./supabaseDataManager.js');
-        SupabaseDataManager = module.SupabaseDataManager;
-      }
-      this.dataManager = new SupabaseDataManager();
-      await this.dataManager.initialize();
-    }
+    if (!this.ctx) this.ctx = getContext();
   }
 
   async fetchLeagueSchedule() {
@@ -272,7 +266,7 @@ export class ESPNScheduleFetcher {
       };
 
 
-      const { data: importRecord, error: importError } = await this.dataManager.client
+      const { data: importRecord, error: importError } = await this.ctx.client
         .from('espn_schedule_imports')
         .insert(importData)
         .select()
@@ -300,7 +294,7 @@ export class ESPNScheduleFetcher {
         return teamData;
       });
 
-      const { data: savedTeams, error: teamsError } = await this.dataManager.client
+      const { data: savedTeams, error: teamsError } = await this.ctx.client
         .from('espn_teams')
         .insert(teamInserts)
         .select();
@@ -349,7 +343,7 @@ export class ESPNScheduleFetcher {
         matchupInserts.push(matchupData);
       });
 
-      const { data: savedMatchups, error: matchupsError } = await this.dataManager.client
+      const { data: savedMatchups, error: matchupsError } = await this.ctx.client
         .from('espn_matchups')
         .insert(matchupInserts)
         .select();
@@ -377,7 +371,7 @@ export class ESPNScheduleFetcher {
       
       
       // Get the most recent import for this league/season
-      const { data: importRecord, error: importError } = await this.dataManager.client
+      const { data: importRecord, error: importError } = await this.ctx.client
         .from('espn_schedule_imports')
         .select('*')
         .eq('espn_league_id', queryLeagueId)
@@ -394,7 +388,7 @@ export class ESPNScheduleFetcher {
       }
 
       // Get teams for this import
-      const { data: teams, error: teamsError } = await this.dataManager.client
+      const { data: teams, error: teamsError } = await this.ctx.client
         .from('espn_teams')
         .select('*')
         .eq('import_id', importRecord.id)
@@ -403,7 +397,7 @@ export class ESPNScheduleFetcher {
       if (teamsError) throw teamsError;
 
       // Get matchups for this import
-      const { data: matchups, error: matchupsError } = await this.dataManager.client
+      const { data: matchups, error: matchupsError } = await this.ctx.client
         .from('espn_matchups')
         .select('*')
         .eq('import_id', importRecord.id)

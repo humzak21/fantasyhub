@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Edit3, TrendingUp, TrendingDown, Minus, Trophy, Target, Medal, Crown, Award, BarChart3, ChevronDown, ChevronUp, Info, Activity } from 'lucide-react';
+import { Edit3, TrendingUp, TrendingDown, Minus, Trophy, Target, Medal, Crown, Award, BarChart3, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import {
@@ -11,10 +11,9 @@ import {
   TableRow,
 } from '../ui/table';
 import { Card, CardContent } from '../ui/card';
-import TrendingPlayerIndicators from '../analytics/TrendingPlayerIndicators';
-import AnalyticsInsights from '../analytics/AnalyticsInsights';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const PowerRankingsTable = ({
   rankings = [],
@@ -22,16 +21,10 @@ const PowerRankingsTable = ({
   showAdvanced = false,
   currentWeek = 1,
   loading = false,
-  analyticsData = {},
-  showAnalytics = false,
-  onExportAnalytics = null,
-  user = null,
   initializing = false,
-  isAdmin = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [expandedRows, setExpandedRows] = useState(new Set());
-  const [analyticsExpandedRows, setAnalyticsExpandedRows] = useState(new Set());
   
   const toggleRowExpansion = (teamId) => {
     const newExpanded = new Set(expandedRows);
@@ -41,16 +34,6 @@ const PowerRankingsTable = ({
       newExpanded.add(teamId);
     }
     setExpandedRows(newExpanded);
-  };
-
-  const toggleAnalyticsExpansion = (teamId) => {
-    const newExpanded = new Set(analyticsExpandedRows);
-    if (newExpanded.has(teamId)) {
-      newExpanded.delete(teamId);
-    } else {
-      newExpanded.add(teamId);
-    }
-    setAnalyticsExpandedRows(newExpanded);
   };
   const getRankColor = (rank) => {
     if (rank === 1) return 'bg-gradient-to-br from-ff-rank-gold-50 to-amber-100 text-ff-rank-gold-600 border-[4px] border-amber-300';
@@ -200,9 +183,20 @@ const PowerRankingsTable = ({
     );
   };
 
-  // During initialization or data loading, don't show placeholder states (full-screen overlay handles loading)
+  // This used to `return null`, on the reasoning that the app shell's
+  // full-screen overlay was showing the loading state. That overlay is gone —
+  // it blocked the entire page on every mutation — so the table now owns its
+  // own loading state. Returning null here rendered a blank main screen for as
+  // long as anything upstream was in flight.
   if (initializing || loading) {
-    return null;
+    return (
+      <Card className="p-8">
+        <CardContent className="flex items-center justify-center gap-3 text-muted-foreground">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+          <span>Calculating week {currentWeek} rankings…</span>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (!rankings.length) {
@@ -247,7 +241,6 @@ const PowerRankingsTable = ({
               </>
             )}
             <TableHead className="text-center">Power Rating</TableHead>
-            {showAnalytics && <TableHead className="text-center">Analytics</TableHead>}
             {onEditTeam && <TableHead className="text-center">Actions</TableHead>}
           </TableRow>
         </TableHeader>
@@ -439,34 +432,6 @@ const PowerRankingsTable = ({
                 </div>
               </TableCell>
               
-              {showAnalytics && (
-                <TableCell className="text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <TrendingPlayerIndicators 
-                        team={team}
-                        analyticsData={analyticsData[team.teamId || team.id]}
-                        compact={true}
-                        showTooltips={true}
-                      />
-                    </div>
-                    {analyticsData[team.teamId || team.id] && (
-                      <Button
-                        onClick={() => toggleAnalyticsExpansion(team.teamId || team.id)}
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 flex-shrink-0"
-                      >
-                        {analyticsExpandedRows.has(team.teamId || team.id) ? 
-                          <ChevronUp className="h-4 w-4" /> : 
-                          <Activity className="h-4 w-4" />
-                        }
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              )}
-              
               {onEditTeam && (
                 <TableCell className="text-center">
                   <Button
@@ -484,25 +449,6 @@ const PowerRankingsTable = ({
               {/* TODO: Rework component breakdown visualization - disabled for now */}
               {/* {expandedRows.has(team.teamId || team.id) && renderComponentBreakdown(team)} */}
               
-              {/* Analytics insights row */}
-              {showAnalytics && analyticsExpandedRows.has(team.teamId || team.id) && (
-                <TableRow className="bg-blue-50/30 hover:bg-blue-50/50">
-                  <TableCell colSpan={showAdvanced ? (onEditTeam ? 12 : 11) : (onEditTeam ? 9 : 8)}>
-                    <div className="py-4">
-                      <AnalyticsInsights
-                        team={team}
-                        currentWeek={currentWeek}
-                        analyticsData={analyticsData[team.teamId || team.id]}
-                        showPlayerDetails={true}
-                        onExportData={onExportAnalytics}
-                        user={user}
-                        isAdmin={isAdmin}
-                        teamOwnerNames={teamOwnerNames}
-                      />
-                    </div>
-                  </TableCell>
-                </TableRow>
-              )}
             </React.Fragment>
           );
           })}

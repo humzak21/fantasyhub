@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import StandingsDrawerTrigger from './StandingsDrawerTrigger';
 import StandingsDrawerContent from './StandingsDrawerContent';
 import DrawerStandingsTable from './DrawerStandingsTable';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const StandingsDrawer = ({
   teams,
@@ -14,10 +15,8 @@ const StandingsDrawer = ({
   onTeamDivisionChange,
   onCreateDivision,
   games = [],
-  user = null,
-  isAdmin = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [isOpen, setIsOpen] = useState(false);
 
   const handleOpenChange = (open) => {

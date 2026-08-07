@@ -1,0 +1,59 @@
+name: Weekly ESPN sync
+
+# Replaces the node-cron scheduler that ran inside the Express server (§7.1/§7.2).
+# That server is gone, and it was never reliably running in the first place —
+# railway.json and nixpacks.toml disagreed about the start command, so the
+# scheduler may simply never have fired in production.
+#
+# The job takes no arguments: it resolves the active season and the current week
+# from the database. Every step is an idempotent upsert against ESPN, so a
+# failed run is fixed by re-running it — use the "Run workflow" button.
+
+on:
+  schedule:
+    # 09:00 UTC Tuesday = 04:00 ET during the NFL season, after Monday night
+    # football has settled. Cron here is always UTC; GitHub does not do zones.
+    - cron: '0 9 * * 2'
+  workflow_dispatch:
+    inputs:
+      week:
+        description: 'Week to sync (blank = current week of the active season)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Resolve the target and write nothing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  # Two syncs writing the same week's scores would race. Queue instead.
+  group: sync-week
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Sync the week
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ESPN_S2: ${{ secrets.ESPN_S2 }}
+          ESPN_SWID: ${{ secrets.ESPN_SWID }}
+        run: |
+          node scripts/sync-week.js \
+            ${{ inputs.week }} \
+            ${{ inputs.dry_run == true && '--dry-run' || '' }} \
+            ${{ github.event_name == 'workflow_dispatch' && '--manual' || '' }}

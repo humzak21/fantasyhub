@@ -11,20 +11,19 @@ import PickEmsSubmission from './PickEmsSubmission';
 import PickEmsResults from './PickEmsResults';
 import PickEmsAdminSubmissions from './PickEmsAdminSubmissions';
 import PickEmsSeasonStandings from './PickEmsSeasonStandings';
+import { getDb } from '../../../services/db/index.js';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const PickEmsManager = ({
   season,
   currentWeek,
-  dataManager,
   loading = false,
   isAuthenticated = false,
-  isAdmin = false,
-  user = null,
   initializing = false,
   preloadedData = null,
   preloadingInProgress = false,
-  teamOwnerNames = []
 }) => {
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
   const [games, setGames] = useState([]);
@@ -39,7 +38,7 @@ const PickEmsManager = ({
 
   // Load pick'em data for current week
   const loadPickEmData = useCallback(async () => {
-    if (!season || !dataManager || !currentWeek) return;
+    if (!season || !currentWeek) return;
 
     setDataLoading(true);
     setError(null);
@@ -47,9 +46,9 @@ const PickEmsManager = ({
     try {
       // Load pick'em week data
       const [pickEmWeekData, gamesData, statusData] = await Promise.all([
-        dataManager.getPickEmWeek(season.id, currentWeek),
-        dataManager.getPickEmGameData(season.id, currentWeek),
-        dataManager.getPickEmStatus(season.id)
+        getDb().pickems.getPickEmWeek(season.id, currentWeek),
+        getDb().pickems.getPickEmGameData(season.id, currentWeek),
+        getDb().pickems.getPickEmStatus(season.id)
       ]);
 
       setPickEmWeek(pickEmWeekData);
@@ -61,13 +60,13 @@ const PickEmsManager = ({
 
       // Load user picks if pick'em week exists
       if (pickEmWeekData) {
-        const userPicksData = await dataManager.getUserPicksForWeek(pickEmWeekData.id);
+        const userPicksData = await getDb().pickems.getUserPicksForWeek(pickEmWeekData.id);
         setUserPicks(userPicksData || []);
 
         // Always load season standings and season picks
         const [seasonStandingsData, seasonPicksData] = await Promise.all([
-          dataManager.getSeasonPickEmStandings(season.id),
-          dataManager.getAllSeasonPicks(season.id)
+          getDb().pickems.getSeasonPickEmStandings(season.id),
+          getDb().pickems.getAllSeasonPicks(season.id)
         ]);
 
         setSeasonStandings(seasonStandingsData || []);
@@ -76,8 +75,8 @@ const PickEmsManager = ({
         // Load results data if available
         if (currentWeekStatus?.resultsAvailable) {
           const [allPicksData, weeklyScoresData] = await Promise.all([
-            dataManager.getAllPicksForWeek(pickEmWeekData.id),
-            dataManager.getWeeklyPickEmScores(pickEmWeekData.id)
+            getDb().pickems.getAllPicksForWeek(pickEmWeekData.id),
+            getDb().pickems.getWeeklyPickEmScores(pickEmWeekData.id)
           ]);
 
           setAllPicks(allPicksData || []);
@@ -92,7 +91,7 @@ const PickEmsManager = ({
     } finally {
       setDataLoading(false);
     }
-  }, [season, dataManager, currentWeek]);
+  }, [season,currentWeek]);
 
   // Use preloaded data when available
   useEffect(() => {
@@ -127,14 +126,14 @@ const PickEmsManager = ({
   // Handle pick submission
   const handleSubmitPicks = useCallback(async (pickEmWeekId, picks) => {
     try {
-      await dataManager.submitPickEmPicks(pickEmWeekId, picks);
+      await getDb().pickems.submitPickEmPicks(pickEmWeekId, picks);
       // Reload user picks after submission
-      const userPicksData = await dataManager.getUserPicksForWeek(pickEmWeekId);
+      const userPicksData = await getDb().pickems.getUserPicksForWeek(pickEmWeekId);
       setUserPicks(userPicksData || []);
     } catch (err) {
       throw new Error(err.message || 'Failed to submit picks');
     }
-  }, [dataManager]);
+  }, []);
 
   // Handle creating pick'em week (admin only)
   const handleCreatePickEmWeek = useCallback(async () => {
@@ -142,14 +141,14 @@ const PickEmsManager = ({
 
     setDataLoading(true);
     try {
-      await dataManager.createPickEmWeek(season.id, currentWeek);
+      await getDb().pickems.createPickEmWeek(season.id, currentWeek);
       await loadPickEmData(); // Reload data
     } catch (err) {
       setError(err.message || 'Failed to create pick\'em week');
     } finally {
       setDataLoading(false);
     }
-  }, [isAdmin, season, currentWeek, dataManager, loadPickEmData]);
+  }, [isAdmin, season, currentWeek,loadPickEmData]);
 
   // Handle calculating results (admin only)
   const handleCalculateResults = useCallback(async () => {
@@ -157,7 +156,7 @@ const PickEmsManager = ({
 
     setDataLoading(true);
     try {
-      await dataManager.calculatePickEmResults(pickEmWeek.id);
+      await getDb().pickems.calculatePickEmResults(pickEmWeek.id);
       await loadPickEmData(); // Reload data to show results
       setActiveTab('results'); // Switch to results tab
     } catch (err) {
@@ -165,7 +164,7 @@ const PickEmsManager = ({
     } finally {
       setDataLoading(false);
     }
-  }, [isAdmin, pickEmWeek, dataManager, loadPickEmData]);
+  }, [isAdmin, pickEmWeek,loadPickEmData]);
 
   const getStatusBadge = () => {
     if (!pickEmStatus) return null;
@@ -371,7 +370,6 @@ const PickEmsManager = ({
               <PickEmsAdminSubmissions
                 currentWeek={currentWeek}
                 pickEmWeek={pickEmWeek}
-                dataManager={dataManager}
                 loading={dataLoading}
                 user={user}
                 isAdmin={isAdmin}

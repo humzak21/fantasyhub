@@ -1,21 +1,32 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { Trophy, Calendar, BarChart3, Users, Settings, Target, Download, Menu, X, User, Save, CheckCircle, AlertCircle, Shield, Award } from 'lucide-react';
 import { useAuth } from '../../../src/contexts/AuthContext.jsx';
-import { useSupabaseFantasyData } from '../../../hooks/useSupabaseFantasyData.js';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
+import {
+  useLeagueData,
+  useLeagueMutations,
+  useViewedWeek,
+  useViewedWeekRankings
+} from '../../../hooks/queries/index.js';
 import { supabase } from '../../../services/supabaseClient.js';
-import { getCurrentWeek } from '../../../utils/weekCalculator.js';
-import { getTeamOwnerNames } from '../../utils/displayNameUtils.js';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import MobileNavigation from './MobileNavigation.jsx';
-import MobilePowerRankings from './MobilePowerRankings.jsx';
-import MobileStatistics from './MobileStatistics.jsx';
-import MobileScheduleManager from './MobileScheduleManager.jsx';
-import MobileTeamsAndRosters from './MobileTeamsAndRosters.jsx';
 import MobileWeekSelector from './MobileWeekSelector.jsx';
-import MobilePickEms from './MobilePickEms.jsx';
-import MobileAwards from './MobileAwards.jsx';
+
+// The feature components are the shared, responsive ones. Only the shell —
+// navigation, the week selector and the touch primitives — stays mobile-only.
+// Each of these replaced a Mobile* twin that reimplemented the same feature.
+import PowerRankingsTable from '../power-rankings/PowerRankingsTable.jsx';
+
+// One chunk per tab, same as the desktop shell. The landing tab's
+// table stays eager so the first paint needs no chunk.
+const StatisticsPanel = lazy(() => import('../dashboard/StatisticsPanel.jsx'));
+const ScheduleManager = lazy(() => import('../schedule/ScheduleManager.jsx'));
+const TeamsAndRosters = lazy(() => import('../teams/TeamsAndRosters.jsx'));
+const PickEmsManager = lazy(() => import('../pickems/PickEmsManager.jsx'));
+const AwardsManager = lazy(() => import('../awards/AwardsManager.jsx'));
 import MobileUserSettingsPage from './MobileUserSettingsPage.jsx';
 import { MobileInput } from './MobileInput.jsx';
 import MobileButton from './MobileButton.jsx';
@@ -37,47 +48,40 @@ import { MobileTouchButton, useMobileTouch } from '../../../utils/mobileTouch.js
 import '../../../styles/mobile.css';
 
 const MobileFantasyFootballApp = () => {
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { user, isAuthenticated, isAdmin } = useViewer();
 
+  // Same query layer as the desktop shell, so both read one cache: switching
+  // between them (or resizing across the breakpoint) refetches nothing.
   const {
-    seasons,
     activeSeason,
-    currentWeek,
-    loading,
-    error,
-    initialized,
-    powerRankings,
-    rosters,
     divisions,
     standings,
-    createSeason,
-    setActiveSeasonById,
-    deleteSeason,
-    addTeam,
-    updateTeam,
-    removeTeam,
-    addWeekScores,
-    getPowerRankingsForWeek,
-    exportSeason,
-    importSeason,
-    setCurrentWeek,
-    addGame,
-    renameDivision,
-    assignTeamToDivision,
-    createDivision,
-    getCompletedWeeksArray,
-    dataManager
-  } = useSupabaseFantasyData();
+    rosters,
+    completedWeeks,
+    isLoading,
+    error
+  } = useLeagueData();
 
-  // Extract team owner names from active season for mask authentication
-  const teamOwnerNames = useMemo(() => {
-    return getTeamOwnerNames(activeSeason);
-  }, [activeSeason]);
+  const seasonId = activeSeason?.id ?? null;
+
+  const { viewedWeek, setViewedWeek } = useViewedWeek();
+  const { addTeam, updateTeam, removeTeam, addGame } = useLeagueMutations(seasonId);
+  const { data: weeklyRankings = [], isPending: rankingsLoading } =
+    useViewedWeekRankings(seasonId);
+
+
+  const handleAddTeam = (name, owner) => addTeam.mutateAsync({ name, owner });
+  const handleUpdateTeam = (teamId, updates) => updateTeam.mutateAsync({ teamId, updates });
+  const handleRemoveTeam = (teamId) => removeTeam.mutateAsync(teamId);
+
+  // Was `dataManager?.updateGame`, a method that has never existed on the data
+  // manager — so mobile score editing has been passing `undefined` and throwing
+  // on save. Same mutation the desktop shell uses.
+  const handleGameUpdate = (week, team1Id, team2Id, team1Score, team2Score) =>
+    addGame.mutateAsync({ week, team1Id, team2Id, team1Score, team2Score });
 
   const [activeTab, setActiveTab] = useState('rankings');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [weeklyRankings, setWeeklyRankings] = useState([]);
-  const [rankingsLoading, setRankingsLoading] = useState(false);
   const [showWeekSelector, setShowWeekSelector] = useState(false);
   const weekButtonRef = useRef(null);
   const [progressiveLoadingStep, setProgressiveLoadingStep] = useState(0);
@@ -99,23 +103,6 @@ const MobileFantasyFootballApp = () => {
     return () => clearTimeout(initTimer);
   }, []);
 
-  // Initialize current week based on calendar date
-  useEffect(() => {
-    const calendarWeek = getCurrentWeek();
-    if (calendarWeek !== currentWeek) {
-      setCurrentWeek(calendarWeek);
-    }
-
-    const weekCheckInterval = setInterval(() => {
-      const newCalendarWeek = getCurrentWeek();
-      if (newCalendarWeek !== currentWeek) {
-        setCurrentWeek(newCalendarWeek);
-      }
-    }, 60 * 60 * 1000);
-
-    return () => clearInterval(weekCheckInterval);
-  }, []);
-
   // Prefetch next likely tab components
   useEffect(() => {
     if (activeTab === 'rankings') {
@@ -125,38 +112,9 @@ const MobileFantasyFootballApp = () => {
     }
   }, [activeTab]);
 
-  // Force calendar week after data loads
-  useEffect(() => {
-    if (activeSeason && !loading) {
-      const calendarWeek = getCurrentWeek();
-      if (calendarWeek !== currentWeek) {
-        setCurrentWeek(calendarWeek);
-      }
-    }
-  }, [activeSeason, loading]);
-
-  // Fetch week-specific power rankings
-  useEffect(() => {
-    const fetchWeeklyRankings = async () => {
-      if (!activeSeason || !currentWeek) {
-        setWeeklyRankings([]);
-        return;
-      }
-
-      setRankingsLoading(true);
-      try {
-        const rankings = await getPowerRankingsForWeek(currentWeek, currentWeek);
-        setWeeklyRankings(rankings);
-      } catch (err) {
-        setWeeklyRankings([]);
-      } finally {
-        setRankingsLoading(false);
-      }
-    };
-
-    fetchWeeklyRankings();
-  }, [activeSeason, currentWeek, getPowerRankingsForWeek]);
-
+  // The week-seeding effect, the hourly override effect and the rankings fetch
+  // effect that used to live here are gone: week derivation is now a pure
+  // function of the season row (hooks/queries/useWeek) and rankings are a query.
 
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
@@ -167,7 +125,7 @@ const MobileFantasyFootballApp = () => {
   };
 
   const handleWeekChange = (week) => {
-    setCurrentWeek(week);
+    setViewedWeek(week);
     setShowWeekSelector(false);
   };
 
@@ -183,19 +141,6 @@ const MobileFantasyFootballApp = () => {
   const handleWeekSelectorClose = () => {
     setShowWeekSelector(false);
   };
-
-  const [completedWeeks, setCompletedWeeks] = useState([]);
-
-  // Fetch completed weeks from games table
-  useEffect(() => {
-    const fetchCompletedWeeks = async () => {
-      if (activeSeason) {
-        const weeks = await getCompletedWeeksArray();
-        setCompletedWeeks(weeks);
-      }
-    };
-    fetchCompletedWeeks();
-  }, [activeSeason, getCompletedWeeksArray]);
 
   return (
     <MobileErrorBoundary>
@@ -230,14 +175,14 @@ const MobileFantasyFootballApp = () => {
                 className="touch-target border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 rounded-md px-3 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium transition-colors"
                 hapticFeedback={true}
               >
-                <span className="text-sm font-medium">Week {currentWeek}</span>
+                <span className="text-sm font-medium">Week {viewedWeek}</span>
               </MobileTouchButton>
 
               {/* Week Selector Dropdown */}
               <MobileWeekSelector
                 isOpen={showWeekSelector}
                 onClose={handleWeekSelectorClose}
-                currentWeek={currentWeek}
+                currentWeek={viewedWeek}
                 totalWeeks={activeSeason.totalWeeks}
                 regularSeasonWeeks={activeSeason.regularSeasonWeeks || 14}
                 onWeekChange={handleWeekChange}
@@ -265,10 +210,8 @@ const MobileFantasyFootballApp = () => {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         isAuthenticated={isAuthenticated}
-        isAdmin={isAdmin}
         activeSeason={activeSeason}
-        currentWeek={currentWeek}
-        dataManager={dataManager}
+        currentWeek={viewedWeek}
       />
 
 
@@ -284,7 +227,7 @@ const MobileFantasyFootballApp = () => {
         )}
 
         {/* Loading State */}
-        {!initialized || (loading && !activeSeason) ? (
+        {isLoading && !activeSeason ? (
           <MobileLoadingState
             type="spinner"
             size="lg"
@@ -314,7 +257,7 @@ const MobileFantasyFootballApp = () => {
                   <div className="flex items-center space-x-2">
                     {activeSeason && activeTab === 'rankings' && (
                       <Badge variant="outline" className="text-xs">
-                        Week {currentWeek}
+                        Week {viewedWeek}
                       </Badge>
                     )}
                   </div>
@@ -347,91 +290,84 @@ const MobileFantasyFootballApp = () => {
                     )}
                   </div>
                 ) : (
-                  /* Mobile Content Components */
+                  /* Feature content — shared responsive components */
+                  <Suspense
+                    fallback={
+                      <Card className="p-6">
+                        <CardContent className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
+                          <span>Loading…</span>
+                        </CardContent>
+                      </Card>
+                    }
+                  >
                   <div>
-                    {/* Mobile Power Rankings */}
+                    {/* Power Rankings */}
                     {activeTab === 'rankings' && (
-                      <MobilePowerRankings
+                      <PowerRankingsTable
                         rankings={weeklyRankings}
-                        currentWeek={currentWeek}
+                        currentWeek={viewedWeek}
                         loading={rankingsLoading}
                         showAdvanced={true}
                         analyticsData={{}}
                         showAnalytics={false}
-                        user={user}
-                        isAdmin={isAdmin}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
-                    {/* Mobile Statistics */}
+                    {/* Statistics */}
                     {activeTab === 'statistics' && (
-                      <MobileStatistics
+                      <StatisticsPanel
                         rankings={weeklyRankings}
-                        currentWeek={currentWeek}
+                        currentWeek={viewedWeek}
                         season={activeSeason}
-                        user={user}
-                        isAdmin={isAdmin}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
-                    {/* Mobile Schedule */}
+                    {/* Schedule */}
                     {activeTab === 'schedule' && (
-                      <MobileScheduleManager
+                      <ScheduleManager
                         season={activeSeason}
                         schedule={activeSeason?.schedule || []}
-                        currentWeek={currentWeek}
-                        onUpdateGame={isAdmin ? dataManager?.updateGame : null}
-                        onDeleteGame={isAdmin ? dataManager?.removeGame : null}
-                        loading={loading}
+                        currentWeek={viewedWeek}
+                        onUpdateGame={isAdmin ? handleGameUpdate : null}
+                        onDeleteGame={null}
+                        loading={isLoading}
                         isAuthenticated={isAdmin}
-                        powerRankings={powerRankings}
+                        powerRankings={weeklyRankings}
                         rosters={rosters}
-                        user={user}
-                        isAdmin={isAdmin}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
-                    {/* Mobile Teams & Rosters */}
+                    {/* Teams & Rosters */}
                     {activeTab === 'teams' && (
-                      <MobileTeamsAndRosters
+                      <TeamsAndRosters
                         teams={activeSeason?.teams || []}
                         rosters={rosters}
-                        onAddTeam={addTeam}
-                        onUpdateTeam={updateTeam}
-                        onRemoveTeam={removeTeam}
-                        loading={loading}
+                        onAddTeam={handleAddTeam}
+                        onUpdateTeam={handleUpdateTeam}
+                        onRemoveTeam={handleRemoveTeam}
+                        loading={isLoading}
                         powerRankings={weeklyRankings}
                         isAuthenticated={isAdmin}
-                        user={user}
                       />
                     )}
 
-                    {/* Mobile Pick'ems */}
+                    {/* Pick'ems */}
                     {activeTab === 'pickems' && (
-                      <MobilePickEms
+                      <PickEmsManager
                         season={activeSeason}
-                        currentWeek={currentWeek}
-                        dataManager={dataManager}
-                        loading={loading}
+                        currentWeek={viewedWeek}
+                        loading={isLoading}
                         isAuthenticated={isAuthenticated}
-                        isAdmin={isAdmin}
-                        user={user}
-                        teamOwnerNames={teamOwnerNames}
                       />
                     )}
 
                     {activeTab === 'awards' && (
-                      <MobileAwards
+                      <AwardsManager
                         season={activeSeason}
-                        currentWeek={currentWeek}
-                        dataManager={dataManager}
-                        loading={loading}
+                        currentWeek={viewedWeek}
+                        loading={isLoading}
                         isAuthenticated={isAuthenticated}
-                        isAdmin={isAdmin}
-                        user={user}
                       />
                     )}
 
@@ -443,39 +379,26 @@ const MobileFantasyFootballApp = () => {
                       </div>
                     )}
 
-                    {/* Placeholder for other tabs */}
-                    {!['rankings', 'statistics', 'schedule', 'teams', 'pickems', 'settings'].includes(activeTab) && (
+                    {/* Admin-only tabs live on the settings page, not here.
+                        This used to be a build-log placeholder listing which
+                        Mobile* components had been written — and because
+                        'awards' was missing from its exclusion list, the awards
+                        tab rendered the real component *and* a "will be
+                        implemented in subsequent tasks" notice underneath it. */}
+                    {!['rankings', 'statistics', 'schedule', 'teams', 'pickems', 'awards', 'settings'].includes(activeTab) && (
                       <div className="text-center py-12">
                         <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                          {activeTab === 'pickems' && <Target className="h-8 w-8 text-primary" />}
                           {activeTab === 'seasons' && <Settings className="h-8 w-8 text-primary" />}
                           {activeTab === 'import' && <Download className="h-8 w-8 text-primary" />}
                         </div>
-                        <h3 className="text-lg font-semibold mb-2">
-                          Mobile {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} View
-                        </h3>
-                        <p className="text-muted-foreground text-sm mb-4">
-                          Mobile-specific {activeTab} component will be implemented in subsequent tasks.
+                        <h3 className="text-lg font-semibold mb-2">Not available on mobile</h3>
+                        <p className="text-muted-foreground text-sm">
+                          League administration is available on the settings page.
                         </p>
-                        <div className="bg-muted/50 rounded-lg p-4 text-left">
-                          <p className="text-xs text-muted-foreground font-medium mb-2">
-                            Implementation Status:
-                          </p>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            <li>✅ Mobile app shell with navigation system</li>
-                            <li>✅ Touch-optimized header and menu</li>
-                            <li>✅ Mobile-specific layout structure</li>
-                            <li>✅ Mobile Power Rankings component</li>
-                            <li>✅ Mobile Statistics component</li>
-                            <li>✅ Mobile Schedule component</li>
-                            <li>✅ Mobile Teams & Rosters component</li>
-                            <li>✅ Mobile Pick'ems component</li>
-                            <li>⏳ Mobile-specific {activeTab} component (next task)</li>
-                          </ul>
-                        </div>
                       </div>
                     )}
                   </div>
+                  </Suspense>
                 )}
               </CardContent>
               </Card>
@@ -484,8 +407,8 @@ const MobileFantasyFootballApp = () => {
         )}
       </main>
 
-      {/* Loading Overlay */}
-      {loading && (
+      {/* First load only — see the note on the desktop shell's overlay. */}
+      {isLoading && !activeSeason && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <Card className="p-6">
             <div className="flex items-center space-x-3">

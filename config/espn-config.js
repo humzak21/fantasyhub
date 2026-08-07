@@ -1,9 +1,50 @@
+// ESPN credentials come from the environment. Nothing secret lives in this
+// file -- see `.env.example` for the variables and
+// `.github/workflows/sync-week.yml` for how the scheduled sync supplies them.
+//
+// leagueId / seasonYear are fallbacks only. The active season row owns them
+// (seasons.espn_league_id, seasons.espn_season_year); scripts/sync-week.js
+// reads the season first and only falls back to these.
+
+/**
+ * ESPN issues SWID as a brace-wrapped UUID, and the braces are easy to lose
+ * when copying the cookie into a secret store or an .env file. The value is
+ * interpolated straight into a Cookie header (`SWID=${swid}`), so the stored
+ * form reaches ESPN verbatim.
+ *
+ * Both forms were tested against the live league and both authenticate, so this
+ * is normalisation toward the canonical form rather than a fix for a break —
+ * it just means the stored value can be pasted either way without anyone having
+ * to know which.
+ */
+const normaliseSwid = (value) => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith('{') && trimmed.endsWith('}') ? trimmed : `{${trimmed.replace(/^\{|\}$/g, '')}}`;
+};
+
 export const ESPN_CONFIG = {
-  leagueId: '67674700',
-  seasonYear: 2025,
-  
-  espnS2: 'AEBoXofXcKKvF3uE2f1BtrqqRYGvo7yQOJx0zxWqULZn6oudDJ%2F1bUxWEz9eMlRQQXCxBMP2MQfaqWauuAAw0Po9q%2FFU%2Bd86ORXJegzeqva%2FunOqLQ5WVZB5LLO9KZbYzHZvZ0EsEFxgmZgDQHU9cIM9tXwK%2BRKEWCWvPdciVq4Kpx8OFMKaRS5CNU2OM3qwxGvE2MZ2Z1zvcsMIL82QxnxvMGb%2FACZHctYe3eQ1mt03ajdXvaI4Fb15gijorByEaqzxS14jMvDr9IPIdA3Hj8uGNqRjFzH4AHGaTDVQaFlZYSxL5U4mxjOHH7o0aQLpu57M8mXFIpqLu5f81WnMK2y4',
-  swid: '{F87751DE-01E7-4DEE-A904-FCD7DDA1948A}'
+  leagueId: process.env.ESPN_LEAGUE_ID || '67674700',
+  seasonYear: process.env.ESPN_SEASON_YEAR ? Number(process.env.ESPN_SEASON_YEAR) : null,
+
+  espnS2: process.env.ESPN_S2 || null,
+  swid: normaliseSwid(process.env.ESPN_SWID)
+};
+
+/**
+ * Private-league requests need both cookies. Callers that need to fail loudly
+ * rather than silently fetching a public-league shape should call this.
+ */
+export const requireEspnCredentials = () => {
+  const missing = ['ESPN_S2', 'ESPN_SWID'].filter((name) => !process.env[name]);
+  if (missing.length) {
+    throw new Error(
+      `Missing ESPN credentials: ${missing.join(', ')}. ` +
+      'Set them in .env.local locally, or as repository secrets for the scheduled sync.'
+    );
+  }
+  return { espnS2: ESPN_CONFIG.espnS2, swid: ESPN_CONFIG.swid };
 };
 
 export const USAGE_INSTRUCTIONS = `
@@ -60,4 +101,8 @@ Run this command weekly to keep rosters updated:
 node scripts/updateRosters.js weekly
 `;
 
-console.log(USAGE_INSTRUCTIONS);
+// Printing on import used to spray this banner into every script and job that
+// merely read a league id. Callers that want it call printUsage().
+export function printUsage() {
+  console.log(USAGE_INSTRUCTIONS);
+}

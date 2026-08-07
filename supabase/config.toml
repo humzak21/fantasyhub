@@ -1,0 +1,15 @@
+# Supabase CLI configuration.
+# Remote project: kvcnijyyfylxfarrlxkv
+#
+# This project's schema is versioned in supabase/migrations/. Every schema
+# change must be a new migration file — do not paste DDL into the SQL editor.
+
+project_id = "fantasyhub"
+
+[db]
+# Must match the remote Postgres major version so `supabase db diff` produces
+# comparable output against a local shadow database.
+major_version = 17
+
+[db.migrations]
+schema_paths = []

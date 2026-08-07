@@ -5,17 +5,22 @@
  * Run this to set up divisions for playoff odds calculation.
  */
 
-import { SupabaseDataManager } from '../services/supabaseDataManager.js';
+import dotenv from 'dotenv';
+
+import { getDb, getContext } from '../services/db/index.js';
+
+// This script never loaded its environment, so it failed on the first client
+// call with "Missing SUPABASE_URL" regardless of the data layer under it.
+dotenv.config({ path: '.env.local' });
 
 async function ensureDivisions() {
-  const dataManager = new SupabaseDataManager();
+  const dataManager = getDb();
   
   try {
-    await dataManager.initialize();
     console.log('✓ Connected to database');
 
     // Get active season
-    const activeSeason = await dataManager.getActiveSeason();
+    const activeSeason = await dataManager.seasons.getActiveSeason();
     if (!activeSeason) {
       console.error('✗ No active season found');
       process.exit(1);
@@ -25,7 +30,7 @@ async function ensureDivisions() {
     console.log(`  Season ID: ${activeSeason.id}`);
 
     // Check for existing divisions
-    const { data: existingDivisions, error } = await dataManager.client
+    const { data: existingDivisions, error } = await getContext().client
       .from('divisions')
       .select('*')
       .eq('season_id', activeSeason.id)
@@ -43,7 +48,7 @@ async function ensureDivisions() {
       });
 
       // Count teams per division
-      const { data: teams } = await dataManager.client
+      const { data: teams } = await getContext().client
         .from('teams')
         .select('id, name, division_id')
         .eq('season_id', activeSeason.id);
@@ -74,7 +79,7 @@ async function ensureDivisions() {
     ];
 
     for (const divData of divisionsToCreate) {
-      const { data: newDivision, error: createError } = await dataManager.client
+      const { data: newDivision, error: createError } = await getContext().client
         .from('divisions')
         .insert({
           season_id: activeSeason.id,
@@ -102,15 +107,21 @@ async function ensureDivisions() {
   }
 }
 
-// Run the script
-ensureDivisions()
-  .then(() => {
-    console.log('\n✓ Script completed');
-    process.exit(0);
-  })
-  .catch(error => {
-    console.error('\n✗ Script failed:', error);
-    process.exit(1);
-  });
+
+// Only run when executed directly. Importing this module must not touch
+// production — see aug2026_refactor/07-frontend.md §7.
+const isMain = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMain) {
+  ensureDivisions()
+    .then(() => {
+      console.log('\n✓ Script completed');
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error('\n✗ Script failed:', error);
+      process.exit(1);
+    });
+}
 
 

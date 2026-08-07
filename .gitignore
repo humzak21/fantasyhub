@@ -101,8 +101,10 @@ coverage/
 # NYC test coverage
 .nyc_output
 
-# Test directories
-**/__tests__/
+# Tests are source. They were ignored wholesale because the dormant ffAnalytics
+# suites dominated the directory; those are gone with the subsystem (§7.4), the
+# suites written against the deleted architecture are gone with it (§8.3), and
+# what remains is tracked and green in CI.
 
 # Dependency directories
 jspm_packages/
@@ -212,3 +214,6 @@ authorized_keys
 .env.production.local
 .env.staging
 .env.staging.local
+# Supabase CLI local state (migrations themselves ARE tracked)
+supabase/.temp/
+supabase/.branches/
