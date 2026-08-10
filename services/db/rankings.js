@@ -7,17 +7,45 @@
  */
 
 import { PowerRankingCalculator } from '../powerRankingCalculator.js';
+import { POWER_RANKING_WEIGHTS } from '../../types/index.js';
 import { formatFromDatabase } from './caseMap.js';
 import { throwDbError } from './errors.js';
 import { createLogger } from './logger.js';
 import { getDivisionsForSeason } from './divisions.js';
 import { getCurrentWeek, getSeasonGames, toUiGame } from './games.js';
 import { getAllPlayers } from './players.js';
+import { getPlayerWeekStats } from './playerWeekStats.js';
 import { getAllRosters } from './rosters.js';
 import { resolveSeasonYear } from './seasons.js';
 import { getTeamsForSeason } from './teams.js';
 
 const log = createLogger('db:rankings');
+
+/** Every weighted component, unset. Used when the calculator produced none. */
+function emptyComponents() {
+  return Object.fromEntries(Object.keys(POWER_RANKING_WEIGHTS).map((key) => [key, null]));
+}
+
+/**
+ * The component shape of a snapshot written before 2026-08-10.
+ *
+ * Those rows have eight fixed columns naming components the algorithm no longer
+ * has. They are the only record of those weeks, so history keeps rendering them
+ * under their own names rather than pretending they are the new components.
+ */
+function legacyColumnsToComponents(row) {
+  return {
+    performanceScore: row.performanceScore ?? null,
+    teamStrength: row.teamStrength ?? null,
+    strengthOfSchedule: row.strengthOfSchedule ?? null,
+    momentumScore: row.momentumScore ?? null,
+    consistencyScore: row.consistencyScore ?? null,
+    injuryScore: row.injuryScore ?? null,
+    clutchScore: row.clutchScore ?? null,
+    allPlayWinPct: row.allPlayWinPct ?? null,
+    legacy: true
+  };
+}
 // Power rankings - always calculate live for accuracy
 export async function calculatePowerRankings(ctx, seasonId, weekNumber = null) {
 
@@ -99,6 +127,12 @@ export async function calculateLivePowerRankings(ctx, seasonId, weekNumber = nul
     // Get all rosters for the season and attach to teams
     const rostersByTeam = await getAllRosters(ctx, seasonId);
 
+    // What every rostered player scored, week by week. Without it the roster
+    // components are null and the rating renormalizes over the team ones.
+    const playerWeekStats = await getPlayerWeekStats(ctx, seasonId, {
+      throughWeek: currentWeek
+    });
+
     // Attach roster data to teams with division IDs
     const teamsWithRosters = teams.map(team => ({
       ...team,
@@ -124,7 +158,8 @@ export async function calculateLivePowerRankings(ctx, seasonId, weekNumber = nul
       players,
       null, // viewingWeek (use current)
       divisions || [],
-      regularSeasonWeeks
+      regularSeasonWeeks,
+      playerWeekStats
     );
 
     // Calculate all team stats with power rankings
@@ -194,16 +229,9 @@ export async function calculateLivePowerRankings(ctx, seasonId, weekNumber = nul
         powerRating: team.powerRating || 0,
         rankChange: rankChange,
         previousRank: previousRank,
-        powerRatingComponents: team.powerRatingComponents || {
-          performanceScore: 0,
-          teamStrength: 0,
-          strengthOfSchedule: 0,
-          momentumScore: 0,
-          consistencyScore: 0,
-          injuryScore: 0,
-          clutchScore: 0,
-          allPlayWinPct: 0
-        },
+        // Null, not zero: a component the calculator could not compute must not
+        // arrive at the UI looking like a team that scored nothing.
+        powerRatingComponents: team.powerRatingComponents || emptyComponents(),
         wins: team.wins || 0,
         losses: team.losses || 0,
         ties: team.ties || 0,
@@ -296,7 +324,13 @@ export async function getPowerRankingsHistory(ctx, seasonId, weekNumber = null) 
 
     if (error) throw error;
 
-    return data.map(formatFromDatabase);
+    return data.map((row) => {
+      const formatted = formatFromDatabase(row);
+      return {
+        ...formatted,
+        components: formatted.components ?? legacyColumnsToComponents(formatted)
+      };
+    });
   } catch (error) {
     throwDbError(error, 'Get power rankings history');
   }
@@ -336,14 +370,12 @@ export async function saveWeeklyPowerRankingsSnapshot(ctx, seasonId, weekNumber,
         team_id: teamId,
         rank: team.rank,
         power_rating: team.powerRating,
-        performance_score: team.powerRatingComponents?.performanceScore || 0,
-        team_strength: team.powerRatingComponents?.teamStrength || 0,
-        strength_of_schedule: team.powerRatingComponents?.strengthOfSchedule || 0,
-        momentum_score: team.powerRatingComponents?.momentumScore || 0,
-        consistency_score: team.powerRatingComponents?.consistencyScore || 0,
-        injury_score: team.powerRatingComponents?.injuryScore || 0,
-        clutch_score: team.powerRatingComponents?.clutchScore || 0,
-        all_play_win_pct: team.powerRatingComponents?.allPlayWinPct || 0,
+        // The eight legacy `*_score` columns are left NULL: they named a set of
+        // components that no longer exists, and writing zeros into them would
+        // make a missing component indistinguishable from a scored one. The
+        // components the calculator actually produced go in the jsonb column,
+        // already camelCase — `formatFromDatabase` leaves those keys alone.
+        components: team.powerRatingComponents ?? null,
         wins: team.wins,
         losses: team.losses,
         ties: team.ties,
@@ -449,11 +481,16 @@ export async function getAvailableSnapshotWeeks(ctx, seasonId) {
  * it wraps, straight into the database. Same queries, same calculator
  * arguments, now on the data layer's side of the boundary.
  *
- * It differs from `calculateLivePowerRankings` in two ways that matter:
- * rosters are not attached (the viewed week's roster is not reconstructable
- * from the current one), and it calls `getRankings()`, which applies the
- * previous week's ranks to produce rank *changes*, rather than
- * `calculateAllTeamStats()`.
+ * It differs from `calculateLivePowerRankings` in one way that matters: it
+ * calls `getRankings()`, which applies the previous week's ranks to produce
+ * rank *changes*, rather than `calculateAllTeamStats()`.
+ *
+ * The viewed week's roster used to be described here as "not reconstructable
+ * from the current one", and that was true — `rosters` is wiped on every sync.
+ * `player_week_stats` is exactly that reconstruction, so the roster components
+ * are available for past weeks now. The `rosters` table is still read, but only
+ * for the forward-looking outlook component, which the calculator computes only
+ * when the viewed week is the live one.
  *
  * @param {object} ctx
  * @param {string} seasonId
@@ -461,27 +498,42 @@ export async function getAvailableSnapshotWeeks(ctx, seasonId) {
  */
 export async function calculateRankingsForViewedWeek(ctx, seasonId, { week, viewingWeek = null, currentWeek }) {
   try {
-    const [teams, games, players, divisions, seasonRow] = await Promise.all([
-      getTeamsForSeason(ctx, seasonId),
-      getSeasonGames(ctx, seasonId),
-      getAllPlayers(ctx, seasonId),
-      getDivisionsForSeason(ctx, seasonId),
-      ctx.client.from('seasons').select('*').eq('id', seasonId).single()
-    ]);
+    const effectiveViewingWeek = viewingWeek || week;
+
+    const [teams, games, players, divisions, seasonRow, rostersByTeam, playerWeekStats] =
+      await Promise.all([
+        getTeamsForSeason(ctx, seasonId),
+        getSeasonGames(ctx, seasonId),
+        getAllPlayers(ctx, seasonId),
+        getDivisionsForSeason(ctx, seasonId),
+        ctx.client.from('seasons').select('*').eq('id', seasonId).single(),
+        getAllRosters(ctx, seasonId),
+        getPlayerWeekStats(ctx, seasonId, { throughWeek: effectiveViewingWeek })
+      ]);
 
     const previousRankings = week > 1 ? await getPreviousWeekRanks(ctx, seasonId, week) : null;
 
     const regularSeasonWeeks = seasonRow.data?.regular_season_weeks || 14;
 
+    const teamsWithRosters = teams.map((team) => ({
+      ...team,
+      roster: rostersByTeam?.[team.id]?.roster || []
+    }));
+
+    // The stale eighth argument this used to pass — `null` for a long-deleted
+    // `analyticsService` — shunted `divisions` into the `regularSeasonWeeks`
+    // slot and `regularSeasonWeeks` off the end, so the playoff odds calculator
+    // was built with no divisions and returned 0% for every team on every
+    // historical view.
     const calculator = new PowerRankingCalculator(
-      teams,
+      teamsWithRosters,
       games,
       currentWeek,
       players,
-      viewingWeek || week, // viewing week drives historical calculations
-      null, // analyticsService
+      effectiveViewingWeek, // viewing week drives historical calculations
       divisions,
-      regularSeasonWeeks
+      regularSeasonWeeks,
+      playerWeekStats
     );
 
     return await calculator.getRankings(previousRankings);
