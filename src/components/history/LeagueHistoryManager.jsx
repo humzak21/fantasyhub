@@ -6,7 +6,6 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useLeagueHistory } from '../../hooks/useLeagueHistory';
-import { getTeamOwnerNames } from '../../utils/displayNameUtils';
 
 // Import overview components
 import HistoryTimeline from './overview/HistoryTimeline';
