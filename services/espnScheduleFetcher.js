@@ -1,5 +1,26 @@
-import { getContext } from './db/index.js';
+/**
+ * A read-only ESPN client. No database access lives here any more: the staging
+ * writers (`saveScheduleToDatabase`, `getScheduleFromDatabase`) were the only
+ * reason this file knew about Supabase, and they are gone along with the
+ * `espn_teams`/`espn_matchups` tables they fed. Callers hand the parsed
+ * matchups to `services/db/games.js::upsertEspnGames`.
+ */
+
 import { extractOwnerInfo } from '../utils/ownerUtils.js';
+
+/**
+ * A team's display name as ESPN reports it.
+ *
+ * ESPN returns `name` ("Lightskin Empire") and `abbrev` ("LE") and, for several
+ * seasons now, nulls for `location`/`nickname`. This used to read
+ * `abbrev || location`, so every team name coming out of an import was the
+ * abbreviation — harmless while imports only ever created teams that already
+ * existed, and a league-wide rename the moment they started refreshing names.
+ */
+function espnTeamName(team, espnTeamId) {
+  const composed = [team?.location, team?.nickname].filter(Boolean).join(' ').trim();
+  return team?.name?.trim() || composed || team?.abbrev || `Team ${espnTeamId}`;
+}
 
 export class ESPNScheduleFetcher {
   constructor(leagueId, seasonYear, espnS2 = null, swid = null) {
@@ -8,84 +29,68 @@ export class ESPNScheduleFetcher {
     this.espnS2 = espnS2;
     this.swid = swid;
     this.baseUrl = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons';
-    // Resolved lazily so the process has finished loading env vars first. The
-    // dynamic import this replaces existed for the same reason; `getContext()`
-    // resolves its client on first call, so a static import is now enough.
-    this.ctx = null;
-  }
-
-  async initializeDataManager() {
-    if (!this.ctx) this.ctx = getContext();
   }
 
   async fetchLeagueSchedule() {
-    try {
-      const url = `${this.baseUrl}/${this.seasonYear}/segments/0/leagues/${this.leagueId}`;
-      const params = new URLSearchParams();
-      params.append('view', 'mMatchup');
-      params.append('view', 'mMatchupScore');
-      params.append('view', 'mScoreboard');
-      params.append('view', 'mTeam');
-      params.append('view', 'mSettings');
-      params.append('view', 'mMembers');
+    const url = `${this.baseUrl}/${this.seasonYear}/segments/0/leagues/${this.leagueId}`;
+    const params = new URLSearchParams();
+    params.append('view', 'mMatchup');
+    params.append('view', 'mMatchupScore');
+    params.append('view', 'mScoreboard');
+    params.append('view', 'mTeam');
+    params.append('view', 'mSettings');
+    params.append('view', 'mMembers');
 
-      const headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      };
+    const headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    };
 
-      if (this.espnS2 && this.swid) {
-        headers['Cookie'] = `espn_s2=${this.espnS2}; SWID=${this.swid}`;
-      }
-
-      const response = await fetch(`${url}?${params}`, {
-        method: 'GET',
-        headers
-      });
-
-      if (!response.ok) {
-        throw new Error(`ESPN API request failed: ${response.status} - ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      throw error;
+    if (this.espnS2 && this.swid) {
+      headers['Cookie'] = `espn_s2=${this.espnS2}; SWID=${this.swid}`;
     }
+
+    const response = await fetch(`${url}?${params}`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`ESPN API request failed: ${response.status} - ${response.statusText}`);
+    }
+
+    return await response.json();
   }
 
   async fetchScheduleByWeek(weekNumber) {
-    try {
-      const url = `${this.baseUrl}/${this.seasonYear}/segments/0/leagues/${this.leagueId}`;
-      const params = new URLSearchParams();
-      params.append('view', 'mMatchup');
-      params.append('view', 'mMatchupScore');
-      params.append('view', 'mScoreboard');
-      params.append('view', 'mTeam');
-      params.append('view', 'mMembers'); // Add members view to get owner info
-      params.append('scoringPeriodId', weekNumber.toString());
+    const url = `${this.baseUrl}/${this.seasonYear}/segments/0/leagues/${this.leagueId}`;
+    const params = new URLSearchParams();
+    params.append('view', 'mMatchup');
+    params.append('view', 'mMatchupScore');
+    params.append('view', 'mScoreboard');
+    params.append('view', 'mTeam');
+    params.append('view', 'mMembers'); // Add members view to get owner info
+    params.append('scoringPeriodId', weekNumber.toString());
 
-      const headers = {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      };
+    const headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    };
 
-      if (this.espnS2 && this.swid) {
-        headers['Cookie'] = `espn_s2=${this.espnS2}; SWID=${this.swid}`;
-      }
-
-      const response = await fetch(`${url}?${params}`, {
-        method: 'GET',
-        headers
-      });
-
-      if (!response.ok) {
-        throw new Error(`ESPN API request failed: ${response.status} - ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      throw error;
+    if (this.espnS2 && this.swid) {
+      headers['Cookie'] = `espn_s2=${this.espnS2}; SWID=${this.swid}`;
     }
+
+    const response = await fetch(`${url}?${params}`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`ESPN API request failed: ${response.status} - ${response.statusText}`);
+    }
+
+    return await response.json();
   }
 
   parseMatchupData(matchup, teams, settings, members = []) {
@@ -96,17 +101,21 @@ export class ESPNScheduleFetcher {
     const homeOwnerInfo = homeTeam ? extractOwnerInfo(homeTeam, members) : { ownerId: null, ownerName: null };
     const awayOwnerInfo = awayTeam ? extractOwnerInfo(awayTeam, members) : { ownerId: null, ownerName: null };
     
-    // Get playoff info if available - only consider it playoff if playoffTierType is a positive number
+    // `playoffTierType` is a string — 'NONE', 'WINNERS_BRACKET',
+    // 'LOSERS_CONSOLATION_LADDER', 'WINNERS_CONSOLATION_LADDER'. This used to
+    // test `playoffTierType > 0`, which is false for every string, so no
+    // matchup was ever recognised as a playoff game and the 2025 bracket had to
+    // be typed by hand afterwards.
     const playoffTierType = matchup.playoffTierType;
-    const isPlayoff = playoffTierType != null && playoffTierType > 0;
-    
+    const isPlayoff = Boolean(playoffTierType) && playoffTierType !== 'NONE';
+
     return {
       matchupId: matchup.id,
       week: matchup.matchupPeriodId,
-      scoringPeriodId: matchup.scoringPeriodId,
+      scoringPeriodId: matchup.scoringPeriodId ?? null,
       homeTeam: {
         teamId: matchup.home?.teamId,
-        teamName: homeTeam?.abbrev || homeTeam?.location || `Team ${matchup.home?.teamId}`,
+        teamName: espnTeamName(homeTeam, matchup.home?.teamId),
         ownerId: homeOwnerInfo.ownerId,
         ownerName: homeOwnerInfo.ownerName,
         score: matchup.home?.totalPoints || 0,
@@ -115,7 +124,7 @@ export class ESPNScheduleFetcher {
       },
       awayTeam: {
         teamId: matchup.away?.teamId,
-        teamName: awayTeam?.abbrev || awayTeam?.location || `Team ${matchup.away?.teamId}`,
+        teamName: espnTeamName(awayTeam, matchup.away?.teamId),
         ownerId: awayOwnerInfo.ownerId,
         ownerName: awayOwnerInfo.ownerName,
         score: matchup.away?.totalPoints || 0,
@@ -123,7 +132,11 @@ export class ESPNScheduleFetcher {
         rosterForCurrentScoringPeriod: matchup.away?.rosterForCurrentScoringPeriod || null
       },
       winner: this.determineWinner(matchup),
-      status: this.getMatchupStatus(matchup, settings),
+      // ESPN's own verdict — 'HOME' | 'AWAY' | 'TIE' | 'UNDECIDED'. It is the
+      // only reliable "has this been played" signal; comparing scores to zero
+      // cannot tell a scheduled week from a real 0-0.
+      espnWinner: matchup.winner ?? null,
+      status: this.getMatchupStatus(matchup),
       isPlayoff,
       playoffTierType,
       playoffRound: this.getPlayoffRound(playoffTierType),
@@ -147,361 +160,137 @@ export class ESPNScheduleFetcher {
     return 'AWAY';
   }
 
-  getMatchupStatus(matchup, settings) {
-    const currentScoringPeriod = settings?.scoringSettings?.scoringPeriodId || 1;
-    const matchupPeriod = matchup.scoringPeriodId;
-    
-    if (matchupPeriod < currentScoringPeriod) return 'COMPLETED';
-    if (matchupPeriod === currentScoringPeriod) return 'IN_PROGRESS';
-    return 'SCHEDULED';
+  /**
+   * Where a matchup is in its life.
+   *
+   * This used to read `settings.scoringSettings.scoringPeriodId` — a field that
+   * does not exist; the current period is on the league envelope, not under
+   * settings — so it defaulted to 1 and called almost everything SCHEDULED.
+   * ESPN's own `winner` answers the question directly and needs no plumbing.
+   */
+  getMatchupStatus(matchup) {
+    return matchup.winner && matchup.winner !== 'UNDECIDED' ? 'COMPLETED' : 'SCHEDULED';
   }
 
+  /**
+   * ESPN's bracket name for a matchup.
+   *
+   * The tier says which bracket a game belongs to, not which round — the round
+   * depends on how far into the postseason the week is, so it is resolved from
+   * the week in `services/espnGameMapper.js::resolveGameType`. This stays for
+   * display and for the import log.
+   */
   getPlayoffRound(playoffTierType) {
-    if (playoffTierType === null || playoffTierType === undefined) return null;
-    
-    const playoffRounds = {
-      1: 'CHAMPIONSHIP',
-      2: 'SEMIFINALS', 
-      3: 'QUARTERFINALS',
-      4: 'FIRST_ROUND',
-      // Consolation bracket
-      10: 'CONSOLATION_CHAMPIONSHIP',
-      11: 'CONSOLATION_SEMIFINALS'
-    };
-    
-    return playoffRounds[playoffTierType] || `PLAYOFF_TIER_${playoffTierType}`;
+    if (!playoffTierType || playoffTierType === 'NONE') return null;
+    return playoffTierType;
   }
 
   async getFullSeasonSchedule() {
-    try {
-      
-      const leagueData = await this.fetchLeagueSchedule();
-      
-      if (!leagueData.schedule) {
-        throw new Error('No schedule data found in ESPN response');
-      }
+    const leagueData = await this.fetchLeagueSchedule();
 
-      const teams = leagueData.teams || [];
-      const settings = leagueData.settings || {};
-      const members = leagueData.members || [];
-      
-      // Parse all matchups
-      const allMatchups = leagueData.schedule.map(matchup => 
-        this.parseMatchupData(matchup, teams, settings, members)
-      );
-
-      // Group by week
-      const scheduleByWeek = {};
-      allMatchups.forEach(matchup => {
-        const week = matchup.week;
-        if (!scheduleByWeek[week]) {
-          scheduleByWeek[week] = [];
-        }
-        scheduleByWeek[week].push(matchup);
-      });
-
-      // Sort weeks
-      const sortedWeeks = Object.keys(scheduleByWeek)
-        .map(Number)
-        .sort((a, b) => a - b);
-
-      const scheduleData = {
-        leagueInfo: {
-          leagueId: this.leagueId,
-          seasonYear: this.seasonYear,
-          leagueName: settings.name || 'Unnamed League',
-          teamCount: teams.length,
-          regularSeasonLength: settings.scheduleSettings?.matchupPeriodCount || 14,
-          playoffTeamCount: settings.scheduleSettings?.playoffTeamCount || 4
-        },
-        teams: teams.map(team => {
-          const ownerInfo = extractOwnerInfo(team, members);
-          return {
-            teamId: team.id,
-            teamName: team.abbrev || team.location || `Team ${team.id}`,
-            abbreviation: team.abbrev,
-            location: team.location,
-            nickname: team.nickname,
-            owners: team.owners || [],
-            ownerId: ownerInfo.ownerId,
-            ownerName: ownerInfo.ownerName,
-            record: {
-              wins: team.record?.overall?.wins || 0,
-              losses: team.record?.overall?.losses || 0,
-              ties: team.record?.overall?.ties || 0,
-              pointsFor: team.record?.overall?.pointsFor || 0,
-              pointsAgainst: team.record?.overall?.pointsAgainst || 0
-            }
-          };
-        }),
-        schedule: scheduleByWeek,
-        weekNumbers: sortedWeeks,
-        totalMatchups: allMatchups.length,
-        regularSeasonMatchups: allMatchups.filter(m => !m.isPlayoff).length,
-        playoffMatchups: allMatchups.filter(m => m.isPlayoff).length,
-        rawData: leagueData // Store original ESPN response
-      };
-
-      return scheduleData;
-    } catch (error) {
-      throw error;
+    if (!leagueData.schedule) {
+      throw new Error('No schedule data found in ESPN response');
     }
-  }
 
-  async saveScheduleToDatabase(scheduleData) {
-    try {
-      await this.initializeDataManager();
-      
-      
-      // Create schedule import record
-      const importData = {
-        espn_league_id: scheduleData.leagueInfo.leagueId,
-        season_year: scheduleData.leagueInfo.seasonYear,
-        league_name: scheduleData.leagueInfo.leagueName,
-        team_count: scheduleData.leagueInfo.teamCount,
-        total_matchups: scheduleData.totalMatchups,
-        regular_season_matchups: scheduleData.regularSeasonMatchups,
-        playoff_matchups: scheduleData.playoffMatchups,
-        raw_data: scheduleData.rawData
-      };
+    const teams = leagueData.teams || [];
+    const settings = leagueData.settings || {};
+    const members = leagueData.members || [];
 
+    // Parse all matchups
+    const allMatchups = leagueData.schedule.map(matchup =>
+      this.parseMatchupData(matchup, teams, settings, members)
+    );
 
-      const { data: importRecord, error: importError } = await this.ctx.client
-        .from('espn_schedule_imports')
-        .insert(importData)
-        .select()
-        .single();
+    // Group by week
+    const scheduleByWeek = {};
+    allMatchups.forEach(matchup => {
+      const week = matchup.week;
+      if (!scheduleByWeek[week]) {
+        scheduleByWeek[week] = [];
+      }
+      scheduleByWeek[week].push(matchup);
+    });
 
-      if (importError) throw importError;
-      
+    // Sort weeks
+    const sortedWeeks = Object.keys(scheduleByWeek)
+      .map(Number)
+      .sort((a, b) => a - b);
 
-      // Save teams
-      const teamInserts = scheduleData.teams.map(team => {
-        const teamData = {
-          import_id: importRecord.id,
-          espn_team_id: team.teamId,
-          team_name: team.teamName,
-          abbreviation: team.abbreviation,
+    const scheduleData = {
+      leagueInfo: {
+        leagueId: this.leagueId,
+        seasonYear: this.seasonYear,
+        leagueName: settings.name || 'Unnamed League',
+        teamCount: teams.length,
+        regularSeasonLength: settings.scheduleSettings?.matchupPeriodCount || 14,
+        playoffTeamCount: settings.scheduleSettings?.playoffTeamCount || 4
+      },
+      // The period ESPN is currently scoring, from the league envelope. It is
+      // not under `settings` — `getMatchupStatus` looked for it there, found
+      // nothing, and defaulted to 1, which marked every matchup SCHEDULED.
+      currentScoringPeriod:
+        leagueData.scoringPeriodId ?? leagueData.status?.currentMatchupPeriod ?? null,
+      teams: teams.map(team => {
+        const ownerInfo = extractOwnerInfo(team, members);
+        return {
+          teamId: team.id,
+          teamName: espnTeamName(team, team.id),
+          abbreviation: team.abbrev,
           location: team.location,
           nickname: team.nickname,
-          owners: team.owners,
-          owner_id: team.ownerId,
-          owner_name: team.ownerName,
-          record: team.record
+          owners: team.owners || [],
+          ownerId: ownerInfo.ownerId,
+          ownerName: ownerInfo.ownerName,
+          record: {
+            wins: team.record?.overall?.wins || 0,
+            losses: team.record?.overall?.losses || 0,
+            ties: team.record?.overall?.ties || 0,
+            pointsFor: team.record?.overall?.pointsFor || 0,
+            pointsAgainst: team.record?.overall?.pointsAgainst || 0
+          }
         };
+      }),
+      schedule: scheduleByWeek,
+      weekNumbers: sortedWeeks,
+      totalMatchups: allMatchups.length,
+      regularSeasonMatchups: allMatchups.filter(m => !m.isPlayoff).length,
+      playoffMatchups: allMatchups.filter(m => m.isPlayoff).length,
+      rawData: leagueData // Store original ESPN response
+    };
 
-
-        return teamData;
-      });
-
-      const { data: savedTeams, error: teamsError } = await this.ctx.client
-        .from('espn_teams')
-        .insert(teamInserts)
-        .select();
-
-      if (teamsError) throw teamsError;
-      
-
-      // Create team mapping for matchup references
-      const teamMapping = {};
-      savedTeams.forEach(team => {
-        teamMapping[team.espn_team_id] = team.id;
-      });
-
-      // Save matchups
-      const matchupInserts = [];
-      Object.values(scheduleData.schedule).flat().forEach(matchup => {
-        const matchupData = {
-          import_id: importRecord.id,
-          espn_matchup_id: matchup.matchupId,
-          week: matchup.week,
-          scoring_period_id: matchup.scoringPeriodId,
-          home_team_id: teamMapping[matchup.homeTeam.teamId],
-          home_espn_team_id: matchup.homeTeam.teamId,
-          home_team_name: matchup.homeTeam.teamName,
-          home_owner_id: matchup.homeTeam.ownerId,
-          home_owner_name: matchup.homeTeam.ownerName,
-          home_score: matchup.homeTeam.score,
-          home_projected_score: matchup.homeTeam.projectedScore,
-          away_team_id: teamMapping[matchup.awayTeam.teamId],
-          away_espn_team_id: matchup.awayTeam.teamId,
-          away_team_name: matchup.awayTeam.teamName,
-          away_owner_id: matchup.awayTeam.ownerId,
-          away_owner_name: matchup.awayTeam.ownerName,
-          away_score: matchup.awayTeam.score,
-          away_projected_score: matchup.awayTeam.projectedScore,
-          winner: matchup.winner,
-          status: matchup.status,
-          is_playoff: matchup.isPlayoff,
-          playoff_tier_type: matchup.playoffTierType,
-          playoff_round: matchup.playoffRound,
-          tiebreaker: matchup.tiebreaker,
-          espn_raw_data: matchup.espnMatchupData
-        };
-
-
-        matchupInserts.push(matchupData);
-      });
-
-      const { data: savedMatchups, error: matchupsError } = await this.ctx.client
-        .from('espn_matchups')
-        .insert(matchupInserts)
-        .select();
-
-      if (matchupsError) throw matchupsError;
-      
-
-      return {
-        importId: importRecord.id,
-        teams: savedTeams.length,
-        matchups: savedMatchups.length,
-        success: true
-      };
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async getScheduleFromDatabase(leagueId = null, seasonYear = null) {
-    try {
-      await this.initializeDataManager();
-      
-      const queryLeagueId = leagueId || this.leagueId;
-      const querySeasonYear = seasonYear || this.seasonYear;
-      
-      
-      // Get the most recent import for this league/season
-      const { data: importRecord, error: importError } = await this.ctx.client
-        .from('espn_schedule_imports')
-        .select('*')
-        .eq('espn_league_id', queryLeagueId)
-        .eq('season_year', querySeasonYear)
-        .order('imported_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (importError) {
-        if (importError.code === 'PGRST116') {
-          return null; // No data found
-        }
-        throw importError;
-      }
-
-      // Get teams for this import
-      const { data: teams, error: teamsError } = await this.ctx.client
-        .from('espn_teams')
-        .select('*')
-        .eq('import_id', importRecord.id)
-        .order('espn_team_id');
-
-      if (teamsError) throw teamsError;
-
-      // Get matchups for this import
-      const { data: matchups, error: matchupsError } = await this.ctx.client
-        .from('espn_matchups')
-        .select('*')
-        .eq('import_id', importRecord.id)
-        .order('week')
-        .order('espn_matchup_id');
-
-      if (matchupsError) throw matchupsError;
-
-      // Format data similar to the ESPN API response
-      const scheduleByWeek = {};
-      matchups.forEach(matchup => {
-        if (!scheduleByWeek[matchup.week]) {
-          scheduleByWeek[matchup.week] = [];
-        }
-        scheduleByWeek[matchup.week].push({
-          matchupId: matchup.espn_matchup_id,
-          week: matchup.week,
-          scoringPeriodId: matchup.scoring_period_id,
-          homeTeam: {
-            teamId: matchup.home_espn_team_id,
-            teamName: matchup.home_team_name,
-            score: parseFloat(matchup.home_score) || 0,
-            projectedScore: parseFloat(matchup.home_projected_score) || 0
-          },
-          awayTeam: {
-            teamId: matchup.away_espn_team_id,
-            teamName: matchup.away_team_name,
-            score: parseFloat(matchup.away_score) || 0,
-            projectedScore: parseFloat(matchup.away_projected_score) || 0
-          },
-          winner: matchup.winner,
-          status: matchup.status,
-          isPlayoff: matchup.is_playoff,
-          playoffTierType: matchup.playoff_tier_type,
-          playoffRound: matchup.playoff_round,
-          tiebreaker: matchup.tiebreaker,
-          espnMatchupData: matchup.espn_raw_data
-        });
-      });
-
-      const sortedWeeks = Object.keys(scheduleByWeek)
-        .map(Number)
-        .sort((a, b) => a - b);
-
-      return {
-        leagueInfo: {
-          leagueId: importRecord.espn_league_id,
-          seasonYear: importRecord.season_year,
-          leagueName: importRecord.league_name,
-          teamCount: importRecord.team_count,
-          totalMatchups: importRecord.total_matchups,
-          regularSeasonMatchups: importRecord.regular_season_matchups,
-          playoffMatchups: importRecord.playoff_matchups,
-          importedAt: importRecord.imported_at
-        },
-        teams: teams.map(team => ({
-          teamId: team.espn_team_id,
-          teamName: team.team_name,
-          abbreviation: team.abbreviation,
-          location: team.location,
-          nickname: team.nickname,
-          owners: team.owners,
-          record: team.record
-        })),
-        schedule: scheduleByWeek,
-        weekNumbers: sortedWeeks,
-        totalMatchups: matchups.length,
-        regularSeasonMatchups: matchups.filter(m => !m.is_playoff).length,
-        playoffMatchups: matchups.filter(m => m.is_playoff).length,
-        fromDatabase: true
-      };
-    } catch (error) {
-      throw error;
-    }
+    return scheduleData;
   }
 
   async getScheduleByWeekRange(startWeek, endWeek) {
-    try {
+    const weeklyData = [];
 
-      const weeklyData = [];
-      for (let week = startWeek; week <= endWeek; week++) {
-        try {
-          const weekData = await this.fetchScheduleByWeek(week);
-          if (weekData.schedule) {
-            // Filter matchups to only include those for the requested week
-            const filteredMatchups = weekData.schedule.filter(matchup =>
-              matchup.matchupPeriodId === week || matchup.scoringPeriodId === week
-            );
+    for (let week = startWeek; week <= endWeek; week++) {
+      try {
+        const weekData = await this.fetchScheduleByWeek(week);
+        if (weekData.schedule) {
+          // Filter matchups to only include those for the requested week
+          const filteredMatchups = weekData.schedule.filter(matchup =>
+            matchup.matchupPeriodId === week || matchup.scoringPeriodId === week
+          );
 
-            weeklyData.push({
-              week,
-              matchups: filteredMatchups.map(matchup =>
-                this.parseMatchupData(matchup, weekData.teams || [], weekData.settings || {}, weekData.members || [])
-              )
-            });
-          }
-        } catch (weekError) {
+          weeklyData.push({
+            week,
+            currentScoringPeriod:
+              weekData.scoringPeriodId ?? weekData.status?.currentMatchupPeriod ?? null,
+            matchups: filteredMatchups.map(matchup =>
+              this.parseMatchupData(matchup, weekData.teams || [], weekData.settings || {}, weekData.members || [])
+            )
+          });
         }
+      } catch (weekError) {
+        // A week that fails to fetch used to disappear in silence. The caller
+        // now writes games from this, so a missing week means a missing
+        // matchup — say so rather than importing a hole.
+        console.warn(`⚠️  ESPN week ${week} could not be fetched: ${weekError.message}`);
       }
-
-      return weeklyData;
-    } catch (error) {
-      throw error;
     }
+
+    return weeklyData;
   }
 
   async validateConnection() {
@@ -533,15 +322,8 @@ export async function createScheduleFetcher(leagueId, seasonYear, espnS2 = null,
       return await fetcher.validateConnection();
     },
 
-    async getFullSeason(saveToDb = false) {
-      const scheduleData = await fetcher.getFullSeasonSchedule();
-      
-      if (saveToDb) {
-        const dbResult = await fetcher.saveScheduleToDatabase(scheduleData);
-        scheduleData.dbImport = dbResult;
-      }
-      
-      return scheduleData;
+    async getFullSeason() {
+      return await fetcher.getFullSeasonSchedule();
     },
 
     async getWeekRange(startWeek, endWeek) {
@@ -551,14 +333,6 @@ export async function createScheduleFetcher(leagueId, seasonYear, espnS2 = null,
     async getSingleWeek(weekNumber) {
       const weekData = await fetcher.getScheduleByWeekRange(weekNumber, weekNumber);
       return weekData.length > 0 ? weekData[0] : null;
-    },
-
-    async saveToDatabase(scheduleData) {
-      return await fetcher.saveScheduleToDatabase(scheduleData);
-    },
-
-    async loadFromDatabase(leagueId = null, seasonYear = null) {
-      return await fetcher.getScheduleFromDatabase(leagueId, seasonYear);
     }
   };
 }

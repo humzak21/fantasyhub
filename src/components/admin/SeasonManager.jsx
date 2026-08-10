@@ -1,5 +1,36 @@
-import React, { useState } from 'react';
-import { Plus, Edit3, Trash2, Play, Calendar, Users, Trophy, Settings, Download, Upload } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Edit3, Trash2, Play, Calendar, Users, Trophy, Settings, Download, Upload, AlertTriangle } from 'lucide-react';
+
+/** How `copyFrom` below maps onto the data layer's `copyTeamsFromSeasonId`. */
+const COPY_PREVIOUS = 'previous';
+const COPY_NONE = 'none';
+
+/**
+ * What to tell the admin after a create. The team copy is deliberately
+ * non-fatal in the data layer — the season exists either way — so a failed
+ * copy has to be reported here rather than swallowed.
+ */
+const describeCreatedSeason = (season, year) => {
+  if (season?.teamCopyError) {
+    return {
+      type: 'warning',
+      text: `Created the ${year} season, but its teams could not be copied over: ${season.teamCopyError}. Add them manually, or delete the season and try again.`
+    };
+  }
+
+  if (season?.teamsCopiedFrom) {
+    const count = season.teams?.length ?? 0;
+    return {
+      type: 'success',
+      text: `Created the ${year} season with ${count} teams carried over from ${season.teamsCopiedFrom.year}. Records and rosters start empty.`
+    };
+  }
+
+  return {
+    type: 'success',
+    text: `Created the ${year} season with no teams. Add them here or import them from ESPN.`
+  };
+};
 
 const SeasonManager = ({ 
   seasons = [], 
@@ -22,18 +53,40 @@ const SeasonManager = ({
     playoffWeeks: 3
   });
   const [importData, setImportData] = useState('');
+  // 'previous' | 'none' | a season id. The league is the same owners every
+  // year, so carrying last season forward is the default.
+  const [copyFrom, setCopyFrom] = useState(COPY_PREVIOUS);
+  const [notice, setNotice] = useState(null);
+
+  /** What 'previous' resolves to, so the form can name it before submitting. */
+  const previousSeason = useMemo(() => {
+    return seasons
+      .filter(season => season.year < formData.year)
+      .sort((a, b) => b.year - a.year)[0] ?? null;
+  }, [seasons, formData.year]);
+
+  const copySource = copyFrom === COPY_PREVIOUS
+    ? previousSeason
+    : seasons.find(season => season.id === copyFrom) ?? null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await onCreateSeason(
+      // undefined lets the data layer pick the previous season itself; null
+      // means an empty season.
+      const copyTeamsFromSeasonId =
+        copyFrom === COPY_PREVIOUS ? undefined : copyFrom === COPY_NONE ? null : copyFrom;
+
+      const season = await onCreateSeason(
         formData.year,
         formData.name,
         formData.leagueSize,
         formData.regularSeasonWeeks,
-        formData.playoffWeeks
+        formData.playoffWeeks,
+        copyTeamsFromSeasonId
       );
       setShowCreateForm(false);
+      setNotice(describeCreatedSeason(season, formData.year));
       setFormData({
         year: new Date().getFullYear() + 1,
         name: '',
@@ -41,6 +94,7 @@ const SeasonManager = ({
         regularSeasonWeeks: 14,
         playoffWeeks: 3
       });
+      setCopyFrom(COPY_PREVIOUS);
     } catch (error) {
       alert('Error creating season: ' + error.message);
     }
@@ -117,6 +171,27 @@ const SeasonManager = ({
         )}
       </div>
 
+      {/* Outcome of the last create, including a copy that did not happen */}
+      {notice && (
+        <div
+          className={`flex items-start gap-2 rounded-lg border p-4 ${
+            notice.type === 'warning'
+              ? 'border-yellow-200 bg-yellow-50 text-yellow-900'
+              : 'border-green-200 bg-green-50 text-green-900'
+          }`}
+        >
+          {notice.type === 'warning' && <AlertTriangle size={18} className="mt-0.5 shrink-0" />}
+          <p className="text-sm flex-1">{notice.text}</p>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="text-sm underline opacity-70 hover:opacity-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Create Season Form */}
       {showCreateForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -188,6 +263,36 @@ const SeasonManager = ({
                 </div>
               </div>
               
+              <div>
+                <label className="block text-sm font-medium mb-1">Teams</label>
+                <select
+                  value={copyFrom}
+                  onChange={(e) => setCopyFrom(e.target.value)}
+                  className="w-full p-2 border rounded-lg"
+                >
+                  <option value={COPY_PREVIOUS}>
+                    {previousSeason
+                      ? `Carry over from ${previousSeason.year} (previous season)`
+                      : 'Carry over from the previous season'}
+                  </option>
+                  {seasons
+                    .filter(season => season.id !== previousSeason?.id)
+                    .map(season => (
+                      <option key={season.id} value={season.id}>
+                        Carry over from {season.year}
+                      </option>
+                    ))}
+                  <option value={COPY_NONE}>Start empty (add teams manually)</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  {copyFrom === COPY_NONE
+                    ? 'No teams or divisions will be created.'
+                    : copySource
+                      ? `Copies ${copySource.teams?.length ?? 0} teams and their divisions from ${copySource.year}. Names, owners and ESPN ids carry over; records, rosters and rankings start empty.`
+                      : 'No earlier season to copy from — this season will start empty.'}
+                </p>
+              </div>
+
               <div className="flex gap-2 mt-6">
                 <button
                   type="button"

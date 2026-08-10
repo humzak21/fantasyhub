@@ -1,92 +1,54 @@
 #!/usr/bin/env node
 
-// Load environment variables for Node.js
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
+/**
+ * Read-only ESPN inspection.
+ *
+ * This used to be the front half of the import pipeline: `full` and `export`
+ * staged a season into `espn_schedule_imports` / `espn_teams` / `espn_matchups`
+ * for an admin to approve in the browser, `teams` wrote teams directly, and
+ * `update-scores` was a second copy of the weekly score sync. All four are gone
+ * — `npm run sync-schedule` imports a season and `npm run sync-week` keeps it
+ * current, both through the same upsert.
+ *
+ * What is left is what this was always most useful for: checking that the
+ * credentials work and seeing what ESPN is actually returning, without writing
+ * anything.
+ *
+ * Usage:
+ *   node scripts/fetchSchedule.js test              # check the connection
+ *   node scripts/fetchSchedule.js week 5            # one week's matchups
+ *   node scripts/fetchSchedule.js range 1 4         # a span of weeks
+ *
+ * Options: --season <year>  override the configured season
+ *          --pretty         print the parsed payload
+ */
+
+import 'dotenv/config';
 
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
-import { ESPN_CONFIG } from '../config/espn-config.js';
-import { getDb, getContext } from '../services/db/index.js';
-import { writeFileSync } from 'fs';
-import { resolve } from 'path';
-
-const config = ESPN_CONFIG;
+import { ESPN_CONFIG as config } from '../config/espn-config.js';
 
 function printUsage() {
   console.log(`
-🏈 ESPN Fantasy Football Schedule Fetcher
-========================================
+🏈 ESPN schedule inspector (read-only)
 
-Usage: node scripts/fetchSchedule.js [command] [options]
+  node scripts/fetchSchedule.js test           Verify league access
+  node scripts/fetchSchedule.js week <n>       Fetch one week
+  node scripts/fetchSchedule.js range <a> <b>  Fetch a span of weeks
 
-WORKFLOWS:
-1. Admin Import Flow (Recommended):
-   - Use 'full' command to import schedule + teams for admin approval
-   - Admin uses ScheduleImportManager to assign to season
+Options
+  --season <year>   Override the configured season year
+  --pretty          Print the parsed matchups as indented JSON
 
-2. Direct Import Flow:
-   - Use 'teams' or --import-teams to import directly to existing season
-
-Required Configuration:
-You need to set up your ESPN league details in one of these ways:
-
-1. Edit config/espn-config.js and set:
-   leagueId: Your ESPN league ID (found in ESPN URL)
-   seasonYear: Season year to fetch (e.g., 2024, 2023, 2022)
-
-2. For private leagues, also set:
-   espnS2: ESPN S2 cookie value
-   swid: ESPN SWID cookie value
-
-To find your cookies (for private leagues):
-1. Go to your ESPN fantasy league in browser
-2. Open Developer Tools (F12)
-3. Go to Application/Storage > Cookies > espn.com
-4. Find 'espn_s2' and 'SWID' values
-
-Commands:
-  test                    - Test connection to ESPN league
-  full                    - Fetch complete season schedule and teams (for admin import)
-  week <number>           - Fetch single week schedule
-  range <start> <end>     - Fetch schedule for week range
-  export                  - Fetch and export to JSON file
-  teams <season-id>       - Import teams directly to existing season
-  teams-only <season-id>  - Fetch and import only teams (no schedule)
-  update-scores <season-id> <week>  - Update scores for a specific week (matches by owner names)
-
-Options:
-  --season <year>         - Override season year from config
-  --output <filename>     - Specify output filename (for export)
-  --pretty                - Pretty print JSON output
-  --import-teams <season-id> - Import teams directly to existing season (for full/export)
-
-Examples:
-  # Admin Import Flow (Recommended)
-  node scripts/fetchSchedule.js full
-
-  # Direct Import Flow
-  node scripts/fetchSchedule.js teams abc123-def4-5678-9012-34567890abcd
-  node scripts/fetchSchedule.js full --import-teams abc123-def4-5678-9012-34567890abcd
-
-  # Other Commands
-  node scripts/fetchSchedule.js test
-  node scripts/fetchSchedule.js week 5
-  node scripts/fetchSchedule.js range 1 14
-  node scripts/fetchSchedule.js export --output schedule-2024.json
-  node scripts/fetchSchedule.js teams-only abc123-def4-5678-9012-34567890abcd
-
-  # Weekly Score Updates
-  node scripts/fetchSchedule.js update-scores abc123-def4-5678-9012-34567890abcd 5
+To write to the database use the sync jobs instead:
+  npm run sync-schedule    Import a whole season (teams + games)
+  npm run sync-week        Sync the current week's scores
 `);
 }
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const parsed = {
-    command: args[0],
-    params: [],
-    options: {}
-  };
+  const parsed = { command: args[0], params: [], options: {} };
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i];
@@ -94,7 +56,7 @@ function parseArgs() {
       const option = arg.substring(2);
       if (i + 1 < args.length && !args[i + 1].startsWith('--')) {
         parsed.options[option] = args[i + 1];
-        i++; // Skip the next arg since it's the value
+        i++;
       } else {
         parsed.options[option] = true;
       }
@@ -106,197 +68,6 @@ function parseArgs() {
   return parsed;
 }
 
-function formatScheduleOutput(data, pretty = false) {
-  if (pretty) {
-    return JSON.stringify(data, null, 2);
-  }
-  return JSON.stringify(data);
-}
-
-async function importTeamsToSeason(seasonId, teamsData) {
-  console.log(`\n🏈 Importing ${teamsData.length} teams to season ${seasonId}...`);
-
-  let dataManager;
-  try {
-    dataManager = getDb();
-  } catch (error) {
-    console.error(`❌ Failed to initialize database connection: ${error.message}`);
-    console.error(`\n💡 Make sure your .env.local file contains the required Supabase configuration:`);
-    console.error(`   VITE_SUPABASE_URL=your-supabase-url`);
-    console.error(`   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key`);
-    console.error(`   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key (for Node.js scripts)`);
-    throw new Error('Database initialization failed');
-  }
-
-  const importedTeams = [];
-  const errors = [];
-
-  for (const team of teamsData) {
-    try {
-      console.log(`   Adding: ${team.teamName} (Owner: ${team.ownerName || 'Unknown'})`);
-
-      const addedTeam = await dataManager.teams.addTeamToSeason(
-        seasonId,
-        team.teamName,
-        team.ownerName || team.abbreviation || ''
-      );
-
-      // Update the team with ESPN team ID for future reference
-      if (addedTeam && team.teamId) {
-        await dataManager.teams.updateTeam(seasonId, addedTeam.id, {
-          espnTeamId: team.teamId
-        });
-      }
-
-      importedTeams.push({
-        ...addedTeam,
-        espnTeamId: team.teamId,
-        originalData: team
-      });
-
-    } catch (error) {
-      console.error(`   ❌ Failed to add ${team.teamName}: ${error.message}`);
-      errors.push({ team: team.teamName, error: error.message });
-    }
-  }
-
-  console.log(`\n✅ Teams import completed!`);
-  console.log(`   Successfully imported: ${importedTeams.length}`);
-  console.log(`   Errors: ${errors.length}`);
-
-  if (errors.length > 0) {
-    console.log(`\n❌ Import Errors:`);
-    errors.forEach(err => {
-      console.log(`   - ${err.team}: ${err.error}`);
-    });
-  }
-
-  return {
-    imported: importedTeams,
-    errors,
-    success: errors.length === 0
-  };
-}
-
-async function updateWeeklyScores(seasonId, weekNumber, espnMatchups) {
-  console.log(`\n🔄 Updating scores for Week ${weekNumber}...`);
-
-  let dataManager;
-  try {
-    dataManager = getDb();
-  } catch (error) {
-    console.error(`❌ Failed to initialize database: ${error.message}`);
-    throw new Error('Database initialization failed');
-  }
-
-  // Get season and teams
-  const season = await dataManager.seasons.getSeason(seasonId);
-  if (!season) {
-    throw new Error(`Season ${seasonId} not found`);
-  }
-
-  // Get games for this week
-  const games = await dataManager.games.getGamesForWeek(seasonId, weekNumber);
-  if (!games || games.length === 0) {
-    throw new Error(`No games found for week ${weekNumber}`);
-  }
-
-  console.log(`   Found ${games.length} games and ${espnMatchups.length} ESPN matchups`);
-
-  // Create ESPN team ID to database team mapping
-  const espnIdToTeam = {};
-  season.teams.forEach(team => {
-    if (team.espnTeamId) {
-      espnIdToTeam[team.espnTeamId] = team;
-    }
-  });
-
-  const updated = [];
-  const errors = [];
-
-  for (const espnMatchup of espnMatchups) {
-    try {
-      // Skip if not this week
-      if (espnMatchup.week !== weekNumber && espnMatchup.scoringPeriodId !== weekNumber) {
-        continue;
-      }
-
-      // Match teams by ESPN ID
-      const homeTeam = espnIdToTeam[espnMatchup.homeTeam.teamId];
-      const awayTeam = espnIdToTeam[espnMatchup.awayTeam.teamId];
-
-      if (!homeTeam || !awayTeam) {
-        continue; // Skip if can't match teams
-      }
-
-      // Find the game
-      const game = games.find(g =>
-        (g.team1Id === homeTeam.id && g.team2Id === awayTeam.id) ||
-        (g.team1Id === awayTeam.id && g.team2Id === homeTeam.id)
-      );
-
-      if (!game) {
-        continue; // Skip if no matching game found
-      }
-
-      // Assign scores based on which team is team1 vs team2 in the database
-      let team1Score, team2Score;
-      if (game.team1Id === homeTeam.id) {
-        team1Score = espnMatchup.homeTeam.score;
-        team2Score = espnMatchup.awayTeam.score;
-      } else {
-        team1Score = espnMatchup.awayTeam.score;
-        team2Score = espnMatchup.homeTeam.score;
-      }
-
-      // Update the game
-      const { error: updateError } = await getContext().client
-        .from('games')
-        .update({
-          team1_score: team1Score,
-          team2_score: team2Score
-        })
-        .eq('id', game.id);
-
-      if (updateError) throw updateError;
-
-      updated.push({
-        team1: season.teams.find(t => t.id === game.team1Id)?.name,
-        team2: season.teams.find(t => t.id === game.team2Id)?.name,
-        team1Score,
-        team2Score
-      });
-
-    } catch (error) {
-      errors.push({
-        matchup: `${espnMatchup.homeTeam.teamName} vs ${espnMatchup.awayTeam.teamName}`,
-        error: error.message
-      });
-    }
-  }
-
-  console.log(`\n✅ Updated ${updated.length} games`);
-
-  if (updated.length > 0) {
-    updated.forEach(u => {
-      console.log(`   ${u.team1} ${u.team1Score} - ${u.team2Score} ${u.team2}`);
-    });
-  }
-
-  if (errors.length > 0) {
-    console.log(`\n❌ ${errors.length} errors:`);
-    errors.forEach(err => {
-      console.log(`   ${err.matchup}: ${err.error}`);
-    });
-  }
-
-  return {
-    updated,
-    errors,
-    success: errors.length === 0
-  };
-}
-
 async function main() {
   const { command, params, options } = parseArgs();
 
@@ -305,282 +76,94 @@ async function main() {
     return;
   }
 
+  const seasonYear = options.season ? parseInt(options.season, 10) : config.seasonYear;
 
-  // Allow season override from command line
-  const seasonYear = options.season ? parseInt(options.season) : config.seasonYear;
-  
   if (!config.leagueId) {
-    console.error('❌ Error: League ID not configured');
-    console.error('Run: node scripts/setupESPN.js');
-    console.error('Then edit config/espn-config.js with your league details');
+    console.error('❌ No ESPN league id. Set ESPN_LEAGUE_ID, or seasons.espn_league_id for the season.');
     process.exit(1);
   }
-
   if (!seasonYear) {
-    console.error('❌ Error: Season year not specified');
-    console.error('Set seasonYear in config/espn-config.js or use --season option');
+    console.error('❌ No season year. Set ESPN_SEASON_YEAR or pass --season <year>.');
     process.exit(1);
   }
 
-  try {
-    console.log(`🔧 Initializing ESPN schedule fetcher...`);
-    console.log(`   League ID: ${config.leagueId}`);
-    console.log(`   Season: ${seasonYear}`);
-    console.log(`   Private League: ${config.espnS2 ? 'Yes' : 'No'}`);
-    console.log('');
+  console.log(`🔧 ESPN league ${config.leagueId} · season ${seasonYear} · private: ${config.espnS2 ? 'yes' : 'no'}\n`);
 
-    const scheduleFetcher = await createScheduleFetcher(
-      config.leagueId,
-      seasonYear,
-      config.espnS2,
-      config.swid
-    );
+  const scheduleFetcher = await createScheduleFetcher(
+    config.leagueId, seasonYear, config.espnS2, config.swid
+  );
 
-    switch (command) {
-      case 'test':
-        console.log('🧪 Testing ESPN league connection...');
-        const testResult = await scheduleFetcher.testConnection();
-        if (testResult.success) {
-          console.log('✅ Connection successful!');
-          console.log(`   League: ${testResult.leagueName}`);
-          console.log(`   Teams: ${testResult.teamCount}`);
-          console.log(`   Total Matchups: ${testResult.matchupCount}`);
-        } else {
-          console.log('❌ Connection failed!');
-          console.error(testResult.error);
-          process.exit(1);
-        }
-        break;
-
-      case 'full':
-        console.log('📅 Fetching full season schedule...');
-        const fullSchedule = await scheduleFetcher.getFullSeason(true); // Save to DB by default
-
-        // Import teams if season ID provided
-        let teamsImportResult = null;
-        if (options['import-teams']) {
-          console.log('\n🏈 Importing teams to existing season...');
-          teamsImportResult = await importTeamsToSeason(options['import-teams'], fullSchedule.teams);
-        }
-
-        console.log('✅ Schedule fetched and saved to database!');
-        console.log(`   League: ${fullSchedule.leagueInfo.leagueName}`);
-        console.log(`   Teams: ${fullSchedule.leagueInfo.teamCount}`);
-        console.log(`   Total Matchups: ${fullSchedule.totalMatchups}`);
-        console.log(`   Regular Season: ${fullSchedule.regularSeasonMatchups}`);
-        console.log(`   Playoff Matchups: ${fullSchedule.playoffMatchups}`);
-        console.log(`   Weeks: ${fullSchedule.weekNumbers.join(', ')}`);
-        
-        if (fullSchedule.dbImport) {
-          console.log(`   Database Import ID: ${fullSchedule.dbImport.importId}`);
-          console.log(`   Status: PENDING (awaiting season assignment)`);
-        }
-
-        if (teamsImportResult) {
-          console.log(`\n🏈 Teams Import Results:`);
-          console.log(`   Successfully Imported: ${teamsImportResult.imported.length}`);
-          console.log(`   Import Errors: ${teamsImportResult.errors.length}`);
-        }
-
-        if (options.pretty || options.output) {
-          console.log('\n' + formatScheduleOutput(fullSchedule, options.pretty));
-        }
-        break;
-
-      case 'week': {
-        if (!params[0]) {
-          console.error('❌ Error: Week number required');
-          console.error('Usage: node scripts/fetchSchedule.js week <number>');
-          process.exit(1);
-        }
-
-        const weekNumber = parseInt(params[0]);
-        console.log(`📅 Fetching schedule for week ${weekNumber}...`);
-
-        const weekSchedule = await scheduleFetcher.getSingleWeek(weekNumber);
-        if (weekSchedule) {
-          console.log('✅ Week schedule fetched successfully!');
-          console.log(`   Week: ${weekSchedule.week}`);
-          console.log(`   Matchups: ${weekSchedule.matchups.length}`);
-          
-          if (options.pretty || options.output) {
-            console.log('\n' + formatScheduleOutput(weekSchedule, options.pretty));
-          }
-        } else {
-          console.log(`❌ No schedule found for week ${weekNumber}`);
-        }
-        break;
-      }
-
-      case 'range': {
-        if (!params[0] || !params[1]) {
-          console.error('❌ Error: Start and end week numbers required');
-          console.error('Usage: node scripts/fetchSchedule.js range <start> <end>');
-          process.exit(1);
-        }
-
-        const startWeek = parseInt(params[0]);
-        const endWeek = parseInt(params[1]);
-        console.log(`📅 Fetching schedule for weeks ${startWeek}-${endWeek}...`);
-        
-        const rangeSchedule = await scheduleFetcher.getWeekRange(startWeek, endWeek);
-        console.log('✅ Week range schedule fetched successfully!');
-        console.log(`   Weeks: ${rangeSchedule.length}`);
-        console.log(`   Total Matchups: ${rangeSchedule.reduce((sum, week) => sum + week.matchups.length, 0)}`);
-        
-        if (options.pretty || options.output) {
-          console.log('\n' + formatScheduleOutput(rangeSchedule, options.pretty));
-        }
-        break;
-      }
-
-      case 'export': {
-        console.log('📁 Fetching and exporting full season schedule...');
-        const exportSchedule = await scheduleFetcher.getFullSeason(true); // Save to DB by default
-
-        // Import teams if season ID provided
-        let exportTeamsImportResult = null;
-        if (options['import-teams']) {
-          console.log('\n🏈 Importing teams to existing season...');
-          exportTeamsImportResult = await importTeamsToSeason(options['import-teams'], exportSchedule.teams);
-        }
-
-        const filename = options.output || `espn-schedule-${config.leagueId}-${seasonYear}.json`;
-        const filepath = resolve(process.cwd(), filename);
-        
-        const jsonOutput = formatScheduleOutput(exportSchedule, true); // Always pretty print exports
-        writeFileSync(filepath, jsonOutput, 'utf8');
-        
-        console.log('✅ Schedule exported and saved to database!');
-        console.log(`   File: ${filepath}`);
-        console.log(`   Size: ${(jsonOutput.length / 1024).toFixed(1)} KB`);
-        console.log(`   League: ${exportSchedule.leagueInfo.leagueName}`);
-        console.log(`   Teams: ${exportSchedule.leagueInfo.teamCount}`);
-        console.log(`   Total Matchups: ${exportSchedule.totalMatchups}`);
-        
-        if (exportSchedule.dbImport) {
-          console.log(`   Database Import ID: ${exportSchedule.dbImport.importId}`);
-          console.log(`   Status: PENDING (awaiting season assignment)`);
-        }
-
-        if (exportTeamsImportResult) {
-          console.log(`\n🏈 Teams Import Results:`);
-          console.log(`   Successfully Imported: ${exportTeamsImportResult.imported.length}`);
-          console.log(`   Import Errors: ${exportTeamsImportResult.errors.length}`);
-        }
-        break;
-      }
-
-      case 'teams': {
-        if (!params[0]) {
-          console.error('❌ Error: Season ID required');
-          console.error('Usage: node scripts/fetchSchedule.js teams <season-id>');
-          process.exit(1);
-        }
-
-        const seasonId = params[0];
-        console.log(`🏈 Fetching teams and importing to season ${seasonId}...`);
-
-        const scheduleForTeams = await scheduleFetcher.getFullSeason(false); // Don't save schedule to DB
-        const teamsResult = await importTeamsToSeason(seasonId, scheduleForTeams.teams);
-
-        if (teamsResult.success) {
-          console.log('✅ All teams imported successfully!');
-        } else {
-          console.log('⚠️ Some teams could not be imported. Check errors above.');
-        }
-        break;
-      }
-
-      case 'teams-only': {
-        if (!params[0]) {
-          console.error('❌ Error: Season ID required');
-          console.error('Usage: node scripts/fetchSchedule.js teams-only <season-id>');
-          process.exit(1);
-        }
-
-        const seasonIdOnly = params[0];
-        console.log(`🏈 Fetching and importing teams only to season ${seasonIdOnly}...`);
-
-        const scheduleForTeamsOnly = await scheduleFetcher.getFullSeason(false); // Don't save schedule to DB
-        const teamsOnlyResult = await importTeamsToSeason(seasonIdOnly, scheduleForTeamsOnly.teams);
-
-        console.log(`\n📊 Teams Import Summary:`);
-        console.log(`   Season ID: ${seasonIdOnly}`);
-        console.log(`   ESPN League: ${scheduleForTeamsOnly.leagueInfo.leagueName}`);
-        console.log(`   Total Teams: ${scheduleForTeamsOnly.teams.length}`);
-        console.log(`   Successfully Imported: ${teamsOnlyResult.imported.length}`);
-        console.log(`   Import Errors: ${teamsOnlyResult.errors.length}`);
-
-        if (teamsOnlyResult.success) {
-          console.log('\n✅ All teams imported successfully!');
-          console.log('\nImported Teams:');
-          teamsOnlyResult.imported.forEach(team => {
-            console.log(`   - ${team.name} (Owner: ${team.owner}) [ESPN ID: ${team.espnTeamId}]`);
-          });
-        } else {
-          console.log('\n⚠️ Some teams could not be imported. Check errors above.');
-          process.exit(1);
-        }
-        break;
-      }
-
-      case 'update-scores': {
-        if (!params[0] || !params[1]) {
-          console.error('❌ Error: Season ID and week number required');
-          console.error('Usage: node scripts/fetchSchedule.js update-scores <season-id> <week>');
-          process.exit(1);
-        }
-
-        const updateSeasonId = params[0];
-        const updateWeekNumber = parseInt(params[1]);
-
-        console.log(`📊 Fetching scores from ESPN for week ${updateWeekNumber}...`);
-
-        // Fetch the week's schedule from ESPN
-        const weekData = await scheduleFetcher.getSingleWeek(updateWeekNumber);
-
-        if (!weekData || !weekData.matchups || weekData.matchups.length === 0) {
-          console.error(`❌ No matchups found for week ${updateWeekNumber}`);
-          process.exit(1);
-        }
-
-        console.log(`   Found ${weekData.matchups.length} matchups from ESPN`);
-
-        // Update the scores in the database
-        const updateResult = await updateWeeklyScores(updateSeasonId, updateWeekNumber, weekData.matchups);
-
-        if (!updateResult.success) {
-          process.exit(1);
-        }
-        break;
-      }
-
-      default:
-        console.error(`❌ Unknown command: ${command}`);
-        printUsage();
+  switch (command) {
+    case 'test': {
+      const result = await scheduleFetcher.testConnection();
+      if (!result.success) {
+        console.error(`❌ Connection failed: ${result.error}`);
         process.exit(1);
+      }
+      console.log('✅ Connection successful');
+      console.log(`   League: ${result.leagueName}`);
+      console.log(`   Teams: ${result.teamCount}`);
+      console.log(`   Matchups: ${result.matchupCount}`);
+      break;
     }
 
-  } catch (error) {
-    console.error('❌ Script failed:', error.message);
-    
-    if (error.message.includes('401') || error.message.includes('403')) {
-      console.error('\\n💡 This might be a private league. You need to set espnS2 and swid cookies.');
-      console.error('   Check the help text above for instructions on finding these cookies.');
+    case 'week': {
+      const weekNumber = parseInt(params[0], 10);
+      if (!weekNumber) {
+        console.error('❌ Week number required: node scripts/fetchSchedule.js week <n>');
+        process.exit(1);
+      }
+
+      const weekSchedule = await scheduleFetcher.getSingleWeek(weekNumber);
+      if (!weekSchedule) {
+        console.log(`❌ ESPN returned no schedule for week ${weekNumber}`);
+        break;
+      }
+
+      console.log(`✅ Week ${weekSchedule.week}: ${weekSchedule.matchups.length} matchups`);
+      for (const matchup of weekSchedule.matchups) {
+        console.log(
+          `   ${matchup.homeTeam.teamName} ${matchup.homeTeam.score} — ` +
+          `${matchup.awayTeam.score} ${matchup.awayTeam.teamName}` +
+          `  [${matchup.espnWinner}${matchup.isPlayoff ? `, ${matchup.playoffTierType}` : ''}]`
+        );
+      }
+      if (options.pretty) console.log('\n' + JSON.stringify(weekSchedule, null, 2));
+      break;
     }
-    
-    if (error.message.includes('404')) {
-      console.error('\\n💡 League or season not found. Check your league ID and season year.');
+
+    case 'range': {
+      const startWeek = parseInt(params[0], 10);
+      const endWeek = parseInt(params[1], 10);
+      if (!startWeek || !endWeek) {
+        console.error('❌ Start and end weeks required: node scripts/fetchSchedule.js range <a> <b>');
+        process.exit(1);
+      }
+
+      const rangeSchedule = await scheduleFetcher.getWeekRange(startWeek, endWeek);
+      const total = rangeSchedule.reduce((sum, week) => sum + week.matchups.length, 0);
+      console.log(`✅ Weeks ${startWeek}-${endWeek}: ${rangeSchedule.length} fetched, ${total} matchups`);
+      if (options.pretty) console.log('\n' + JSON.stringify(rangeSchedule, null, 2));
+      break;
     }
-    
-    process.exit(1);
+
+    default:
+      console.error(`❌ Unknown command: ${command}`);
+      printUsage();
+      process.exit(1);
   }
 }
 
-
-// Only run when executed directly. Importing this module must not touch
-// production — see aug2026_refactor/07-frontend.md §7.
-const isMain = import.meta.url === `file://${process.argv[1]}`;
-
-if (isMain) main().catch(console.error);
+/**
+ * Only run when executed directly. Importing this module must not reach out to
+ * ESPN — the mistake recorded in aug2026_refactor/07-frontend.md §7.
+ */
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error(`❌ ${error.message}`);
+    if (/401|403/.test(error.message)) {
+      console.error('   Private league — check ESPN_S2 / ESPN_SWID.');
+    }
+    process.exit(1);
+  });
+}

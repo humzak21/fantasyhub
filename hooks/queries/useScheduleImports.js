@@ -1,52 +1,23 @@
 /**
- * ESPN schedule-import hooks, for the admin settings screen.
+ * The ESPN import log, for the admin settings screen.
  *
- * `ScheduleImportManager` was the last component reaching into the mega-hook
- * for a `dataManager` plus four passthrough callbacks and an `initialized`
- * flag, just to run two reads and two writes.
+ * There used to be mutations here — assign an import to a season, reject it —
+ * because a fetched schedule sat in staging tables until an admin approved it
+ * in the browser. `scripts/sync-schedule.js` now writes teams and games
+ * directly, so the browser has nothing to approve and nothing to write: ESPN
+ * needs credentials that only the scripts hold. What is left is one read.
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 
 import { getDb } from '../../services/db/index.js';
 import { qk } from './keys.js';
 
 const db = () => getDb();
 
-export function usePendingScheduleImports() {
+export function useScheduleImports({ limit = 25 } = {}) {
   return useQuery({
-    queryKey: qk.schedule.pendingImports(),
-    queryFn: () => db().schedule.getPendingScheduleImports()
+    queryKey: qk.schedule.history(limit),
+    queryFn: () => db().schedule.getScheduleImports({ limit })
   });
-}
-
-export function useScheduleImportDetails(importId) {
-  return useQuery({
-    queryKey: qk.schedule.importDetails(importId),
-    queryFn: () => db().schedule.getScheduleImportDetails(importId),
-    enabled: Boolean(importId)
-  });
-}
-
-export function useScheduleImportMutations() {
-  const queryClient = useQueryClient();
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.schedule.all });
-
-  const assignToSeason = useMutation({
-    mutationFn: ({ importId, seasonId, notes = null }) =>
-      db().schedule.assignScheduleToSeason(importId, seasonId, notes),
-    // Assigning a schedule writes games, so the season's games go stale too.
-    onSuccess: (_result, { seasonId }) =>
-      Promise.all([
-        invalidate(),
-        queryClient.invalidateQueries({ queryKey: qk.games.season(seasonId) })
-      ])
-  });
-
-  const reject = useMutation({
-    mutationFn: ({ importId, notes = null }) => db().schedule.rejectScheduleImport(importId, notes),
-    onSuccess: invalidate
-  });
-
-  return { assignToSeason, reject };
 }

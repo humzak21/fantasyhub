@@ -30,7 +30,8 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 ### Sync
 - `npm run sync-week` - Sync the current week of the active season from ESPN.
   Zero arguments; pass `--dry-run` to resolve the target without writing.
-- `npm run sync-playoff-games` - Create playoff matchups at the bracket boundary
+- `npm run sync-schedule` - Import a whole season from ESPN (teams + games).
+  The start-of-season job; zero arguments, `--dry-run` to plan without writing.
 
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
@@ -105,6 +106,27 @@ season row supplies the season, week, playoff boundary and ESPN league. Every
 step is an idempotent upsert against ESPN, so re-running a failed sync is the
 fix. Each run writes a `sync_runs` row.
 
+### One path from ESPN into `games`
+`services/db/games.js::upsertEspnGames` is the only writer of ESPN schedule
+data, used by both `sync-schedule` (whole season) and `sync-week` (one week).
+The planning is pure and lives in `services/espnGameMapper.js`. Two rules it
+enforces, both load-bearing:
+
+- **`type` is written on insert and never on update**, so the hand-corrected
+  2025 postseason types survive every sync.
+- **Derived columns are never written.** The `before_game_update` trigger
+  computes `winner_team_id`, `loser_team_id`, `is_tie`, `point_differential`,
+  `is_blowout`, `is_close` and `completed_at`; `is_completed` is generated.
+  Sending `completed_at: null` would make the trigger re-stamp it with the
+  import time.
+
+Rows are matched to ESPN by `espn_matchup_id`, falling back to the same week
+plus the same pair of teams in either order — that fallback is what adopts rows
+created before ESPN ids were stored instead of duplicating them. The ESPN
+staging tables (`espn_teams`, `espn_matchups`) and `assign_schedule_to_season`
+were deleted on 2026-08-08; `espn_schedule_imports` remains as the import log.
+The browser cannot start an import — ESPN needs cookies only the scripts have.
+
 ### No analytics subsystem
 The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,
 `server.js`, `useAnalyticsData`) was **deleted on 2026-08-06**, along with the
@@ -151,6 +173,18 @@ This fantasy football module integrates with:
 - Responsive design with mobile-first approach
 - This project has 1 admin user. All other users are authenticated to create pick'ems, but any user can visualize the data (without logging in). RLS policies should reflect this. Only authenticated users can change their own pickems, but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
 - Owner names eg: "Humza Khalil" are stored in the database and should be the first thing to check against when looking for data for a team. Team names often change but owner names are consistent.
+- **Creating a season carries the previous season's teams forward.**
+  `seasons.createSeason` copies the divisions and teams of the most recent
+  earlier season unless the caller passes `copyTeamsFromSeasonId: null`. Only
+  identity crosses over (name, owner, `espn_team_id`, `franchise_id`,
+  division); every stat column is left to its database default. The copy is
+  deliberately non-fatal — `seasons.year` is unique, so a season that exists
+  without teams could not be recreated — and reports itself on the returned
+  season via `teamsCopiedFrom` / `teamCopyError`.
+- The `trigger_create_default_divisions` trigger seeds every new season with
+  'Division 1' and 'Division 2'. Anything writing divisions for a fresh season
+  must upsert on `(season_id, display_order)`; a plain insert hits the unique
+  constraint.
 - Admin user is humzak2001@gmail.com. **Do not inline that email in new
   policies** — use `public.is_admin()`, which is the single definition of who
   the admin is. All league tables are public-read / `is_admin()`-write.
