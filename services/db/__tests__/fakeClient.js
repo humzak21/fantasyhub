@@ -67,6 +67,10 @@ export function makeClient(handlers = {}) {
           state.filters[column] = value;
           return builder;
         },
+        in: (column, values) => {
+          state.filters[`in:${column}`] = values;
+          return builder;
+        },
         lt: (column, value) => {
           state.filters[`lt:${column}`] = value;
           return builder;

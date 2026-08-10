@@ -1826,6 +1826,103 @@ export type Database = {
           },
         ]
       }
+      player_week_stats: {
+        Row: {
+          actual_points: number | null
+          created_at: string | null
+          espn_player_id: number | null
+          id: string
+          injury_status: string | null
+          lineup_slot_id: number | null
+          player_id: string
+          position: string | null
+          projected_points: number | null
+          roster_slot: string | null
+          season_id: string
+          started: boolean
+          team_id: string
+          updated_at: string | null
+          week: number
+        }
+        Insert: {
+          actual_points?: number | null
+          created_at?: string | null
+          espn_player_id?: number | null
+          id?: string
+          injury_status?: string | null
+          lineup_slot_id?: number | null
+          player_id: string
+          position?: string | null
+          projected_points?: number | null
+          roster_slot?: string | null
+          season_id: string
+          started?: boolean
+          team_id: string
+          updated_at?: string | null
+          week: number
+        }
+        Update: {
+          actual_points?: number | null
+          created_at?: string | null
+          espn_player_id?: number | null
+          id?: string
+          injury_status?: string | null
+          lineup_slot_id?: number | null
+          player_id?: string
+          position?: string | null
+          projected_points?: number | null
+          roster_slot?: string | null
+          season_id?: string
+          started?: boolean
+          team_id?: string
+          updated_at?: string | null
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "player_week_stats_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_week_stats_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_week_stats_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_season"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_week_stats_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "roster_stats"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "player_week_stats_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_week_stats_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_standings"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       players: {
         Row: {
           actual_points: number | null
@@ -2092,6 +2189,7 @@ export type Database = {
         Row: {
           all_play_win_pct: number | null
           clutch_score: number | null
+          components: Json | null
           consistency_score: number | null
           created_at: string | null
           id: string
@@ -2118,6 +2216,7 @@ export type Database = {
         Insert: {
           all_play_win_pct?: number | null
           clutch_score?: number | null
+          components?: Json | null
           consistency_score?: number | null
           created_at?: string | null
           id?: string
@@ -2144,6 +2243,7 @@ export type Database = {
         Update: {
           all_play_win_pct?: number | null
           clutch_score?: number | null
+          components?: Json | null
           consistency_score?: number | null
           created_at?: string | null
           id?: string

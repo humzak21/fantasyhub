@@ -57,6 +57,20 @@ export const qk = {
     forSeason: (seasonId) => ['players', seasonId]
   },
 
+  /**
+   * Per-player, per-week scoring. Written out of process by the weekly sync, so
+   * nothing in the app invalidates these — there is no mutation to hang an
+   * `onSuccess` on. `useRankingsForWeek` needs no key of its own here: player
+   * stats are an input of that query's own `queryFn`, not a separate cache
+   * entry it composes.
+   */
+  playerStats: {
+    ...scope('playerStats'),
+    forSeason: (seasonId, throughWeek = null) =>
+      ['playerStats', seasonId, 'season', throughWeek],
+    forTeam: (seasonId, teamId) => ['playerStats', seasonId, 'team', teamId]
+  },
+
   rankings: {
     ...scope('rankings'),
     /**

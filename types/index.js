@@ -180,47 +180,100 @@ export const createSeason = (year, name = '', leagueSize = 14, regularSeasonWeek
   playoffBracket: null
 });
 
-// ENHANCED Power ranking weights - Heavy emphasis on record and key metrics
+/**
+ * Power ranking component weights. The one definition, imported by the
+ * calculator and by the UI that labels it.
+ *
+ * There used to be three overlapping blocks here — a "core" set, a "legacy
+ * component" set and a "deprecated" set — and the calculator imported none of
+ * them; its weights were numeric literals inline in `calculatePowerRating`. So
+ * the table's legend confidently described a 25%/20%/15% split that existed
+ * nowhere in the code. Anything that reads a weight now reads it from here.
+ *
+ * Every component is normalized 0-100 across the league before weighting, so
+ * the weights are directly comparable. A component that cannot be computed —
+ * no player data for a 2025 season, no games yet in week 1 — is null, and
+ * `combineWeightedComponents` renormalizes over the ones that survived rather
+ * than scoring the gap as zero.
+ *
+ * These sum to 1.00, which `powerRankingCalculator.test.js` asserts.
+ */
 export const POWER_RANKING_WEIGHTS = {
-  // Core components (used in enhanced formula)
-  recordWeight: 0.35,           // Win-loss record with quality adjustments
-  sosAdjustedWeight: 0.20,      // SOS-adjusted record
-  momentumFormWeight: 0.15,     // Recent form and momentum
-  qualityWeight: 0.10,          // Quality wins/losses differential
-  projectionWeight: 0.10,       // Roster strength and projections
-  currentFormWeight: 0.05,      // Last 3 games performance
-  pointDiffWeight: 0.05,        // Total point differential
+  // Team level: available from `games` alone, so always present.
+  record: 0.22,
+  allPlay: 0.15,
+  scoring: 0.13,
+  recentForm: 0.10,
+  consistency: 0.05,
 
-  // Legacy component weights (for backward compatibility)
-  performanceScore: 0.25,
-  teamStrength: 0.20,
-  strengthOfSchedule: 0.15,
-  momentumScore: 0.15,
-  consistencyScore: 0.15,
-  clutchScore: 0.05,
+  // Roster level: needs `player_week_stats`, first written 2026-08-10.
+  rosterStrength: 0.13,
+  lineupEfficiency: 0.05,
 
-  // Legacy weights for backward compatibility (deprecated)
-  winPercentage: 0.20,
-  pointDifferential: 0.15,
-  recentForm: 0.12,
-  qualityWins: 0.08,
-  averagePointsFor: 0.08,
-  rosterProjectedStrength: 0.15,
-  positionGroupBalance: 0.10,
-  badLosses: -0.05
+  // Forward looking.
+  futureStrength: 0.09,
+  leagueSos: 0.08
 };
 
-// Position weights for PPR scoring (Team Strength calculation)
-export const POSITION_WEIGHTS = {
-  QB: 0.18,
-  RB1: 0.16,
-  RB2: 0.12,
-  WR1: 0.16,
-  WR2: 0.13,
-  TE: 0.10,
-  FLEX: 0.10,
-  'D/ST': 0.03,
-  K: 0.02
+/**
+ * Display metadata for each component, so labels, colours and explanations
+ * cannot drift from the weights the way the old hardcoded legend did.
+ */
+export const POWER_RANKING_COMPONENT_META = {
+  record: {
+    label: 'Record',
+    group: 'team',
+    color: 'text-blue-600',
+    description: 'Win percentage with quality wins and bad losses, adjusted for how strong the opponents faced so far have been.'
+  },
+  allPlay: {
+    label: 'All-Play',
+    group: 'team',
+    color: 'text-teal-600',
+    description: 'How often this team would have won if it played every other team every week — record with the schedule luck removed.'
+  },
+  scoring: {
+    label: 'Scoring',
+    group: 'team',
+    color: 'text-emerald-600',
+    description: 'Points per game across the season to date.'
+  },
+  recentForm: {
+    label: 'Recent Form',
+    group: 'team',
+    color: 'text-purple-600',
+    description: 'Results and scoring over the last three games, most recent weighted heaviest.'
+  },
+  consistency: {
+    label: 'Consistency',
+    group: 'team',
+    color: 'text-indigo-600',
+    description: 'Week-to-week variance in scoring. Reliable teams rank above boom-or-bust ones with the same average.'
+  },
+  rosterStrength: {
+    label: 'Roster Strength',
+    group: 'roster',
+    color: 'text-green-600',
+    description: 'Average points actually produced by the players in the starting lineup each week.'
+  },
+  lineupEfficiency: {
+    label: 'Lineup Efficiency',
+    group: 'roster',
+    color: 'text-lime-600',
+    description: 'Share of the best possible lineup this manager actually started — how much of the roster’s output was left on the bench.'
+  },
+  futureStrength: {
+    label: 'Roster Outlook',
+    group: 'future',
+    color: 'text-cyan-600',
+    description: 'Projected points still to come from the current starters, weighted toward the rest of the season with next week’s projection on top.'
+  },
+  leagueSos: {
+    label: 'Remaining Schedule',
+    group: 'future',
+    color: 'text-orange-600',
+    description: 'How strong the remaining regular-season fantasy opponents are. Higher means a tougher run-in, scored the same direction as the opponent adjustment inside Record — a hard schedule is never treated as a credential and an easy one never flatters.'
+  }
 };
 
 // Thresholds for various calculations

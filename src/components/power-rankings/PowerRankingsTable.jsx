@@ -14,6 +14,25 @@ import { Card, CardContent } from '../ui/card';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../types/index.js';
+
+/**
+ * The components, in weight order, built from the weights themselves.
+ *
+ * This list used to be written out by hand here, and it named six components
+ * with percentages ("Performance Score 25%", "Team Strength 20%") that matched
+ * neither `POWER_RANKING_WEIGHTS` nor the literals the calculator actually
+ * used — three different sets of numbers, one of them shown to the user.
+ * Deriving it means the legend cannot drift from the algorithm again.
+ */
+const RANKING_COMPONENTS = Object.entries(POWER_RANKING_WEIGHTS)
+  .sort(([, a], [, b]) => b - a)
+  .map(([key, weight]) => ({
+    key,
+    weight,
+    weightLabel: `${Math.round(weight * 100)}%`,
+    ...POWER_RANKING_COMPONENT_META[key]
+  }));
 
 const PowerRankingsTable = ({
   rankings = [],
@@ -80,16 +99,7 @@ const PowerRankingsTable = ({
   const renderComponentBreakdown = (team) => {
     if (!team.powerRatingComponents) return null;
 
-    const components = [
-      { key: 'performanceScore', label: 'Performance Score', weight: '25%', color: 'text-blue-600' },
-      { key: 'teamStrength', label: 'Team Strength', weight: '20%', color: 'text-green-600' },
-      { key: 'strengthOfSchedule', label: 'Strength of Schedule', weight: '15%', color: 'text-orange-600' },
-      { key: 'momentumScore', label: 'Momentum Score', weight: '15%', color: 'text-purple-600' },
-      { key: 'consistencyScore', label: 'Consistency Score', weight: '15%', color: 'text-indigo-600' },
-      { key: 'clutchScore', label: 'Clutch Score', weight: '5%', color: 'text-amber-600' },
-      { key: 'allPlayWinPct', label: 'All-Play Win %', weight: '*', color: 'text-teal-600' },
-      { key: 'luckPercentage', label: 'Luck %', weight: '*', color: 'text-pink-600' }
-    ];
+    const components = RANKING_COMPONENTS;
 
     return (
       <TableRow className="bg-muted/20 hover:bg-muted/30">
@@ -103,32 +113,41 @@ const PowerRankingsTable = ({
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {components.map((component) => {
-                const value = team.powerRatingComponents[component.key] || 0;
-                const percentage = Math.round((value / 100) * 100);
-                
+                const raw = team.powerRatingComponents[component.key];
+                // A component with no input is not a component that scored
+                // zero. Rendering the two the same way is how the old table
+                // showed every team a confident 0.00 for roster strength it had
+                // never been able to calculate.
+                const available = typeof raw === 'number' && Number.isFinite(raw);
+                const value = available ? raw : null;
+                const percentage = available ? Math.round(value) : 0;
+
                 return (
                   <div key={component.key} className="bg-background rounded-lg p-3 border">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${component.color.replace('text-', 'bg-')}`} />
                         <span className="font-medium text-sm">{component.label}</span>
-                        <Badge variant="secondary" className="text-xs">{component.weight}</Badge>
+                        <Badge variant="secondary" className="text-xs">{component.weightLabel}</Badge>
                       </div>
-                      <span className={`font-mono font-semibold ${component.color}`}>
-                        {value.toFixed(2)}
+                      <span
+                        className={`font-mono font-semibold ${available ? component.color : 'text-muted-foreground'}`}
+                        title={available ? undefined : 'No data for this component in this week'}
+                      >
+                        {available ? value.toFixed(2) : '—'}
                       </span>
                     </div>
-                    
+
                     <div className="w-full bg-muted rounded-full h-2">
-                      <div 
+                      <div
                         className={`h-2 rounded-full transition-all duration-300 ${component.color.replace('text-', 'bg-')}`}
                         style={{ width: `${Math.min(percentage, 100)}%` }}
                       />
                     </div>
-                    
+
                     <div className="flex justify-between text-xs text-muted-foreground mt-1">
                       <span>0</span>
-                      <span className="font-medium">{percentage}%</span>
+                      <span className="font-medium">{available ? `${percentage}%` : '—'}</span>
                       <span>100</span>
                     </div>
                   </div>
@@ -143,23 +162,26 @@ const PowerRankingsTable = ({
                 <div className="text-sm">
                   <div className="font-semibold text-blue-900 mb-1">Algorithm Insights</div>
                   <div className="text-blue-800 space-y-1">
-                    {team.powerRatingComponents.performanceScore > 80 && (
-                      <div>• <strong>Strong Recent Performance:</strong> Excelling in recent weeks with consistent scoring</div>
+                    {team.powerRatingComponents.recentForm > 80 && (
+                      <div>• <strong>Strong Recent Form:</strong> Winning and outscoring the league over the last three weeks</div>
                     )}
-                    {team.powerRatingComponents.teamStrength > 75 && (
-                      <div>• <strong>Elite Roster:</strong> High projected points from player talent</div>
+                    {team.powerRatingComponents.rosterStrength > 75 && (
+                      <div>• <strong>Elite Roster:</strong> Starters are producing more points per week than anyone else&rsquo;s</div>
                     )}
-                    {team.powerRatingComponents.strengthOfSchedule > 60 && (
-                      <div>• <strong>Tough Schedule:</strong> Facing stronger opponents than league average</div>
+                    {team.powerRatingComponents.lineupEfficiency < 30 && (
+                      <div>• <strong>Points on the Bench:</strong> Leaving a large share of the optimal lineup unstarted</div>
                     )}
-                    {team.powerRatingComponents.momentumScore > 70 && (
-                      <div>• <strong>Hot Streak:</strong> Building positive momentum with recent wins/performance</div>
+                    {team.powerRatingComponents.futureStrength > 75 && (
+                      <div>• <strong>Best Outlook:</strong> The most projected production still to come from these starters</div>
                     )}
-                    {team.powerRatingComponents.consistencyScore > 80 && (
+                    {team.powerRatingComponents.leagueSos > 70 && (
+                      <div>• <strong>Brutal Run-In:</strong> Still to play the strongest teams in the league</div>
+                    )}
+                    {team.powerRatingComponents.leagueSos < 30 && (
+                      <div>• <strong>Friendly Run-In:</strong> The easiest set of remaining fantasy opponents</div>
+                    )}
+                    {team.powerRatingComponents.consistency > 80 && (
                       <div>• <strong>Reliable Scorer:</strong> Low variance in weekly point totals</div>
-                    )}
-                    {team.powerRatingComponents.clutchScore > 70 && (
-                      <div>• <strong>Clutch Performer:</strong> Excels in close games and high-pressure situations</div>
                     )}
                     {team.powerRatingComponents.allPlayWinPct > 75 && (
                       <div>• <strong>All-Play Dominator:</strong> Would beat most teams regardless of matchups</div>
@@ -491,16 +513,24 @@ const PowerRankingsTable = ({
                 </div>
               </div>
               
-              {/* New Algorithm Components */}
+              {/* Algorithm components, straight from the weights themselves */}
               <div>
                 <h5 className="font-medium mb-2 text-sm">Components</h5>
                 <div className="space-y-1 text-xs text-muted-foreground">
-                  <div><strong className="text-black">Performance (25%):</strong> Recent scoring trends and consistency</div>
-                  <div><strong className="text-black">Team Strength (20%):</strong> Roster talent based on projections</div>
-                  <div><strong className="text-black">Schedule (15%):</strong> Past and future opponent difficulty</div>
-                  <div><strong className="text-black">Momentum (15%):</strong> Win streaks and point trends</div>
-                  <div><strong className="text-black">Consistency (15%):</strong> Week-to-week variance</div>
-                  <div><strong className="text-black">Clutch (5%):</strong> Performance in close games</div>
+                  {RANKING_COMPONENTS.map((component) => (
+                    <div key={component.key}>
+                      <strong className="text-black">
+                        {component.label} ({component.weightLabel}):
+                      </strong>{' '}
+                      {component.description}
+                    </div>
+                  ))}
+                  <div className="pt-2">
+                    Components are each scaled 0–100 across the league, then weighted. A
+                    component with no data for the week shown — roster figures before the
+                    2026 season, or any component in week 1 — is dropped and the remaining
+                    weights are rescaled, rather than being counted as a zero.
+                  </div>
                 </div>
               </div>
             </div>
