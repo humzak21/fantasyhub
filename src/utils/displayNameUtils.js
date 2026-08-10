@@ -18,6 +18,38 @@ export const getUserDisplayName = (user) => {
 };
 
 /**
+ * Has this user set a display name at all?
+ *
+ * Gates <DisplayNamePrompt>. Goes through `getUserDisplayName` so it reads the
+ * same two metadata keys the rest of the app does — signup and settings write
+ * `name` and `full_name` together, and `display_name` is written by nothing.
+ *
+ * @param {Object} user - User object from auth context
+ * @returns {boolean} - Whether a non-blank name is set
+ */
+export const hasDisplayName = (user) => Boolean(getUserDisplayName(user)?.trim());
+
+/**
+ * Is this an acceptable "First Last" display name?
+ *
+ * Rejects only what is unambiguously wrong. <DisplayNamePrompt> asks for a name
+ * with no comma, no nickname and no middle name, but a middle name still passes
+ * here: the rules are guidance, and `matchesTeamOwner` is what actually catches
+ * a name the league will not recognise. Blocking on a shape guess would lock out
+ * anyone whose name genuinely does not fit it.
+ *
+ * @param {string} raw - The name as typed
+ * @returns {string|null} - An error message, or null if the name is acceptable
+ */
+export const validateFullName = (raw) => {
+  const name = (raw ?? '').trim();
+  if (!name) return 'Enter your first and last name.';
+  if (name.includes(',')) return 'No commas — write it as First Last.';
+  if (!/\s/.test(name)) return 'Include your last name too.';
+  return null;
+};
+
+/**
  * Extract team owner names from teams data
  * @param {Array<Object>|Object} teamsOrSeason - Either an array of teams or a season object with teams property
  * @returns {Array<string>} - Array of team owner names
@@ -43,26 +75,43 @@ export const getTeamOwnerNames = (teamsOrSeason) => {
 };
 
 /**
+ * Does a name match one of the league's team owners?
+ *
+ * The one place the owner-name comparison rule lives, so `isUserATeamOwner`
+ * (which unmasks the league for a viewer) and <DisplayNamePrompt> (which warns
+ * a user that the name they just typed matches nobody) can never disagree
+ * about what counts as a match.
+ *
+ * @param {string} name - A candidate display name
+ * @param {Array<Object|string>} teamOwnerNames - Owner names, as strings or as
+ *   the `{ ownerName, teamName }` objects `getTeamOwnerNames` returns
+ * @returns {boolean} - Whether the name matches an owner
+ */
+export const matchesTeamOwner = (name, teamOwnerNames = []) => {
+  if (!name || !Array.isArray(teamOwnerNames) || teamOwnerNames.length === 0) {
+    return false;
+  }
+
+  // Case-insensitive comparison
+  const normalizedName = name.trim().toLowerCase();
+  if (!normalizedName) return false;
+
+  return teamOwnerNames.some(item => {
+    // Handle both string array and object array formats
+    const ownerName = typeof item === 'string' ? item : item?.ownerName;
+    return ownerName && ownerName.trim().toLowerCase() === normalizedName;
+  });
+};
+
+/**
  * Check if a user is a team owner by comparing their name to the list of team owners
  * @param {Object} user - User object from auth context
  * @param {Array<Object|string>} teamOwnerNames - Array of team owner names (can be strings or objects with ownerName property)
  * @returns {boolean} - Whether the user is a team owner
  */
 export const isUserATeamOwner = (user, teamOwnerNames) => {
-  if (!user || !teamOwnerNames || teamOwnerNames.length === 0) {
-    return false;
-  }
-
-  const userName = getUserDisplayName(user);
-  if (!userName) return false;
-
-  // Case-insensitive comparison
-  const normalizedUserName = userName.trim().toLowerCase();
-  return teamOwnerNames.some(item => {
-    // Handle both string array and object array formats
-    const ownerName = typeof item === 'string' ? item : item?.ownerName;
-    return ownerName && ownerName.trim().toLowerCase() === normalizedUserName;
-  });
+  if (!user) return false;
+  return matchesTeamOwner(getUserDisplayName(user), teamOwnerNames);
 };
 
 /**
