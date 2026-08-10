@@ -90,8 +90,8 @@ export const qk = {
 
   schedule: {
     all: ['schedule'],
-    pendingImports: () => ['schedule', 'pendingImports'],
-    importDetails: (importId) => ['schedule', 'import', importId]
+    /** The ESPN import log. Written by scripts, read-only in the app. */
+    history: (limit = 25) => ['schedule', 'history', limit]
   }
 };
 

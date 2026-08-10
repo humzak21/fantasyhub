@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '../ui/alert'
 import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import SeasonManager from '../admin/SeasonManager.jsx'
-import ScheduleImportManager from '../schedule/ScheduleImportManager.jsx'
+import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
 
 export const UserSettingsPage = () => {
   const { user, isAdmin } = useAuth()
@@ -34,13 +34,16 @@ export const UserSettingsPage = () => {
     seasonMutations.setActiveSeason.isPending ||
     seasonMutations.deleteSeason.isPending
 
-  const handleCreateSeason = (year, name, leagueSize, regularSeasonWeeks, playoffWeeks) =>
+  // `copyTeamsFromSeasonId`: undefined carries the previous season's teams
+  // forward, null creates an empty season. Resolves in `services/db/seasons.js`.
+  const handleCreateSeason = (year, name, leagueSize, regularSeasonWeeks, playoffWeeks, copyTeamsFromSeasonId) =>
     seasonMutations.createSeason.mutateAsync({
       year,
       name,
       leagueSize,
       regularSeasonWeeks,
       playoffWeeks,
+      copyTeamsFromSeasonId,
     })
 
   const handleSetActiveSeason = (seasonId) =>
@@ -201,7 +204,7 @@ export const UserSettingsPage = () => {
                       onClick={() => setActiveSettingsTab('import')}
                     >
                       <Download className="mr-2 h-4 w-4" />
-                      Import Schedule
+                      ESPN Imports
                     </Button>
 
                     <Button
@@ -356,9 +359,9 @@ export const UserSettingsPage = () => {
               />
             )}
 
-            {/* Import Schedule */}
+            {/* ESPN import log */}
             {activeSettingsTab === 'import' && isAdmin && (
-              <ScheduleImportManager />
+              <ScheduleImportHistory />
             )}
 
             {/* Testing Tools - Admin Only */}

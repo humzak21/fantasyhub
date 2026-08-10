@@ -1,0 +1,55 @@
+name: Import ESPN schedule
+
+# The start-of-season job. Fetches the whole season from ESPN and writes teams
+# and games directly — there is no staging table and no approval step in the app
+# any more. Games go through the same upsert the weekly sync uses.
+#
+# Manual only: a league's schedule is published once a year, and re-running is
+# safe but pointless on a timer. The weekly job (sync-week.yml) keeps scores
+# current and now creates any matchup this run missed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      season_id:
+        description: 'Season to import (blank = the active season)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Fetch and plan the writes, change nothing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  # Shared with sync-week: a schedule import and a score sync both write `games`
+  # for the same season, so they queue rather than race.
+  group: espn-write
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Import the schedule
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ESPN_S2: ${{ secrets.ESPN_S2 }}
+          ESPN_SWID: ${{ secrets.ESPN_SWID }}
+        run: |
+          node scripts/sync-schedule.js \
+            ${{ inputs.season_id }} \
+            ${{ inputs.dry_run == true && '--dry-run' || '' }} \
+            --manual

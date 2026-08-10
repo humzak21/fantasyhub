@@ -23,7 +23,7 @@
     "db:pull": "supabase db pull",
     "db:diff": "supabase db diff",
     "db:types": "supabase gen types typescript --project-id kvcnijyyfylxfarrlxkv > types/supabase.ts",
-    "sync-playoff-games": "node scripts/syncPlayoffGames.js",
+    "sync-schedule": "node scripts/sync-schedule.js",
     "sync-week": "node scripts/sync-week.js",
     "check-bundle": "node scripts/check-bundle.js"
   },

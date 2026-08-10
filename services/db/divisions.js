@@ -78,6 +78,72 @@ export async function createDivision(ctx, seasonId, name, displayOrder = 1) {
   }
 }
 
+/**
+ * Give one season the same divisions as another.
+ *
+ * `divisions.id` is a serial and a division row belongs to exactly one season,
+ * so a new season cannot point its teams at last year's division ids. It needs
+ * its own rows, and the teams copied alongside need to know which new row
+ * corresponds to which old one.
+ *
+ * This is an upsert, not an insert: the `trigger_create_default_divisions`
+ * trigger has already seeded the new season with 'Division 1' and 'Division 2'
+ * by the time we get here, and `(season_id, display_order)` is unique — a plain
+ * insert collides. Matching on `display_order` renames those placeholders in
+ * place, which is also what makes the id map unambiguous.
+ *
+ * @returns {Promise<Map<number, number>>} source division id → new division id.
+ */
+export async function copyDivisionsToSeason(ctx, sourceSeasonId, targetSeasonId) {
+  try {
+    const { data: source, error } = await ctx.client
+      .from('divisions')
+      .select('id, name, display_order')
+      .eq('season_id', sourceSeasonId)
+      .order('display_order', { ascending: true });
+
+    if (error) throw error;
+    if (!source || source.length === 0) return new Map();
+
+    const { data: written, error: writeError } = await ctx.client
+      .from('divisions')
+      .upsert(
+        source.map((division) => ({
+          season_id: targetSeasonId,
+          name: division.name,
+          display_order: division.display_order
+        })),
+        { onConflict: 'season_id,display_order' }
+      )
+      .select('id, display_order');
+
+    if (writeError) throw writeError;
+
+    // Placeholders past the end of the source season's divisions — a league
+    // that shrank from three divisions to two. No team points at them yet.
+    const keptOrders = source.map((division) => division.display_order);
+    const { error: pruneError } = await ctx.client
+      .from('divisions')
+      .delete()
+      .eq('season_id', targetSeasonId)
+      .not('display_order', 'in', `(${keptOrders.join(',')})`);
+
+    if (pruneError) throw pruneError;
+
+    const newIdByOrder = new Map((written || []).map((d) => [d.display_order, d.id]));
+
+    ctx.seasonsCache.delete(targetSeasonId);
+
+    return new Map(
+      source
+        .map((division) => [division.id, newIdByOrder.get(division.display_order)])
+        .filter(([, newId]) => newId != null)
+    );
+  } catch (error) {
+    throwDbError(error, 'Copy divisions to season');
+  }
+}
+
 export async function updateDivision(ctx, divisionId, updates) {
 
   try {

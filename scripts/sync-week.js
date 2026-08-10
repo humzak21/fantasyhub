@@ -28,6 +28,7 @@
 import '../services/db/client.server.js';
 
 import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
+import { buildTeamIndex } from '../services/espnGameMapper.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
@@ -83,81 +84,38 @@ function parseArgs(argv) {
   };
 }
 
-/** Match ESPN team ids to database teams, falling back to the stable owner name. */
-function buildTeamIndex(teams) {
-  const byEspnId = new Map();
-  const byOwner = new Map();
-
-  for (const team of teams) {
-    if (team.espnTeamId != null) byEspnId.set(String(team.espnTeamId), team);
-    if (team.ownerName) byOwner.set(team.ownerName.trim().toLowerCase(), team);
-  }
-
-  return {
-    find(espnTeamId, ownerName) {
-      return (
-        byEspnId.get(String(espnTeamId)) ??
-        (ownerName ? byOwner.get(ownerName.trim().toLowerCase()) : undefined) ??
-        null
-      );
-    }
-  };
-}
-
-async function syncScores(seasonId, weekNumber, espnMatchups) {
+/**
+ * Write the week's matchups: scores onto the games that exist, rows for the
+ * ones that do not.
+ *
+ * This used to refuse outright when a week had no games ("import the schedule
+ * first"), because creating them was the staging pipeline's job. Both now go
+ * through `upsertEspnGames`, so a week that was never imported, or a matchup
+ * ESPN rescheduled, heals itself on the next run instead of needing a separate
+ * import and an admin in a browser.
+ *
+ * The guarantee that made the old version safe is kept, and now lives in the
+ * mapper: `type` is set when a row is created and never touched again, so the
+ * 2025 postseason types corrected by hand in migration 20260805100000 survive
+ * every sync.
+ */
+async function syncScores(seasonId, weekNumber, espnMatchups, currentScoringPeriod) {
   const db = getDb();
   const season = await db.seasons.getSeason(seasonId);
-  const games = await db.games.getGamesForWeek(seasonId, weekNumber);
 
-  if (!games || games.length === 0) {
-    throw new Error(`No games scheduled for week ${weekNumber}; import the schedule first`);
-  }
+  const result = await db.games.upsertEspnGames(seasonId, espnMatchups, {
+    week: weekNumber,
+    teams: season.teams,
+    currentScoringPeriod,
+    regularSeasonWeeks: season.regularSeasonWeeks ?? season.regular_season_weeks
+  });
 
-  const teams = buildTeamIndex(season.teams);
-  let updated = 0;
-  let unchanged = 0;
-  const errors = [];
-
-  for (const matchup of espnMatchups) {
-    if (matchup.week !== weekNumber && matchup.scoringPeriodId !== weekNumber) continue;
-
-    const homeTeam = teams.find(matchup.homeTeam.teamId, matchup.homeTeam.ownerName);
-    const awayTeam = teams.find(matchup.awayTeam.teamId, matchup.awayTeam.ownerName);
-    if (!homeTeam || !awayTeam) continue;
-
-    const game = games.find(g =>
-      (g.team1Id === homeTeam.id && g.team2Id === awayTeam.id) ||
-      (g.team1Id === awayTeam.id && g.team2Id === homeTeam.id)
-    );
-    if (!game) continue;
-
-    const team1IsHome = game.team1Id === homeTeam.id;
-    const team1Score = team1IsHome ? matchup.homeTeam.score : matchup.awayTeam.score;
-    const team2Score = team1IsHome ? matchup.awayTeam.score : matchup.homeTeam.score;
-
-    // Skip the write when ESPN agrees with what is stored. This is what makes
-    // re-running the job free rather than 120 no-op UPDATEs.
-    if (game.team1Score === team1Score && game.team2Score === team2Score) {
-      unchanged += 1;
-      continue;
-    }
-
-    // Only the two score columns are written. `type` is deliberately untouched:
-    // the 2025 postseason game types were corrected by hand in migration
-    // 20260805100000 and an ESPN sync must never undo that.
-    const { error } = await getContext().client
-      .from('games')
-      .update({ team1_score: team1Score, team2_score: team2Score })
-      .eq('id', game.id);
-
-    if (error) {
-      errors.push({ game: game.id, error: error.message });
-      continue;
-    }
-    updated += 1;
-  }
-
-  return { updated, unchanged, errors };
+  return {
+    created: result.inserted,
+    updated: result.updated,
+    unchanged: result.unchanged,
+    errors: result.unmatched
+  };
 }
 
 async function syncTransactions(seasonId, espn) {
@@ -316,8 +274,16 @@ export async function syncWeek(argv = []) {
         throw new Error(`ESPN returned no matchups for week ${weekNumber}`);
       }
 
-      steps.scores = await syncScores(seasonId, weekNumber, weekData.matchups);
-      console.log(`📊 scores: ${steps.scores.updated} updated, ${steps.scores.unchanged} already current`);
+      steps.scores = await syncScores(
+        seasonId, weekNumber, weekData.matchups, weekData.currentScoringPeriod
+      );
+      console.log(
+        `📊 scores: ${steps.scores.updated} updated, ${steps.scores.created} created, ` +
+        `${steps.scores.unchanged} already current`
+      );
+      for (const miss of steps.scores.errors) {
+        console.error(`❌ week ${miss.week} matchup ${miss.matchupId}: ${miss.reason}`);
+      }
     }
 
     // Transactions are non-critical: a failure here is recorded but does not

@@ -211,10 +211,17 @@ function useInvalidators() {
     const invalidate = (queryKey) => queryClient.invalidateQueries({ queryKey });
 
     return {
-      /** Season row itself changed (created, activated, deleted). */
+      /**
+       * Season row itself changed (created, activated, deleted). Creating a
+       * season now writes teams and divisions too, so both go with it.
+       */
       seasons: async () => {
         forgetSeasonCache();
-        await Promise.all([invalidate(qk.seasons.all), invalidate(qk.teams.all)]);
+        await Promise.all([
+          invalidate(qk.seasons.all),
+          invalidate(qk.teams.all),
+          invalidate(qk.divisions.all)
+        ]);
       },
       /** Roster of teams changed: standings and rankings depend on it. */
       teams: (seasonId) =>
@@ -248,9 +255,16 @@ function useInvalidators() {
 export function useLeagueMutations(seasonId) {
   const invalidators = useInvalidators();
 
+  /**
+   * `copyTeamsFromSeasonId` chooses where the new season's teams come from:
+   * omit it to carry the previous season forward, pass null for an empty
+   * season, or name a specific season.
+   */
   const createSeason = useMutation({
-    mutationFn: ({ year, name, leagueSize, regularSeasonWeeks, playoffWeeks }) =>
-      db().seasons.createSeason(year, name, leagueSize, regularSeasonWeeks, playoffWeeks),
+    mutationFn: ({ year, name, leagueSize, regularSeasonWeeks, playoffWeeks, copyTeamsFromSeasonId }) =>
+      db().seasons.createSeason(year, name, leagueSize, regularSeasonWeeks, playoffWeeks, {
+        copyTeamsFromSeasonId
+      }),
     onSuccess: invalidators.seasons
   });
 

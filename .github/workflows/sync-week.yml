@@ -27,8 +27,9 @@ on:
         type: boolean
 
 concurrency:
-  # Two syncs writing the same week's scores would race. Queue instead.
-  group: sync-week
+  # Two syncs writing the same week's scores would race, and so would a schedule
+  # import running at the same time. One group for everything that writes games.
+  group: espn-write
   cancel-in-progress: false
 
 jobs:

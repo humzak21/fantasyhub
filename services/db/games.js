@@ -8,11 +8,13 @@
  */
 
 import * as models from '../../types/index.js';
+import { buildTeamIndex, planGameWrites } from '../espnGameMapper.js';
 import { formatForDatabase, formatFromDatabase } from './caseMap.js';
 import { throwDbError } from './errors.js';
 import { createLogger } from './logger.js';
 import { saveWeeklyPowerRankingsSnapshot } from './rankings.js';
 import { getSeason } from './seasons.js';
+import { getTeamsForSeason } from './teams.js';
 
 const log = createLogger('db:games');
 
@@ -57,6 +59,113 @@ export async function getSeasonGames(ctx, seasonId) {
     return (data || []).map(toUiGame);
   } catch (error) {
     throwDbError(error, 'Get season games');
+  }
+}
+
+/**
+ * Write ESPN matchups into `games`. The only ESPN→schedule path there is.
+ *
+ * Used by both `scripts/sync-schedule.js` (whole season, once a year) and
+ * `scripts/sync-week.js` (one week, every week), so the season-start import and
+ * the weekly sync cannot drift apart the way the staging RPC and `syncScores`
+ * did. Idempotent: re-running writes nothing.
+ *
+ * The planning is in `services/espnGameMapper.js`; this function is the I/O
+ * around it — one read, one batched insert, one update per changed row.
+ *
+ * @param {Object}  [options]
+ * @param {number}  [options.week]        limit to a single week
+ * @param {Array}   [options.teams]       season teams, if already loaded
+ * @param {number}  [options.currentScoringPeriod] ESPN's current period
+ * @param {number}  [options.regularSeasonWeeks]   for playoff round math
+ * @param {string}  [options.userId]      stamped on inserted rows
+ * @param {boolean} [options.dryRun]      plan and report, write nothing
+ * @returns {Promise<{inserted: number, updated: number, unchanged: number,
+ *   unmatched: Array, plan: Object}>}
+ */
+export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
+  const {
+    week = null,
+    teams: providedTeams = null,
+    currentScoringPeriod = null,
+    regularSeasonWeeks = 14,
+    userId = null,
+    dryRun = false
+  } = options;
+
+  try {
+    const teams = providedTeams ?? (await getTeamsForSeason(ctx, seasonId));
+
+    let query = ctx.client
+      .from('games')
+      .select('id, week, team1_id, team2_id, team1_score, team2_score, type, espn_matchup_id, espn_scoring_period_id')
+      .eq('season_id', seasonId);
+    if (week != null) query = query.eq('week', week);
+
+    const { data: existingGames, error: readError } = await query;
+    if (readError) throw readError;
+
+    const plan = planGameWrites({
+      seasonId,
+      matchups,
+      existingGames: existingGames || [],
+      teamIndex: buildTeamIndex(teams),
+      regularSeasonWeeks,
+      currentScoringPeriod,
+      userId,
+      week
+    });
+
+    // A dry run reports the writes it *would* make — counting them as zero
+    // would make an unplanned import look identical to a no-op.
+    if (dryRun) {
+      return {
+        inserted: plan.inserts.length,
+        updated: plan.updates.length,
+        unchanged: plan.unchanged,
+        unmatched: plan.unmatched,
+        plan,
+        dryRun: true
+      };
+    }
+
+    if (plan.inserts.length > 0) {
+      // Conflict on the ESPN id rather than (season, week, teams): byes have a
+      // null team2_id, and Postgres treats nulls as distinct, so the older key
+      // cannot keep a bye from being inserted twice.
+      const { error: insertError } = await ctx.client
+        .from('games')
+        .upsert(plan.inserts, {
+          onConflict: 'season_id,espn_matchup_id',
+          ignoreDuplicates: false
+        });
+
+      if (insertError) throw insertError;
+    }
+
+    for (const { id, patch } of plan.updates) {
+      const { error: updateError } = await ctx.client.from('games').update(patch).eq('id', id);
+      if (updateError) throw updateError;
+    }
+
+    if (plan.inserts.length > 0 || plan.updates.length > 0) {
+      ctx.seasonsCache.delete(seasonId);
+    }
+
+    log.info(
+      `espn games: ${plan.inserts.length} inserted, ${plan.updates.length} updated, ` +
+      `${plan.unchanged} unchanged, ${plan.unmatched.length} unmatched`
+    );
+
+    return {
+      inserted: plan.inserts.length,
+      updated: plan.updates.length,
+      unchanged: plan.unchanged,
+      unmatched: plan.unmatched,
+      plan
+    };
+  } catch (error) {
+    throwDbError(error, 'Upsert ESPN games');
   }
 }
 

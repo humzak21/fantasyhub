@@ -1,7 +1,3 @@
-// Generated from the live schema of Supabase project kvcnijyyfylxfarrlxkv.
-// Regenerate with:  npm run db:types
-// Do not edit by hand.
-
 export type Json =
   | string
   | number
@@ -15,6 +11,31 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "13.0.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -2241,13 +2262,6 @@ export type Database = {
             foreignKeyName: "roster_history_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: false
-            referencedRelation: "current_player_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "roster_history_player_id_fkey"
-            columns: ["player_id"]
-            isOneToOne: false
             referencedRelation: "players"
             referencedColumns: ["id"]
           },
@@ -2362,13 +2376,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "rosters_player_id_fkey"
-            columns: ["player_id"]
-            isOneToOne: false
-            referencedRelation: "current_player_analytics"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "rosters_player_id_fkey"
             columns: ["player_id"]
@@ -2580,65 +2587,63 @@ export type Database = {
         }
         Relationships: []
       }
-      team_analytics_summary: {
+      sync_runs: {
         Row: {
-          analytics_strength_score: number | null
-          avg_consistency_rating: number | null
-          avg_player_rank: number | null
-          avg_uncertainty: number | null
-          calculated_at: string | null
-          created_at: string | null
+          duration_ms: number | null
+          error: string | null
+          finished_at: string | null
           id: string
-          season_year: number
-          team_id: string
-          total_ceiling_score: number | null
-          total_floor_score: number | null
-          total_projected_points: number | null
-          trending_down_players: number | null
-          trending_up_players: number | null
-          updated_at: string | null
-          week: number
+          season_id: string
+          started_at: string
+          status: string
+          steps: Json
+          trigger: string
+          week_number: number
         }
         Insert: {
-          analytics_strength_score?: number | null
-          avg_consistency_rating?: number | null
-          avg_player_rank?: number | null
-          avg_uncertainty?: number | null
-          calculated_at?: string | null
-          created_at?: string | null
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
           id?: string
-          season_year: number
-          team_id: string
-          total_ceiling_score?: number | null
-          total_floor_score?: number | null
-          total_projected_points?: number | null
-          trending_down_players?: number | null
-          trending_up_players?: number | null
-          updated_at?: string | null
-          week: number
+          season_id: string
+          started_at?: string
+          status?: string
+          steps?: Json
+          trigger?: string
+          week_number: number
         }
         Update: {
-          analytics_strength_score?: number | null
-          avg_consistency_rating?: number | null
-          avg_player_rank?: number | null
-          avg_uncertainty?: number | null
-          calculated_at?: string | null
-          created_at?: string | null
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
           id?: string
-          season_year?: number
-          team_id?: string
-          total_ceiling_score?: number | null
-          total_floor_score?: number | null
-          total_projected_points?: number | null
-          trending_down_players?: number | null
-          trending_up_players?: number | null
-          updated_at?: string | null
-          week?: number
+          season_id?: string
+          started_at?: string
+          status?: string
+          steps?: Json
+          trigger?: string
+          week_number?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sync_runs_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sync_runs_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_season"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teams: {
         Row: {
+          abbreviation: string | null
           average_points_against: number | null
           average_points_for: number | null
           bad_losses: number | null
@@ -2689,6 +2694,7 @@ export type Database = {
           wins: number | null
         }
         Insert: {
+          abbreviation?: string | null
           average_points_against?: number | null
           average_points_for?: number | null
           bad_losses?: number | null
@@ -2739,6 +2745,7 @@ export type Database = {
           wins?: number | null
         }
         Update: {
+          abbreviation?: string | null
           average_points_against?: number | null
           average_points_for?: number | null
           bad_losses?: number | null
@@ -3086,21 +3093,7 @@ export type Database = {
             foreignKeyName: "weekly_lineups_dst_id_fkey"
             columns: ["dst_id"]
             isOneToOne: false
-            referencedRelation: "current_player_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_dst_id_fkey"
-            columns: ["dst_id"]
-            isOneToOne: false
             referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_flex_id_fkey"
-            columns: ["flex_id"]
-            isOneToOne: false
-            referencedRelation: "current_player_analytics"
             referencedColumns: ["id"]
           },
           {
@@ -3114,21 +3107,7 @@ export type Database = {
             foreignKeyName: "weekly_lineups_k_id_fkey"
             columns: ["k_id"]
             isOneToOne: false
-            referencedRelation: "current_player_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_k_id_fkey"
-            columns: ["k_id"]
-            isOneToOne: false
             referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_qb_id_fkey"
-            columns: ["qb_id"]
-            isOneToOne: false
-            referencedRelation: "current_player_analytics"
             referencedColumns: ["id"]
           },
           {
@@ -3142,21 +3121,7 @@ export type Database = {
             foreignKeyName: "weekly_lineups_rb1_id_fkey"
             columns: ["rb1_id"]
             isOneToOne: false
-            referencedRelation: "current_player_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_rb1_id_fkey"
-            columns: ["rb1_id"]
-            isOneToOne: false
             referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_rb2_id_fkey"
-            columns: ["rb2_id"]
-            isOneToOne: false
-            referencedRelation: "current_player_analytics"
             referencedColumns: ["id"]
           },
           {
@@ -3178,13 +3143,6 @@ export type Database = {
             columns: ["season_id"]
             isOneToOne: false
             referencedRelation: "v_active_season"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_te_id_fkey"
-            columns: ["te_id"]
-            isOneToOne: false
-            referencedRelation: "current_player_analytics"
             referencedColumns: ["id"]
           },
           {
@@ -3219,13 +3177,6 @@ export type Database = {
             foreignKeyName: "weekly_lineups_wr1_id_fkey"
             columns: ["wr1_id"]
             isOneToOne: false
-            referencedRelation: "current_player_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_wr1_id_fkey"
-            columns: ["wr1_id"]
-            isOneToOne: false
             referencedRelation: "players"
             referencedColumns: ["id"]
           },
@@ -3233,118 +3184,7 @@ export type Database = {
             foreignKeyName: "weekly_lineups_wr2_id_fkey"
             columns: ["wr2_id"]
             isOneToOne: false
-            referencedRelation: "current_player_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_lineups_wr2_id_fkey"
-            columns: ["wr2_id"]
-            isOneToOne: false
             referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      weekly_player_stats: {
-        Row: {
-          actual_points: number | null
-          created_at: string | null
-          espn_sync_timestamp: string | null
-          fantasy_team_id: string | null
-          game_date: string | null
-          id: string
-          opponent_team: string | null
-          percentile_vs_position: number | null
-          performance_vs_projection: number | null
-          player_id: string
-          projected_points: number | null
-          season_id: string
-          user_id: string
-          was_started: boolean | null
-          week: number
-        }
-        Insert: {
-          actual_points?: number | null
-          created_at?: string | null
-          espn_sync_timestamp?: string | null
-          fantasy_team_id?: string | null
-          game_date?: string | null
-          id?: string
-          opponent_team?: string | null
-          percentile_vs_position?: number | null
-          performance_vs_projection?: number | null
-          player_id: string
-          projected_points?: number | null
-          season_id: string
-          user_id?: string
-          was_started?: boolean | null
-          week: number
-        }
-        Update: {
-          actual_points?: number | null
-          created_at?: string | null
-          espn_sync_timestamp?: string | null
-          fantasy_team_id?: string | null
-          game_date?: string | null
-          id?: string
-          opponent_team?: string | null
-          percentile_vs_position?: number | null
-          performance_vs_projection?: number | null
-          player_id?: string
-          projected_points?: number | null
-          season_id?: string
-          user_id?: string
-          was_started?: boolean | null
-          week?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "weekly_player_stats_fantasy_team_id_fkey"
-            columns: ["fantasy_team_id"]
-            isOneToOne: false
-            referencedRelation: "roster_stats"
-            referencedColumns: ["team_id"]
-          },
-          {
-            foreignKeyName: "weekly_player_stats_fantasy_team_id_fkey"
-            columns: ["fantasy_team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_player_stats_fantasy_team_id_fkey"
-            columns: ["fantasy_team_id"]
-            isOneToOne: false
-            referencedRelation: "v_team_standings"
-            referencedColumns: ["team_id"]
-          },
-          {
-            foreignKeyName: "weekly_player_stats_player_id_fkey"
-            columns: ["player_id"]
-            isOneToOne: false
-            referencedRelation: "current_player_analytics"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_player_stats_player_id_fkey"
-            columns: ["player_id"]
-            isOneToOne: false
-            referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_player_stats_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "seasons"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "weekly_player_stats_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
         ]
@@ -3458,78 +3298,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      current_player_analytics: {
-        Row: {
-          ceiling_score: number | null
-          consistency_rating: number | null
-          ffanalytics_last_sync: string | null
-          ffanalytics_player_id: string | null
-          floor_score: number | null
-          id: string | null
-          name: string | null
-          position: string | null
-          position_rank: number | null
-          season_actual_points: number | null
-          season_projected_points: number | null
-          team_abbreviation: string | null
-          trend_score: number | null
-          weekly_rank: number | null
-        }
-        Insert: {
-          ceiling_score?: number | null
-          consistency_rating?: number | null
-          ffanalytics_last_sync?: string | null
-          ffanalytics_player_id?: string | null
-          floor_score?: number | null
-          id?: string | null
-          name?: string | null
-          position?: string | null
-          position_rank?: number | null
-          season_actual_points?: number | null
-          season_projected_points?: number | null
-          team_abbreviation?: string | null
-          trend_score?: number | null
-          weekly_rank?: number | null
-        }
-        Update: {
-          ceiling_score?: number | null
-          consistency_rating?: number | null
-          ffanalytics_last_sync?: string | null
-          ffanalytics_player_id?: string | null
-          floor_score?: number | null
-          id?: string | null
-          name?: string | null
-          position?: string | null
-          position_rank?: number | null
-          season_actual_points?: number | null
-          season_projected_points?: number | null
-          team_abbreviation?: string | null
-          trend_score?: number | null
-          weekly_rank?: number | null
-        }
-        Relationships: []
-      }
-      latest_team_analytics: {
-        Row: {
-          analytics_strength_score: number | null
-          avg_consistency_rating: number | null
-          avg_player_rank: number | null
-          avg_uncertainty: number | null
-          calculated_at: string | null
-          created_at: string | null
-          id: string | null
-          season_year: number | null
-          team_id: string | null
-          total_ceiling_score: number | null
-          total_floor_score: number | null
-          total_projected_points: number | null
-          trending_down_players: number | null
-          trending_up_players: number | null
-          updated_at: string | null
-          week: number | null
-        }
-        Relationships: []
       }
       mv_franchise_career_stats: {
         Row: {
@@ -4077,13 +3845,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["opponent_franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "teams_franchise_id_fkey"
             columns: ["franchise_id"]
             isOneToOne: false
             referencedRelation: "league_franchises"
@@ -4093,8 +3854,8 @@ export type Database = {
             foreignKeyName: "teams_franchise_id_fkey"
             columns: ["opponent_franchise_id"]
             isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
+            referencedRelation: "league_franchises"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "teams_franchise_id_fkey"
@@ -4106,13 +3867,20 @@ export type Database = {
           {
             foreignKeyName: "teams_franchise_id_fkey"
             columns: ["opponent_franchise_id"]
+            isOneToOne: false
+            referencedRelation: "mv_franchise_career_stats"
+            referencedColumns: ["franchise_id"]
+          },
+          {
+            foreignKeyName: "teams_franchise_id_fkey"
+            columns: ["franchise_id"]
             isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
           },
           {
             foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["franchise_id"]
+            columns: ["opponent_franchise_id"]
             isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
@@ -4253,6 +4021,7 @@ export type Database = {
         Args: { p_pick_em_week_id: string }
         Returns: undefined
       }
+      can_write_league: { Args: never; Returns: boolean }
       check_awards_unlock_status: {
         Args: { season_id_param: string }
         Returns: Json
@@ -4829,6 +4598,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
