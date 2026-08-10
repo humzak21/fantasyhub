@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import FantasyFootballApp from '../FantasyFootballApp.jsx'
 import MobileFantasyFootballApp from './components/mobile/MobileFantasyFootballApp.jsx'
 import { UserSettingsPage } from './components/auth/UserSettingsPage.jsx'
+import DisplayNamePrompt from './components/auth/DisplayNamePrompt.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
 import { useMobileDetection, setMobileViewport, getMobileClasses } from '../utils/mobileDetection.js'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
@@ -10,6 +11,7 @@ import ErrorBoundary from '../utils/errorBoundary.jsx'
 function App() {
   const { loading } = useAuth()
   const { isMobile, deviceInfo } = useMobileDetection()
+  const { pathname } = useLocation()
 
   // Set up mobile viewport and meta tags
   useEffect(() => {
@@ -46,36 +48,45 @@ function App() {
   const AppComponent = isMobile ? MobileFantasyFootballApp : FantasyFootballApp
 
   return (
-    <Routes>
-      {/* Main route - show appropriate app version based on device */}
-      <Route
-        path="/"
-        element={<AppComponent />}
-      />
+    <>
+      {/*
+        One mount for both shells. It sits below the `loading` gate above so it
+        cannot flash before auth resolves, and it is skipped on /settings, where
+        the page already offers the same field.
+      */}
+      {pathname !== '/settings' && <DisplayNamePrompt />}
 
-      {/* User Settings Page */}
-      <Route
-        path="/settings"
-        element={
-          <ErrorBoundary key="settings-error-boundary">
-            <UserSettingsPage />
-          </ErrorBoundary>
-        }
-      />
+      <Routes>
+        {/* Main route - show appropriate app version based on device */}
+        <Route
+          path="/"
+          element={<AppComponent />}
+        />
 
-      {/* Legacy routes - redirect to main */}
-      <Route
-        path="/overview"
-        element={<Navigate to="/" replace />}
-      />
-      <Route
-        path="/fantasy"
-        element={<Navigate to="/" replace />}
-      />
+        {/* User Settings Page */}
+        <Route
+          path="/settings"
+          element={
+            <ErrorBoundary key="settings-error-boundary">
+              <UserSettingsPage />
+            </ErrorBoundary>
+          }
+        />
 
-      {/* Catch all - redirect to home */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Legacy routes - redirect to main */}
+        <Route
+          path="/overview"
+          element={<Navigate to="/" replace />}
+        />
+        <Route
+          path="/fantasy"
+          element={<Navigate to="/" replace />}
+        />
+
+        {/* Catch all - redirect to home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   )
 }
 
