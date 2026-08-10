@@ -20,7 +20,7 @@ import { createContext, useContext, useMemo } from 'react';
 
 import { useAuth } from './AuthContext.jsx';
 import { useActiveSeason } from '../../hooks/queries/index.js';
-import { getTeamOwnerNames } from '../utils/displayNameUtils.js';
+import { getTeamOwnerNames, isUserATeamOwner } from '../utils/displayNameUtils.js';
 
 const ViewerContext = createContext(null);
 
@@ -39,12 +39,19 @@ export function ViewerProvider({ children }) {
       /**
        * Does this viewer own a team? Drives History-tab access, which the
        * desktop shell used to compute inline in its tab list.
+       *
+       * Goes through `isUserATeamOwner` rather than comparing by hand, because
+       * the two obvious hand-rolled comparisons are both wrong. The inline
+       * version this replaced read `user_metadata.display_name` — a key the app
+       * never writes; signup and settings both write `name`/`full_name` — and
+       * then ran `.includes()` against `teamOwnerNames`, which holds
+       * `{ ownerName, teamName }` objects, not strings. Either mistake alone
+       * pins this to `false`, and it did: the History tab was invisible to
+       * everyone, admin included, from 2025-11-19 until this was fixed.
+       * `isUserATeamOwner` resolves the name the way the rest of the app does
+       * and accepts both shapes.
        */
-      isTeamOwner: Boolean(
-        isAuthenticated &&
-          user?.user_metadata?.display_name &&
-          teamOwnerNames.includes(user.user_metadata.display_name)
-      )
+      isTeamOwner: Boolean(isAuthenticated && user && isUserATeamOwner(user, teamOwnerNames))
     }),
     [user, isAuthenticated, isAdmin, teamOwnerNames]
   );
