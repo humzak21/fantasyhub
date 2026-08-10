@@ -21,7 +21,8 @@
  *   node scripts/sync-week.js 5               # re-sync a specific week
  *   node scripts/sync-week.js 5 <season-id>   # target a season explicitly
  *
- * Options: --skip-rosters --skip-scores --skip-transactions --skip-snapshot
+ * Options: --skip-rosters --skip-scores --skip-transactions --skip-player-stats
+ *          --skip-snapshot
  *          --dry-run   resolve and report the target, write nothing
  */
 
@@ -29,6 +30,7 @@ import '../services/db/client.server.js';
 
 import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
 import { buildTeamIndex } from '../services/espnGameMapper.js';
+import { mapMatchupRosterEntries } from '../services/espnPlayerStatsMapper.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
@@ -115,6 +117,40 @@ async function syncScores(seasonId, weekNumber, espnMatchups, currentScoringPeri
     updated: result.updated,
     unchanged: result.unchanged,
     errors: result.unmatched
+  };
+}
+
+/**
+ * Store what every rostered player scored this week.
+ *
+ * The data arrives with the scores: `mMatchupScore` attaches
+ * `rosterForCurrentScoringPeriod` to each side of every matchup, and it has
+ * been parsed and discarded on every sync since the fetcher was written. This
+ * step costs no extra ESPN request — it reads the payload step B already
+ * fetched — which is the whole reason it lives here rather than in a job of its
+ * own.
+ *
+ * Runs in playoff weeks too. The ranking math ignores them, but a complete
+ * table is worth more than the handful of rows saved by skipping.
+ */
+async function syncPlayerStats(seasonId, weekNumber, espnMatchups) {
+  const db = getDb();
+  const season = await db.seasons.getSeason(seasonId);
+
+  const entries = mapMatchupRosterEntries(espnMatchups, weekNumber);
+
+  if (entries.length === 0) {
+    return { upserted: 0, playersCreated: 0, errors: [{ error: 'ESPN returned no roster entries' }] };
+  }
+
+  const result = await db.playerWeekStats.upsertPlayerWeekStats(
+    seasonId, weekNumber, entries, season.teams
+  );
+
+  return {
+    upserted: result.upserted,
+    playersCreated: result.playersCreated,
+    errors: result.skipped
   };
 }
 
@@ -262,14 +298,23 @@ export async function syncWeek(argv = []) {
       console.log('📋 rosters: synced');
     }
 
-    if (options['skip-scores']) {
-      steps.scores = { skipped: 'flag' };
-    } else {
+    // Scores and player stats are two readings of the same ESPN payload — the
+    // matchup carries both the final score and the roster that produced it — so
+    // it is fetched once here instead of once per step.
+    const wantsScores = !options['skip-scores'];
+    const wantsPlayerStats = !options['skip-player-stats'];
+    let weekData = null;
+
+    if (wantsScores || wantsPlayerStats) {
       const fetcher = await createScheduleFetcher(
         espn.leagueId, espn.seasonYear, espn.espnS2, espn.swid
       );
-      const weekData = await fetcher.getSingleWeek(weekNumber);
+      weekData = await fetcher.getSingleWeek(weekNumber);
+    }
 
+    if (!wantsScores) {
+      steps.scores = { skipped: 'flag' };
+    } else {
       if (!weekData?.matchups?.length) {
         throw new Error(`ESPN returned no matchups for week ${weekNumber}`);
       }
@@ -283,6 +328,31 @@ export async function syncWeek(argv = []) {
       );
       for (const miss of steps.scores.errors) {
         console.error(`❌ week ${miss.week} matchup ${miss.matchupId}: ${miss.reason}`);
+      }
+    }
+
+    // Non-critical, like transactions: the rankings degrade to team-level
+    // components without this week's rows, which is a worse ranking but not a
+    // broken site. Failing the run would also cost us the snapshot.
+    if (!wantsPlayerStats) {
+      steps.playerStats = { skipped: 'flag' };
+    } else {
+      try {
+        if (!weekData?.matchups?.length) {
+          throw new Error(`ESPN returned no matchups for week ${weekNumber}`);
+        }
+
+        steps.playerStats = await syncPlayerStats(seasonId, weekNumber, weekData.matchups);
+        console.log(
+          `🧍 player stats: ${steps.playerStats.upserted} rows, ` +
+          `${steps.playerStats.playersCreated} players created`
+        );
+        for (const miss of steps.playerStats.errors) {
+          console.warn(`⚠️  player ${miss.espnPlayerId ?? '?'}: ${miss.reason ?? miss.error}`);
+        }
+      } catch (error) {
+        steps.playerStats = { failed: error.message };
+        console.warn(`⚠️  player stats: ${error.message}`);
       }
     }
 

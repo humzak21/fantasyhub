@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { TrendingUp, Target, Zap, Shield, Award, BarChart3, ChevronDown, Info } from 'lucide-react';
+import {
+  TrendingUp, Target, Zap, Shield, Award, BarChart3, ChevronDown, Info,
+  Trophy, Users, Flame, Gauge, Telescope
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import {
@@ -10,6 +13,43 @@ import {
 } from '../ui/dropdown-menu';
 import { getMaskedTeamName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../types/index.js';
+
+/**
+ * The components, in weight order, derived from the weights.
+ *
+ * Every key in this file used to be a hardcoded string naming a component the
+ * calculator no longer produces — `performanceScore`, `teamStrength`,
+ * `clutchScore`. Each of those reads resolved to `undefined`, was coalesced to
+ * 0 by the `|| 0` beside it, and rendered as a chart where every team scored
+ * zero and the first team in the array was declared the league leader.
+ */
+const RANKING_COMPONENTS = Object.entries(POWER_RANKING_WEIGHTS)
+  .sort(([, a], [, b]) => b - a)
+  .map(([key, weight]) => ({
+    key,
+    weight,
+    weightLabel: `${Math.round(weight * 100)}%`,
+    ...POWER_RANKING_COMPONENT_META[key]
+  }));
+
+/** One icon per component. Keys track `POWER_RANKING_WEIGHTS`. */
+const COMPONENT_ICONS = {
+  record: Trophy,
+  allPlay: Users,
+  scoring: TrendingUp,
+  recentForm: Flame,
+  consistency: Shield,
+  rosterStrength: Zap,
+  lineupEfficiency: Gauge,
+  futureStrength: Telescope,
+  leagueSos: Target
+};
+
+const componentValue = (team, key) => {
+  const value = team?.powerRatingComponents?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+};
 
 const PowerRankingsVisualization = ({
   rankings = [],
@@ -20,45 +60,26 @@ const PowerRankingsVisualization = ({
   const visualizationData = useMemo(() => {
     if (!rankings.length || !rankings[0]?.powerRatingComponents) return null;
 
-    // Calculate league averages for each component
-    const componentAverages = {
-      performanceScore: 0,
-      teamStrength: 0,
-      strengthOfSchedule: 0,
-      momentumScore: 0,
-      consistencyScore: 0,
-      clutchScore: 0
-    };
+    // League average per component, over the teams that actually have one. A
+    // team missing the component is not a team averaging zero into it.
+    const componentAverages = {};
+    const leaders = {};
 
-    rankings.forEach(team => {
-      if (team.powerRatingComponents) {
-        Object.keys(componentAverages).forEach(key => {
-          componentAverages[key] += team.powerRatingComponents[key] || 0;
-        });
-      }
-    });
+    for (const { key } of RANKING_COMPONENTS) {
+      const scored = rankings
+        .map(team => ({ team, value: componentValue(team, key) }))
+        .filter(entry => entry.value !== null);
 
-    Object.keys(componentAverages).forEach(key => {
-      componentAverages[key] = componentAverages[key] / rankings.length;
-    });
+      componentAverages[key] = scored.length
+        ? scored.reduce((sum, entry) => sum + entry.value, 0) / scored.length
+        : null;
 
-    // Find standout teams in each category
-    const standouts = {
-      bestPerformance: rankings.reduce((best, team) => 
-        (team.powerRatingComponents?.performanceScore || 0) > (best?.powerRatingComponents?.performanceScore || 0) ? team : best, rankings[0]),
-      strongestRoster: rankings.reduce((best, team) => 
-        (team.powerRatingComponents?.teamStrength || 0) > (best?.powerRatingComponents?.teamStrength || 0) ? team : best, rankings[0]),
-      toughestSchedule: rankings.reduce((best, team) => 
-        (team.powerRatingComponents?.strengthOfSchedule || 0) > (best?.powerRatingComponents?.strengthOfSchedule || 0) ? team : best, rankings[0]),
-      hottest: rankings.reduce((best, team) => 
-        (team.powerRatingComponents?.momentumScore || 0) > (best?.powerRatingComponents?.momentumScore || 0) ? team : best, rankings[0]),
-      mostConsistent: rankings.reduce((best, team) => 
-        (team.powerRatingComponents?.consistencyScore || 0) > (best?.powerRatingComponents?.consistencyScore || 0) ? team : best, rankings[0]),
-      mostClutch: rankings.reduce((best, team) => 
-        (team.powerRatingComponents?.clutchScore || 0) > (best?.powerRatingComponents?.clutchScore || 0) ? team : best, rankings[0])
-    };
+      leaders[key] = scored.length
+        ? scored.reduce((best, entry) => (entry.value > best.value ? entry : best)).team
+        : null;
+    }
 
-    return { componentAverages, standouts };
+    return { componentAverages, leaders };
   }, [rankings]);
 
   if (!visualizationData) {
@@ -75,16 +96,36 @@ const PowerRankingsVisualization = ({
     );
   }
 
-  const { componentAverages, standouts } = visualizationData;
+  const { componentAverages, leaders } = visualizationData;
 
   const ComponentChart = ({ title, icon: Icon, teams, componentKey, color, formatValue }) => {
     const allSortedTeams = [...teams]
-      .filter(team => team.powerRatingComponents?.[componentKey] !== undefined)
-      .sort((a, b) => (b.powerRatingComponents[componentKey] || 0) - (a.powerRatingComponents[componentKey] || 0));
+      .filter(team => componentValue(team, componentKey) !== null)
+      .sort((a, b) => componentValue(b, componentKey) - componentValue(a, componentKey));
+
+    // A component nobody could compute — roster figures for a pre-2026 season —
+    // gets a chart that says so rather than nine zero-length bars.
+    if (allSortedTeams.length === 0) {
+      return (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Icon className={`h-4 w-4 ${color}`} />
+              {title}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              No data for this component in week {currentWeek}.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
 
     const displayTeams = showAllTeams ? allSortedTeams : allSortedTeams.slice(0, 5);
-    const maxValue = Math.max(...allSortedTeams.map(team => team.powerRatingComponents[componentKey] || 0));
-    const average = componentAverages[componentKey];
+    const maxValue = Math.max(...allSortedTeams.map(team => componentValue(team, componentKey)));
+    const average = componentAverages[componentKey] ?? 0;
 
     return (
       <Card>
@@ -96,7 +137,7 @@ const PowerRankingsVisualization = ({
         </CardHeader>
         <CardContent className="space-y-3">
           {displayTeams.map((team, index) => {
-            const value = team.powerRatingComponents[componentKey] || 0;
+            const value = componentValue(team, componentKey);
             const percentage = maxValue > 0 ? (value / maxValue) * 100 : 0;
             const isAboveAverage = value > average;
             
@@ -179,46 +220,22 @@ const PowerRankingsVisualization = ({
           Week {currentWeek} League Leaders
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <StandoutCard
-            title="🔥 Best Performance"
-            team={standouts.bestPerformance}
-            metric={`${standouts.bestPerformance?.powerRatingComponents?.performanceScore?.toFixed(2) || 0}`}
-            icon={TrendingUp}
-            color="text-blue-600"
-            description="Leading in recent scoring and trends"
-          />
-          <StandoutCard
-            title="💪 Strongest Roster"
-            team={standouts.strongestRoster}
-            metric={`${standouts.strongestRoster?.powerRatingComponents?.teamStrength?.toFixed(2) || 0}`}
-            icon={Zap}
-            color="text-green-600"
-            description="Highest projected talent level"
-          />
-          <StandoutCard
-            title="⚔️ Toughest Schedule"
-            team={standouts.toughestSchedule}
-            metric={`${standouts.toughestSchedule?.powerRatingComponents?.strengthOfSchedule?.toFixed(2) || 0}`}
-            icon={Target}
-            color="text-orange-600"
-            description="Facing the strongest opponents"
-          />
-          <StandoutCard
-            title="🚀 Hottest Team"
-            team={standouts.hottest}
-            metric={`${standouts.hottest?.powerRatingComponents?.momentumScore?.toFixed(2) || 0}`}
-            icon={TrendingUp}
-            color="text-purple-600"
-            description="Building the most momentum"
-          />
-          <StandoutCard
-            title="🎯 Most Consistent"
-            team={standouts.mostConsistent}
-            metric={`${standouts.mostConsistent?.powerRatingComponents?.consistencyScore?.toFixed(2) || 0}`}
-            icon={Shield}
-            color="text-indigo-600"
-            description="Lowest scoring variance"
-          />
+          {RANKING_COMPONENTS.map((component) => {
+            const leader = leaders[component.key];
+            if (!leader) return null;
+
+            return (
+              <StandoutCard
+                key={component.key}
+                title={component.label}
+                team={leader}
+                metric={componentValue(leader, component.key).toFixed(2)}
+                icon={COMPONENT_ICONS[component.key] ?? TrendingUp}
+                color={component.color}
+                description={component.description}
+              />
+            );
+          })}
         </div>
       </div>
 
@@ -253,46 +270,21 @@ const PowerRankingsVisualization = ({
           </DropdownMenu>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          <ComponentChart
-            title="Performance Score"
-            icon={TrendingUp}
-            teams={rankings}
-            componentKey="performanceScore"
-            color="text-blue-600"
-          />
-          <ComponentChart
-            title="Team Strength"
-            icon={Zap}
-            teams={rankings}
-            componentKey="teamStrength"
-            color="text-green-600"
-          />
-          <ComponentChart
-            title="Schedule Difficulty"
-            icon={Target}
-            teams={rankings}
-            componentKey="strengthOfSchedule"
-            color="text-orange-600"
-          />
-          <ComponentChart
-            title="Momentum Score"
-            icon={TrendingUp}
-            teams={rankings}
-            componentKey="momentumScore"
-            color="text-purple-600"
-          />
-          <ComponentChart
-            title="Consistency Score"
-            icon={Shield}
-            teams={rankings}
-            componentKey="consistencyScore"
-            color="text-indigo-600"
-          />
+          {RANKING_COMPONENTS.map((component) => (
+            <ComponentChart
+              key={component.key}
+              title={`${component.label} (${component.weightLabel})`}
+              icon={COMPONENT_ICONS[component.key] ?? TrendingUp}
+              teams={rankings}
+              componentKey={component.key}
+              color={component.color}
+            />
+          ))}
         </div>
       </div>
 
 
-      {/* Component Explanations */}
+      {/* Component Explanations, from the same source as the weights */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -302,117 +294,30 @@ const PowerRankingsVisualization = ({
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-semibold mb-2 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-blue-600" />
-                  Performance Score (25% weight)
-                </h4>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Measures recent scoring trends and overall production effectiveness.
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
-                  <li>• Recent 3-week scoring average vs season average</li>
-                  <li>• Points per game relative to league average</li>
-                  <li>• Scoring trend momentum and consistency</li>
-                  <li>• Bonus for teams exceeding projections</li>
-                </ul>
-              </div>
+            {RANKING_COMPONENTS.map((component) => {
+              const Icon = COMPONENT_ICONS[component.key] ?? TrendingUp;
+              return (
+                <div key={component.key}>
+                  <h4 className="font-semibold mb-2 flex items-center gap-2">
+                    <Icon className={`h-4 w-4 ${component.color}`} />
+                    {component.label} ({component.weightLabel} weight)
+                  </h4>
+                  <p className="text-sm text-muted-foreground">{component.description}</p>
+                </div>
+              );
+            })}
+          </div>
 
-              <div>
-                <h4 className="font-semibold mb-2 flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-green-600" />
-                  Team Strength (20% weight)
-                </h4>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Evaluates roster talent based on projected player performance.
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
-                  <li>• Total projected points for starting lineup</li>
-                  <li>• Bench depth and backup strength</li>
-                  <li>• Position group balance and reliability</li>
-                  <li>• Player injury risk and availability</li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-semibold mb-2 flex items-center gap-2">
-                  <Target className="h-4 w-4 text-orange-600" />
-                  Schedule Difficulty (15% weight)
-                </h4>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Measures the difficulty of opponents faced and remaining.
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
-                  <li>• Average opponent win percentage</li>
-                  <li>• Quality of opponents' scoring averages</li>
-                  <li>• Strength of upcoming matchups</li>
-                  <li>• Adjustments for division vs non-division games</li>
-                </ul>
-              </div>
-
-              <div>
-                <h4 className="font-semibold mb-2 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-purple-600" />
-                  Momentum Score (15% weight)
-                </h4>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Captures recent hot streaks and building momentum.
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
-                  <li>• Last 3 games performance vs season average</li>
-                  <li>• Win/loss streak consideration</li>
-                  <li>• Recent scoring improvements</li>
-                  <li>• Clutch performance in close games</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-semibold mb-2 flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-indigo-600" />
-                  Consistency Score (10% weight)
-                </h4>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Rewards teams with reliable, predictable scoring patterns.
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
-                  <li>• Coefficient of variation in weekly scores</li>
-                  <li>• Frequency of boom/bust weeks</li>
-                  <li>• Standard deviation from scoring average</li>
-                  <li>• Bonus for consistent top-half finishes</li>
-                </ul>
-              </div>
-
-
-              <div>
-                <h4 className="font-semibold mb-2 flex items-center gap-2">
-                  <Award className="h-4 w-4 text-yellow-600" />
-                  Clutch Performance (5% weight)
-                </h4>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Rewards teams that perform well in high-pressure situations.
-                </p>
-                <ul className="text-xs text-muted-foreground space-y-1 ml-4">
-                  <li>• Performance in games decided by ≤7 points</li>
-                  <li>• Monday Night Football and primetime scoring</li>
-                  <li>• Comeback victories and late-game execution</li>
-                  <li>• Performance against higher-ranked opponents</li>
-                </ul>
-              </div>
-
-              <div className="mt-6 p-4 bg-muted/50 rounded-lg">
-                <h4 className="font-semibold mb-2 text-sm">Calculation Notes</h4>
-                <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• All components are normalized to 0-100 scale</li>
-                  <li>• League averages shown as reference lines</li>
-                  <li>• Historical data weighted more heavily than projections</li>
-                  <li>• Algorithm adapts weights based on weeks completed</li>
-                  <li>• Quality wins/losses provide additional context</li>
-                </ul>
-              </div>
-            </div>
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg">
+            <h4 className="font-semibold mb-2 text-sm">Calculation Notes</h4>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li>• Every component is scaled 0–100 across the league, so the weights are directly comparable</li>
+              <li>• A component with no data is dropped and the remaining weights are rescaled — it is never counted as a zero</li>
+              <li>• Roster and lineup figures come from what each team’s players actually scored, week by week, under this league’s scoring settings</li>
+              <li>• Roster data starts with the 2026 season; earlier seasons rank on the five team-level components</li>
+              <li>• Projections describe the future, so the outlook component appears only on the current week, not on historical views</li>
+              <li>• Historical views use only games from before the week being viewed</li>
+            </ul>
           </div>
         </CardContent>
       </Card>

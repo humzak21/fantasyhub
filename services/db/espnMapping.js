@@ -56,13 +56,23 @@ export function getNFLTeamAbbreviation(proTeamId) {
 // Helper function to map ESPN roster slots to database roster slots.
 // The player's position is not consulted: the ESPN slot id already encodes it,
 // and where it does not (FLEX, BENCH, IR) the slot is what we want to store.
+//
+// The multi-position slots (3, 5, 7) and the team QB slot (1) were missing, so
+// anyone started in one of them fell through to the `|| 'BE'` default and was
+// recorded as a bench player. That is invisible in the roster view — the names
+// are all there — but it makes a started player look benched to anything
+// counting starters, which `player_week_stats` now does.
 export function mapESPNRosterSlot(espnSlot) {
   // ESPN roster slot mapping
   const slotMap = {
     0: 'QB',   // QB
-    2: 'RB',   // RB  
+    1: 'QB',   // TQB (team QB)
+    2: 'RB',   // RB
+    3: 'FLEX', // RB/WR
     4: 'WR',   // WR
+    5: 'FLEX', // WR/TE
     6: 'TE',   // TE
+    7: 'FLEX', // OP (offensive player)
     16: 'D/ST', // D/ST
     17: 'K',   // K
     20: 'BE',  // Bench
@@ -71,4 +81,9 @@ export function mapESPNRosterSlot(espnSlot) {
   };
 
   return slotMap[espnSlot] || 'BE';
+}
+
+/** Bench (20) and IR (21) are the only ESPN slots that do not score. */
+export function isStarterSlot(espnSlot) {
+  return espnSlot != null && espnSlot !== 20 && espnSlot !== 21;
 }
