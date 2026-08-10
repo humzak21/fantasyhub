@@ -22,6 +22,7 @@ import * as divisions from './divisions.js';
 import * as espnMapping from './espnMapping.js';
 import * as games from './games.js';
 import * as players from './players.js';
+import * as playerWeekStats from './playerWeekStats.js';
 import * as pickems from './pickems.js';
 import * as playoffs from './playoffs.js';
 import * as rankings from './rankings.js';
@@ -33,7 +34,7 @@ import * as transactions from './transactions.js';
 import * as users from './users.js';
 
 export {
-  awards, divisions, espnMapping, games, players, pickems, playoffs,
+  awards, divisions, espnMapping, games, players, playerWeekStats, pickems, playoffs,
   rankings, rosters, schedule, seasons, teams, transactions, users
 };
 
@@ -45,7 +46,7 @@ export { createLogger } from './logger.js';
 
 /** Modules whose functions take a context; `espnMapping` is pure and does not. */
 const CTX_MODULES = {
-  awards, divisions, games, players, pickems, playoffs, rankings,
+  awards, divisions, games, players, playerWeekStats, pickems, playoffs, rankings,
   rosters, schedule, seasons, teams, transactions, users
 };
 

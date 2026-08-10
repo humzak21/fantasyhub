@@ -55,4 +55,6 @@ export {
   usePickEmMutations
 } from './usePickEms.js';
 
+export { useSeasonPlayerStats, useTeamPlayerStats } from './usePlayerStats.js';
+
 export { useAwardsUnlockStatus, useAwards, useAwardsMutations } from './useAwards.js';

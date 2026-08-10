@@ -41,9 +41,9 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 ### Core Structure
 - **Main App**: `FantasyFootballApp.jsx` - Primary application component with tab-based navigation
 - **Data Layer**: `services/db/` - one module per domain (`seasons`, `teams`,
-  `divisions`, `rosters`, `players`, `games`, `rankings`, `schedule`, `pickems`,
-  `awards`, `playoffs`, `transactions`, `users`, `espnMapping`). **Write new
-  data access here.**
+  `divisions`, `rosters`, `players`, `playerWeekStats`, `games`, `rankings`,
+  `schedule`, `pickems`, `awards`, `playoffs`, `transactions`, `users`,
+  `espnMapping`). **Write new data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
   - `services/espnRosterUpdater.js` - ESPN integration for roster updates
@@ -106,6 +106,14 @@ season row supplies the season, week, playoff boundary and ESPN league. Every
 step is an idempotent upsert against ESPN, so re-running a failed sync is the
 fix. Each run writes a `sync_runs` row.
 
+Its steps are rosters → scores → playerStats → transactions → snapshot. Scores
+and playerStats read **one** ESPN fetch between them, so do not re-fetch inside
+a step. playerStats and transactions are non-fatal: a failure is recorded in
+`sync_runs.steps` and the run continues, because losing the week's snapshot to a
+player-data hiccup costs more than the missing rows. Skip flags:
+`--skip-rosters --skip-scores --skip-player-stats --skip-transactions
+--skip-snapshot`, plus `--dry-run`.
+
 ### One path from ESPN into `games`
 `services/db/games.js::upsertEspnGames` is the only writer of ESPN schedule
 data, used by both `sync-schedule` (whole season) and `sync-week` (one week).
@@ -126,6 +134,43 @@ created before ESPN ids were stored instead of duplicating them. The ESPN
 staging tables (`espn_teams`, `espn_matchups`) and `assign_schedule_to_season`
 were deleted on 2026-08-08; `espn_schedule_imports` remains as the import log.
 The browser cannot start an import — ESPN needs cookies only the scripts have.
+
+### The power ranking is roster-aware
+`services/powerRankingCalculator.js` scores nine components, each normalized
+0–100 **across the league**, combined with `POWER_RANKING_WEIGHTS`. Rules that
+are load-bearing:
+
+- **A component that cannot be computed is `null`, never 0.**
+  `combineWeightedComponents` drops nulls and divides by the surviving weight,
+  so a 2025 season (no player data) ranks on its five team components instead of
+  being dragged toward zero by the four it cannot compute. Returning 0 for
+  "unknown" is the bug this design exists to prevent.
+- **Everything is synchronous.** The old `calculateTeamStrength` was `async` and
+  was summed synchronously, so strength of schedule was adding Promises.
+- **`week < viewingWeek` everywhere**, including the all-play pool. A historical
+  view must not see a week the user has not navigated to.
+- Roster components (`rosterStrength`, `lineupEfficiency`) come from
+  `player_week_stats`, which starts with the 2026 season. `futureStrength` is
+  live-view only — nobody archived last month's projections, so producing one
+  for a past week would be fabrication.
+- **Both schedule adjustments point the same way: tougher opponents score
+  higher.** That is the opponent multiplier inside `record` (past opponents) and
+  `leagueSos` (remaining opponents). They used to disagree, which made the same
+  schedule simultaneously an excuse and a penalty, and let an easy run-in
+  flatter a mid-table team. Do not invert one without inverting the other.
+
+**`player_week_stats`** is one row per player per week: team, lineup slot,
+whether they started, actual and projected points. It is the grain neither
+`players` (a global last-write-wins snapshot) nor `rosters` (wiped every sync)
+can express. `services/db/playerWeekStats.js` is the only writer, fed by the
+pure `services/espnPlayerStatsMapper.js`, and the unique key
+`(season_id, week, player_id)` is what makes a re-run idempotent. The data costs
+no extra ESPN request: the sync's scores step already fetches
+`rosterForCurrentScoringPeriod` and used to discard it.
+
+Verified against the live league: this league starts QB/2RB/2WR/TE/FLEX/D/ST/K,
+which is what `OPTIMAL_LINEUP_TEMPLATE` encodes, and summing a team's starters
+reproduces ESPN's own matchup score exactly.
 
 ### No analytics subsystem
 The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,
@@ -151,7 +196,10 @@ build; lint is advisory until its pre-existing error backlog is cleared.
 
 ### Configuration
 Ranking algorithm weights and thresholds are defined in `types/index.js`:
-- Power ranking weights (win percentage, point differential, strength of schedule, roster strength, etc.)
+- `POWER_RANKING_WEIGHTS` — the nine component weights, which **must sum to 1**
+  (a test asserts it). This is the single definition: the calculator imports it
+  and so does the UI, via `POWER_RANKING_COMPONENT_META` for labels and
+  descriptions. Never hardcode a weight or a component label anywhere else.
 - Game thresholds (blowout margins, quality win/loss criteria)
 
 ## Integration Context
