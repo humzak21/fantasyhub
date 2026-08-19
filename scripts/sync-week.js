@@ -35,7 +35,39 @@ import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
-import { deriveCurrentWeek, toSeasonConfig } from '../utils/seasonConfig.js';
+import { deriveCurrentWeek, deriveWeekStart, toSeasonConfig } from '../utils/seasonConfig.js';
+
+/**
+ * Reasons to do nothing, and the one reason to shout.
+ *
+ * The cron runs every week of the year, including the ones either side of the
+ * season. A completed season and a season that has not started yet are both
+ * "nothing to sync", so they exit 0 and leave the log quiet. A season with no
+ * `start_date` is different: every derived date is wrong, the week number is
+ * meaningless, and silence would hide it — so that one throws and names the
+ * column. The guard lives here rather than in the workflow so a manual run
+ * behaves exactly like the scheduled one.
+ *
+ * @returns {string|null} why to stop, or null to carry on.
+ */
+export function reasonToSkip(row, season, now = new Date()) {
+  if (row.is_completed) {
+    return `season ${season.year} is completed — nothing to sync`;
+  }
+
+  if (!season.startDate) {
+    throw new Error(
+      `Season ${season.year} has no start_date. Every week number is derived from it; ` +
+      'set seasons.start_date to the Tuesday week 1 begins.'
+    );
+  }
+
+  if (now < deriveWeekStart(season, 1)) {
+    return `season ${season.year} starts ${season.startDate} — nothing to sync yet`;
+  }
+
+  return null;
+}
 
 /**
  * Resolve what to sync from the database rather than from arguments.
@@ -57,8 +89,10 @@ async function resolveTarget({ seasonIdArg, weekArg }) {
   }
 
   const season = toSeasonConfig(data);
+  const skip = reasonToSkip(data, season);
 
   return {
+    skip,
     season,
     seasonId: season.id,
     weekNumber: weekArg || deriveCurrentWeek(season),
@@ -259,8 +293,15 @@ export async function syncWeek(argv = []) {
     throw new Error('Week number must be a number');
   }
 
-  const { season, seasonId, weekNumber, weekWasDerived, espn } =
+  const { skip, season, seasonId, weekNumber, weekWasDerived, espn } =
     await resolveTarget({ seasonIdArg, weekArg });
+
+  // Out of season. Exit 0 so the weekly cron stays quiet rather than mailing a
+  // failure every week between February and September.
+  if (skip) {
+    console.log(`⏭️  ${skip}`);
+    return { skipped: skip, seasonId };
+  }
 
   if (weekNumber < 1 || weekNumber > season.weekCount) {
     throw new Error(`Week ${weekNumber} is outside this season's 1..${season.weekCount}`);

@@ -17,19 +17,43 @@ import { copyTeamsToSeason } from './teams.js';
 
 const log = createLogger('db:seasons');
 
+/**
+ * Columns a new season inherits from the one it copies teams from.
+ *
+ * `carryTeamsForward` used to copy team identity and nothing else, which left
+ * the 2026 row with no ESPN league and no pick'em windows — enough to make the
+ * weekly sync fail. `start_date` and `awards_release_at` are deliberately not
+ * here: one changes every year and the other is an act, not a setting.
+ */
+const INHERITED_CONFIG_COLUMNS = [
+  'timezone',
+  'espn_league_id',
+  'pickem_open_offset_days',
+  'pickem_open_time',
+  'pickem_close_offset_days',
+  'pickem_close_time',
+  'pickem_reveal_offset_days',
+  'pickem_reveal_time'
+];
+
+/** What `getPreviousSeason`/`getSeasonSummary` read: identity plus config. */
+const SEASON_SUMMARY_COLUMNS = ['id', 'year', 'name', ...INHERITED_CONFIG_COLUMNS].join(', ');
+
 // Season management
 /**
  * Create a season, its weeks, and — by default — its teams.
  *
  * The league is the same fourteen owners every year, so a new season starts by
- * carrying last season's divisions and teams forward instead of making the
- * admin re-import them by hand. Only identity is copied; see
+ * carrying last season's divisions, teams and configuration forward instead of
+ * making the admin re-enter them by hand. Only team *identity* is copied; see
  * `teams.copyTeamsToSeason`.
  *
  * @param {Object} [options]
  * @param {string|null} [options.copyTeamsFromSeasonId] Which season to copy
  *   from. Omitted/`undefined` picks the most recent season before `year`;
  *   `null` creates an empty season.
+ * @param {string|null} [options.startDate] 'YYYY-MM-DD' of week 1. Never
+ *   inherited — every season starts on a different Tuesday.
  */
 export async function createSeason(ctx, year, name = '', leagueSize = 14, regularSeasonWeeks = 14, playoffWeeks = 3, options = {}) {
 
@@ -40,15 +64,34 @@ export async function createSeason(ctx, year, name = '', leagueSize = 14, regula
     throw new Error('Invalid season data');
   }
 
-  const created = await insertSeasonWithWeeks(ctx, season);
-  return carryTeamsForward(ctx, created, options);
+  // Resolved before the insert so the new row can inherit the source's
+  // configuration, not just its teams. A lookup failure is reported the same
+  // way a failed copy is, rather than aborting a season that is otherwise fine.
+  let source = null;
+  let sourceError = null;
+  if (options.copyTeamsFromSeasonId !== null) {
+    try {
+      source = options.copyTeamsFromSeasonId
+        ? await getSeasonSummary(ctx, options.copyTeamsFromSeasonId)
+        : await getPreviousSeason(ctx, year);
+    } catch (error) {
+      sourceError = error.message;
+    }
+  }
+
+  const created = await insertSeasonWithWeeks(ctx, season, {
+    startDate: options.startDate ?? null,
+    inheritFrom: source
+  });
+
+  return carryTeamsForward(ctx, created, { source, sourceError });
 }
 
 /**
  * The season row and its empty weeks. Split out of `createSeason` so the team
  * copy that follows can fail without being reported as "create season failed".
  */
-async function insertSeasonWithWeeks(ctx, season) {
+async function insertSeasonWithWeeks(ctx, season, { startDate = null, inheritFrom = null } = {}) {
   try {
     // Insert season
     const seasonData = formatForDatabase({
@@ -62,6 +105,13 @@ async function insertSeasonWithWeeks(ctx, season) {
       stats: season.stats,
       playoffBracket: season.playoffBracket
     });
+
+    // ESPN numbers its seasons by year, so this needs no source to be known.
+    seasonData.espn_season_year = season.year;
+    if (startDate) seasonData.start_date = startDate;
+    for (const column of INHERITED_CONFIG_COLUMNS) {
+      if (inheritFrom?.[column] != null) seasonData[column] = inheritFrom[column];
+    }
 
 
     const { data: insertedSeason, error: seasonError } = await ctx.client
@@ -121,7 +171,7 @@ export async function getPreviousSeason(ctx, year) {
   try {
     const { data, error } = await ctx.client
       .from('seasons')
-      .select('id, year, name')
+      .select(SEASON_SUMMARY_COLUMNS)
       .lt('year', year)
       .order('year', { ascending: false })
       .limit(1);
@@ -147,21 +197,16 @@ export async function getPreviousSeason(ctx, year) {
  *   `teamsCopiedFrom`  `{ id, year, name }` of the source, or null
  *   `teamCopyError`    message when the copy failed, or null
  */
-async function carryTeamsForward(ctx, season, { copyTeamsFromSeasonId } = {}) {
+async function carryTeamsForward(ctx, season, { source = null, sourceError = null } = {}) {
   season.teams = [];
   season.teamsCopiedFrom = null;
-  season.teamCopyError = null;
+  season.teamCopyError = sourceError;
 
-  if (copyTeamsFromSeasonId === null) return season;
+  // No source: the copy was declined, the league's first season has nothing to
+  // copy, or resolving it failed and `sourceError` already says so.
+  if (!source) return season;
 
   try {
-    const source = copyTeamsFromSeasonId
-      ? await getSeasonSummary(ctx, copyTeamsFromSeasonId)
-      : await getPreviousSeason(ctx, season.year);
-
-    // The league's first season has nothing to copy; that is not an error.
-    if (!source) return season;
-
     const divisionIdMap = await copyDivisionsToSeason(ctx, source.id, season.id);
     const teams = await copyTeamsToSeason(ctx, source.id, season.id, divisionIdMap);
 
@@ -185,7 +230,7 @@ async function carryTeamsForward(ctx, season, { copyTeamsFromSeasonId } = {}) {
 async function getSeasonSummary(ctx, seasonId) {
   const { data, error } = await ctx.client
     .from('seasons')
-    .select('id, year, name')
+    .select(SEASON_SUMMARY_COLUMNS)
     .eq('id', seasonId)
     .single();
 
@@ -261,9 +306,103 @@ export async function getAllSeasons(ctx) {
   }
 }
 
+/**
+ * Derive and write a season's final placements, and the awards that depend on
+ * them.
+ *
+ * Both halves live in the database (`supabase/migrations/*_finalize_season`)
+ * because the derivation is a join across games, teams and the standings view,
+ * and because the same rules have to hold for the weekly sync as for the admin
+ * pressing a button. Idempotent: re-running it rewrites the same rows.
+ *
+ * @param {Object} [options]
+ * @param {boolean} [options.dryRun] Compute the assignments and return them
+ *   without writing, so the admin can confirm the podium first.
+ * @returns {Promise<Object>} `{ season_id, year, dry_run, assignments[] }`,
+ *   plus `awards` on a real run.
+ */
+export async function finalizeSeason(ctx, seasonId, { dryRun = false } = {}) {
+  try {
+    const { data, error } = await ctx.client.rpc('finalize_season', {
+      p_season_id: seasonId,
+      p_dry_run: dryRun
+    });
+
+    if (error) throw error;
+    if (dryRun) return data;
+
+    const { data: awards, error: awardsError } = await ctx.client.rpc('compute_season_awards', {
+      p_season_id: seasonId
+    });
+
+    if (awardsError) throw awardsError;
+
+    // `is_completed` just changed, and the cached season still says otherwise.
+    forgetSeason(ctx, seasonId);
+    log.info(`finalized season ${data?.year ?? seasonId}`);
+
+    return { ...data, awards };
+  } catch (error) {
+    throwDbError(error, 'Finalize season');
+  }
+}
+
+/**
+ * Finish the season being switched away from, if it is finished.
+ *
+ * Activating next season is the moment the old one stops being live, and until
+ * now nothing marked it done — which is how 2025 disappeared from League
+ * History the day 2026 was activated. Non-fatal on purpose, in the style of
+ * `carryTeamsForward`: activating the new season is what the admin asked for,
+ * and a failure here is reported on the returned season rather than thrown.
+ *
+ * A season with games still to play is skipped silently. Setting up next year
+ * early is normal and is not an error worth reporting.
+ *
+ * @returns {Promise<{finalized: Object|null, error: string|null}>}
+ */
+async function finalizeOutgoingSeason(ctx, incomingSeasonId) {
+  try {
+    const { data: outgoing, error } = await ctx.client
+      .from('seasons')
+      .select('id, year, is_completed')
+      .eq('is_active', true)
+      .limit(1);
+
+    if (error) throw error;
+
+    const current = outgoing?.[0] ?? null;
+    if (!current || current.id === incomingSeasonId || current.is_completed) {
+      return { finalized: null, error: null };
+    }
+
+    const { data: pending, error: pendingError } = await ctx.client
+      .from('games')
+      .select('id')
+      .eq('season_id', current.id)
+      .neq('type', 'bye')
+      .not('team2_id', 'is', null)
+      .or('team1_score.is.null,team2_score.is.null')
+      .limit(1);
+
+    if (pendingError) throw pendingError;
+    if (pending?.length) {
+      log.info(`season ${current.year} still has games to play; not finalizing it`);
+      return { finalized: null, error: null };
+    }
+
+    return { finalized: await finalizeSeason(ctx, current.id), error: null };
+  } catch (error) {
+    log.warn(`could not finalize the outgoing season: ${error.message}`);
+    return { finalized: null, error: error.message };
+  }
+}
+
 export async function setActiveSeason(ctx, seasonId) {
 
   try {
+    const outgoing = await finalizeOutgoingSeason(ctx, seasonId);
+
     // Deactivate all seasons
     await ctx.client
       .from('seasons')
@@ -282,6 +421,8 @@ export async function setActiveSeason(ctx, seasonId) {
 
     ctx.activeSeasonId = seasonId;
     const formattedSeason = formatFromDatabase(data);
+    formattedSeason.finalizedPrevious = outgoing.finalized;
+    formattedSeason.finalizeError = outgoing.error;
     ctx.seasonsCache.set(seasonId, formattedSeason);
 
     return formattedSeason;
