@@ -223,6 +223,20 @@ function useInvalidators() {
           invalidate(qk.divisions.all)
         ]);
       },
+      /**
+       * A season was finished: its teams gained placements, its awards were
+       * computed, and every History view is derived from both. Activating a
+       * season can finalize the outgoing one, so it invalidates this too.
+       */
+      finalization: async (seasonId) => {
+        forgetSeasonCache(seasonId);
+        await Promise.all([
+          invalidate(qk.seasons.all),
+          invalidate(qk.teams.all),
+          invalidate(qk.awards.all),
+          invalidate(qk.history.all)
+        ]);
+      },
       /** Roster of teams changed: standings and rankings depend on it. */
       teams: (seasonId) =>
         Promise.all([
@@ -261,16 +275,33 @@ export function useLeagueMutations(seasonId) {
    * season, or name a specific season.
    */
   const createSeason = useMutation({
-    mutationFn: ({ year, name, leagueSize, regularSeasonWeeks, playoffWeeks, copyTeamsFromSeasonId }) =>
+    mutationFn: ({ year, name, leagueSize, regularSeasonWeeks, playoffWeeks, copyTeamsFromSeasonId, startDate }) =>
       db().seasons.createSeason(year, name, leagueSize, regularSeasonWeeks, playoffWeeks, {
-        copyTeamsFromSeasonId
+        copyTeamsFromSeasonId,
+        startDate
       }),
     onSuccess: invalidators.seasons
   });
 
+  // Activating a season finishes the one it replaces, so this invalidates the
+  // placements and awards that finishing writes as well as the season rows.
   const setActiveSeason = useMutation({
     mutationFn: (id) => db().seasons.setActiveSeason(id),
-    onSuccess: invalidators.seasons
+    onSuccess: (_season, id) =>
+      Promise.all([invalidators.seasons(), invalidators.finalization(id)])
+  });
+
+  /**
+   * Derive a season's final placements and awards.
+   *
+   * A dry run writes nothing and invalidates nothing — it exists so the admin
+   * can read the podium before agreeing to it.
+   */
+  const finalizeSeason = useMutation({
+    mutationFn: ({ seasonId, dryRun = false }) =>
+      db().seasons.finalizeSeason(seasonId, { dryRun }),
+    onSuccess: (_result, { seasonId, dryRun }) =>
+      dryRun ? undefined : invalidators.finalization(seasonId)
   });
 
   const deleteSeason = useMutation({
@@ -358,6 +389,7 @@ export function useLeagueMutations(seasonId) {
   return {
     createSeason,
     setActiveSeason,
+    finalizeSeason,
     deleteSeason,
     addTeam,
     updateTeam,

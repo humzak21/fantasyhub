@@ -11,7 +11,19 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { makeCtx } from './fakeClient.js';
 import { createSeason, getPreviousSeason } from '../seasons.js';
 
-const SOURCE_SEASON = { id: 'season-2025', year: 2025, name: '2025 Season' };
+const SOURCE_SEASON = {
+  id: 'season-2025',
+  year: 2025,
+  name: '2025 Season',
+  timezone: 'America/New_York',
+  espn_league_id: '67674700',
+  pickem_open_offset_days: 0,
+  pickem_open_time: '04:00:00',
+  pickem_close_offset_days: 2,
+  pickem_close_time: '20:00:00',
+  pickem_reveal_offset_days: 7,
+  pickem_reveal_time: '12:00:00'
+};
 
 const SOURCE_TEAMS = [
   {
@@ -55,6 +67,9 @@ function defaultHandlers(overrides = {}) {
 
 const insertedTeams = (ctx) =>
   ctx.client.calls.find((call) => call.table === 'teams' && call.op === 'insert')?.payload;
+
+const insertedSeason = (ctx) =>
+  ctx.client.calls.find((call) => call.table === 'seasons' && call.op === 'insert')?.payload;
 
 describe('createSeason carrying teams forward', () => {
   let ctx;
@@ -193,6 +208,50 @@ describe('createSeason carrying teams forward', () => {
     );
 
     await expect(createSeason(ctx, 2026)).rejects.toThrow(/duplicate key/);
+  });
+});
+
+describe('createSeason carrying configuration forward', () => {
+  let ctx;
+
+  beforeEach(() => {
+    ctx = makeCtx(defaultHandlers());
+  });
+
+  it('inherits the ESPN league, time zone and pick\'em windows', async () => {
+    await createSeason(ctx, 2026);
+
+    expect(insertedSeason(ctx)).toMatchObject({
+      timezone: 'America/New_York',
+      espn_league_id: '67674700',
+      pickem_open_offset_days: 0,
+      pickem_open_time: '04:00:00',
+      pickem_close_offset_days: 2,
+      pickem_close_time: '20:00:00',
+      pickem_reveal_offset_days: 7,
+      pickem_reveal_time: '12:00:00'
+    });
+  });
+
+  it('numbers the ESPN season by year, with or without a source', async () => {
+    await createSeason(ctx, 2026, '', 14, 14, 3, { copyTeamsFromSeasonId: null });
+
+    expect(insertedSeason(ctx).espn_season_year).toBe(2026);
+  });
+
+  // Last season's Tuesday is not this season's, and releasing the awards is an
+  // act rather than a setting: neither is safe to inherit.
+  it('never inherits the start date or the awards release', async () => {
+    await createSeason(ctx, 2026);
+
+    expect(insertedSeason(ctx)).not.toHaveProperty('start_date');
+    expect(insertedSeason(ctx)).not.toHaveProperty('awards_release_at');
+  });
+
+  it('writes the start date it was given', async () => {
+    await createSeason(ctx, 2026, '', 14, 14, 3, { startDate: '2026-09-08' });
+
+    expect(insertedSeason(ctx).start_date).toBe('2026-09-08');
   });
 });
 

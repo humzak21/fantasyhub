@@ -36,7 +36,7 @@ export const UserSettingsPage = () => {
 
   // `copyTeamsFromSeasonId`: undefined carries the previous season's teams
   // forward, null creates an empty season. Resolves in `services/db/seasons.js`.
-  const handleCreateSeason = (year, name, leagueSize, regularSeasonWeeks, playoffWeeks, copyTeamsFromSeasonId) =>
+  const handleCreateSeason = (year, name, leagueSize, regularSeasonWeeks, playoffWeeks, copyTeamsFromSeasonId, startDate) =>
     seasonMutations.createSeason.mutateAsync({
       year,
       name,
@@ -44,10 +44,14 @@ export const UserSettingsPage = () => {
       regularSeasonWeeks,
       playoffWeeks,
       copyTeamsFromSeasonId,
+      startDate,
     })
 
   const handleSetActiveSeason = (seasonId) =>
     seasonMutations.setActiveSeason.mutateAsync(seasonId)
+
+  const handleFinalizeSeason = (seasonId, { dryRun = false } = {}) =>
+    seasonMutations.finalizeSeason.mutateAsync({ seasonId, dryRun })
 
   const handleDeleteSeason = (seasonId) => seasonMutations.deleteSeason.mutateAsync(seasonId)
 
@@ -352,6 +356,7 @@ export const UserSettingsPage = () => {
                 onCreateSeason={handleCreateSeason}
                 onSetActiveSeason={handleSetActiveSeason}
                 onDeleteSeason={handleDeleteSeason}
+                onFinalizeSeason={handleFinalizeSeason}
                 onExportSeason={handleExportSeason}
                 onImportSeason={handleImportSeason}
                 loading={dataLoading}

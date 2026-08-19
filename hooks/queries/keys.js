@@ -102,6 +102,25 @@ export const qk = {
     unlockStatus: (seasonId) => ['awards', seasonId, 'unlockStatus']
   },
 
+  /**
+   * League history. Every entry spans seasons rather than living under one, so
+   * this domain is keyed by what is being asked rather than by `seasonId`, and
+   * the whole of it is invalidated when a season is finalized.
+   */
+  history: {
+    all: ['history'],
+    timeline: () => ['history', 'timeline'],
+    franchises: () => ['history', 'franchises'],
+    championships: () => ['history', 'championships'],
+    seasonDetail: (seasonId) => ['history', 'season', seasonId],
+    h2hMatrix: () => ['history', 'h2h', 'matrix'],
+    matchup: (franchise1Id, franchise2Id) => ['history', 'h2h', franchise1Id, franchise2Id],
+    recordBook: () => ['history', 'records'],
+    franchiseProfile: (franchiseId) => ['history', 'franchise', franchiseId],
+    transactionLeaderboard: () => ['history', 'transactions'],
+    franchiseTransactions: (franchiseId) => ['history', 'transactions', franchiseId]
+  },
+
   schedule: {
     all: ['schedule'],
     /** The ESPN import log. Written by scripts, read-only in the app. */
