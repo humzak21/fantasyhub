@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { ArrowLeft, Target } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
-import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
+import { useMatchupHistory } from '../../../../hooks/queries/index.js';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 
 const MatchupDetail = ({
@@ -15,9 +15,7 @@ const MatchupDetail = ({
   teamOwnerNames = [],
   onBack = () => {}
 }) => {
-  const { getMatchupHistory, loading } = useLeagueHistory();
-  const [matchups, setMatchups] = useState([]);
-  const [summary, setSummary] = useState(null);
+  const { data: matchups = [], isLoading: loading } = useMatchupHistory(franchise1Id, franchise2Id);
 
   // Get franchise info
   const franchise1 = franchises.find(f => f.id === franchise1Id);
@@ -28,81 +26,66 @@ const MatchupDetail = ({
     return getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames);
   };
 
-  // Load matchup history
-  useEffect(() => {
-    const loadMatchups = async () => {
-      if (!franchise1Id || !franchise2Id) return;
+  // Every row is already oriented with franchise 1 as `team1`, so the summary
+  // is a straight fold over the list.
+  const summary = useMemo(() => {
+    if (matchups.length === 0) return null;
 
-      const data = await getMatchupHistory(franchise1Id, franchise2Id);
-      setMatchups(data);
+    let f1Wins = 0;
+    let f2Wins = 0;
+    let f1Points = 0;
+    let f2Points = 0;
+    let playoffF1Wins = 0;
+    let playoffF2Wins = 0;
+    let highestScore = 0;
+    let highestScoreGame = null;
+    let closestMargin = Infinity;
+    let closestGame = null;
 
-      // Calculate summary
-      if (data.length > 0) {
-        let f1Wins = 0;
-        let f2Wins = 0;
-        let f1Points = 0;
-        let f2Points = 0;
-        let playoffF1Wins = 0;
-        let playoffF2Wins = 0;
-        let highestScore = 0;
-        let highestScoreGame = null;
-        let closestMargin = Infinity;
-        let closestGame = null;
+    for (const game of matchups) {
+      const f1Score = game.team1Score;
+      const f2Score = game.team2Score;
 
-        for (const game of data) {
-          // Determine which team is which franchise
-          const f1IsTeam1 = game.team1FranchiseId === franchise1Id;
-          const f1Score = f1IsTeam1 ? game.team1Score : game.team2Score;
-          const f2Score = f1IsTeam1 ? game.team2Score : game.team1Score;
+      f1Points += f1Score;
+      f2Points += f2Score;
 
-          f1Points += f1Score;
-          f2Points += f2Score;
-
-          if (f1Score > f2Score) {
-            f1Wins++;
-            if (game.type === 'playoff' || game.type === 'championship') {
-              playoffF1Wins++;
-            }
-          } else if (f2Score > f1Score) {
-            f2Wins++;
-            if (game.type === 'playoff' || game.type === 'championship') {
-              playoffF2Wins++;
-            }
-          }
-
-          // Track notable games
-          const totalScore = f1Score + f2Score;
-          if (totalScore > highestScore) {
-            highestScore = totalScore;
-            highestScoreGame = { ...game, f1Score, f2Score };
-          }
-
-          const margin = Math.abs(f1Score - f2Score);
-          if (margin < closestMargin && margin > 0) {
-            closestMargin = margin;
-            closestGame = { ...game, f1Score, f2Score, margin };
-          }
-        }
-
-        setSummary({
-          totalGames: data.length,
-          f1Wins,
-          f2Wins,
-          f1Points,
-          f2Points,
-          f1AvgPoints: f1Points / data.length,
-          f2AvgPoints: f2Points / data.length,
-          playoffF1Wins,
-          playoffF2Wins,
-          playoffGames: playoffF1Wins + playoffF2Wins,
-          highestScoreGame,
-          closestGame
-        });
+      if (f1Score > f2Score) {
+        f1Wins++;
+        if (game.isPlayoff) playoffF1Wins++;
+      } else if (f2Score > f1Score) {
+        f2Wins++;
+        if (game.isPlayoff) playoffF2Wins++;
       }
-    };
 
-    loadMatchups();
-  }, [franchise1Id, franchise2Id, getMatchupHistory]);
+      // Track notable games
+      const totalScore = f1Score + f2Score;
+      if (totalScore > highestScore) {
+        highestScore = totalScore;
+        highestScoreGame = { ...game, f1Score, f2Score };
+      }
+
+      const margin = Math.abs(f1Score - f2Score);
+      if (margin < closestMargin && margin > 0) {
+        closestMargin = margin;
+        closestGame = { ...game, f1Score, f2Score, margin };
+      }
+    }
+
+    return {
+      totalGames: matchups.length,
+      f1Wins,
+      f2Wins,
+      f1Points,
+      f2Points,
+      f1AvgPoints: f1Points / matchups.length,
+      f2AvgPoints: f2Points / matchups.length,
+      playoffF1Wins,
+      playoffF2Wins,
+      playoffGames: matchups.filter(game => game.isPlayoff).length,
+      highestScoreGame,
+      closestGame
+    };
+  }, [matchups]);
 
   // Group matchups by season
   const matchupsByYear = matchups.reduce((acc, game) => {
@@ -269,11 +252,9 @@ const MatchupDetail = ({
 
                       <div className="space-y-1">
                         {sortedGames.map((game) => {
-                          const f1IsTeam1 = game.team1FranchiseId === franchise1Id;
-                          const f1Score = f1IsTeam1 ? game.team1Score : game.team2Score;
-                          const f2Score = f1IsTeam1 ? game.team2Score : game.team1Score;
-                          const f1Record = f1IsTeam1 ? game.team1Record : game.team2Record;
-                          const f2Record = f1IsTeam1 ? game.team2Record : game.team1Record;
+                          const { team1Score: f1Score, team2Score: f2Score } = game;
+                          const f1Record = game.team1Record;
+                          const f2Record = game.team2Record;
                           const f1Won = f1Score > f2Score;
                           const f2Won = f2Score > f1Score;
 
