@@ -16,7 +16,6 @@ import { getCurrentWeek, getSeasonGames, toUiGame } from './games.js';
 import { getAllPlayers } from './players.js';
 import { getPlayerWeekStats } from './playerWeekStats.js';
 import { getAllRosters } from './rosters.js';
-import { resolveSeasonYear } from './seasons.js';
 import { getTeamsForSeason } from './teams.js';
 
 const log = createLogger('db:rankings');
@@ -399,59 +398,6 @@ export async function saveWeeklyPowerRankingsSnapshot(ctx, seasonId, weekNumber,
   } catch (error) {
     throwDbError(error, 'Save power rankings snapshot');
     return 0;
-  }
-}
-
-export async function checkWeeklySnapshotStatus(ctx, seasonYear) {
-  const year = await resolveSeasonYear(ctx, seasonYear);
-
-  try {
-    const { data, error } = await ctx.client
-      .rpc('should_trigger_weekly_snapshot', {
-        season_year: year
-      });
-
-    if (error) throw error;
-
-    return data?.[0] || { should_trigger: false, reason: 'No data returned' };
-  } catch (error) {
-    throwDbError(error, 'Check weekly snapshot status');
-    return { should_trigger: false, reason: 'Error checking status' };
-  }
-}
-
-export async function executeWeeklySnapshotIfNeeded(ctx, seasonYear) {
-  const year = await resolveSeasonYear(ctx, seasonYear);
-
-  try {
-    const { data, error } = await ctx.client
-      .rpc('execute_weekly_snapshot_if_needed', {
-        season_year: year
-      });
-
-    if (error) throw error;
-
-    return data;
-  } catch (error) {
-    throwDbError(error, 'Execute weekly snapshot');
-    return { status: 'error', error_message: error.message };
-  }
-}
-
-export async function getCurrentNFLWeek(ctx, seasonYear) {
-  const year = await resolveSeasonYear(ctx, seasonYear);
-
-  try {
-    const { data, error } = await ctx.client
-      .rpc('get_current_nfl_week', {
-        season_year: year
-      });
-
-    if (error) throw error;
-
-    return data || 1;
-  } catch (error) {
-    return 1;
   }
 }
 
