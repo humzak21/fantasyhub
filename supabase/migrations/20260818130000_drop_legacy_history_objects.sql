@@ -1,17 +1,17 @@
 -- Remove the pre-2026 history path, now that nothing reads it.
 --
--- ⚠️ HOLD UNTIL THE NEW HISTORY TAB HAS BEEN SEEN WORKING IN PRODUCTION. ⚠️
+-- Applied 2026-08-19, after checking the duplication claim row by row rather
+-- than taking it on trust. Every row of `historical_seasons` (5),
+-- `historical_teams` (70), `historical_games` (583) and `season_awards` (55)
+-- was present in `seasons`/`teams`/`games`/`awards` under the *same id*, with
+-- matching year, name, franchise and scores.
 --
--- This drops five seasons of duplicated data. Every row in `historical_*` is
--- already in `seasons`/`teams`/`games` under the *same ids* — that is what made
--- the repoint possible — but "already copied" is a claim worth re-checking
--- against the live site before it stops being reversible. Verify first:
---
---   • League History shows six seasons, 2025 among them, with its podium
---   • Records, Head-to-Head and Awards all populate
---   • the browser's network panel shows no request for a `historical_*` table
---
--- Only then apply this.
+-- `head_to_head_records` was the one table with no copy anywhere, and it turned
+-- out not to be worth keeping: its 102 pairs total 653 meetings where the games
+-- add up to 583. The extra 70 are 2025 weeks 1-10 — it was computed on
+-- 2025-11-15, mid-season, and frozen there. So it is not a record of 2020-24 at
+-- all; it is a snapshot taken halfway through a season that has since finished.
+-- `v_head_to_head` recomputes it from the games every time it is read.
 --
 -- What is going, and why it is safe:
 --
@@ -42,7 +42,7 @@ begin;
 -- now, and the current week comes from `season_current_week(season_id)`.
 drop function if exists public.should_trigger_weekly_snapshot(integer);
 drop function if exists public.execute_weekly_snapshot_if_needed(integer);
-drop function if exists public.manual_weekly_snapshot_check();
+drop function if exists public.manual_weekly_snapshot_check(integer);
 drop function if exists public.get_current_nfl_week(integer);
 drop function if exists public.refresh_league_history_views();
 drop function if exists public.refresh_transaction_views();
