@@ -5,7 +5,11 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui
 import { Alert, AlertDescription } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { useLeagueHistory } from '../../hooks/useLeagueHistory';
+import {
+  useHistoryTimeline,
+  useHistoryFranchises,
+  useChampionships
+} from '../../../hooks/queries/index.js';
 
 // Import overview components
 import HistoryTimeline from './overview/HistoryTimeline';
@@ -31,32 +35,47 @@ const LeagueHistoryManager = ({
   activeSeason = null
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
-  // Use league history hook
-  const {
-    franchises,
-    seasons,
-    careerStats,
-    championships,
-    activeFranchises,
-    selectedFranchiseId,
-    setSelectedFranchiseId,
-    selectedFranchise,
-    selectedSeasonYear,
-    setSelectedSeasonYear,
-    selectedSeason,
-    loading,
-    initializing,
-    error,
-    clearError,
-    refresh
-  } = useLeagueHistory();
+
+  // Three independent queries rather than one mega-hook. TanStack deduplicates
+  // them across the six components below, which each used to run their own
+  // copy of the old hook's four-call `initialize()`.
+  const timelineQuery = useHistoryTimeline();
+  const franchisesQuery = useHistoryFranchises();
+  const championshipsQuery = useChampionships();
+
+  const seasons = timelineQuery.data ?? [];
+  // One list, two props: a franchise row carries its own career stats.
+  const franchises = franchisesQuery.data ?? [];
+  const careerStats = franchises;
+  const championships = championshipsQuery.data ?? [];
+
+  const initializing = timelineQuery.isLoading || franchisesQuery.isLoading;
+  const loading = timelineQuery.isFetching || franchisesQuery.isFetching || championshipsQuery.isFetching;
+  const error =
+    timelineQuery.error?.message ??
+    franchisesQuery.error?.message ??
+    championshipsQuery.error?.message ??
+    null;
+
+  const refresh = () => {
+    timelineQuery.refetch();
+    franchisesQuery.refetch();
+    championshipsQuery.refetch();
+  };
 
   // Sub-tab state
   const [activeSubTab, setActiveSubTab] = useState('overview');
 
+  // Selection state
+  const [selectedFranchiseId, setSelectedFranchiseId] = useState(null);
+  const [selectedSeasonYear, setSelectedSeasonYear] = useState(null);
+
   // View-specific state
   const [selectedH2HFranchise1, setSelectedH2HFranchise1] = useState(null);
   const [selectedH2HFranchise2, setSelectedH2HFranchise2] = useState(null);
+
+  const selectedFranchise = franchises.find(f => f.id === selectedFranchiseId) ?? null;
+  const selectedSeason = seasons.find(s => s.year === selectedSeasonYear) ?? null;
 
   // Auto-scroll to top on sub-tab change
   useEffect(() => {
@@ -134,22 +153,11 @@ const LeagueHistoryManager = ({
           <Alert>
             <AlertDescription>
               <div className="space-y-4">
-                <p>No historical data available yet.</p>
+                <p>No league history yet.</p>
                 <p className="text-sm text-muted-foreground">
-                  Historical data needs to be imported using the league history scripts.
-                  Contact the league administrator for more information.
+                  A season appears here once it is finalized in Season Management —
+                  that is what works out the final standings and awards.
                 </p>
-                {isAdmin && (
-                  <div className="bg-muted p-4 rounded-md">
-                    <p className="font-semibold mb-2">Admin Instructions:</p>
-                    <ol className="list-decimal list-inside space-y-1 text-sm">
-                      <li>Run: <code className="bg-background px-2 py-1 rounded">node scripts/buildFranchiseRegistry.js</code></li>
-                      <li>Run: <code className="bg-background px-2 py-1 rounded">node scripts/importHistoricalSeason.js 2024</code></li>
-                      <li>Run: <code className="bg-background px-2 py-1 rounded">node scripts/calculateHeadToHeadHistory.js</code></li>
-                      <li>Run: <code className="bg-background px-2 py-1 rounded">node scripts/calculateSeasonAwards.js</code></li>
-                    </ol>
-                  </div>
-                )}
               </div>
             </AlertDescription>
           </Alert>
@@ -218,8 +226,8 @@ const LeagueHistoryManager = ({
         <Alert variant="destructive">
           <AlertDescription className="flex items-center justify-between">
             <span>{error}</span>
-            <Button onClick={clearError} variant="ghost" size="sm">
-              Dismiss
+            <Button onClick={refresh} variant="ghost" size="sm">
+              Retry
             </Button>
           </AlertDescription>
         </Alert>

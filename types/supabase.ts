@@ -3945,13 +3945,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "teams_franchise_id_fkey"
             columns: ["opponent_franchise_id"]
             isOneToOne: false
             referencedRelation: "league_franchises"
@@ -3961,8 +3954,8 @@ export type Database = {
             foreignKeyName: "teams_franchise_id_fkey"
             columns: ["franchise_id"]
             isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
+            referencedRelation: "league_franchises"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "teams_franchise_id_fkey"
@@ -3974,13 +3967,20 @@ export type Database = {
           {
             foreignKeyName: "teams_franchise_id_fkey"
             columns: ["franchise_id"]
+            isOneToOne: false
+            referencedRelation: "mv_franchise_career_stats"
+            referencedColumns: ["franchise_id"]
+          },
+          {
+            foreignKeyName: "teams_franchise_id_fkey"
+            columns: ["opponent_franchise_id"]
             isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
           },
           {
             foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["opponent_franchise_id"]
+            columns: ["franchise_id"]
             isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
@@ -4141,6 +4141,7 @@ export type Database = {
           week2_rank: number
         }[]
       }
+      compute_season_awards: { Args: { p_season_id: string }; Returns: Json }
       create_pick_em_week: {
         Args: {
           p_results_reveal_at?: string
@@ -4189,6 +4190,10 @@ export type Database = {
       }
       execute_weekly_snapshot_if_needed: {
         Args: { season_year?: number }
+        Returns: Json
+      }
+      finalize_season: {
+        Args: { p_dry_run?: boolean; p_season_id: string }
         Returns: Json
       }
       get_available_players: {

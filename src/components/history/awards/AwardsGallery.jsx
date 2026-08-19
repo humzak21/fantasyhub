@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Award, Trophy, Medal, TrendingUp, TrendingDown, Zap, Target, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Award, Trophy, Medal, TrendingUp, TrendingDown, Zap, Target, Calendar, ChevronDown, ChevronUp, Vote } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
-import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
+import { useSeasonDetails } from '../../../../hooks/queries/index.js';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatPoints } from '../utils/statFormatters';
 
@@ -36,6 +36,15 @@ const AWARD_CATEGORIES = {
     color: 'text-purple-600',
     bgColor: 'bg-purple-50 dark:bg-purple-950/20',
     description: 'Analytics-based awards'
+  },
+  // Awards the league votes on, or hands out by hand. They have a free-text
+  // title rather than an `award_type`, so they are grouped by their source.
+  ballot: {
+    label: 'League Ballot',
+    icon: Vote,
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/20',
+    description: 'Voted on by the league'
   }
 };
 
@@ -67,48 +76,26 @@ const AwardsGallery = ({
   onViewFranchise = () => {},
   onViewSeason = () => {}
 }) => {
-  const { loadSeasonDetail } = useLeagueHistory();
-  const [allAwards, setAllAwards] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSeason, setSelectedSeason] = useState('all');
   const [expandedSeasons, setExpandedSeasons] = useState({});
 
-  // Load awards for all seasons
-  useEffect(() => {
-    const loadAllAwards = async () => {
-      setLoading(true);
-      try {
-        const awardsPromises = seasons.map(async (season) => {
-          const detail = await loadSeasonDetail(season.id);
-          return (detail?.awards || []).map(award => ({
-            ...award,
-            seasonYear: season.year,
-            seasonId: season.id
-          }));
-        });
+  // One query per season, sharing the cache with the season detail view rather
+  // than re-reading every season's awards each time this tab is opened.
+  const seasonQueries = useSeasonDetails(seasons.map(season => season.id));
 
-        const awardsArrays = await Promise.all(awardsPromises);
-        const combinedAwards = awardsArrays.flat();
-        setAllAwards(combinedAwards);
-      } catch (error) {
-        console.error('Error loading awards:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (seasons.length > 0) {
-      loadAllAwards();
-    } else {
-      setLoading(false);
-    }
-  }, [seasons, loadSeasonDetail]);
+  const allAwards = seasonQueries.flatMap((query, index) =>
+    (query.data?.awards ?? []).map(award => ({
+      ...award,
+      seasonYear: seasons[index].year,
+      seasonId: seasons[index].id
+    }))
+  );
 
   // Get franchise display name
   const getFranchiseDisplayName = (award) => {
-    const franchise = franchises.find(f => f.id === award.franchise_id);
-    if (!franchise) return award.team?.team_name || 'Unknown';
+    const franchise = franchises.find(f => f.id === award.franchise_id) || award.franchise;
+    if (!franchise) return award.winner_id || 'Unknown';
     return getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames);
   };
 

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Edit3, Trash2, Play, Calendar, Users, Trophy, Settings, Download, Upload, AlertTriangle } from 'lucide-react';
+import { Plus, Edit3, Trash2, Play, Calendar, Users, Trophy, Settings, Download, Upload, AlertTriangle, Flag } from 'lucide-react';
 
 /** How `copyFrom` below maps onto the data layer's `copyTeamsFromSeasonId`. */
 const COPY_PREVIOUS = 'previous';
@@ -32,12 +32,23 @@ const describeCreatedSeason = (season, year) => {
   };
 };
 
-const SeasonManager = ({ 
-  seasons = [], 
-  activeSeason, 
-  onCreateSeason, 
-  onSetActiveSeason, 
+/** The Tuesday a season starts is week 1 for every date the app derives. */
+const emptyForm = (year) => ({
+  year,
+  name: '',
+  leagueSize: 14,
+  regularSeasonWeeks: 14,
+  playoffWeeks: 3,
+  startDate: ''
+});
+
+const SeasonManager = ({
+  seasons = [],
+  activeSeason,
+  onCreateSeason,
+  onSetActiveSeason,
   onDeleteSeason,
+  onFinalizeSeason,
   onExportSeason,
   onImportSeason,
   loading = false,
@@ -45,14 +56,11 @@ const SeasonManager = ({
 }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showImportForm, setShowImportForm] = useState(false);
-  const [formData, setFormData] = useState({
-    year: new Date().getFullYear(),
-    name: '',
-    leagueSize: 14,
-    regularSeasonWeeks: 14,
-    playoffWeeks: 3
-  });
+  const [formData, setFormData] = useState(() => emptyForm(new Date().getFullYear()));
   const [importData, setImportData] = useState('');
+  // The dry run being shown for confirmation: { season, assignments }.
+  const [pendingFinalize, setPendingFinalize] = useState(null);
+  const [finalizing, setFinalizing] = useState(false);
   // 'previous' | 'none' | a season id. The league is the same owners every
   // year, so carrying last season forward is the default.
   const [copyFrom, setCopyFrom] = useState(COPY_PREVIOUS);
@@ -83,20 +91,52 @@ const SeasonManager = ({
         formData.leagueSize,
         formData.regularSeasonWeeks,
         formData.playoffWeeks,
-        copyTeamsFromSeasonId
+        copyTeamsFromSeasonId,
+        formData.startDate || null
       );
       setShowCreateForm(false);
       setNotice(describeCreatedSeason(season, formData.year));
-      setFormData({
-        year: new Date().getFullYear() + 1,
-        name: '',
-        leagueSize: 14,
-        regularSeasonWeeks: 14,
-        playoffWeeks: 3
-      });
+      setFormData(emptyForm(new Date().getFullYear() + 1));
       setCopyFrom(COPY_PREVIOUS);
     } catch (error) {
       alert('Error creating season: ' + error.message);
+    }
+  };
+
+  /**
+   * Finalizing is two calls: a dry run whose assignments the admin confirms,
+   * then the real one. The podium is derived from games, not entered by hand,
+   * so seeing it before it is written is the only review there is.
+   */
+  const handleFinalizePreview = async (season) => {
+    setFinalizing(true);
+    try {
+      const preview = await onFinalizeSeason(season.id, { dryRun: true });
+      setPendingFinalize({ season, assignments: preview?.assignments ?? [] });
+    } catch (error) {
+      setNotice({
+        type: 'warning',
+        text: `Could not work out the ${season.year} final standings: ${error.message}`
+      });
+    } finally {
+      setFinalizing(false);
+    }
+  };
+
+  const handleFinalizeConfirm = async () => {
+    const { season } = pendingFinalize;
+    setFinalizing(true);
+    try {
+      await onFinalizeSeason(season.id, { dryRun: false });
+      setPendingFinalize(null);
+      setNotice({
+        type: 'success',
+        text: `${season.year} is finalized. Its standings, awards and League History are up to date.`
+      });
+    } catch (error) {
+      setNotice({ type: 'warning', text: `Could not finalize ${season.year}: ${error.message}` });
+    } finally {
+      setFinalizing(false);
     }
   };
 
@@ -211,6 +251,20 @@ const SeasonManager = ({
                 />
               </div>
               
+              <div>
+                <label className="block text-sm font-medium mb-1">Week 1 start date (Tuesday)</label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                  className="w-full p-2 border rounded-lg"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Every date the app derives — the current week, pick&apos;em windows, the
+                  weekly sync — counts from here. Without it the season has no week 1.
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium mb-1">Season Name (Optional)</label>
                 <input
@@ -352,6 +406,60 @@ const SeasonManager = ({
         </div>
       )}
 
+      {/* Finalize confirmation: the derived podium, before it is written */}
+      {pendingFinalize && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-1">Finalize {pendingFinalize.season.year}?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              These placements were derived from the season&apos;s games. Applying them marks
+              the season completed, computes its awards, and publishes it to League History.
+            </p>
+
+            <table className="w-full text-sm mb-6">
+              <thead>
+                <tr className="text-left text-gray-500 border-b">
+                  <th className="py-1 pr-2 font-medium">#</th>
+                  <th className="py-1 pr-2 font-medium">Owner</th>
+                  <th className="py-1 pr-2 font-medium">Record</th>
+                  <th className="py-1 pr-2 font-medium">Seed</th>
+                  <th className="py-1 font-medium">Finish</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendingFinalize.assignments.map(row => (
+                  <tr key={row.team_id} className="border-b last:border-0">
+                    <td className="py-1 pr-2 font-semibold">{row.final_rank}</td>
+                    <td className="py-1 pr-2">{row.owner}</td>
+                    <td className="py-1 pr-2 font-mono text-xs">{row.record}</td>
+                    <td className="py-1 pr-2">{row.seed}</td>
+                    <td className="py-1">{row.finish === 'none' ? '—' : row.finish}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingFinalize(null)}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleFinalizeConfirm}
+                disabled={finalizing}
+                className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+              >
+                {finalizing ? 'Finalizing...' : 'Apply'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Seasons List */}
       {seasons.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
@@ -412,7 +520,22 @@ const SeasonManager = ({
                         Activate
                       </button>
                     )}
-                    
+
+                    {/* Activating the next season finalizes this one already;
+                        this is for a season that was switched away from before
+                        finalizing existed, or one that failed to finalize. */}
+                    {isAuthenticated && onFinalizeSeason && !season.isActive && !season.isCompleted && (
+                      <button
+                        onClick={() => handleFinalizePreview(season)}
+                        disabled={finalizing}
+                        className="flex items-center gap-1 px-3 py-2 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50"
+                        title="Derive the final standings and awards from this season's games"
+                      >
+                        <Flag size={16} />
+                        Finalize
+                      </button>
+                    )}
+
                     <button
                       onClick={() => handleExport(season)}
                       className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { Trophy, TrendingUp, Users, Award, ChevronRight } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -6,7 +6,7 @@ import { Badge } from '../../ui/badge';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatPoints, formatWinPercentage } from '../utils/statFormatters';
 import PointsWinsDistributionChart from '../charts/PointsWinsDistributionChart';
-import { leagueHistoryManager } from '../../../../services/leagueHistoryManager';
+import { useTransactionLeaderboard } from '../../../../hooks/queries/index.js';
 
 const QuickStatsPanel = ({
   franchises = [],
@@ -19,22 +19,7 @@ const QuickStatsPanel = ({
   onViewFranchise = () => {},
   onViewSeason = () => {}
 }) => {
-  // State for transaction data
-  const [transactionData, setTransactionData] = useState([]);
-
-  // Load transaction data on mount
-  useEffect(() => {
-    const loadTransactions = async () => {
-      try {
-        const data = await leagueHistoryManager.getTransactionLeaderboard();
-        setTransactionData(data || []);
-      } catch (error) {
-        console.error('Error loading transaction data:', error);
-        setTransactionData([]);
-      }
-    };
-    loadTransactions();
-  }, []);
+  const { data: transactionData = [] } = useTransactionLeaderboard();
 
   // Calculate quick stats
   const stats = useMemo(() => {
@@ -73,14 +58,15 @@ const QuickStatsPanel = ({
       }
     });
 
-    // Calculate total games played using Humza Khalil's franchise (played every game)
-    const humzaFranchise = franchises.find(f => f.owner_name === 'Humza Khalil');
-    const humzaStats = humzaFranchise
-      ? careerStats.find(s => s.franchise_id === humzaFranchise.id)
-      : null;
-    const totalGamesPlayed = humzaStats
-      ? (humzaStats.total_wins || 0) + (humzaStats.total_losses || 0) + (humzaStats.total_ties || 0)
-      : 0;
+    // Games in a league season, from whoever has played the most of them. This
+    // was hardcoded to Humza Khalil's franchise on the grounds that he had
+    // played every one — true until someone else outlasted him, and silently
+    // zero if that franchise were ever renamed.
+    const totalGamesPlayed = careerStats.reduce(
+      (most, stat) =>
+        Math.max(most, (stat.total_wins || 0) + (stat.total_losses || 0) + (stat.total_ties || 0)),
+      0
+    );
 
     return {
       mostChampionships,
