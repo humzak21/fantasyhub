@@ -171,13 +171,6 @@ export type Database = {
             foreignKeyName: "awards_winner_franchise_id_fkey"
             columns: ["winner_franchise_id"]
             isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "awards_winner_franchise_id_fkey"
-            columns: ["winner_franchise_id"]
-            isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
           },
@@ -534,127 +527,6 @@ export type Database = {
           },
         ]
       }
-      franchise_records: {
-        Row: {
-          created_at: string | null
-          franchise_id: string
-          game_id: string | null
-          id: string
-          is_current_record: boolean | null
-          notes: string | null
-          previous_record_holder_id: string | null
-          previous_record_value: number | null
-          record_category: string
-          record_name: string
-          record_type: string
-          season_id: string | null
-          set_date: string
-          value: number
-          value_label: string | null
-          week: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          franchise_id: string
-          game_id?: string | null
-          id?: string
-          is_current_record?: boolean | null
-          notes?: string | null
-          previous_record_holder_id?: string | null
-          previous_record_value?: number | null
-          record_category: string
-          record_name: string
-          record_type: string
-          season_id?: string | null
-          set_date: string
-          value: number
-          value_label?: string | null
-          week?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          franchise_id?: string
-          game_id?: string | null
-          id?: string
-          is_current_record?: boolean | null
-          notes?: string | null
-          previous_record_holder_id?: string | null
-          previous_record_value?: number | null
-          record_category?: string
-          record_name?: string
-          record_type?: string
-          season_id?: string | null
-          set_date?: string
-          value?: number
-          value_label?: string | null
-          week?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "franchise_records_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "franchise_records_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "franchise_records_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "franchise_records_game_id_fkey"
-            columns: ["game_id"]
-            isOneToOne: false
-            referencedRelation: "historical_games"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "franchise_records_previous_record_holder_id_fkey"
-            columns: ["previous_record_holder_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "franchise_records_previous_record_holder_id_fkey"
-            columns: ["previous_record_holder_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "franchise_records_previous_record_holder_id_fkey"
-            columns: ["previous_record_holder_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "franchise_records_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "historical_seasons"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "franchise_records_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "mv_season_leaderboards"
-            referencedColumns: ["season_id"]
-          },
-        ]
-      }
       games: {
         Row: {
           completed_at: string | null
@@ -829,560 +701,6 @@ export type Database = {
           },
         ]
       }
-      head_to_head_records: {
-        Row: {
-          current_streak_franchise_id: string | null
-          current_streak_length: number | null
-          franchise1_avg_points: number | null
-          franchise1_id: string
-          franchise1_total_points: number | null
-          franchise1_wins: number | null
-          franchise2_avg_points: number | null
-          franchise2_id: string
-          franchise2_total_points: number | null
-          franchise2_wins: number | null
-          highest_scoring_game_id: string | null
-          id: string
-          largest_margin_game_id: string | null
-          last_calculated: string | null
-          longest_streak_franchise_id: string | null
-          longest_streak_length: number | null
-          playoff_franchise1_wins: number | null
-          playoff_franchise2_wins: number | null
-          playoff_matchups: number | null
-          regular_season_franchise1_wins: number | null
-          regular_season_franchise2_wins: number | null
-          regular_season_matchups: number | null
-          ties: number | null
-          total_matchups: number | null
-        }
-        Insert: {
-          current_streak_franchise_id?: string | null
-          current_streak_length?: number | null
-          franchise1_avg_points?: number | null
-          franchise1_id: string
-          franchise1_total_points?: number | null
-          franchise1_wins?: number | null
-          franchise2_avg_points?: number | null
-          franchise2_id: string
-          franchise2_total_points?: number | null
-          franchise2_wins?: number | null
-          highest_scoring_game_id?: string | null
-          id?: string
-          largest_margin_game_id?: string | null
-          last_calculated?: string | null
-          longest_streak_franchise_id?: string | null
-          longest_streak_length?: number | null
-          playoff_franchise1_wins?: number | null
-          playoff_franchise2_wins?: number | null
-          playoff_matchups?: number | null
-          regular_season_franchise1_wins?: number | null
-          regular_season_franchise2_wins?: number | null
-          regular_season_matchups?: number | null
-          ties?: number | null
-          total_matchups?: number | null
-        }
-        Update: {
-          current_streak_franchise_id?: string | null
-          current_streak_length?: number | null
-          franchise1_avg_points?: number | null
-          franchise1_id?: string
-          franchise1_total_points?: number | null
-          franchise1_wins?: number | null
-          franchise2_avg_points?: number | null
-          franchise2_id?: string
-          franchise2_total_points?: number | null
-          franchise2_wins?: number | null
-          highest_scoring_game_id?: string | null
-          id?: string
-          largest_margin_game_id?: string | null
-          last_calculated?: string | null
-          longest_streak_franchise_id?: string | null
-          longest_streak_length?: number | null
-          playoff_franchise1_wins?: number | null
-          playoff_franchise2_wins?: number | null
-          playoff_matchups?: number | null
-          regular_season_franchise1_wins?: number | null
-          regular_season_franchise2_wins?: number | null
-          regular_season_matchups?: number | null
-          ties?: number | null
-          total_matchups?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "head_to_head_records_current_streak_franchise_id_fkey"
-            columns: ["current_streak_franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_current_streak_franchise_id_fkey"
-            columns: ["current_streak_franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_current_streak_franchise_id_fkey"
-            columns: ["current_streak_franchise_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_franchise1_id_fkey"
-            columns: ["franchise1_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_franchise1_id_fkey"
-            columns: ["franchise1_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_franchise1_id_fkey"
-            columns: ["franchise1_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_franchise2_id_fkey"
-            columns: ["franchise2_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_franchise2_id_fkey"
-            columns: ["franchise2_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_franchise2_id_fkey"
-            columns: ["franchise2_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_highest_scoring_game_id_fkey"
-            columns: ["highest_scoring_game_id"]
-            isOneToOne: false
-            referencedRelation: "historical_games"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_largest_margin_game_id_fkey"
-            columns: ["largest_margin_game_id"]
-            isOneToOne: false
-            referencedRelation: "historical_games"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_longest_streak_franchise_id_fkey"
-            columns: ["longest_streak_franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_longest_streak_franchise_id_fkey"
-            columns: ["longest_streak_franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "head_to_head_records_longest_streak_franchise_id_fkey"
-            columns: ["longest_streak_franchise_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-        ]
-      }
-      historical_games: {
-        Row: {
-          completed_at: string | null
-          created_at: string | null
-          espn_matchup_id: number | null
-          espn_scoring_period_id: number | null
-          id: string
-          is_blowout: boolean | null
-          is_close: boolean | null
-          is_completed: boolean | null
-          is_tie: boolean | null
-          is_upset: boolean | null
-          loser_team_id: string | null
-          point_differential: number | null
-          season_id: string
-          team1_id: string
-          team1_score: number | null
-          team2_id: string
-          team2_score: number | null
-          type: string | null
-          week: number
-          winner_team_id: string | null
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string | null
-          espn_matchup_id?: number | null
-          espn_scoring_period_id?: number | null
-          id?: string
-          is_blowout?: boolean | null
-          is_close?: boolean | null
-          is_completed?: boolean | null
-          is_tie?: boolean | null
-          is_upset?: boolean | null
-          loser_team_id?: string | null
-          point_differential?: number | null
-          season_id: string
-          team1_id: string
-          team1_score?: number | null
-          team2_id: string
-          team2_score?: number | null
-          type?: string | null
-          week: number
-          winner_team_id?: string | null
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string | null
-          espn_matchup_id?: number | null
-          espn_scoring_period_id?: number | null
-          id?: string
-          is_blowout?: boolean | null
-          is_close?: boolean | null
-          is_completed?: boolean | null
-          is_tie?: boolean | null
-          is_upset?: boolean | null
-          loser_team_id?: string | null
-          point_differential?: number | null
-          season_id?: string
-          team1_id?: string
-          team1_score?: number | null
-          team2_id?: string
-          team2_score?: number | null
-          type?: string | null
-          week?: number
-          winner_team_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "historical_games_loser_team_id_fkey"
-            columns: ["loser_team_id"]
-            isOneToOne: false
-            referencedRelation: "historical_teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "historical_games_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "historical_seasons"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "historical_games_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "mv_season_leaderboards"
-            referencedColumns: ["season_id"]
-          },
-          {
-            foreignKeyName: "historical_games_team1_id_fkey"
-            columns: ["team1_id"]
-            isOneToOne: false
-            referencedRelation: "historical_teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "historical_games_team2_id_fkey"
-            columns: ["team2_id"]
-            isOneToOne: false
-            referencedRelation: "historical_teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "historical_games_winner_team_id_fkey"
-            columns: ["winner_team_id"]
-            isOneToOne: false
-            referencedRelation: "historical_teams"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      historical_rosters: {
-        Row: {
-          acquisition_cost: number | null
-          acquisition_type: string | null
-          acquisition_week: number | null
-          added_date: string | null
-          created_at: string | null
-          draft_pick: number | null
-          draft_round: number | null
-          dropped_date: string | null
-          espn_player_id: number | null
-          games_started: number | null
-          id: string
-          is_keeper: boolean | null
-          player_name: string
-          position: string | null
-          pro_team: string | null
-          season_id: string
-          team_id: string
-          total_points: number | null
-        }
-        Insert: {
-          acquisition_cost?: number | null
-          acquisition_type?: string | null
-          acquisition_week?: number | null
-          added_date?: string | null
-          created_at?: string | null
-          draft_pick?: number | null
-          draft_round?: number | null
-          dropped_date?: string | null
-          espn_player_id?: number | null
-          games_started?: number | null
-          id?: string
-          is_keeper?: boolean | null
-          player_name: string
-          position?: string | null
-          pro_team?: string | null
-          season_id: string
-          team_id: string
-          total_points?: number | null
-        }
-        Update: {
-          acquisition_cost?: number | null
-          acquisition_type?: string | null
-          acquisition_week?: number | null
-          added_date?: string | null
-          created_at?: string | null
-          draft_pick?: number | null
-          draft_round?: number | null
-          dropped_date?: string | null
-          espn_player_id?: number | null
-          games_started?: number | null
-          id?: string
-          is_keeper?: boolean | null
-          player_name?: string
-          position?: string | null
-          pro_team?: string | null
-          season_id?: string
-          team_id?: string
-          total_points?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "historical_rosters_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "historical_seasons"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "historical_rosters_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "mv_season_leaderboards"
-            referencedColumns: ["season_id"]
-          },
-          {
-            foreignKeyName: "historical_rosters_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "historical_teams"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      historical_seasons: {
-        Row: {
-          created_at: string | null
-          data_quality_notes: string | null
-          espn_import_date: string | null
-          espn_league_id: string | null
-          id: string
-          imported_from_espn: boolean | null
-          league_size: number
-          name: string
-          playoff_bracket: Json | null
-          playoff_weeks: number
-          regular_season_weeks: number
-          scoring_type: string | null
-          stats: Json | null
-          updated_at: string | null
-          year: number
-        }
-        Insert: {
-          created_at?: string | null
-          data_quality_notes?: string | null
-          espn_import_date?: string | null
-          espn_league_id?: string | null
-          id?: string
-          imported_from_espn?: boolean | null
-          league_size?: number
-          name: string
-          playoff_bracket?: Json | null
-          playoff_weeks?: number
-          regular_season_weeks?: number
-          scoring_type?: string | null
-          stats?: Json | null
-          updated_at?: string | null
-          year: number
-        }
-        Update: {
-          created_at?: string | null
-          data_quality_notes?: string | null
-          espn_import_date?: string | null
-          espn_league_id?: string | null
-          id?: string
-          imported_from_espn?: boolean | null
-          league_size?: number
-          name?: string
-          playoff_bracket?: Json | null
-          playoff_weeks?: number
-          regular_season_weeks?: number
-          scoring_type?: string | null
-          stats?: Json | null
-          updated_at?: string | null
-          year?: number
-        }
-        Relationships: []
-      }
-      historical_teams: {
-        Row: {
-          average_points_per_game: number | null
-          created_at: string | null
-          division_name: string | null
-          draft_picks: Json | null
-          espn_team_id: number | null
-          final_rank: number | null
-          franchise_id: string
-          id: string
-          made_playoffs: boolean | null
-          playoff_finish: string | null
-          playoff_losses: number | null
-          playoff_seed: number | null
-          playoff_wins: number | null
-          point_differential: number | null
-          points_against: number | null
-          points_for: number | null
-          power_rating: number | null
-          regular_season_losses: number | null
-          regular_season_ties: number | null
-          regular_season_win_percentage: number | null
-          regular_season_wins: number | null
-          season_id: string
-          season_stats: Json | null
-          strength_of_schedule: number | null
-          team_name: string
-          updated_at: string | null
-        }
-        Insert: {
-          average_points_per_game?: number | null
-          created_at?: string | null
-          division_name?: string | null
-          draft_picks?: Json | null
-          espn_team_id?: number | null
-          final_rank?: number | null
-          franchise_id: string
-          id?: string
-          made_playoffs?: boolean | null
-          playoff_finish?: string | null
-          playoff_losses?: number | null
-          playoff_seed?: number | null
-          playoff_wins?: number | null
-          point_differential?: number | null
-          points_against?: number | null
-          points_for?: number | null
-          power_rating?: number | null
-          regular_season_losses?: number | null
-          regular_season_ties?: number | null
-          regular_season_win_percentage?: number | null
-          regular_season_wins?: number | null
-          season_id: string
-          season_stats?: Json | null
-          strength_of_schedule?: number | null
-          team_name: string
-          updated_at?: string | null
-        }
-        Update: {
-          average_points_per_game?: number | null
-          created_at?: string | null
-          division_name?: string | null
-          draft_picks?: Json | null
-          espn_team_id?: number | null
-          final_rank?: number | null
-          franchise_id?: string
-          id?: string
-          made_playoffs?: boolean | null
-          playoff_finish?: string | null
-          playoff_losses?: number | null
-          playoff_seed?: number | null
-          playoff_wins?: number | null
-          point_differential?: number | null
-          points_against?: number | null
-          points_for?: number | null
-          power_rating?: number | null
-          regular_season_losses?: number | null
-          regular_season_ties?: number | null
-          regular_season_win_percentage?: number | null
-          regular_season_wins?: number | null
-          season_id?: string
-          season_stats?: Json | null
-          strength_of_schedule?: number | null
-          team_name?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "historical_teams_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "historical_teams_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "historical_teams_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "historical_teams_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "historical_seasons"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "historical_teams_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "mv_season_leaderboards"
-            referencedColumns: ["season_id"]
-          },
-        ]
-      }
       league_franchises: {
         Row: {
           career_win_percentage: number | null
@@ -1443,39 +761,6 @@ export type Database = {
           total_regular_season_wins?: number | null
           total_seasons?: number | null
           updated_at?: string | null
-        }
-        Relationships: []
-      }
-      nfl_week_calendar: {
-        Row: {
-          created_at: string | null
-          id: string
-          is_playoff_week: boolean | null
-          season_year: number
-          snapshot_trigger_time: string
-          week_end_date: string
-          week_number: number
-          week_start_date: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          is_playoff_week?: boolean | null
-          season_year: number
-          snapshot_trigger_time: string
-          week_end_date: string
-          week_number: number
-          week_start_date: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          is_playoff_week?: boolean | null
-          season_year?: number
-          snapshot_trigger_time?: string
-          week_end_date?: string
-          week_number?: number
-          week_start_date?: string
         }
         Relationships: []
       }
@@ -2506,97 +1791,6 @@ export type Database = {
           },
         ]
       }
-      season_awards: {
-        Row: {
-          award_category: string
-          award_name: string
-          award_type: string
-          awarded_date: string | null
-          created_at: string | null
-          description: string | null
-          franchise_id: string
-          id: string
-          notes: string | null
-          season_id: string
-          team_id: string | null
-          value: number | null
-          value_label: string | null
-        }
-        Insert: {
-          award_category: string
-          award_name: string
-          award_type: string
-          awarded_date?: string | null
-          created_at?: string | null
-          description?: string | null
-          franchise_id: string
-          id?: string
-          notes?: string | null
-          season_id: string
-          team_id?: string | null
-          value?: number | null
-          value_label?: string | null
-        }
-        Update: {
-          award_category?: string
-          award_name?: string
-          award_type?: string
-          awarded_date?: string | null
-          created_at?: string | null
-          description?: string | null
-          franchise_id?: string
-          id?: string
-          notes?: string | null
-          season_id?: string
-          team_id?: string | null
-          value?: number | null
-          value_label?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "season_awards_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "season_awards_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "season_awards_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "season_awards_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "historical_seasons"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "season_awards_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "mv_season_leaderboards"
-            referencedColumns: ["season_id"]
-          },
-          {
-            foreignKeyName: "season_awards_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "historical_teams"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       seasons: {
         Row: {
           awards_release_at: string | null
@@ -2914,13 +2108,6 @@ export type Database = {
             foreignKeyName: "teams_franchise_id_fkey"
             columns: ["franchise_id"]
             isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
           },
@@ -2999,13 +2186,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "league_franchises"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_transactions_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
           },
           {
             foreignKeyName: "team_transactions_franchise_id_fkey"
@@ -3399,83 +2579,6 @@ export type Database = {
           },
         ]
       }
-      mv_franchise_career_stats: {
-        Row: {
-          avg_final_rank: number | null
-          avg_points_per_game: number | null
-          avg_win_percentage: number | null
-          best_finish: number | null
-          calculated_at: string | null
-          career_point_differential: number | null
-          career_points_against: number | null
-          career_points_for: number | null
-          championships: number | null
-          display_name: string | null
-          franchise_id: string | null
-          owner_name: string | null
-          playoff_appearances: number | null
-          runner_ups: number | null
-          seasons_played: number | null
-          total_losses: number | null
-          total_ties: number | null
-          total_wins: number | null
-          worst_finish: number | null
-        }
-        Relationships: []
-      }
-      mv_season_leaderboards: {
-        Row: {
-          best_record: Json | null
-          calculated_at: string | null
-          champion: Json | null
-          highest_scorer: Json | null
-          season_id: string | null
-          year: number | null
-        }
-        Relationships: []
-      }
-      mv_transaction_leaderboards: {
-        Row: {
-          avg_transactions_per_season: number | null
-          avg_waivers_per_season: number | null
-          calculated_at: string | null
-          display_name: string | null
-          franchise_id: string | null
-          least_active_season_transactions: number | null
-          most_active_season_transactions: number | null
-          owner_name: string | null
-          seasons_tracked: number | null
-          total_all_transactions: number | null
-          total_drops: number | null
-          total_faab_spent: number | null
-          total_free_agent_adds: number | null
-          total_trades: number | null
-          total_waiver_claims: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "team_transactions_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_transactions_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "team_transactions_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-        ]
-      }
       playoffs_2025: {
         Row: {
           actual_winner_team_id: string | null
@@ -3658,132 +2761,6 @@ export type Database = {
           },
         ]
       }
-      team_transactions: {
-        Row: {
-          created_at: string | null
-          drops: number | null
-          espn_team_id: number | null
-          faab_spent: number | null
-          franchise_id: string | null
-          free_agent_adds: number | null
-          id: string | null
-          last_synced_at: string | null
-          owner_name: string | null
-          season_id: string | null
-          total_transactions: number | null
-          trades: number | null
-          updated_at: string | null
-          waiver_claims: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          drops?: number | null
-          espn_team_id?: number | null
-          faab_spent?: number | null
-          franchise_id?: string | null
-          free_agent_adds?: number | null
-          id?: string | null
-          last_synced_at?: string | null
-          owner_name?: string | null
-          season_id?: string | null
-          total_transactions?: number | null
-          trades?: number | null
-          updated_at?: string | null
-          waiver_claims?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          drops?: number | null
-          espn_team_id?: number | null
-          faab_spent?: number | null
-          franchise_id?: string | null
-          free_agent_adds?: number | null
-          id?: string | null
-          last_synced_at?: string | null
-          owner_name?: string | null
-          season_id?: string | null
-          total_transactions?: number | null
-          trades?: number | null
-          updated_at?: string | null
-          waiver_claims?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "team_transactions_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "team_transactions_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "team_transactions_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "v_franchise_career"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "transactions_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "seasons"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_season_id_fkey"
-            columns: ["season_id"]
-            isOneToOne: false
-            referencedRelation: "v_active_season"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      transactions_2025: {
-        Row: {
-          created_at: string | null
-          drops: number | null
-          espn_team_id: number | null
-          faab_spent: number | null
-          free_agent_adds: number | null
-          id: string | null
-          last_synced_at: string | null
-          owner_name: string | null
-          team_id: string | null
-          trades: number | null
-          updated_at: string | null
-          waiver_claims: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "transactions_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "roster_stats"
-            referencedColumns: ["team_id"]
-          },
-          {
-            foreignKeyName: "transactions_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "v_team_standings"
-            referencedColumns: ["team_id"]
-          },
-        ]
-      }
       v_active_season: {
         Row: {
           awards_release_at: string | null
@@ -3945,13 +2922,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["opponent_franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "teams_franchise_id_fkey"
             columns: ["franchise_id"]
             isOneToOne: false
             referencedRelation: "league_franchises"
@@ -3961,26 +2931,19 @@ export type Database = {
             foreignKeyName: "teams_franchise_id_fkey"
             columns: ["opponent_franchise_id"]
             isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
+            referencedRelation: "league_franchises"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "teams_franchise_id_fkey"
             columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
-          },
-          {
-            foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["opponent_franchise_id"]
             isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
           },
           {
             foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["franchise_id"]
+            columns: ["opponent_franchise_id"]
             isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
@@ -4047,13 +3010,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "league_franchises"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "mv_franchise_career_stats"
-            referencedColumns: ["franchise_id"]
           },
           {
             foreignKeyName: "teams_franchise_id_fkey"
@@ -4188,10 +3144,6 @@ export type Database = {
         }
         Returns: string
       }
-      execute_weekly_snapshot_if_needed: {
-        Args: { season_year?: number }
-        Returns: Json
-      }
       finalize_season: {
         Args: { p_dry_run?: boolean; p_season_id: string }
         Returns: Json
@@ -4214,7 +3166,6 @@ export type Database = {
           week_number: number
         }[]
       }
-      get_current_nfl_week: { Args: { season_year?: number }; Returns: number }
       get_franchise_awards: {
         Args: { p_franchise_id: string }
         Returns: {
@@ -4420,14 +3371,8 @@ export type Database = {
         }[]
       }
       is_admin: { Args: never; Returns: boolean }
-      manual_weekly_snapshot_check: {
-        Args: { season_year?: number }
-        Returns: Json
-      }
-      refresh_league_history_views: { Args: never; Returns: undefined }
       refresh_season_stats: { Args: { season_id: string }; Returns: undefined }
       refresh_team_stats: { Args: { team_id: string }; Returns: undefined }
-      refresh_transaction_views: { Args: never; Returns: undefined }
       save_enhanced_power_rankings_snapshot: {
         Args: { season_id: string; snapshot_type?: string; week_number: number }
         Returns: number
@@ -4448,15 +3393,6 @@ export type Database = {
       season_week_start: {
         Args: { p_season_id: string; p_week: number }
         Returns: string
-      }
-      should_trigger_weekly_snapshot: {
-        Args: { season_year?: number }
-        Returns: {
-          reason: string
-          season_id: string
-          should_trigger: boolean
-          week_number: number
-        }[]
       }
       submit_pick_em_picks: {
         Args: { p_pick_em_week_id: string; p_picks: Json }

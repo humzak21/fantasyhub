@@ -538,7 +538,11 @@ grant execute on function public.compute_season_awards(uuid) to service_role;
 -- season played, it inflated `seasons_played` and dragged `avg_final_rank` and
 -- `worst_finish` toward a rank nobody had earned.
 
-create or replace view public.v_franchise_career as
+-- `security_invoker = true`, like every other `v_*` view here. A plain
+-- `create or replace view` resets reloptions, so leaving it off silently
+-- flips the view to the creator's permissions.
+create or replace view public.v_franchise_career
+with (security_invoker = true) as
  select f.id as franchise_id,
     f.owner_name,
     f.display_name,
