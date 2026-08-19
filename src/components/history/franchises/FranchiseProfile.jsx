@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { ArrowLeft, Trophy, TrendingUp, Award, Calendar, Target, Users, Crown, Medal, Activity } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -21,7 +21,7 @@ import {
   Legend,
   ResponsiveContainer
 } from 'recharts';
-import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
+import { useFranchiseProfile, useFranchiseTransactions } from '../../../../hooks/queries/index.js';
 import { getMaskedFranchiseName, getMaskedHistoricalTeamName, canViewFullData } from '../utils/privacyHelpers';
 import { formatWinPercentage, formatPoints, formatRecord, formatYearRange, formatPlayoffFinish } from '../utils/statFormatters';
 import { TRANSACTION_COLORS } from '../../../../types/index.js';
@@ -35,27 +35,10 @@ const FranchiseProfile = ({
   teamOwnerNames = [],
   onBack = () => {}
 }) => {
-  const { loadFranchiseHistory, getFranchiseRivalries, getFranchiseTransactionHistory, loading } = useLeagueHistory();
-  const [franchiseData, setFranchiseData] = useState(null);
-  const [rivalries, setRivalries] = useState(null);
-  const [transactionHistory, setTransactionHistory] = useState([]);
+  const { data: franchiseData, isLoading: loading } = useFranchiseProfile(franchiseId);
+  const { data: transactionHistory = [] } = useFranchiseTransactions(franchiseId);
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (franchiseId) {
-        // Load franchise history, rivalries, and transactions in parallel
-        const [historyData, rivalriesData, transactionsData] = await Promise.all([
-          loadFranchiseHistory(franchiseId),
-          getFranchiseRivalries(franchiseId),
-          getFranchiseTransactionHistory(franchiseId)
-        ]);
-        setFranchiseData(historyData);
-        setRivalries(rivalriesData);
-        setTransactionHistory(transactionsData || []);
-      }
-    };
-    loadData();
-  }, [franchiseId, loadFranchiseHistory, getFranchiseRivalries, getFranchiseTransactionHistory]);
+  const rivalries = franchiseData?.rivalries ?? null;
 
   if (loading && !franchiseData) {
     return (
@@ -79,9 +62,9 @@ const FranchiseProfile = ({
     );
   }
 
-  // Map career stats from materialized view (mv_franchise_career_stats)
-  // Field names: total_wins, total_losses, avg_win_percentage, playoff_appearances,
-  // avg_points_per_game, championships, runner_ups, seasons_played, etc.
+  // Career stats come from `v_franchise_career`, derived from the games. The
+  // `franchise` fallbacks below are the denormalised columns on
+  // `league_franchises`, which have not been recalculated since November 2025.
   const rawCareerStats = franchiseData?.careerStats || {};
   const careerStats = {
     total_wins: rawCareerStats.total_wins || franchise?.total_regular_season_wins || 0,
@@ -219,7 +202,7 @@ const FranchiseProfile = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {seasonHistory.sort((a, b) => b.season.year - a.season.year).map(season => {
+                  {[...seasonHistory].sort((a, b) => b.season.year - a.season.year).map(season => {
                     const wins = season.regular_season_wins || 0;
                     const losses = season.regular_season_losses || 0;
                     const totalGames = wins + losses;

@@ -42,8 +42,8 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 - **Main App**: `FantasyFootballApp.jsx` - Primary application component with tab-based navigation
 - **Data Layer**: `services/db/` - one module per domain (`seasons`, `teams`,
   `divisions`, `rosters`, `players`, `playerWeekStats`, `games`, `rankings`,
-  `schedule`, `pickems`, `awards`, `playoffs`, `transactions`, `users`,
-  `espnMapping`). **Write new data access here.**
+  `schedule`, `pickems`, `awards`, `playoffs`, `transactions`, `history`,
+  `users`, `espnMapping`). **Write new data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
   - `services/espnRosterUpdater.js` - ESPN integration for roster updates
@@ -94,6 +94,8 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 
 **Note:** `services/supabaseDataManager.js` and `hooks/useSupabaseFantasyData.js`
 were deleted on 2026-08-06. Nothing should reference them.
+`services/leagueHistoryManager.js` and `src/hooks/useLeagueHistory.js` were
+deleted on 2026-08-18; see "League History reads the live schema" below.
 
 ### Scripts write to production
 Every script in `scripts/` guards its entry point (`import.meta.url ===
@@ -171,6 +173,51 @@ no extra ESPN request: the sync's scores step already fetches
 Verified against the live league: this league starts QB/2RB/2WR/TE/FLEX/D/ST/K,
 which is what `OPTIMAL_LINEUP_TEMPLATE` encodes, and summing a team's starters
 reproduces ESPN's own matchup score exactly.
+
+### Seasons end explicitly
+`public.finalize_season(season_id, dry_run)` derives a season's final placements
+from its games and writes `teams.made_playoffs/playoff_seed/playoff_wins/
+playoff_losses/playoff_finish/final_rank` plus `seasons.is_completed/
+completed_at`. `public.compute_season_awards(season_id)` then upserts the eleven
+computed awards. Both are idempotent, both guarded by `can_write_league()`.
+Rules that are load-bearing:
+
+- **It raises rather than guessing.** An incomplete game, no championship game,
+  or a bracket that is not six teams stops the run. A wrong champion is worse
+  than no champion, and every downstream view keys off `playoff_finish`.
+- **`teams.playoff_finish` is the fact; the award is a description of it.**
+  `getChampionships` and `v_franchise_career` read the placement, not the award,
+  so a season with no awards still has a champion.
+- The vocabulary is `champion/2nd/3rd/4th/5th/6th/none`, matching 2020-24.
+  Consolation finishers get `none` and a `final_rank` of 7..N.
+- **`setActiveSeason` finalizes the season it replaces**, non-fatally, in the
+  style of `carryTeamsForward` — it reports `finalizedPrevious`/`finalizeError`
+  on the returned season. A season with games still to play is skipped silently;
+  setting next year up early is normal.
+- `createSeason` carries `timezone`, `espn_league_id` and the six `pickem_*`
+  columns forward and sets `espn_season_year = year`. It never inherits
+  `start_date` (a different Tuesday every year) or `awards_release_at` (an act,
+  not a setting); `start_date` comes from the admin's create form.
+- `scripts/sync-week.js::reasonToSkip` exits 0 for a completed season or one
+  that has not started, and **throws** when `start_date` is NULL — every week
+  number is derived from it, so silence there means syncing the wrong week.
+
+### League History reads the live schema
+`services/db/history.js` + `hooks/queries/useLeagueHistory.js` are the whole of
+the History tab. They read the unified views — `v_team_standings`,
+`v_game_results`, `v_head_to_head`, `v_franchise_career`, `v_record_book` — so a
+season becomes history the moment `finalize_season` runs, with no import step.
+
+The `historical_seasons/_teams/_games`, `season_awards`, `head_to_head_records`,
+`franchise_records` tables and the `mv_*` views are the **dead** pre-2026 path:
+filled once in Nov 2025 by scripts deleted in the Aug 2026 refactor, so 2025
+could never appear in them. `src/components/history/__tests__/historySources.test.js`
+fails if anything references them again. Reading both at once is what
+double-counted every 2020-24 matchup.
+
+`transactions` is season-keyed; read it directly. `transactions_2025` is a view
+over the *active* season, not over 2025 — it is what labelled 2026's numbers
+"2025".
 
 ### No analytics subsystem
 The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,

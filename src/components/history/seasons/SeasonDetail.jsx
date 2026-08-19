@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { ArrowLeft, Calendar, Crown, Medal } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '../../ui/table';
-import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
+import { useSeasonDetail } from '../../../../hooks/queries/index.js';
 import { getMaskedHistoricalOwnerName, getMaskedHistoricalTeamName } from '../utils/privacyHelpers';
 import { formatRecord, formatPoints, formatPlayoffFinish } from '../utils/statFormatters';
 
@@ -24,21 +24,10 @@ const SeasonDetail = ({
   teamOwnerNames = [],
   onBack = () => { }
 }) => {
-  const { loadSeasonDetail, loading, seasons } = useLeagueHistory();
-  const [seasonData, setSeasonData] = useState(null);
-
-  // Get season from year if not provided
-  const currentSeason = season || seasons.find(s => s.year === seasonYear);
-
-  useEffect(() => {
-    const loadData = async () => {
-      if (currentSeason?.id) {
-        const data = await loadSeasonDetail(currentSeason.id);
-        setSeasonData(data);
-      }
-    };
-    loadData();
-  }, [currentSeason, loadSeasonDetail]);
+  // The parent owns the season list and passes the row down; this only needs
+  // the detail behind it.
+  const currentSeason = season;
+  const { data: seasonData, isLoading: loading } = useSeasonDetail(currentSeason?.id);
 
   if (loading && !seasonData) {
     return (
@@ -64,8 +53,14 @@ const SeasonDetail = ({
 
   const teams = seasonData?.teams || [];
 
-  // Sort teams by playoff finish, then win%, then points for
+  // `final_rank` is written by `finalize_season` and is the season's own
+  // answer; the finish/record ordering below is the fallback for a season that
+  // has not been finalized.
   const sortedTeams = [...teams].sort((a, b) => {
+    if (a.final_rank != null && b.final_rank != null) return a.final_rank - b.final_rank;
+    if (a.final_rank != null) return -1;
+    if (b.final_rank != null) return 1;
+
     // Map finish values to sort order (lower = better)
     const getFinishRank = (finish) => {
       if (!finish || finish === 'none' || finish === 'missed') return 99;
