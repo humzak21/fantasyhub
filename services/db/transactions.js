@@ -1,5 +1,15 @@
 /**
- * Transactions: the season-keyed `transactions` table and its leaderboards.
+ * Transactions: one row per team per season, and the leaderboards over them.
+ *
+ * The `transactions` table has been season-keyed since the August 2026
+ * refactor, but the reads here still went through three names for it:
+ * `mv_transaction_leaderboards` (a materialized view nothing refreshes),
+ * `team_transactions` (a passthrough view), and `transactions_2025` (a view
+ * filtered to whichever season is *active*, not to 2025). That last one is why
+ * the franchise transaction chart labelled the active season's numbers "2025",
+ * and why every owner's totals were counted twice once 2026 was activated.
+ *
+ * All of it now reads `transactions` directly and joins `seasons` for the year.
  *
  * Extracted from the 4,132-line `services/supabaseDataManager.js` god class.
  * Every function takes the shared `ctx` ({ client, seasonsCache, activeSeasonId })
@@ -7,219 +17,125 @@
  */
 
 import { formatFromDatabase } from './caseMap.js';
-import { throwDbError } from './errors.js';
+import { throwDbError, unwrap } from './errors.js';
 import { createLogger } from './logger.js';
-import { resolveSeasonYear } from './seasons.js';
 
 const log = createLogger('db:transactions');
+
+const TRANSACTION_COLUMNS =
+  'id, franchise_id, season_id, team_id, owner_name, espn_team_id, ' +
+  'free_agent_adds, waiver_claims, trades, drops, total_transactions, faab_spent, ' +
+  'last_synced_at';
+
+/**
+ * `total_transactions` is stored, but a row written before the column existed
+ * can still be null; the parts are always there.
+ */
+const totalFor = (row) =>
+  row.total_transactions ??
+  (row.free_agent_adds || 0) + (row.waiver_claims || 0) + (row.trades || 0) + (row.drops || 0);
+
+/**
+ * Career transaction totals, every season included.
+ *
+ * Aggregated in one pass over `transactions`. The previous version added a
+ * materialized view of the historical seasons to a separate read of the active
+ * one — which double-counted the active season the moment it appeared in both.
+ */
 export async function getTransactionLeaderboard(ctx) {
-
   try {
-    // Get historical data from materialized view
-    let historicalData = [];
-    const { data: mvData, error: mvError } = await ctx.client
-      .from('mv_transaction_leaderboards')
-      .select('*')
-      .order('total_all_transactions', { ascending: false });
+    const rows = unwrap(
+      await ctx.client
+        .from('transactions')
+        .select(`${TRANSACTION_COLUMNS}, franchise:league_franchises (id, owner_name, display_name)`),
+      'Get transaction leaderboard'
+    ) ?? [];
 
-    if (mvError) {
-      // Fallback to direct query if materialized view doesn't exist
-      if (mvError.code === '42P01') {
-        historicalData = await getTransactionLeaderboardFallback(ctx);
-      } else {
-        throw mvError;
-      }
-    } else {
-      historicalData = mvData || [];
-    }
+    const byFranchise = new Map();
 
-    // Get 2025 transaction data
-    const { data: data2025, error: error2025 } = await ctx.client
-      .from('transactions_2025')
-      .select('*');
+    for (const row of rows) {
+      // Owner name is the fallback key: a franchise row is the identity, but a
+      // team synced before its franchise was linked has only the name.
+      const key = row.franchise_id ?? row.owner_name;
+      if (!key) continue;
 
-    // If no 2025 data or error, just return historical
-    if (error2025) {
-      log.warn('Error fetching transactions_2025:', error2025.message);
-      return historicalData;
-    }
-
-    if (!data2025 || data2025.length === 0) {
-      log.warn('No data in transactions_2025 table');
-      return historicalData;
-    }
-
-    log.debug(`Found ${data2025.length} entries in transactions_2025`);
-    log.debug('2025 owners:', data2025.map(d => d.owner_name).join(', '));
-
-    // Merge historical and 2025 data by owner_name
-    const mergedByOwner = {};
-
-    // First, add all historical data
-    historicalData.forEach(row => {
-      const ownerName = row.owner_name;
-      mergedByOwner[ownerName] = {
-        franchise_id: row.franchise_id,
-        owner_name: ownerName,
-        display_name: row.display_name,
-        total_free_agent_adds: row.total_free_agent_adds || 0,
-        total_waiver_claims: row.total_waiver_claims || 0,
-        total_trades: row.total_trades || 0,
-        total_drops: row.total_drops || 0,
-        total_all_transactions: row.total_all_transactions || 0,
-        total_faab_spent: row.total_faab_spent || 0,
-        seasons_tracked: row.seasons_tracked || 0
+      const entry = byFranchise.get(key) ?? {
+        franchise_id: row.franchise_id ?? null,
+        owner_name: row.franchise?.owner_name ?? row.owner_name,
+        display_name: row.franchise?.display_name ?? row.owner_name,
+        total_free_agent_adds: 0,
+        total_waiver_claims: 0,
+        total_trades: 0,
+        total_drops: 0,
+        total_all_transactions: 0,
+        total_faab_spent: 0,
+        seasons_tracked: 0
       };
-    });
 
-    // Then add 2025 data
-    data2025.forEach(row => {
-      const ownerName = row.owner_name;
-      const transactions2025 = (row.free_agent_adds || 0) + (row.waiver_claims || 0) +
-        (row.trades || 0) + (row.drops || 0);
+      entry.total_free_agent_adds += row.free_agent_adds || 0;
+      entry.total_waiver_claims += row.waiver_claims || 0;
+      entry.total_trades += row.trades || 0;
+      entry.total_drops += row.drops || 0;
+      entry.total_all_transactions += totalFor(row);
+      entry.total_faab_spent += Number(row.faab_spent || 0);
+      // A season with no activity yet is not a season anyone has been tracked
+      // for; counting it would make an empty new season inflate everyone.
+      if (totalFor(row) > 0) entry.seasons_tracked += 1;
 
-      if (mergedByOwner[ownerName]) {
-        // Add to existing franchise
-        mergedByOwner[ownerName].total_free_agent_adds += row.free_agent_adds || 0;
-        mergedByOwner[ownerName].total_waiver_claims += row.waiver_claims || 0;
-        mergedByOwner[ownerName].total_trades += row.trades || 0;
-        mergedByOwner[ownerName].total_drops += row.drops || 0;
-        mergedByOwner[ownerName].total_all_transactions += transactions2025;
-        mergedByOwner[ownerName].total_faab_spent += row.faab_spent || 0;
-        mergedByOwner[ownerName].seasons_tracked += 1;
-      } else {
-        // New owner (only in 2025, like Anish Madala)
-        mergedByOwner[ownerName] = {
-          franchise_id: null, // No historical franchise
-          owner_name: ownerName,
-          display_name: ownerName,
-          total_free_agent_adds: row.free_agent_adds || 0,
-          total_waiver_claims: row.waiver_claims || 0,
-          total_trades: row.trades || 0,
-          total_drops: row.drops || 0,
-          total_all_transactions: transactions2025,
-          total_faab_spent: row.faab_spent || 0,
-          seasons_tracked: 1
-        };
-      }
-    });
+      byFranchise.set(key, entry);
+    }
 
-    // Convert to array and sort by total transactions
-    const result = Object.values(mergedByOwner).sort((a, b) =>
-      b.total_all_transactions - a.total_all_transactions
+    return [...byFranchise.values()].sort(
+      (a, b) => b.total_all_transactions - a.total_all_transactions
     );
-
-    log.debug('Transaction leaderboard result:', result.length, 'entries');
-    log.debug('All owners in result:', result.map(r => `${r.owner_name}: ${r.total_all_transactions}`).join(', '));
-
-    return result;
   } catch (error) {
     throwDbError(error, 'Get transaction leaderboard');
-    return [];
   }
 }
 
-export async function getTransactionLeaderboardFallback(ctx) {
-  try {
-    const { data, error } = await ctx.client
-      .from('team_transactions')
-      .select(`
-        franchise_id,
-        owner_name,
-        free_agent_adds,
-        waiver_claims,
-        trades,
-        drops,
-        total_transactions,
-        faab_spent
-      `);
-
-    if (error) throw error;
-
-    // Aggregate by franchise
-    const aggregates = {};
-    (data || []).forEach(row => {
-      if (!aggregates[row.franchise_id]) {
-        aggregates[row.franchise_id] = {
-          franchise_id: row.franchise_id,
-          owner_name: row.owner_name,
-          total_free_agent_adds: 0,
-          total_waiver_claims: 0,
-          total_trades: 0,
-          total_drops: 0,
-          total_all_transactions: 0,
-          total_faab_spent: 0,
-          seasons_tracked: 0
-        };
-      }
-      aggregates[row.franchise_id].total_free_agent_adds += row.free_agent_adds || 0;
-      aggregates[row.franchise_id].total_waiver_claims += row.waiver_claims || 0;
-      aggregates[row.franchise_id].total_trades += row.trades || 0;
-      aggregates[row.franchise_id].total_drops += row.drops || 0;
-      aggregates[row.franchise_id].total_all_transactions += row.total_transactions || 0;
-      aggregates[row.franchise_id].total_faab_spent += row.faab_spent || 0;
-      aggregates[row.franchise_id].seasons_tracked += 1;
-    });
-
-    return Object.values(aggregates).sort((a, b) =>
-      b.total_all_transactions - a.total_all_transactions
-    );
-  } catch (error) {
-    throwDbError(error, 'Get transaction leaderboard fallback');
-    return [];
-  }
-}
-
+/**
+ * One franchise's activity, season by season, with the real year on each row.
+ *
+ * The year used to come from `transactions_2025`, which is a view over the
+ * *active* season — so once 2026 was activated the chart showed 2026's numbers
+ * under a "2025" label.
+ */
 export async function getFranchiseTransactionHistory(ctx, franchiseId) {
-
   try {
-    const { data, error } = await ctx.client
-      .from('team_transactions')
-      .select(`
-        *,
-        season:historical_seasons (
-          id,
-          year,
-          name
-        )
-      `)
-      .eq('franchise_id', franchiseId)
-      .order('season(year)', { ascending: true });
+    const rows = unwrap(
+      await ctx.client
+        .from('transactions')
+        .select(`${TRANSACTION_COLUMNS}, season:seasons (id, year, name)`)
+        .eq('franchise_id', franchiseId),
+      'Get franchise transaction history'
+    ) ?? [];
 
-    if (error) throw error;
-
-    return (data || []).map(row => ({
-      ...row,
-      year: row.season?.year
-    }));
+    return rows
+      .map((row) => ({ ...row, year: row.season?.year ?? null, total_transactions: totalFor(row) }))
+      // A season that has not started yet gets a row when its teams are carried
+      // forward, and charting it puts an empty bar next to real ones.
+      .filter((row) => row.year !== null && row.total_transactions > 0)
+      .sort((a, b) => a.year - b.year);
   } catch (error) {
     throwDbError(error, 'Get franchise transaction history');
-    return [];
   }
 }
 
 export async function getSeasonTransactions(ctx, seasonId) {
 
   try {
-    const { data, error } = await ctx.client
-      .from('team_transactions')
-      .select(`
-        *,
-        franchise:league_franchises (
-          id,
-          owner_name,
-          display_name
-        )
-      `)
-      .eq('season_id', seasonId)
-      .order('total_transactions', { ascending: false });
+    const rows = unwrap(
+      await ctx.client
+        .from('transactions')
+        .select(`${TRANSACTION_COLUMNS}, franchise:league_franchises (id, owner_name, display_name)`)
+        .eq('season_id', seasonId)
+        .order('total_transactions', { ascending: false }),
+      'Get season transactions'
+    );
 
-    if (error) throw error;
-
-    return data || [];
+    return rows ?? [];
   } catch (error) {
     throwDbError(error, 'Get season transactions');
-    return [];
   }
 }
 
@@ -227,7 +143,7 @@ export async function upsertTeamTransaction(ctx, transactionData) {
 
   try {
     const { data, error } = await ctx.client
-      .from('team_transactions')
+      .from('transactions')
       .upsert(transactionData, {
         onConflict: 'franchise_id,season_id',
         ignoreDuplicates: false
@@ -244,85 +160,13 @@ export async function upsertTeamTransaction(ctx, transactionData) {
   }
 }
 
-export async function refreshTransactionViews(ctx) {
-
+/** Every team's activity in one season, keyed by owner. */
+export async function getCurrentSeasonTransactions(ctx, seasonId) {
   try {
-    const { error } = await ctx.client.rpc('refresh_transaction_views');
-
-    if (error) throw error;
-
-    return true;
-  } catch (error) {
-    // Non-fatal error - view might not exist yet
-    log.warn('Could not refresh transaction views:', error.message);
-    return false;
-  }
-}
-
-export async function getCurrentSeasonTransactions(ctx) {
-
-  try {
-    const { data, error } = await ctx.client
-      .from('transactions_2025')
-      .select(`
-        *,
-        team:teams (
-          id,
-          name,
-          owner_name:owner
-        )
-      `)
-      .order('free_agent_adds', { ascending: false });
-
-    if (error) {
-      // Table might not exist yet
-      if (error.code === '42P01') {
-        return [];
-      }
-      throw error;
-    }
-
-    const seasonYear = await resolveSeasonYear(ctx);
-
-    return (data || []).map(row => ({
-      ...row,
-      year: seasonYear,
-      total_transactions: (row.free_agent_adds || 0) + (row.waiver_claims || 0) +
-        (row.trades || 0) + (row.drops || 0)
-    }));
+    const rows = await getSeasonTransactions(ctx, seasonId);
+    log.debug(`${rows.length} transaction rows for season ${seasonId}`);
+    return rows.map((row) => ({ ...row, total_transactions: totalFor(row) }));
   } catch (error) {
     throwDbError(error, 'Get current season transactions');
-    return [];
-  }
-}
-
-export async function getCurrentSeasonTransactionsByOwner(ctx, ownerName) {
-
-  try {
-    const { data, error } = await ctx.client
-      .from('transactions_2025')
-      .select('*')
-      .eq('owner_name', ownerName)
-      .single();
-
-    if (error) {
-      // Table might not exist or no data for this owner
-      if (error.code === '42P01' || error.code === 'PGRST116') {
-        return null;
-      }
-      throw error;
-    }
-
-    if (!data) return null;
-
-    return {
-      ...data,
-      year: await resolveSeasonYear(ctx),
-      total_transactions: (data.free_agent_adds || 0) + (data.waiver_claims || 0) +
-        (data.trades || 0) + (data.drops || 0)
-    };
-  } catch (error) {
-    throwDbError(error, 'Get current season transactions by owner');
-    return null;
   }
 }

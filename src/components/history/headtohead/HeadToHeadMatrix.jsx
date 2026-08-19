@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Target, ArrowUpDown } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/tooltip';
-import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
+import { useHeadToHeadMatrix } from '../../../../hooks/queries/index.js';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 
 const HeadToHeadMatrix = ({
@@ -13,18 +13,8 @@ const HeadToHeadMatrix = ({
   teamOwnerNames = [],
   onMatchupClick = () => {}
 }) => {
-  const { getHeadToHeadMatrix, loading } = useLeagueHistory();
-  const [matrixData, setMatrixData] = useState(null);
+  const { data: matrixData } = useHeadToHeadMatrix();
   const [sortBy, setSortBy] = useState('name'); // 'name', 'wins', 'winPct'
-
-  // Load matrix data on mount
-  useEffect(() => {
-    const loadMatrix = async () => {
-      const data = await getHeadToHeadMatrix();
-      setMatrixData(data);
-    };
-    loadMatrix();
-  }, [getHeadToHeadMatrix]);
 
   // Sort matrix data
   const displayData = useMemo(() => {

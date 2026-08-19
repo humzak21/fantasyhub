@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Medal, Trophy, TrendingUp, TrendingDown, Target, Zap } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../ui/card';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/tabs';
-import { useLeagueHistory } from '../../../hooks/useLeagueHistory';
+import { useRecordBook } from '../../../../hooks/queries/index.js';
 import { getMaskedFranchiseName, canViewFullData } from '../utils/privacyHelpers';
 import { formatPoints } from '../utils/statFormatters';
 
@@ -15,30 +15,15 @@ const RecordBook = ({
   teamOwnerNames = [],
   onViewFranchise = () => {}
 }) => {
-  const { getSingleSeasonRecords, getAllTimeLeaderboard, loading } = useLeagueHistory();
-  const [singleSeasonRecords, setSingleSeasonRecords] = useState({});
-  const [allTimeLeaders, setAllTimeLeaders] = useState({});
+  const { data } = useRecordBook();
   const [activeTab, setActiveTab] = useState('season');
 
-  // Load data on mount
-  useEffect(() => {
-    const loadData = async () => {
-      const [seasonRecords, winsLeaders, pointsLeaders, chipsLeaders] = await Promise.all([
-        getSingleSeasonRecords(),
-        getAllTimeLeaderboard('wins', 5),
-        getAllTimeLeaderboard('points', 5),
-        getAllTimeLeaderboard('championships', 5)
-      ]);
-
-      setSingleSeasonRecords(seasonRecords || {});
-      setAllTimeLeaders({
-        wins: winsLeaders || [],
-        points: pointsLeaders || [],
-        championships: chipsLeaders || []
-      });
-    };
-    loadData();
-  }, [getSingleSeasonRecords, getAllTimeLeaderboard]);
+  const singleSeasonRecords = data?.singleSeason ?? {};
+  const allTimeLeaders = data?.allTime ?? {};
+  // `v_record_book` answers the outright questions — the single best game the
+  // league has ever seen — which neither of the two tabs used to show.
+  const leagueRecords = data?.records ?? [];
+  const leagueRecord = (recordType) => leagueRecords.find(r => r.recordType === recordType) ?? null;
 
   // Get display name with masking
   const getDisplayName = (ownerName) => {
@@ -74,6 +59,29 @@ const RecordBook = ({
           </p>
           <p className="text-xs text-muted-foreground">
             {getMaskedTeamName(record.ownerName, record.teamName)} ({record.year})
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  // A single-game record: one week, one team, from `v_record_book`.
+  const LeagueRecordCard = ({ title, icon: Icon, record, isNegative = false }) => {
+    if (!record) return null;
+
+    return (
+      <div className={`p-4 rounded-lg border ${isNegative ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
+        <div className="flex items-center gap-2 mb-2">
+          <Icon className={`h-4 w-4 ${isNegative ? 'text-red-600' : 'text-green-600'}`} />
+          <span className="font-semibold text-sm">{title}</span>
+        </div>
+        <div className="space-y-1">
+          <p className="text-lg font-bold">{record.valueLabel}</p>
+          <p className="text-sm text-muted-foreground">
+            {getDisplayName(record.ownerName)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Week {record.week}, {record.year}
           </p>
         </div>
       </div>
@@ -181,6 +189,16 @@ const RecordBook = ({
                   icon={Target}
                   record={singleSeasonRecords.fewestLosses}
                 />
+                <LeagueRecordCard
+                  title="Highest Single Game"
+                  icon={Zap}
+                  record={leagueRecord('highest_single_game')}
+                />
+                <LeagueRecordCard
+                  title="Largest Margin"
+                  icon={TrendingUp}
+                  record={leagueRecord('largest_margin')}
+                />
               </div>
             </CardContent>
           </Card>
@@ -205,6 +223,12 @@ const RecordBook = ({
                   title="Worst Point Differential"
                   icon={TrendingDown}
                   record={singleSeasonRecords.worstPointDiff}
+                  isNegative
+                />
+                <LeagueRecordCard
+                  title="Lowest Single Game"
+                  icon={TrendingDown}
+                  record={leagueRecord('lowest_single_game')}
                   isNegative
                 />
               </div>

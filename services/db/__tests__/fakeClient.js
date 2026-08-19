@@ -20,6 +20,21 @@ export function makeClient(handlers = {}) {
     callsFor(table, op = null) {
       return calls.filter((call) => call.table === table && (op === null || call.op === op));
     },
+    /**
+     * Stored procedures. Handlers are registered under `rpc.<name>` and
+     * receive the arguments, so a test can assert on what was sent.
+     */
+    rpc(name, args) {
+      calls.push({ table: 'rpc', op: name, payload: args, filters: {} });
+      const handler = handlers[`rpc.${name}`];
+      if (!handler) {
+        return Promise.resolve({ data: null, error: new Error(`unexpected rpc: ${name}`) });
+      }
+      return Promise.resolve()
+        .then(() => handler(args))
+        .then((data) => ({ data: data ?? null, error: null }))
+        .catch((error) => ({ data: null, error }));
+    },
     from(table) {
       const state = { table, op: 'select', payload: null, options: null, filters: {} };
 
@@ -79,7 +94,18 @@ export function makeClient(handlers = {}) {
           state.filters[`lte:${column}`] = value;
           return builder;
         },
-        neq: () => builder,
+        neq: (column, value) => {
+          state.filters[`neq:${column}`] = value;
+          return builder;
+        },
+        is: (column, value) => {
+          state.filters[`is:${column}`] = value;
+          return builder;
+        },
+        or: (expression) => {
+          state.filters.or = expression;
+          return builder;
+        },
         not: (column, operator, value) => {
           state.filters[`not:${column}:${operator}`] = value;
           return builder;

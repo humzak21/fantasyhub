@@ -58,3 +58,17 @@ export {
 export { useSeasonPlayerStats, useTeamPlayerStats } from './usePlayerStats.js';
 
 export { useAwardsUnlockStatus, useAwards, useAwardsMutations } from './useAwards.js';
+
+export {
+  useHistoryTimeline,
+  useHistoryFranchises,
+  useChampionships,
+  useSeasonDetail,
+  useSeasonDetails,
+  useHeadToHeadMatrix,
+  useMatchupHistory,
+  useRecordBook,
+  useFranchiseProfile,
+  useTransactionLeaderboard,
+  useFranchiseTransactions
+} from './useLeagueHistory.js';
