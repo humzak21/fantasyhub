@@ -247,7 +247,7 @@ const FloatingTeamFilter = ({
   return (
     <div
       ref={containerRef}
-      className="fixed z-50 w-72 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-lg flex flex-col"
+      className="fixed z-50 w-72 bg-card rounded-lg border border-border shadow-lg flex flex-col"
       style={{
         left: `${position.x}px`,
         top: getTopPosition() !== null ? `${getTopPosition()}px` : 'auto',
@@ -260,20 +260,20 @@ const FloatingTeamFilter = ({
       <div
         ref={handleRef}
         onPointerDown={handlePointerDown}
-        className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700 rounded-t-lg cursor-grab active:cursor-grabbing border-b border-gray-200 dark:border-gray-600 flex-shrink-0"
+        className="flex items-center justify-between p-3 bg-muted rounded-t-lg cursor-grab active:cursor-grabbing border-b border-border flex-shrink-0"
       >
         <div className="flex items-center gap-2">
-          <GripHorizontal size={16} className="text-gray-500 dark:text-gray-400" />
-          <h4 className="font-semibold text-sm text-gray-900 dark:text-white">
+          <GripHorizontal size={16} className="text-muted-foreground" />
+          <h4 className="font-semibold text-sm text-foreground">
             Team Filter
           </h4>
         </div>
         <button
           onClick={() => setIsOpen(false)}
-          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+          className="p-1 hover:bg-muted rounded transition-colors"
           aria-label="Collapse"
         >
-          <ChevronUp size={16} className="text-gray-600 dark:text-gray-300" />
+          <ChevronUp size={16} className="text-muted-foreground" />
         </button>
       </div>
 
@@ -291,15 +291,15 @@ const FloatingTeamFilter = ({
 
           {/* Scroll Indicator - Floating at bottom */}
           {canScroll && (
-            <div className="sticky bottom-0 left-0 right-0 flex justify-center py-2 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none">
-              <ChevronDownCircle size={16} className="text-gray-400 dark:text-gray-500 animate-bounce" />
+            <div className="sticky bottom-0 left-0 right-0 flex justify-center py-2 bg-gradient-to-t from-card to-transparent pointer-events-none">
+              <ChevronDownCircle size={16} className="text-muted-foreground animate-bounce" />
             </div>
           )}
         </div>
 
         {/* Selection Count */}
         {selectionSummary && (
-          <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">
+          <div className="px-3 py-2 border-t border-border text-xs text-muted-foreground flex-shrink-0">
             {selectionSummary}
           </div>
         )}
@@ -308,10 +308,10 @@ const FloatingTeamFilter = ({
         <div
           ref={resizeHandleRef}
           onPointerDown={handleResizePointerDown}
-          className="flex items-center justify-center h-1.5 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 dark:from-gray-600 dark:via-gray-700 dark:to-gray-600 cursor-ns-resize hover:from-blue-200 hover:via-blue-300 hover:to-blue-200 dark:hover:from-blue-600 dark:hover:via-blue-700 dark:hover:to-blue-600 transition-colors flex-shrink-0"
+          className="flex items-center justify-center h-1.5 bg-border cursor-ns-resize hover:bg-primary/40 transition-colors flex-shrink-0"
           style={{ userSelect: 'none' }}
         >
-          <GripVertical size={14} className="text-gray-500 dark:text-gray-400 opacity-50" />
+          <GripVertical size={14} className="text-muted-foreground opacity-50" />
         </div>
       </div>
     </div>
@@ -340,7 +340,7 @@ const TeamCheckboxList = ({
       <label
         key={team.id}
         // `min-h-11` on touch only: a 32px checkbox row is a coin-flip tap.
-        className="flex w-full cursor-pointer items-center gap-2 rounded p-2 text-sm transition-colors hover:bg-gray-50 pointer-coarse:min-h-11 dark:hover:bg-gray-700"
+        className="flex w-full cursor-pointer items-center gap-2 rounded p-2 text-sm transition-colors hover:bg-muted pointer-coarse:min-h-11"
       >
         <input
           type="checkbox"
@@ -348,7 +348,7 @@ const TeamCheckboxList = ({
           onChange={() => onToggleTeam(team.id)}
           className="h-4 w-4 flex-shrink-0 cursor-pointer rounded"
         />
-        <span className="min-w-0 flex-1 truncate text-sm text-gray-700 dark:text-gray-300">
+        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
           {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
         </span>
       </label>

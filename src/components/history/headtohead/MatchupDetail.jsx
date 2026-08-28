@@ -252,7 +252,7 @@ const MatchupDetail = ({
                         fluid; from sm: up the original template is restored
                         exactly.
                       */}
-                      <div className={`${MATCHUP_GRID} px-3 py-2 text-sm text-muted-foreground border-b border-gray-700 mb-2`}>
+                      <div className={`${MATCHUP_GRID} px-3 py-2 text-sm text-muted-foreground border-b border-border mb-2`}>
                         <div>Week</div>
                         <div className="truncate text-right">{getName(franchise1)}</div>
                         <div className="hidden text-right sm:block">Record</div>

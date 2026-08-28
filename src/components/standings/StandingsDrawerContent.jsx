@@ -142,7 +142,7 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
     <div
       ref={drawerRef}
       className={`
-        drawer-panel fixed top-0 right-0 bg-white dark:bg-gray-900 h-full shadow-xl
+        drawer-panel fixed top-0 right-0 bg-card h-full shadow-xl
         w-[95%] max-w-[690px] sm:w-[690px]
         flex flex-col z-[60]
         transition-transform duration-300 ease-out

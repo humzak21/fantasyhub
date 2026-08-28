@@ -56,7 +56,7 @@ const ScheduleImportHistory = () => {
           )}
 
           {!isLoading && !error && imports.length === 0 && (
-            <div className="py-8 text-center text-gray-500">
+            <div className="py-8 text-center text-muted-foreground">
               <p>No imports recorded yet.</p>
             </div>
           )}
@@ -72,7 +72,7 @@ const ScheduleImportHistory = () => {
                   </Badge>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground md:grid-cols-4">
                   <div>
                     <span className="font-medium">ESPN League</span>
                     <br />
@@ -97,7 +97,7 @@ const ScheduleImportHistory = () => {
                 </div>
 
                 {row.assignment_notes && (
-                  <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm text-gray-600">
+                  <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm text-muted-foreground">
                     {row.assignment_notes.trim()}
                   </p>
                 )}

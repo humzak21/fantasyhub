@@ -393,10 +393,10 @@ const DrawerStandingsTable = ({
         {/* Loading header */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <div className="h-5 w-20 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-5 w-20 bg-muted rounded animate-pulse"></div>
+            <div className="h-4 w-12 bg-muted rounded animate-pulse"></div>
           </div>
-          <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
+          <div className="h-6 w-16 bg-muted rounded animate-pulse"></div>
         </div>
         
         {/* Loading divisions */}
@@ -404,31 +404,31 @@ const DrawerStandingsTable = ({
           <div key={i} className="space-y-2">
             {/* Division header loading */}
             <div className="flex items-center justify-between px-1">
-              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 w-6 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 w-24 bg-muted rounded animate-pulse"></div>
+              <div className="h-4 w-6 bg-muted rounded animate-pulse"></div>
             </div>
             
             {/* Table loading */}
             <div className="rounded-md border">
               <div className="p-2 border-b">
                 <div className="flex gap-2">
-                  <div className="h-3 w-8 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-12 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-8 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-8 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-8 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-3 w-8 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-16 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-12 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-8 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-8 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-8 bg-muted rounded animate-pulse"></div>
                 </div>
               </div>
               {[1, 2, 3].map((j) => (
                 <div key={j} className="p-2 border-b last:border-b-0">
                   <div className="flex gap-2">
-                    <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 w-8 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-16 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-12 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-8 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-8 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-8 bg-muted rounded animate-pulse"></div>
                   </div>
                 </div>
               ))}
@@ -559,9 +559,9 @@ const DrawerStandingsTable = ({
   return (
     <div className="space-y-4">
       {/* Header with management controls and close button */}
-      <div className="flex items-center justify-between px-1 pb-4 border-b border-gray-200">
+      <div className="flex items-center justify-between px-1 pb-4 border-b border-border">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Standings</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-foreground">Standings</h2>
           {currentWeek && (
             <Badge variant="outline" className="text-xs">
               Week {currentWeek}
@@ -625,11 +625,11 @@ const DrawerStandingsTable = ({
           )}
           <button
             onClick={onClose}
-            className="p-2 sm:p-3 rounded-md hover:bg-gray-100 active:bg-gray-200 transition-colors duration-200 touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="p-2 sm:p-3 rounded-md hover:bg-muted active:bg-muted transition-colors duration-200 touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             aria-label="Close standings drawer"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >
-            <X size={20} className="text-gray-500" />
+            <X size={20} className="text-muted-foreground" />
           </button>
         </div>
       </div>

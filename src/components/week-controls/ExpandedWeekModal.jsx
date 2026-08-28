@@ -289,8 +289,8 @@ const ExpandedWeekModal = ({
         <div className="
           flex items-center justify-between 
           p-3 sm:p-4 
-          border-b border-gray-100
-          bg-gradient-to-r from-white to-gray-50
+          border-b border-border
+          bg-card
         ">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             {isLoading ? (
@@ -302,7 +302,7 @@ const ExpandedWeekModal = ({
               text-base sm:text-lg font-semibold
               truncate
               transition-colors duration-200
-              text-gray-900
+              text-foreground
             ">
               Week Navigation
             </h2>
@@ -327,7 +327,7 @@ const ExpandedWeekModal = ({
             className="
               h-9 w-9 sm:h-8 sm:w-8 
               p-0 rounded-full 
-              hover:bg-gray-100
+              hover:bg-muted
               touch-manipulation
               scale-on-hover
               flex-shrink-0
@@ -347,25 +347,25 @@ const ExpandedWeekModal = ({
             {/* Enhanced Left fade indicator */}
             <div className={`
               absolute left-0 top-0 bottom-2 z-10 w-8 sm:w-12
-              bg-gradient-to-r from-white via-white/90 to-transparent
+              bg-gradient-to-r from-card via-card/90 to-transparent
               pointer-events-none
               flex items-center justify-start pl-1
               fade-indicator
               ${showLeftFade ? 'visible' : 'hidden'}
             `}>
-              <ChevronLeft className="h-4 w-4 text-gray-400 transition-all duration-200 hover:text-gray-600" />
+              <ChevronLeft className="h-4 w-4 text-muted-foreground transition-all duration-200 hover:text-muted-foreground" />
             </div>
             
             {/* Enhanced Right fade indicator */}
             <div className={`
               absolute right-0 top-0 bottom-2 z-10 w-8 sm:w-12
-              bg-gradient-to-l from-white via-white/90 to-transparent
+              bg-gradient-to-l from-card via-card/90 to-transparent
               pointer-events-none
               flex items-center justify-end pr-1
               fade-indicator
               ${showRightFade ? 'visible' : 'hidden'}
             `}>
-              <ChevronRight className="h-4 w-4 text-gray-400 transition-all duration-200 hover:text-gray-600" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground transition-all duration-200 hover:text-muted-foreground" />
             </div>
             
             <div 
@@ -464,14 +464,14 @@ const ExpandedWeekModal = ({
         </div>
 
         {/* Enhanced Footer with current selection info */}
-        <div className="border-t border-gray-100 p-3 sm:p-4 bg-gradient-to-r from-gray-50 to-white">
+        <div className="border-t border-border p-3 sm:p-4 bg-card">
           <div className="
             flex items-center justify-between
             flex-col sm:flex-row
             gap-2 sm:gap-0
           ">
             <div className="flex items-center gap-2">
-              <span className="text-xs sm:text-sm font-medium text-gray-700 transition-colors duration-200">
+              <span className="text-xs sm:text-sm font-medium text-foreground transition-colors duration-200">
                 Selected:
               </span>
               <div className="flex items-center gap-1">
@@ -480,7 +480,7 @@ const ExpandedWeekModal = ({
                 ) : (
                   getWeekIcon(validCurrentWeek)
                 )}
-                <span className="font-semibold text-sm sm:text-base text-gray-900 transition-all duration-200">
+                <span className="font-semibold text-sm sm:text-base text-foreground transition-all duration-200">
                   {getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
                 </span>
               </div>

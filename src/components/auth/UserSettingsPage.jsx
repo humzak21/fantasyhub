@@ -137,10 +137,10 @@ export const UserSettingsPage = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
-            <p className="text-gray-600">Please sign in to access user settings.</p>
+            <p className="text-muted-foreground">Please sign in to access user settings.</p>
             <Button onClick={handleBack} className="mt-4">
               Go Back
             </Button>
@@ -151,9 +151,9 @@ export const UserSettingsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-card border-b shadow-sm">
         <PageContainer width="wide" className="max-w-4xl py-4">
           <div className="flex items-center gap-4">
             <Button
@@ -246,7 +246,7 @@ export const UserSettingsPage = () => {
                 <form onSubmit={handleSave} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="displayName">
-                      Full Name <span className="text-sm text-gray-500">(First Last)</span>
+                      Full Name <span className="text-sm text-muted-foreground">(First Last)</span>
                     </Label>
                     <Input
                       id="displayName"
@@ -256,7 +256,7 @@ export const UserSettingsPage = () => {
                       onChange={(e) => handleDisplayNameChange(e.target.value)}
                       className="max-w-md"
                     />
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       We use your full name to match you with your team in the league and reveal all league information. Please use your real name as it appears in your fantasy league, I cannot manually do this for you (or else I would've).
                     </p>
                   </div>
@@ -267,9 +267,9 @@ export const UserSettingsPage = () => {
                       type="email"
                       value={user?.email || ''}
                       disabled
-                      className="max-w-md bg-gray-50 text-gray-500"
+                      className="max-w-md bg-muted text-muted-foreground"
                     />
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Email cannot be changed from here. Contact support if you need to update your email.
                     </p>
                   </div>
@@ -328,19 +328,19 @@ export const UserSettingsPage = () => {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="font-medium text-gray-600">Account Created</p>
+                    <p className="font-medium text-muted-foreground">Account Created</p>
                     <p>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="font-medium text-gray-600">Last Sign In</p>
+                    <p className="font-medium text-muted-foreground">Last Sign In</p>
                     <p>{user?.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleDateString() : 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="font-medium text-gray-600">Email Verified</p>
+                    <p className="font-medium text-muted-foreground">Email Verified</p>
                     <p>{user?.email_confirmed_at ? 'Yes' : 'No'}</p>
                   </div>
                   <div>
-                    <p className="font-medium text-gray-600">User ID</p>
+                    <p className="font-medium text-muted-foreground">User ID</p>
                     <p className="font-mono text-xs">{user?.id?.slice(0, 8)}...</p>
                   </div>
                 </div>
@@ -388,8 +388,8 @@ export const UserSettingsPage = () => {
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 mb-1">Error Boundary Test</h3>
-                        <p className="text-sm text-gray-600 mb-3">
+                        <h3 className="font-semibold text-foreground mb-1">Error Boundary Test</h3>
+                        <p className="text-sm text-muted-foreground mb-3">
                           Test the error boundary implementation by triggering a controlled crash. 
                           This will verify that error boundaries are working correctly and displaying 
                           the fallback UI with the red refresh button.
@@ -421,7 +421,7 @@ export const UserSettingsPage = () => {
 
                   {/* Future Testing Tools */}
                   <div className="border-t pt-4">
-                    <div className="text-sm text-gray-500 italic">
+                    <div className="text-sm text-muted-foreground italic">
                       Additional testing tools can be added here as needed.
                     </div>
                   </div>

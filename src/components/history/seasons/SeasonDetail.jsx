@@ -85,7 +85,7 @@ const SeasonDetail = ({
 
   const getRankIcon = (index) => {
     if (index === 0) return <Crown className="h-4 w-4 text-amber-500" />;
-    if (index === 1) return <Medal className="h-4 w-4 text-gray-400" />;
+    if (index === 1) return <Medal className="h-4 w-4 text-muted-foreground" />;
     if (index === 2) return <Medal className="h-4 w-4 text-amber-700" />;
     return null;
   };

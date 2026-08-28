@@ -160,7 +160,7 @@ export default function DisplayNamePrompt() {
         aria-labelledby="display-name-prompt-title"
         className="relative modal-content entering rounded-lg w-full max-w-md shadow-modal overflow-hidden"
       >
-        <div className="flex items-start gap-3 p-5 border-b border-gray-100 dark:border-gray-700">
+        <div className="flex items-start gap-3 p-5 border-b border-border">
           <div className="rounded-full bg-primary/10 p-2 shrink-0">
             {phase === 'saved' ? (
               <CheckCircle className="h-5 w-5 text-green-600" />

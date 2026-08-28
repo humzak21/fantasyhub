@@ -104,7 +104,7 @@ const ResponsiveNavigation = ({
               variant="ghost"
               size="icon"
               aria-label="Open navigation"
-              className="relative dark:hover:bg-slate-700 dark:text-slate-200"
+              className="relative"
             >
               <Menu className="h-5 w-5" />
               {hasAnyNotification && (
@@ -180,7 +180,7 @@ const NavButton = ({ tab, isActive, showLabel, onClick }) => {
       className={`flex items-center ${showLabel ? 'space-x-1' : 'space-x-0'} h-9 ${
         isActive
           ? 'bg-[hsl(217,32.6%,17.5%)] text-white hover:bg-[hsl(217,32.6%,20%)] border-[hsl(217,32.6%,17.5%)]'
-          : 'dark:hover:bg-slate-700 dark:text-slate-200'
+          : ''
       } ${
         isAwards ? 'awards-glow' : ''
       }`}

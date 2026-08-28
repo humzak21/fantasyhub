@@ -7,12 +7,12 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload || payload.length === 0) return null;
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700 shadow-lg">
-      <p className="font-semibold text-gray-900 dark:text-white mb-2 text-sm">Week {label}</p>
+    <div className="bg-card p-3 rounded border border-border shadow-lg">
+      <p className="font-semibold text-foreground mb-2 text-sm">Week {label}</p>
       {payload.map((entry, index) => (
         <div key={index} className="text-sm">
           <span style={{ color: entry.color }} className="font-medium">{entry.name}:</span>
-          <span className="ml-2 font-semibold text-gray-900 dark:text-white">{entry.value !== null && entry.value !== undefined ? entry.value.toFixed(1) : 'N/A'}</span>
+          <span className="ml-2 font-semibold text-foreground">{entry.value !== null && entry.value !== undefined ? entry.value.toFixed(1) : 'N/A'}</span>
         </div>
       ))}
     </div>
@@ -86,7 +86,7 @@ const WeeklyScoringTrendsChart = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No scoring data available for the selected week range.
       </div>
     );

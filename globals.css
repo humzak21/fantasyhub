@@ -957,3 +957,145 @@
   }
 
 }
+
+/* ---------------------------------------------------------------------------
+ * Dark status colours.
+ *
+ * The app is dark-only, but its status chips are written in Tailwind's *light*
+ * tints — `bg-green-50 text-green-700` for a win streak, `bg-red-50
+ * text-red-700` for a bad loss, and so on for blue, orange, amber, purple and
+ * indigo. There are dozens of them and they are genuinely the right vocabulary
+ * at the call site: a component should say "this is a positive result", not
+ * "this is hsl(142 45% 12%)".
+ *
+ * So the mapping lives here, once, instead of being hand-written as a `dark:`
+ * variant at every use. The 50/100 tints become dark tints of the same hue and
+ * the 500/600/700 text becomes a light tint of it, which keeps contrast on a
+ * near-black page.
+ *
+ * These rules are deliberately outside `@layer`: an unlayered rule beats every
+ * layered one regardless of specificity, so Tailwind's own `.bg-green-50`
+ * cannot win and none of this needs `!important` — which is what the whole
+ * block used to be made of. A caller who genuinely wants a light chip on a
+ * dark page can still say so with an inline style or a `[&]:` escape.
+ *
+ * Lifted verbatim from styles/dark-mode.css when that file was deleted; the
+ * values are the ones the app has been rendering.
+ * ------------------------------------------------------------------------ */
+
+.dark .bg-blue-50,
+.dark .bg-blue-100 {
+  background-color: hsl(212 45% 12%);
+  border-color: hsl(212 35% 18%);
+}
+.dark .text-blue-500 { color: hsl(212 85% 70%); }
+.dark .text-blue-600,
+.dark .text-blue-700 { color: hsl(212 80% 75%); }
+
+.dark .bg-orange-50,
+.dark .bg-orange-100 {
+  background-color: hsl(24 45% 12%);
+  border-color: hsl(24 35% 18%);
+}
+.dark .text-orange-500 { color: hsl(24 95% 70%); }
+.dark .text-orange-600,
+.dark .text-orange-700 { color: hsl(24 90% 75%); }
+
+.dark .bg-purple-50,
+.dark .bg-purple-100,
+.dark .bg-violet-50,
+.dark .bg-violet-100 {
+  background-color: hsl(260 45% 12%);
+  border-color: hsl(260 35% 18%);
+}
+.dark .text-purple-500,
+.dark .text-violet-500 { color: hsl(260 85% 70%); }
+.dark .text-purple-600,
+.dark .text-purple-700,
+.dark .text-violet-600,
+.dark .text-violet-700 { color: hsl(260 80% 75%); }
+
+.dark .bg-green-50,
+.dark .bg-green-100,
+.dark .bg-emerald-50,
+.dark .bg-emerald-100 {
+  background-color: hsl(142 45% 12%);
+  border-color: hsl(142 35% 18%);
+}
+.dark .text-green-500,
+.dark .text-emerald-500 { color: hsl(142 85% 70%); }
+.dark .text-green-600,
+.dark .text-green-700,
+.dark .text-emerald-600,
+.dark .text-emerald-700 { color: hsl(142 80% 75%); }
+
+.dark .bg-red-50,
+.dark .bg-red-100 {
+  background-color: hsl(0 45% 12%);
+  border-color: hsl(0 35% 18%);
+}
+.dark .text-red-500 { color: hsl(0 85% 70%); }
+.dark .text-red-600,
+.dark .text-red-700 { color: hsl(0 80% 75%); }
+
+.dark .bg-yellow-50,
+.dark .bg-yellow-100,
+.dark .bg-amber-50,
+.dark .bg-amber-100 {
+  background-color: hsl(45 45% 12%);
+  border-color: hsl(45 35% 18%);
+}
+.dark .text-yellow-500,
+.dark .text-amber-500 { color: hsl(45 95% 70%); }
+.dark .text-yellow-600,
+.dark .text-yellow-700,
+.dark .text-amber-600,
+.dark .text-amber-700 { color: hsl(45 90% 75%); }
+
+.dark .text-indigo-600,
+.dark .text-indigo-700 { color: hsl(230 80% 75%); }
+
+/* The page's own texture, and the focus ring. Both were in dark-mode.css. */
+.dark body {
+  background-image:
+    radial-gradient(circle at 20% 80%, hsl(217 32.6% 17.5% / 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, hsl(215 30% 18% / 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, hsl(212 72% 59% / 0.05) 0%, transparent 50%);
+}
+
+.dark *:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+@media (prefers-contrast: high) {
+  .dark {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --border: 0 0% 50%;
+    --primary: 212 100% 70%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dark * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .dark {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --border: 0 0% 50%;
+  }
+
+  .dark * {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
+}

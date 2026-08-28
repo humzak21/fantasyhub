@@ -43,7 +43,7 @@ const MarginOfVictoryChart = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No margin of victory data available. Complete games to see stats.
       </div>
     );

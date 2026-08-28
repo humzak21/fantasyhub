@@ -44,7 +44,7 @@ const PickEmsResults = ({
 
   const getRankIcon = (rank) => {
     if (rank === 1) return <Trophy className="h-4 w-4 text-yellow-500" />;
-    if (rank === 2) return <Award className="h-4 w-4 text-gray-400" />;
+    if (rank === 2) return <Award className="h-4 w-4 text-muted-foreground" />;
     if (rank === 3) return <Award className="h-4 w-4 text-amber-600" />;
     return null;
   };

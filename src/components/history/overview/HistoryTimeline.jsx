@@ -110,10 +110,10 @@ const HistoryTimeline = ({
                       </div>
 
                       {/* Runner-up - 2nd */}
-                      <div className={`rounded-lg p-3 ${runnerUp ? 'bg-gray-500/10 border border-gray-500/20' : 'bg-muted/30'}`}>
+                      <div className={`rounded-lg p-3 ${runnerUp ? 'bg-gray-500/10 border border-border/20' : 'bg-muted/30'}`}>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <Medal className="h-4 w-4 text-gray-400" />
-                          <span className="text-xs font-semibold text-gray-400">2nd</span>
+                          <Medal className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-xs font-semibold text-muted-foreground">2nd</span>
                         </div>
                         {runnerUp && runnerUp.franchise ? (
                           <>

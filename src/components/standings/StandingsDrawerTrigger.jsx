@@ -34,7 +34,7 @@ const StandingsDrawerTrigger = ({ onClick, isOpen }) => {
     >
       <Trophy
         size={24}
-        className={`drawer-trigger-icon ${isDarkMode ? 'text-black' : 'text-white'}`}
+        className={`drawer-trigger-icon ${isDarkMode ? 'text-foreground' : 'text-white'}`}
         style={{
           color: isDarkMode ? 'black' : 'white'
         }}

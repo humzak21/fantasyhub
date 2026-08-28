@@ -20,13 +20,13 @@ const CustomScoreTooltip = ({ active, payload, label }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-900 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-      <p className="font-semibold text-gray-900 dark:text-white mb-2">{data.name}</p>
+    <div className="bg-card p-3 border border-border rounded-lg shadow-lg">
+      <p className="font-semibold text-foreground mb-2">{data.name}</p>
       <div className="space-y-1 text-sm">
         {Object.entries(labels).map(([key, label]) => (
           <div key={key} className="flex justify-between gap-4">
-            <span className="text-gray-600 dark:text-gray-400">{label}:</span>
-            <span className="font-medium text-gray-900 dark:text-white">{data[key]?.toFixed(2)}</span>
+            <span className="text-muted-foreground">{label}:</span>
+            <span className="font-medium text-foreground">{data[key]?.toFixed(2)}</span>
           </div>
         ))}
       </div>
@@ -77,7 +77,7 @@ const ScoreDistributionChart = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No score distribution data available. Complete games to see trends.
       </div>
     );
@@ -115,8 +115,8 @@ const ScoreDistributionChart = ({
           <Bar dataKey="max" name="Max" fill="#06b6d4" opacity={0.6} />
         </BarChart>
       </ChartContainer>
-      <div className="mt-2 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-        <p className="font-semibold text-gray-900 dark:text-white mb-2">Score Distribution Guide:</p>
+      <div className="mt-2 p-4 bg-muted rounded-lg text-sm text-muted-foreground">
+        <p className="font-semibold text-foreground mb-2">Score Distribution Guide:</p>
         <ul className="space-y-1 text-xs">
           <li><span className="font-semibold">Min/Max:</span> Lowest and highest individual game scores</li>
           <li><span className="font-semibold">Q1/Q3:</span> 25th and 75th percentile scores (middle 50% of games)</li>

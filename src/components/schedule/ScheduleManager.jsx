@@ -23,8 +23,8 @@ const ScheduleManager = ({
 
   if (!season) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <Calendar size={48} className="mx-auto mb-4 text-gray-300" />
+      <div className="text-center py-8 text-muted-foreground">
+        <Calendar size={48} className="mx-auto mb-4 text-muted-foreground" />
         <p>No active season. Please select or create a season first.</p>
       </div>
     );
@@ -60,7 +60,7 @@ const ScheduleManager = ({
       case 'scheduled':
         return <Calendar size={16} className="text-blue-600" />;
       default:
-        return <Calendar size={16} className="text-gray-400" />;
+        return <Calendar size={16} className="text-muted-foreground" />;
     }
   };
 
@@ -71,9 +71,9 @@ const ScheduleManager = ({
       case 'partial':
         return 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/20 dark:border-orange-800/30 dark:text-orange-300';
       case 'scheduled':
-        return 'bg-gray-100 border-gray-300 text-gray-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300';
+        return 'bg-muted border-border text-foreground/50/50';
       default:
-        return 'bg-gray-100 border-gray-300 text-gray-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300';
+        return 'bg-muted border-border text-foreground/50/50';
     }
   };
 
@@ -113,7 +113,7 @@ const ScheduleManager = ({
         <div className="flex gap-2">
           <button
             onClick={() => setViewMode(viewMode === 'week' ? 'full' : 'week')}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted transition-colors"
           >
             <Users size={16} />
             {viewMode === 'week' ? 'Full View' : 'Week View'}
@@ -130,8 +130,8 @@ const ScheduleManager = ({
       />
 
       {season.teams.length < 2 ? (
-        <div className="text-center py-12 text-gray-500">
-          <Users size={64} className="mx-auto mb-4 text-gray-300" />
+        <div className="text-center py-12 text-muted-foreground">
+          <Users size={64} className="mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">Not Enough Teams</h3>
           <p>You need at least 2 teams to create a schedule.</p>
         </div>
@@ -195,8 +195,8 @@ const WeekScheduleView = ({
 }) => {
   if (games.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-        <Calendar size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+      <div className="text-center py-8 text-muted-foreground">
+        <Calendar size={48} className="mx-auto mb-4 text-muted-foreground" />
         <p>No games scheduled for Week {week}</p>
       </div>
     );
@@ -277,11 +277,11 @@ const FullScheduleView = ({
                   const team1 = teams.find(t => t.id === game.team1Id);
                   const team2 = teams.find(t => t.id === game.team2Id);
                   const isUserGame = isUserTeam(team1, user) || isUserTeam(team2, user);
-                  const baseClasses = "bg-white bg-opacity-50 rounded p-3 border";
+                  const baseClasses = "bg-card bg-opacity-50 rounded p-3 border";
                   const highlightClasses = getUserTeamHighlightClasses(isUserGame);
                   const borderClasses = game.isCompleted
                     ? "border-green-200 dark:border-green-700/30"
-                    : "border-gray-200 dark:border-gray-600";
+                    : "border-border";
 
                   const isTeam1Winner = game.isCompleted && game.winnerTeamId === game.team1Id;
                   const isTeam2Winner = game.isCompleted && game.winnerTeamId === game.team2Id;
@@ -291,14 +291,14 @@ const FullScheduleView = ({
                       <div className="flex items-center justify-between gap-4">
                         {/* Team 1 */}
                         <div className={`flex-1 flex items-center gap-2 ${isTeam1Winner ? 'font-bold' : 'font-medium'}`}>
-                          <span className="flex-1 truncate dark:text-white">
+                          <span className="flex-1 truncate">
                             {getTeamName(game.team1Id, game)}
                           </span>
                           {game.isCompleted && (
                             <span className={`text-lg font-bold min-w-[3rem] text-right ${
                               isTeam1Winner
                                 ? 'text-green-600 dark:text-green-400'
-                                : 'text-gray-600 dark:text-gray-400'
+                                : 'text-muted-foreground'
                             }`}>
                               {game.team1Score}
                             </span>
@@ -308,9 +308,9 @@ const FullScheduleView = ({
                         {/* VS or Score Separator */}
                         <div className="flex-shrink-0 px-2">
                           {game.isCompleted ? (
-                            <span className="text-gray-400 dark:text-gray-500 font-medium">-</span>
+                            <span className="text-muted-foreground font-medium">-</span>
                           ) : (
-                            <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">vs</span>
+                            <span className="text-muted-foreground text-xs font-medium">vs</span>
                           )}
                         </div>
 
@@ -320,12 +320,12 @@ const FullScheduleView = ({
                             <span className={`text-lg font-bold min-w-[3rem] ${
                               isTeam2Winner
                                 ? 'text-green-600 dark:text-green-400'
-                                : 'text-gray-600 dark:text-gray-400'
+                                : 'text-muted-foreground'
                             }`}>
                               {game.team2Score}
                             </span>
                           )}
-                          <span className="flex-1 truncate text-right dark:text-white">
+                          <span className="flex-1 truncate text-right">
                             {getTeamName(game.team2Id, game)}
                           </span>
                         </div>
@@ -427,15 +427,15 @@ const GameCard = ({
       WR: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
       TE: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700',
       K: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700',
-      'D/ST': 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-600'
+      'D/ST': 'bg-muted text-foreground border-border/30'
     };
-    return colors[position] || 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-600';
+    return colors[position] || 'bg-muted text-foreground border-border/30';
   };
 
   const TeamRosterPreview = ({ roster }) => {
     if (!roster || roster.length === 0) {
       return (
-        <div className="text-xs text-gray-500 dark:text-gray-400">No roster data</div>
+        <div className="text-xs text-muted-foreground">No roster data</div>
       );
     }
 
@@ -465,10 +465,10 @@ const GameCard = ({
         <div
           className={`flex items-center gap-1 p-1 rounded text-xs border ${
             isStarter
-              ? 'bg-white border-gray-200 font-medium dark:bg-gray-800 dark:border-gray-600'
+              ? 'bg-card border-border font-medium'
               : slot === 'IR'
               ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300'
-              : 'bg-gray-50 border-gray-200 text-gray-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400'
+              : 'bg-muted border-border text-muted-foreground'
           }`}
           title={`${playerName} (${position})${slot !== 'BE' && slot !== 'IR' ? ` - ${slot}` : ''}`}
         >
@@ -491,7 +491,7 @@ const GameCard = ({
         {/* Starting Lineup */}
         {starters.length > 0 && (
           <div className="space-y-1">
-            <h5 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+            <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Starters
             </h5>
             <div className="grid grid-cols-1 gap-1">
@@ -505,7 +505,7 @@ const GameCard = ({
         {/* Bench Players */}
         {benchPlayers.length > 0 && (
           <div className="space-y-1">
-            <h5 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+            <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
               Bench
             </h5>
             <div className="grid grid-cols-1 gap-1">
@@ -546,28 +546,28 @@ const GameCard = ({
       <div className={`flex-1 p-3 rounded-lg border ${
         isWinner && game.isCompleted
           ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-700'
-          : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-600'
+          : 'bg-muted border-border/50'
       }`}>
         <div className="space-y-2">
           {/* Team Header */}
           <div className="flex items-start justify-between">
             <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-base truncate dark:text-white">{teamName}</h4>
+              <h4 className="font-bold text-base truncate">{teamName}</h4>
               {!isBye && team?.owner && (
-                <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                <div className="text-xs text-muted-foreground truncate">
                   {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                 </div>
               )}
               {/* Record */}
               {!isBye && stats.gamesPlayed > 0 && (
                 <div className="text-xs mt-1">
-                  <span className="text-gray-600 dark:text-gray-400">Record: </span>
+                  <span className="text-muted-foreground">Record: </span>
                   <span className={`font-semibold ${
                     (stats.wins || 0) > (stats.losses || 0)
                       ? 'text-green-600 dark:text-green-400'
                       : (stats.wins || 0) < (stats.losses || 0)
                       ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-600 dark:text-gray-400'
+                      : 'text-muted-foreground'
                   }`}>
                     {stats.wins || 0}-{stats.losses || 0}
                     {stats.ties > 0 && `-${stats.ties}`}
@@ -582,7 +582,7 @@ const GameCard = ({
                   rank === 1
                     ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
                     : rank <= 3
-                    ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                    ? 'bg-muted text-foreground'
                     : 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
                 }`}>
                   {getRankIcon(rank)} #{rank}
@@ -600,11 +600,11 @@ const GameCard = ({
                     ...prev,
                     [teamId === game.team1Id ? 'team1Score' : 'team2Score']: e.target.value
                   }))}
-                  className="p-1 border rounded text-center w-16 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  className="p-1 border rounded text-center w-16 text-sm"
                   placeholder="0"
                 />
               ) : (
-                <div className="text-2xl font-bold dark:text-white">
+                <div className="text-2xl font-bold">
                   {score !== null && score !== undefined ? score : '-'}
                 </div>
               )}
@@ -625,11 +625,11 @@ const GameCard = ({
   const highlightClasses = getUserTeamHighlightClasses(isUserGame);
 
   return (
-    <div className={`bg-white dark:bg-gray-900 border rounded-lg p-4 shadow-sm ${highlightClasses}`}>
+    <div className={`bg-card border rounded-lg p-4 shadow-sm ${highlightClasses}`}>
       {/* Game Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className="text-base font-semibold dark:text-white">Week {game.week}</div>
+          <div className="text-base font-semibold">Week {game.week}</div>
           {game.isCompleted && (
             <div className="flex items-center gap-1">
               {game.isBlowout && <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded dark:bg-orange-900/30 dark:text-orange-300">Blowout</span>}
@@ -644,7 +644,7 @@ const GameCard = ({
               <>
                 <button
                   onClick={() => setEditing(false)}
-                  className="px-2 py-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded text-xs transition-colors dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
+                  className="px-2 py-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded text-xs transition-colors"
                 >
                   Cancel
                 </button>
@@ -698,9 +698,9 @@ const GameCard = ({
         />
 
         <div className="flex-shrink-0 text-center self-center">
-          <div className="text-lg font-bold text-gray-400 dark:text-gray-500">VS</div>
+          <div className="text-lg font-bold text-muted-foreground">VS</div>
           {!game.isCompleted && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Scheduled</div>
+            <div className="text-xs text-muted-foreground mt-1">Scheduled</div>
           )}
         </div>
 

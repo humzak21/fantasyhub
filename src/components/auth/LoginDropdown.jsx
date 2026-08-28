@@ -174,7 +174,7 @@ export const LoginDropdown = () => {
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-green-700">Account Created!</h3>
-                  <p className="text-sm text-gray-600 px-2">
+                  <p className="text-sm text-muted-foreground px-2">
                     {successMessage}
                   </p>
                 </div>
@@ -302,7 +302,7 @@ export const LoginDropdown = () => {
                 <CheckCircle className="h-12 w-12 text-orange-500 mx-auto" />
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-orange-700">Email Sent!</h3>
-                  <p className="text-sm text-gray-600 px-2">
+                  <p className="text-sm text-muted-foreground px-2">
                     Check your email for a password reset link. You can now close this dialog.
                   </p>
                 </div>
@@ -323,7 +323,7 @@ export const LoginDropdown = () => {
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-green-700">Account Created!</h3>
-                  <p className="text-sm text-gray-600 px-2">
+                  <p className="text-sm text-muted-foreground px-2">
                     {successMessage}
                   </p>
                 </div>
