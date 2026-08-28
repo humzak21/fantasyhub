@@ -1,36 +1,24 @@
-import React, { useEffect } from 'react'
+import React from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import FantasyFootballApp from '../FantasyFootballApp.jsx'
 import MobileFantasyFootballApp from './components/mobile/MobileFantasyFootballApp.jsx'
 import { UserSettingsPage } from './components/auth/UserSettingsPage.jsx'
 import DisplayNamePrompt from './components/auth/DisplayNamePrompt.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
-import { useMobileDetection, setMobileViewport, getMobileClasses } from '../utils/mobileDetection.js'
+import { useMobileDetection } from '../utils/mobileDetection.js'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
 
 function App() {
   const { loading } = useAuth()
-  const { isMobile, deviceInfo } = useMobileDetection()
+  const { isMobile } = useMobileDetection()
   const { pathname } = useLocation()
 
-  // Set up mobile viewport and meta tags
-  useEffect(() => {
-    if (isMobile) {
-      setMobileViewport()
-      
-      // Add mobile-specific classes to body
-      const mobileClasses = getMobileClasses(deviceInfo)
-      document.body.className = `${document.body.className} ${mobileClasses}`.trim()
-      
-      return () => {
-        // Cleanup mobile classes on unmount or when switching to desktop
-        const classesToRemove = getMobileClasses(deviceInfo).split(' ')
-        classesToRemove.forEach(className => {
-          document.body.classList.remove(className)
-        })
-      }
-    }
-  }, [isMobile, deviceInfo])
+  // No viewport rewrite, no body classes. `setMobileViewport()` used to stamp
+  // `user-scalable=no` (a WCAG 1.4.4 failure), and `.mobile-optimized` put a
+  // `transform` on <body>, which makes the body the containing block for every
+  // `position: fixed` descendant — that is what broke the nav overlay, the
+  // loading overlay and the standings drawer. index.html now carries the one
+  // viewport tag we want, `viewport-fit=cover` included.
 
   // Show loading screen while auth is initializing
   if (loading) {

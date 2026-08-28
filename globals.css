@@ -1,6 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
 @import "tailwindcss";
 
+/* Tailwind v4 does not read tailwind.config.js unless it is pointed at one.
+ * Without this line every semantic token (bg-card, text-muted-foreground, …),
+ * the `xs` breakpoint, the ff-* ramps and every `animate-*` generated nothing
+ * — which is what styles/dark-mode.css's 1,128 `!important` lines were
+ * compensating for. scripts/check-css-tokens.js asserts the built CSS really
+ * contains them so this cannot silently regress again. */
+@config "./tailwind.config.js";
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -541,61 +549,38 @@
     }
   }
 
-  /* Mobile-specific foundation styles */
+  /* Mobile-specific foundation styles.
+   *
+   * Three things used to live here and all three were bugs:
+   *   - `transform: translateZ(0)` made whatever carried this class the
+   *     containing block for every `position: fixed` descendant, so overlays
+   *     and drawers sized/positioned against it instead of the viewport;
+   *   - blanket `user-select: none` made the whole app feel like a kiosk;
+   *   - a blanket 44px floor on every `button` and `[role=button]` inflated
+   *     icon buttons, table controls and chips — a big part of the
+   *     "everything is zoomed in" complaint. Touch sizing now lives on the
+   *     `ui/` primitives behind `pointer-coarse:`, where it can be opted out
+   *     of. Do not reintroduce any of them here. */
   .mobile-optimized {
-    /* Touch interaction optimizations */
     -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    
+
     /* Performance optimizations */
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    
+
     /* Text rendering optimizations */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
-  /* Re-enable text selection for inputs */
-  .mobile-optimized input,
-  .mobile-optimized textarea,
-  .mobile-optimized [contenteditable] {
-    -webkit-user-select: text;
-    -moz-user-select: text;
-    -ms-user-select: text;
-    user-select: text;
-  }
-
-  /* Touch-friendly button base styles */
   .mobile-optimized button,
   .mobile-optimized [role="button"] {
-    min-width: 44px;
-    min-height: 44px;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Mobile viewport optimizations */
-  .mobile-optimized {
-    /* Prevent horizontal scrolling */
-    overflow-x: hidden;
-    
-    /* Optimize for mobile performance */
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-  }
-
   /* Device-specific optimizations */
-  .ios-device {
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-  }
-
   .android-device {
     -webkit-tap-highlight-color: transparent;
   }
