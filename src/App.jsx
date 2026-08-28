@@ -45,11 +45,13 @@ function App() {
       {pathname !== '/settings' && <DisplayNamePrompt />}
 
       <Routes>
-        {/* Main route - show appropriate app version based on device */}
-        <Route
-          path="/"
-          element={<AppComponent />}
-        />
+        {/* Tabs are routes. React Router ranks static segments above the
+            dynamic one, so /settings and the legacy redirects below win over
+            /:tab without depending on declaration order. The shell validates
+            :tab against the viewer's own tab list and redirects if it is
+            unknown or forbidden. */}
+        <Route path="/" element={<AppComponent />} />
+        <Route path="/:tab" element={<AppComponent />} />
 
         {/* User Settings Page */}
         <Route

@@ -16,3 +16,22 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   };
 }
+
+/**
+ * jsdom implements no media queries either, and `window.matchMedia` is simply
+ * absent — so `useIsMobile`, the one sanctioned render-branching hook, throws
+ * on mount. Default to the desktop branch (`matches: false`); a test that
+ * wants the phone branch overrides this mock for its own scope.
+ */
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  window.matchMedia = (query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  });
+}

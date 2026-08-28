@@ -13,7 +13,7 @@
  */
 
 import { render } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { DarkModeProvider } from '../contexts/DarkModeContext.jsx';
 import { AuthProvider } from '../contexts/AuthContext.jsx';
@@ -32,9 +32,17 @@ export function createTestQueryClient() {
   });
 }
 
-export function AllProviders({ children, queryClient = createTestQueryClient() }) {
+/**
+ * Now that tabs are routes, a test may need to mount at a specific URL. Pass
+ * `initialEntries` and the tree is wrapped in a MemoryRouter instead of a
+ * BrowserRouter; omit it and nothing about existing tests changes.
+ */
+export function AllProviders({ children, queryClient = createTestQueryClient(), initialEntries }) {
+  const Router = initialEntries ? MemoryRouter : BrowserRouter;
+  const routerProps = initialEntries ? { initialEntries } : {};
+
   return (
-    <BrowserRouter>
+    <Router {...routerProps}>
       <QueryClientProvider client={queryClient}>
         <DarkModeProvider>
           <AuthProvider>
@@ -44,15 +52,17 @@ export function AllProviders({ children, queryClient = createTestQueryClient() }
           </AuthProvider>
         </DarkModeProvider>
       </QueryClientProvider>
-    </BrowserRouter>
+    </Router>
   );
 }
 
 /** Drop-in replacement for `render` from @testing-library/react. */
-export function renderWithProviders(ui, { queryClient, ...options } = {}) {
+export function renderWithProviders(ui, { queryClient, initialEntries, ...options } = {}) {
   return render(ui, {
     wrapper: ({ children }) => (
-      <AllProviders queryClient={queryClient}>{children}</AllProviders>
+      <AllProviders queryClient={queryClient} initialEntries={initialEntries}>
+        {children}
+      </AllProviders>
     ),
     ...options
   });
