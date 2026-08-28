@@ -9,10 +9,17 @@
  * data and a component that scored zero. The old breakdown coalesced both to
  * `0.00` with a full-width label, which is how a roster metric that had never
  * once been computed appeared as a confident number for every team.
+ *
+ * Cell assertions are scoped with `within(table())`. The table now renders
+ * through ResponsiveDataTable, which emits *both* a table and a card stack and
+ * lets CSS choose — in a browser exactly one of them is `display: none` and so
+ * out of the accessibility tree, but jsdom applies no CSS and sees both. An
+ * unscoped `getByText` therefore finds two of everything. Scoping says which
+ * layout the assertion is about, which is more precise than what it replaced.
  */
 
 import { describe, it, expect } from 'vitest';
-import { renderWithProviders, screen } from '../../../test/renderWithProviders.jsx';
+import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
 import PowerRankingsTable from '../PowerRankingsTable.jsx';
 import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../../types/index.js';
 
@@ -52,12 +59,25 @@ const team = (overrides = {}) => ({
 });
 
 describe('PowerRankingsTable', () => {
+  const table = () => screen.getByRole('table');
+
   it('renders a team with its record and rating', () => {
     renderWithProviders(<PowerRankingsTable rankings={[team()]} currentWeek={4} />);
 
-    expect(screen.getByText('3-0')).toBeInTheDocument();
-    expect(screen.getByText('87.50')).toBeInTheDocument();
-    expect(screen.getByText('+135.00')).toBeInTheDocument();
+    expect(within(table()).getByText('3-0')).toBeInTheDocument();
+    expect(within(table()).getByText('87.50')).toBeInTheDocument();
+    expect(within(table()).getByText('+135.00')).toBeInTheDocument();
+  });
+
+  it('renders the same row as a card, from the same column definitions', () => {
+    const { container } = renderWithProviders(
+      <PowerRankingsTable rankings={[team()]} currentWeek={4} />
+    );
+
+    const cardStack = container.querySelector('.sm\\:hidden');
+    expect(cardStack.children).toHaveLength(1);
+    expect(within(cardStack).getByText('3-0')).toBeInTheDocument();
+    expect(within(cardStack).getByText('87.50')).toBeInTheDocument();
   });
 
   it('masks the team name for a signed-out viewer', () => {
@@ -69,7 +89,7 @@ describe('PowerRankingsTable', () => {
     expect(screen.queryByText('Lightskin Empire')).not.toBeInTheDocument();
     expect(screen.queryByText('Alice Example')).not.toBeInTheDocument();
     // Team name and owner name both mask to the same truncated id.
-    expect(screen.getAllByText('t1')).toHaveLength(2);
+    expect(within(table()).getAllByText('t1')).toHaveLength(2);
   });
 
   it('labels every component from the weights, in the advanced legend', () => {
@@ -104,7 +124,7 @@ describe('PowerRankingsTable', () => {
 
   it('shows the luck percentage the calculator reports', () => {
     renderWithProviders(<PowerRankingsTable rankings={[team()]} currentWeek={4} />);
-    expect(screen.getByText('8.00%')).toBeInTheDocument();
+    expect(within(table()).getByText('8.00%')).toBeInTheDocument();
   });
 
   it('renders a loading state instead of an empty page', () => {

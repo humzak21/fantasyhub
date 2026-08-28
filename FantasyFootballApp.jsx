@@ -319,28 +319,30 @@ const FantasyFootballApp = () => {
                   <div className="space-y-6">
                     <Card>
                       <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <CardTitle>Week {viewedWeek} Power Rankings</CardTitle>
+                        {/* Title and controls stack below sm:. Side by side
+                            they were ~500px of content in a 310px column, and
+                            the "Advanced Analysis" button ended up outside the
+                            card entirely. */}
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex min-w-0 flex-wrap items-center gap-2">
+                            <CardTitle className="text-lg sm:text-2xl">Week {viewedWeek} Power Rankings</CardTitle>
                             <Badge variant="outline">
                               {new Date().toLocaleDateString()}
                             </Badge>
                           </div>
 
                           {/* View Switcher */}
-                          <div className="flex items-center gap-4">
+                          <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end sm:gap-4">
                             {rankingsView === 'table' && (
-                              <div className="flex items-center space-x-4">
-                                <div className="flex items-center space-x-2">
-                                  <Switch
-                                    id="advanced-stats"
-                                    checked={showAdvancedStats}
-                                    onCheckedChange={setShowAdvancedStats}
-                                  />
-                                  <Label htmlFor="advanced-stats" className="cursor-pointer">
-                                    Advanced Stats
-                                  </Label>
-                                </div>
+                              <div className="flex items-center space-x-2">
+                                <Switch
+                                  id="advanced-stats"
+                                  checked={showAdvancedStats}
+                                  onCheckedChange={setShowAdvancedStats}
+                                />
+                                <Label htmlFor="advanced-stats" className="cursor-pointer whitespace-nowrap text-sm">
+                                  Advanced Stats
+                                </Label>
                               </div>
                             )}
 
@@ -348,7 +350,7 @@ const FantasyFootballApp = () => {
                               onClick={() => setRankingsView(rankingsView === 'table' ? 'analysis' : 'table')}
                               variant="outline"
                               size="sm"
-                              className="text-xs font-medium"
+                              className="shrink-0 whitespace-nowrap text-xs font-medium"
                             >
                               {rankingsView === 'table' ? 'Advanced Analysis' : 'Rankings Table'}
                             </Button>

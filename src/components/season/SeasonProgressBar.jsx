@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Trophy, Calendar, Users, AlertCircle, Clock } from 'lucide-react';
+import { ScrollHint } from '../ui/scroll-hint';
 
 const SeasonProgressBar = ({
   season,
@@ -130,14 +131,31 @@ const SeasonProgressBar = ({
     }
   };
 
+  /*
+   * Bring the selected week into view.
+   *
+   * The strip is 17 chips at a 40px floor plus gaps — roughly 760px, which is
+   * more than twice an iPhone SE's usable width no matter how it is laid out.
+   * It scrolls now instead of overflowing, and a scroller that opens at week 1
+   * while you are looking at week 14 is worse than no scroller, so it starts
+   * where the reader is.
+   *
+   * `block: 'nearest'` matters: without it this also scrolls the *page*
+   * vertically to the strip on every week change.
+   */
+  const currentWeekRef = useRef(null);
+  useEffect(() => {
+    currentWeekRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [currentWeek]);
+
   return (
     <div className="space-y-4">
       {/* Legend */}
-      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
         <div className="flex items-center gap-2">
           <span className="font-medium">Week {currentWeek} of {totalWeeks}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1">
             <div className="h-3 w-3 bg-green-500 rounded"></div>
             <span className="text-xs">Complete</span>
@@ -155,11 +173,21 @@ const SeasonProgressBar = ({
 
       {/* Progress Bar */}
       <div className="relative w-full">
-        <div className="flex items-center gap-1 w-full px-2">
-          {Array.from({ length: totalWeeks }, (_, i) => i + 1).map(week => (
+        <ScrollHint
+          snap
+          hint="Swipe to see all weeks"
+          desktopHint="Scroll horizontally to see all weeks"
+          contentClassName="py-1"
+        >
+          {/* `w-max` below sm: lets the chips keep their real size and the
+              container scroll. From sm: up it is `w-full` again and `flex-1`
+              spreads them across the row exactly as before. */}
+          <div className="flex w-max items-center gap-1 px-2 sm:w-full">
+            {Array.from({ length: totalWeeks }, (_, i) => i + 1).map(week => (
             <React.Fragment key={week}>
               <div
-                className={getWeekClasses(week)}
+                ref={week === currentWeek ? currentWeekRef : undefined}
+                className={`${getWeekClasses(week)} snap-center`}
                 title={getWeekTooltip(week)}
                 onClick={() => handleWeekClick(week)}
               >
@@ -170,9 +198,15 @@ const SeasonProgressBar = ({
                   </span>
                 </div>
               </div>
-              {/* Trade Deadline Separator after Week 13 */}
+              {/* Trade Deadline Separator after Week 13.
+                  `relative` on this wrapper is load-bearing: without it the
+                  absolutely-positioned clock resolved against the progress
+                  bar's outer `relative` container, which sits *outside* the
+                  scroller — so the icon escaped the clip and dragged the whole
+                  document 242px wider than the viewport, while every other
+                  element measured as fitting. */}
               {week === 13 && (
-                <div className="flex flex-col items-center justify-center px-1" title="Trade Deadline">
+                <div className="relative flex flex-col items-center justify-center px-1" title="Trade Deadline">
                   <div className="w-px h-8 bg-purple-400"></div>
                   <div className="absolute">
                     <Clock size={16} className="text-purple-500 bg-white rounded-full" />
@@ -180,11 +214,12 @@ const SeasonProgressBar = ({
                 </div>
               )}
             </React.Fragment>
-          ))}
-        </div>
+            ))}
+          </div>
+        </ScrollHint>
 
         {/* Key Events - ordered from smallest week to largest */}
-        <div className="flex items-center gap-6 mt-3 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <div className="flex items-center gap-1">
             <Users size={12} className="text-red-500" />
             <span>Weeks {rivalryWeeks.join(', ')}: Rivalry</span>
