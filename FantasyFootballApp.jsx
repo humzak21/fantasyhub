@@ -197,20 +197,23 @@ const FantasyFootballApp = () => {
         {/* Header - Responsive Design */}
         <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex h-16 items-center justify-between">
+            <div className="flex h-14 items-center justify-between gap-2 sm:h-16">
               {/* Left Section: Logo, Title, and Week Navigator */}
-              <div className="flex items-center">
+              <div className="flex min-w-0 items-center">
                 {/* Logo and Title */}
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center overflow-hidden">
                     <img src="og jits logo.jpg" alt="og jits logo" className="w-full h-full object-cover" />
                   </div>
-                  <div>
-                    <h1 className="text-xl font-bold tracking-tight">
+                  <div className="min-w-0">
+                    <h1 className="truncate text-lg font-bold tracking-tight sm:text-xl">
                       og jits
                     </h1>
+                    {/* The season subtitle is the first thing to go at 375px:
+                        the header has to hold the logo, the nav trigger and the
+                        login control before it earns a second line. */}
                     {activeSeason && (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="hidden truncate text-sm text-muted-foreground sm:block">
                         {activeSeason.name || `${activeSeason.year} Season`}
                       </p>
                     )}
@@ -247,20 +250,10 @@ const FantasyFootballApp = () => {
                   </div>
                 )}
 
-                {/* Inline Week Navigator - Mobile Only (Condensed) */}
-                {activeSeason && (
-                  <div className="sm:hidden ml-2">
-                    <InlineWeekNavigator
-                      currentWeek={viewedWeek}
-                      totalWeeks={activeSeason.totalWeeks}
-                      regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                      onWeekChange={setViewedWeek}
-                      completedWeeks={completedWeeks}
-                      season={activeSeason}
-                      condensed={true}
-                    />
-                  </div>
-                )}
+                {/* Below sm the navigator moves to its own sub-bar under the
+                    header — see below. Squeezing it in here left it condensed,
+                    which hides the week label, so the control told you nothing
+                    about which week you were looking at. */}
               </div>
 
               {/* Main Navigation - Responsive */}
@@ -276,15 +269,34 @@ const FantasyFootballApp = () => {
               />
 
               {/* Right Section: Login */}
-              <div className="flex items-center space-x-2">
+              <div className="flex shrink-0 items-center space-x-2">
                 <LoginDropdown />
               </div>
             </div>
           </div>
+
+          {/* Week navigator sub-bar — phones only. Full (not condensed), so the
+              week label is visible; it is the single most-used control on the
+              site and it had nowhere to live in a 375px header row. */}
+          {activeSeason && (
+            <div className="border-t bg-white/60 sm:hidden">
+              <div className="flex items-center justify-center px-4 py-1.5">
+                <InlineWeekNavigator
+                  currentWeek={viewedWeek}
+                  totalWeeks={activeSeason.totalWeeks}
+                  regularSeasonWeeks={activeSeason.regularSeasonWeeks}
+                  onWeekChange={setViewedWeek}
+                  completedWeeks={completedWeeks}
+                  season={activeSeason}
+                  condensed={false}
+                />
+              </div>
+            </div>
+          )}
         </header>
 
         {/* Main Content */}
-        <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="container mx-auto px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
 
 
           {/* Error Display */}

@@ -1,16 +1,13 @@
 import React from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import FantasyFootballApp from '../FantasyFootballApp.jsx'
-import MobileFantasyFootballApp from './components/mobile/MobileFantasyFootballApp.jsx'
 import { UserSettingsPage } from './components/auth/UserSettingsPage.jsx'
 import DisplayNamePrompt from './components/auth/DisplayNamePrompt.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
-import { useMobileDetection } from '../utils/mobileDetection.js'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
 
 function App() {
   const { loading } = useAuth()
-  const { isMobile } = useMobileDetection()
   const { pathname } = useLocation()
 
   // No viewport rewrite, no body classes. `setMobileViewport()` used to stamp
@@ -32,13 +29,18 @@ function App() {
     )
   }
 
-  // Conditional rendering based on mobile detection
-  const AppComponent = isMobile ? MobileFantasyFootballApp : FantasyFootballApp
+  // One shell. There used to be two, picked by user-agent sniffing: the phone
+  // shell was missing playoffs, history and standings entirely and never
+  // received `isAdmin`, so admin tabs could not render on a phone at all.
+  // iPads got the phone shell and a narrow desktop window got the desktop one,
+  // neither of which follows from the actual viewport. Everything is one
+  // responsive tree now, which is also what makes a new feature mobile-ready
+  // without anyone doing extra work.
 
   return (
     <>
       {/*
-        One mount for both shells. It sits below the `loading` gate above so it
+        One mount for the whole app. It sits below the `loading` gate above so it
         cannot flash before auth resolves, and it is skipped on /settings, where
         the page already offers the same field.
       */}
@@ -50,8 +52,8 @@ function App() {
             /:tab without depending on declaration order. The shell validates
             :tab against the viewer's own tab list and redirects if it is
             unknown or forbidden. */}
-        <Route path="/" element={<AppComponent />} />
-        <Route path="/:tab" element={<AppComponent />} />
+        <Route path="/" element={<FantasyFootballApp />} />
+        <Route path="/:tab" element={<FantasyFootballApp />} />
 
         {/* User Settings Page */}
         <Route
