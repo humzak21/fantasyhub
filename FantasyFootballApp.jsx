@@ -1,4 +1,5 @@
-import { useState, useMemo, lazy, Suspense } from 'react';
+import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History } from 'lucide-react';
 import {
   useLeagueData,
@@ -41,6 +42,9 @@ const PickEmsManager = lazy(() => import('./src/components/pickems/PickEmsManage
 const AwardsManager = lazy(() => import('./src/components/awards/AwardsManager.jsx'));
 const PlayoffsBracketManager = lazy(() => import('./src/components/playoffs/PlayoffsBracketManager.jsx'));
 const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueHistoryManager.jsx'));
+
+/** The tab `/` resolves to. Also where an unknown or forbidden tab lands. */
+const DEFAULT_TAB = 'rankings';
 
 /** Shown while a tab's chunk is in flight. */
 const TabFallback = () => (
@@ -99,7 +103,14 @@ const FantasyFootballApp = () => {
   const { status: awardsUnlockStatus } = useAwardsUnlockStatus(seasonId);
 
 
-  const [activeTab, setActiveTab] = useState('rankings');
+  // The tab is the URL, not component state. It used to be `useState`, which
+  // meant the phone's back button left the site instead of walking back a tab,
+  // and no tab could be linked to or survive a refresh.
+  const navigate = useNavigate();
+  const { tab } = useParams();
+  const activeTab = tab || DEFAULT_TAB;
+  const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
+
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
 
@@ -139,7 +150,18 @@ const FantasyFootballApp = () => {
     ];
   }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner]);
 
+  // One definition of "may this viewer see this tab", shared by the nav and by
+  // the route guard below — they must not be able to disagree.
+  const shouldShowTab = useCallback((t) => {
+    if (t.requiresAuth && !isAdmin) return false;
+    if (t.customAccess !== undefined) {
+      const hasAccess = typeof t.customAccess === 'function' ? t.customAccess() : t.customAccess;
+      if (!hasAccess) return false;
+    }
+    return true;
+  }, [isAdmin]);
 
+  const activeTabDef = mainTabs.find((t) => t.id === activeTab);
 
   // Mutations arrive as TanStack objects; the tab components still take plain
   // callbacks, so adapt at the boundary rather than rewriting every child.
@@ -159,6 +181,15 @@ const FantasyFootballApp = () => {
 
   // Note: Allow users to stay on any tab even without an active season
   // Each tab will show appropriate "no season available" messages
+
+  // A URL naming a tab that does not exist is wrong right away. A URL naming a
+  // tab this viewer may not open is only knowable once the league data that
+  // access depends on has arrived — redirecting before then would bounce a
+  // legitimate deep link to /awards or /history on every cold load.
+  if (!activeTabDef) return <Navigate to={`/${DEFAULT_TAB}`} replace />;
+  if (!isLoading && !shouldShowTab(activeTabDef)) {
+    return <Navigate to={`/${DEFAULT_TAB}`} replace />;
+  }
 
   return (
     <ErrorBoundary>
@@ -241,16 +272,7 @@ const FantasyFootballApp = () => {
                 }))}
                 activeTab={activeTab}
                 onTabChange={setActiveTab}
-                shouldShowTab={(tab) => {
-                  // Check auth requirements
-                  if (tab.requiresAuth && !isAdmin) return false;
-                  // Check custom access (can be boolean or function for backwards compatibility)
-                  if (tab.customAccess !== undefined) {
-                    const hasAccess = typeof tab.customAccess === 'function' ? tab.customAccess() : tab.customAccess;
-                    if (!hasAccess) return false;
-                  }
-                  return true;
-                }}
+                shouldShowTab={shouldShowTab}
               />
 
               {/* Right Section: Login */}
