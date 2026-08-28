@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import PageContainer from '../layout/PageContainer.jsx'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { supabase } from '../../../services/supabaseClient.js'
 import { useSeasons, useActiveSeason, useLeagueMutations } from '../../../hooks/queries/index.js'
@@ -153,7 +154,7 @@ export const UserSettingsPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
       <div className="bg-white border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4">
+        <PageContainer width="wide" className="max-w-4xl py-4">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -169,11 +170,11 @@ export const UserSettingsPage = () => {
               <h1 className="text-2xl font-bold">Settings</h1>
             </div>
           </div>
-        </div>
+        </PageContainer>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <PageContainer width="wide" className="max-w-4xl py-8">
         <div className="grid gap-6 md:grid-cols-3">
           {/* Sidebar Navigation */}
           <div className="space-y-4">
@@ -429,7 +430,7 @@ export const UserSettingsPage = () => {
             )}
           </div>
         </div>
-      </div>
+      </PageContainer>
     </div>
   )
 }
