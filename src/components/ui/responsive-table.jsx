@@ -57,11 +57,16 @@ import {
  * @param {(row: any, index: number) => void}   [props.onRowClick]
  * @param {React.ReactNode} [props.empty]  shown when `data` is empty
  * @param {boolean}  [props.loading]
+ * @param {(row: any, index: number) => string} [props.rowClassName]
+ *   Per-row classes, applied to the table row *and* to the card, so
+ *   row-level emphasis — highlighting the viewer's own team, say — survives
+ *   the switch between layouts.
  */
 export function ResponsiveDataTable({
   columns,
   data = [],
   rowKey = (row, i) => row?.id ?? i,
+  rowClassName,
   onRowClick,
   empty = 'Nothing to show yet.',
   loading = false,
@@ -94,7 +99,7 @@ export function ResponsiveDataTable({
             secondary={secondary}
             detail={detail}
             onClick={onRowClick}
-            className={cardClassName}
+            className={cn(cardClassName, rowClassName?.(row, i))}
           />
         ))}
       </div>
@@ -122,7 +127,7 @@ export function ResponsiveDataTable({
               <TableRow
                 key={rowKey(row, i)}
                 onClick={onRowClick ? () => onRowClick(row, i) : undefined}
-                className={onRowClick ? 'cursor-pointer' : undefined}
+                className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row, i))}
               >
                 {columns.map((c) => (
                   <TableCell

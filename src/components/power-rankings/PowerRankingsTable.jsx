@@ -2,14 +2,8 @@ import React, { useState } from 'react';
 import { Edit3, TrendingUp, TrendingDown, Minus, Trophy, Target, Medal, Crown, Award, BarChart3, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../ui/table';
+import { TableCell, TableRow } from '../ui/table';
+import { ResponsiveDataTable } from '../ui/responsive-table';
 import { Card, CardContent } from '../ui/card';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
@@ -240,243 +234,245 @@ const PowerRankingsTable = ({
   }
 
 
+  /*
+   * One column list, two layouts — see ui/responsive-table.jsx.
+   *
+   * This was eleven `<TableHead>`s and a matching pile of `<TableCell>`s. At
+   * 375px it forced the document 132px wider than the viewport (the Playwright
+   * smoke job measures exactly this), and scrolling it sideways is useless
+   * anyway: the team name leaves the screen before the numbers arrive, so
+   * every cell becomes an unlabelled figure.
+   *
+   * `priority` is the whole design decision. Rank, team and the power rating
+   * are what the page is *for*, so they are the card header. The traditional
+   * stats are what people scan, so they are a two-column grid. The advanced
+   * stats are a deliberate opt-in even on desktop, so they fold away.
+   */
+  const columns = [
+    {
+      key: 'rank',
+      header: 'Rank',
+      priority: 'primary',
+      headerClassName: 'w-[100px]',
+      cell: (_team, index) => (
+        <div className={`relative inline-flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm ${getRankColor(index + 1)}`}>
+          {getRankIcon(index + 1) || (index + 1)}
+          {getRankIcon(index + 1) && (
+            <span className="absolute -bottom-1 -right-1 text-xs bg-background border rounded-full w-5 h-5 flex items-center justify-center">
+              {index + 1}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'team',
+      header: 'Team',
+      priority: 'primary',
+      cell: (team) => (
+        <div className="min-w-0 space-y-1">
+          <div className="truncate font-semibold">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</div>
+          {team.owner && (
+            <div className="truncate text-sm text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}</div>
+          )}
+          {showAdvanced && (
+            <div className="flex gap-3 text-xs text-muted-foreground mt-1">
+              <span className="flex items-center gap-1 text-green-600">
+                <Target className="h-3 w-3" />
+                QW: {team.qualityWins || 0}
+              </span>
+              <span>BL: {team.badLosses || 0}</span>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'powerRating',
+      header: 'Power Rating',
+      priority: 'primary',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (team) => (
+        <div className="inline-block rounded-lg bg-muted/50 px-3 py-1 font-mono text-lg font-bold">
+          {(team.powerRating || 0).toFixed(2)}
+        </div>
+      ),
+    },
+    {
+      key: 'record',
+      header: 'Record',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (team) => (
+        <div className="font-mono text-base font-semibold">
+          {team.wins || 0}-{team.losses || 0}
+          {team.ties > 0 && `-${team.ties}`}
+        </div>
+      ),
+    },
+    {
+      key: 'winPct',
+      header: 'Win%',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (team) => (
+        <span className={`font-mono text-base font-semibold ${
+          (team.winPercentage || 0) >= 0.7 ? 'text-green-600' :
+          (team.winPercentage || 0) >= 0.35 ? 'text-foreground' : 'text-red-600'
+        }`}>
+          {((team.winPercentage || 0) * 100).toFixed(2)}%
+        </span>
+      ),
+    },
+    {
+      key: 'luck',
+      header: 'Luck%',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (team) => (
+        <span className={`font-mono text-base font-semibold ${
+          (team.powerRatingComponents?.luckPercentage || 0) > 0.05 ? 'text-green-600' :
+          (team.powerRatingComponents?.luckPercentage || 0) < -0.05 ? 'text-red-600' : 'text-muted-foreground'
+        }`}>
+          {((team.powerRatingComponents?.luckPercentage || 0) * 100).toFixed(2)}%
+        </span>
+      ),
+    },
+    {
+      key: 'pointDiff',
+      header: 'Total Point Diff',
+      cardLabel: 'Point Diff',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (team) => (
+        <div className="space-y-1">
+          <div className={`font-mono font-semibold ${
+            (team.pointDifferential || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {(team.pointDifferential || 0) >= 0 ? '+' : ''}
+            {(team.pointDifferential || 0).toFixed(2)}
+          </div>
+          <div className="font-mono text-xs text-muted-foreground">
+            {(team.pointsFor || 0).toFixed(2)} - {(team.pointsAgainst || 0).toFixed(2)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'streak',
+      header: 'Streak',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (team) => (
+        <Badge
+          variant={getStreakVariant(team.currentStreak || { type: 'none', length: 0 })}
+          className={
+            (team.currentStreak?.type === 'win') ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
+            (team.currentStreak?.type === 'loss') ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' : ''
+          }
+        >
+          {getStreakDisplay(team.currentStreak || { type: 'none', length: 0 })}
+        </Badge>
+      ),
+    },
+    ...(showAdvanced ? [
+      {
+        key: 'playoffOdds',
+        header: 'Playoff Odds',
+        priority: 'detail',
+        className: 'text-center',
+        headerClassName: 'text-center',
+        cell: (team) => (
+          <div className="min-w-[4rem] space-y-1">
+            <div className={`font-mono text-base font-bold ${
+              (team.playoffOdds || 0) >= 80 ? 'text-green-600' :
+              (team.playoffOdds || 0) >= 50 ? 'text-blue-600' :
+              (team.playoffOdds || 0) >= 20 ? 'text-orange-600' : 'text-red-600'
+            }`}>
+              {(team.playoffOdds || 0).toFixed(0)}%
+            </div>
+            <div className="mt-1 h-1.5 w-full rounded-full bg-muted">
+              <div
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  (team.playoffOdds || 0) >= 80 ? 'bg-green-600' :
+                  (team.playoffOdds || 0) >= 50 ? 'bg-blue-600' :
+                  (team.playoffOdds || 0) >= 20 ? 'bg-orange-600' : 'bg-red-600'
+                }`}
+                style={{ width: `${Math.min(100, team.playoffOdds || 0)}%` }}
+              />
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'form',
+        header: 'Form',
+        priority: 'detail',
+        className: 'text-center',
+        headerClassName: 'text-center',
+        cell: (team) => (
+          <Badge
+            variant={getFormVariant(team.recentForm || 0)}
+            className={`font-mono ${
+              (team.recentForm || 0) >= 5 ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
+              (team.recentForm || 0) >= 2 ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50' :
+              (team.recentForm || 0) >= -2 ? 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-50' :
+              (team.recentForm || 0) >= -5 ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-50' :
+              'bg-red-50 text-red-700 border-red-200 hover:bg-red-50'
+            }`}
+          >
+            {(team.recentForm || 0) >= 0 ? '+' : ''}{(team.recentForm || 0).toFixed(2)}
+          </Badge>
+        ),
+      },
+      {
+        key: 'quality',
+        header: 'Quality',
+        priority: 'detail',
+        className: 'text-center',
+        headerClassName: 'text-center',
+        cell: (team) => (
+          <div className="flex items-center justify-center gap-2">
+            <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200 hover:bg-green-50">
+              <Target className="mr-1 h-3 w-3" />
+              {team.qualityWins || 0}
+            </Badge>
+            <Badge variant="destructive" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50 text-xs">
+              {team.badLosses || 0}
+            </Badge>
+          </div>
+        ),
+      },
+    ] : []),
+    ...(onEditTeam ? [
+      {
+        key: 'actions',
+        header: 'Actions',
+        cardLabel: 'Edit',
+        className: 'text-center',
+        headerClassName: 'text-center',
+        cell: (team) => (
+          <Button onClick={() => onEditTeam(team)} variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <Edit3 className="h-4 w-4" />
+          </Button>
+        ),
+      },
+    ] : []),
+  ];
+
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card">
-        <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-[100px]">Rank</TableHead>
-            <TableHead>Team</TableHead>
-            <TableHead className="text-center">Record</TableHead>
-            <TableHead className="text-center">Win%</TableHead>
-            <TableHead className="text-center">Luck%</TableHead>
-            <TableHead className="text-center">Total Point Diff</TableHead>
-            <TableHead className="text-center">Streak</TableHead>
-            {/* <TableHead className="text-center">Rank Change</TableHead> */}
-            {showAdvanced && (
-              <>
-                {/* <TableHead className="text-center">SOS</TableHead> */}
-                <TableHead className="text-center">Playoff Odds</TableHead>
-                <TableHead className="text-center">Form</TableHead>
-                <TableHead className="text-center">Quality</TableHead>
-              </>
-            )}
-            <TableHead className="text-center">Power Rating</TableHead>
-            {onEditTeam && <TableHead className="text-center">Actions</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {rankings.map((team, index) => {
-            const isCurrentUserTeam = isUserTeam(team, user);
-            const highlightClasses = getUserTeamHighlightClasses(isCurrentUserTeam);
+      <div className="rounded-lg border bg-card p-2 sm:p-0">
+        <ResponsiveDataTable
+          columns={columns}
+          data={rankings}
+          rowKey={(team, i) => team.teamId || team.id || i}
+          rowClassName={(team) => getUserTeamHighlightClasses(isUserTeam(team, user))}
+          cardClassName="bg-background"
+        />
+      </div>
 
-            return (
-            <React.Fragment key={team.teamId || team.id}>
-              <TableRow className={`group ${highlightClasses}`}>
-              <TableCell>
-                <div className="flex items-center gap-3">
-                  <div className={`relative inline-flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm ${getRankColor(index + 1)}`}>
-                    {getRankIcon(index + 1) || (index + 1)}
-                    {getRankIcon(index + 1) && (
-                      <span className="absolute -bottom-1 -right-1 text-xs bg-background border rounded-full w-5 h-5 flex items-center justify-center">
-                        {index + 1}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </TableCell>
-              
-              <TableCell>
-                <div className="space-y-1">
-                  <div className="font-semibold">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</div>
-                  {team.owner && (
-                    <div className="text-sm text-muted-foreground">{getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}</div>
-                  )}
-                  {showAdvanced && (
-                    <div className="flex gap-3 text-xs text-muted-foreground mt-1">
-                      <span className="flex items-center gap-1 text-green-600">
-                        <Target className="h-3 w-3" />
-                        QW: {team.qualityWins || 0}
-                      </span>
-                      <span>BL: {team.badLosses || 0}</span>
-                    </div>
-                  )}
-                </div>
-              </TableCell>
-              
-              <TableCell className="text-center">
-                <div className="font-semibold font-mono text-base">
-                  {team.wins || 0}-{team.losses || 0}
-                  {team.ties > 0 && `-${team.ties}`}
-                </div>
-              </TableCell>
-              
-              <TableCell className={`text-center font-mono font-semibold text-base ${
-                (team.winPercentage || 0) >= 0.7 ? 'text-green-600' :
-                (team.winPercentage || 0) >= 0.35 ? 'text-black' : 'text-red-600'
-              }`}>
-                {((team.winPercentage || 0) * 100).toFixed(2)}%
-              </TableCell>
-
-              <TableCell className={`text-center font-mono font-semibold text-base ${
-                (team.powerRatingComponents?.luckPercentage || 0) > 0.05 ? 'text-green-600' :
-                (team.powerRatingComponents?.luckPercentage || 0) < -0.05 ? 'text-red-600' : 'text-gray-400'
-              }`}>
-                {((team.powerRatingComponents?.luckPercentage || 0) * 100).toFixed(2)}%
-              </TableCell>
-
-              <TableCell className="text-center">
-                <div className="space-y-1">
-                  <div className={`font-mono font-semibold ${
-                    (team.pointDifferential || 0) >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {(team.pointDifferential || 0) >= 0 ? '+' : ''}
-                    {(team.pointDifferential || 0).toFixed(2)}
-                  </div>
-                  <div className="text-xs text-muted-foreground font-mono">
-                    {(team.pointsFor || 0).toFixed(2)} - {(team.pointsAgainst || 0).toFixed(2)}
-                  </div>
-                </div>
-              </TableCell>
-
-              <TableCell className="text-center">
-                <Badge
-                  variant={getStreakVariant(team.currentStreak || { type: 'none', length: 0 })}
-                  className={
-                    (team.currentStreak?.type === 'win') ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
-                    (team.currentStreak?.type === 'loss') ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' : ''
-                  }
-                >
-                  {getStreakDisplay(team.currentStreak || { type: 'none', length: 0 })}
-                </Badge>
-              </TableCell>
-
-              {/* <TableCell className="text-center">
-                <div className={`font-mono font-semibold text-lg ${
-                  (team.rankChange || 0) > 0 ? 'text-green-600' :
-                  (team.rankChange || 0) < 0 ? 'text-red-600' :
-                  'text-gray-400'
-                }`}>
-                  {team.rankChange === 0 ? '-' :
-                    `${team.rankChange > 0 ? '+' : ''}${team.rankChange}`
-                  }
-                </div>
-              </TableCell> */}
-
-              {showAdvanced && (
-                <>
-                  {/* <TableCell className="text-center">
-                    <div className="space-y-1">
-                      <div className={`font-mono font-semibold ${
-                        (team.strengthOfSchedule || 0) >= 0 ? 'text-orange-600' : 'text-green-600'
-                      }`}>
-                        {(team.strengthOfSchedule || 0) >= 0 ? '+' : ''}
-                        {((team.strengthOfSchedule || 0) * 100).toFixed(2)}%
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        vs {((team.opponentWinPercentage || 0) * 100).toFixed(2)}%
-                      </div>
-                    </div>
-                  </TableCell> */}
-                  
-                  <TableCell className="text-center">
-                    <div className="space-y-1">
-                      <div className={`font-mono font-bold text-base ${
-                        (team.playoffOdds || 0) >= 80 ? 'text-green-600' :
-                        (team.playoffOdds || 0) >= 50 ? 'text-blue-600' :
-                        (team.playoffOdds || 0) >= 20 ? 'text-orange-600' : 'text-red-600'
-                      }`}>
-                        {(team.playoffOdds || 0).toFixed(0)}%
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-1.5 mt-1">
-                        <div 
-                          className={`h-1.5 rounded-full transition-all duration-300 ${
-                            (team.playoffOdds || 0) >= 80 ? 'bg-green-600' :
-                            (team.playoffOdds || 0) >= 50 ? 'bg-blue-600' :
-                            (team.playoffOdds || 0) >= 20 ? 'bg-orange-600' : 'bg-red-600'
-                          }`}
-                          style={{ width: `${Math.min(100, team.playoffOdds || 0)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </TableCell>
-                  
-                  <TableCell className="text-center">
-                    <Badge
-                      variant={getFormVariant(team.recentForm || 0)}
-                      className={`font-mono ${
-                        (team.recentForm || 0) >= 5 ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
-                        (team.recentForm || 0) >= 2 ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50' :
-                        (team.recentForm || 0) >= -2 ? 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-50' :
-                        (team.recentForm || 0) >= -5 ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-50' :
-                        'bg-red-50 text-red-700 border-red-200 hover:bg-red-50'
-                      }`}
-                    >
-                      {(team.recentForm || 0) >= 0 ? '+' : ''}{(team.recentForm || 0).toFixed(2)}
-                    </Badge>
-                  </TableCell>
-                  
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <Badge variant="secondary" className="bg-green-50 text-green-700 border-green-200 hover:bg-green-50">
-                        <Target className="h-3 w-3 mr-1" />
-                        {team.qualityWins || 0}
-                      </Badge>
-                      <Badge variant="destructive" className="bg-red-50 text-red-700 border-red-200 hover:bg-red-50 text-xs">
-                        {team.badLosses || 0}
-                      </Badge>
-                    </div>
-                  </TableCell>
-                </>
-              )}
-              
-              <TableCell className="text-center">
-                <div className="flex items-center justify-center gap-2">
-                  <div className="font-mono font-bold text-lg bg-muted/50 rounded-lg px-3 py-1 inline-block">
-                    {(team.powerRating || 0).toFixed(2)}
-                  </div>
-                  {/* TODO: Rework component breakdown visualization
-                  {team.powerRatingComponents && (
-                    <Button
-                      onClick={() => toggleRowExpansion(team.teamId || team.id)}
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0"
-                    >
-                      {expandedRows.has(team.teamId || team.id) ?
-                        <ChevronUp className="h-4 w-4" /> :
-                        <ChevronDown className="h-4 w-4" />
-                      }
-                    </Button>
-                  )}
-                  */}
-                </div>
-              </TableCell>
-              
-              {onEditTeam && (
-                <TableCell className="text-center">
-                  <Button
-                    onClick={() => onEditTeam(team)}
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              )}
-              </TableRow>
-
-              {/* TODO: Rework component breakdown visualization - disabled for now */}
-              {/* {expandedRows.has(team.teamId || team.id) && renderComponentBreakdown(team)} */}
-              
-            </React.Fragment>
-          );
-          })}
-        </TableBody>
-      </Table>
-      
       {showAdvanced && (
         <Card className="mt-4">
           <CardContent className="p-4">
@@ -537,7 +533,6 @@ const PowerRankingsTable = ({
           </CardContent>
         </Card>
       )}
-      </div>
     </div>
   );
 };
