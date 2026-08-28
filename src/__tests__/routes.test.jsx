@@ -25,12 +25,6 @@ vi.mock('../../FantasyFootballApp.jsx', async () => {
   };
 });
 
-vi.mock('../components/mobile/MobileFantasyFootballApp.jsx', () => ({
-  default: function MobileShellStub() {
-    return <div data-testid="mobile-shell" />;
-  },
-}));
-
 vi.mock('../components/auth/UserSettingsPage.jsx', () => ({
   UserSettingsPage: function SettingsStub() {
     return <div data-testid="settings" />;
