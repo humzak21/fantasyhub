@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { isMobileDevice, getMobileDeviceInfo, getMobileClasses } from '../mobileDetection.js';
+import { isMobileDevice, getMobileDeviceInfo } from '../mobileDetection.js';
 
 // Mock window and navigator objects
 const mockWindow = {
@@ -114,44 +114,6 @@ describe('Mobile Detection Utilities', () => {
       expect(deviceInfo.isAndroid).toBe(true);
       expect(deviceInfo.isChrome).toBe(true);
       expect(deviceInfo.orientation).toBe('portrait');
-    });
-  });
-
-  describe('getMobileClasses', () => {
-    it('should return correct classes for mobile device', () => {
-      const deviceInfo = {
-        isIOS: true,
-        isAndroid: false,
-        isTouch: true,
-        orientation: 'portrait'
-      };
-      
-      const classes = getMobileClasses(deviceInfo);
-      expect(classes).toBe('mobile-optimized ios-device touch-device portrait-mode');
-    });
-
-    it('should return correct classes for Android device in landscape', () => {
-      const deviceInfo = {
-        isIOS: false,
-        isAndroid: true,
-        isTouch: true,
-        orientation: 'landscape'
-      };
-      
-      const classes = getMobileClasses(deviceInfo);
-      expect(classes).toBe('mobile-optimized android-device touch-device landscape-mode');
-    });
-
-    it('should return base classes for non-mobile device', () => {
-      const deviceInfo = {
-        isIOS: false,
-        isAndroid: false,
-        isTouch: false,
-        orientation: 'landscape'
-      };
-      
-      const classes = getMobileClasses(deviceInfo);
-      expect(classes).toBe('mobile-optimized landscape-mode');
     });
   });
 });

@@ -149,38 +149,14 @@
   overscroll-behavior: contain;
 }
 
-/* Mobile Touch Optimizations */
-.mobile-optimized {
-  /* Disable text selection where appropriate */
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-.mobile-optimized input,
-.mobile-optimized textarea,
-.mobile-optimized [contenteditable] {
-  /* Re-enable text selection for inputs */
-  -webkit-user-select: text;
-  -moz-user-select: text;
-  -ms-user-select: text;
-  user-select: text;
-}
-
-/* Touch-friendly buttons */
+/* Mobile Touch Optimizations.
+ * The blanket `user-select: none` and the blanket 44px button floor that used
+ * to live here are gone — see the note in globals.css. */
 .mobile-optimized button,
 .mobile-optimized [role="button"] {
-  /* Minimum touch target size */
-  min-width: 44px;
-  min-height: 44px;
-  
-  /* Touch interaction optimization */
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  
   /* Prevent double-tap zoom */
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Mobile Typography */
@@ -389,12 +365,10 @@ textarea {
   background-color: rgba(156, 163, 175, 0.7);
 }
 
-/* Mobile performance optimizations */
+/* Mobile performance optimizations.
+ * No `transform` here: a transformed ancestor becomes the containing block for
+ * every `position: fixed` descendant. */
 .mobile-optimized {
-  /* Enable hardware acceleration */
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-
   /* Optimize repaints */
   will-change: auto;
 

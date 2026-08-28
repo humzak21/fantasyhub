@@ -266,14 +266,12 @@ export default {
   		}
   	}
   },
-  variants: {
-    extend: {
-      backgroundColor: ['data-[state=checked]'],
-      transform: ['data-[state=checked]'],
-    }
-  },
-  plugins: [
-    require('@tailwindcss/forms'),
-    require('@tailwindcss/typography'),
-  ],
+  // No `variants` block: that is Tailwind v3 syntax and is inert under v4,
+  // which generates `data-[state=checked]:` on demand.
+  //
+  // No plugins either. @tailwindcss/forms and @tailwindcss/typography were
+  // listed here but nothing in the app uses `prose` or the `form-*` classes,
+  // and `require()` is not callable from this ESM config — loading it with the
+  // plugins still listed throws before a single utility is generated.
+  plugins: [],
 }

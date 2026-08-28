@@ -135,19 +135,20 @@ const MobileNavigation = ({
     checkUserPicksSubmission();
   }, [isAuthenticated, user, activeSeason, currentWeek]);
 
-  // Prevent body scroll when menu is open
+  // Prevent body scroll when menu is open.
+  // `overflow: hidden` only. Setting `touchAction = 'none'` on <body> also
+  // killed touch inside the panel — the panel's own `pan-y` cannot re-enable
+  // what an ancestor has turned off — which is the "sidebar doesn't scroll"
+  // bug.
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      document.body.style.touchAction = 'none';
     } else {
       document.body.style.overflow = '';
-      document.body.style.touchAction = '';
     }
 
     return () => {
       document.body.style.overflow = '';
-      document.body.style.touchAction = '';
     };
   }, [isOpen]);
 
@@ -166,7 +167,7 @@ const MobileNavigation = ({
         style={{
           animation: 'mobile-slide-in 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           maxWidth: 'calc(100vw - 32px)',
-          height: 'calc(100vh - 4rem)'
+          height: 'calc(100dvh - 4rem)'
         }}
       >
         <div className="flex flex-col h-full">
