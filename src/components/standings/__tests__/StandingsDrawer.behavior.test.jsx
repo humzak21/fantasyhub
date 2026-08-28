@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '../../../test/renderWithProviders.jsx';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import StandingsDrawer from '../StandingsDrawer';
 
 // Mock the child components
@@ -37,7 +37,13 @@ vi.mock('../DrawerStandingsTable', () => ({
   )
 }));
 
-describe('StandingsDrawer Responsive Behavior', () => {
+// jsdom has no layout engine: assigning window.innerWidth does not re-evaluate
+// a single CSS media query, so a test that "simulates a 375px viewport" and then
+// asserts the same things it asserts at 1024px is testing nothing. Three such
+// tests lived here and passed at every width, including widths where the
+// component was visibly broken. Real viewport coverage is the Playwright smoke
+// job; what is left here is behaviour, which jsdom can actually observe.
+describe('StandingsDrawer', () => {
   const mockProps = {
     teams: [
       { id: '1', name: 'Team 1', wins: 5, losses: 2, ties: 0 },
@@ -59,19 +65,6 @@ describe('StandingsDrawer Responsive Behavior', () => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    // Reset any viewport changes
-    Object.defineProperty(window, 'innerWidth', {
-      writable: true,
-      configurable: true,
-      value: 1024
-    });
-    Object.defineProperty(window, 'innerHeight', {
-      writable: true,
-      configurable: true,
-      value: 768
-    });
-  });
 
   it('renders trigger button and drawer content', () => {
     render(<StandingsDrawer {...mockProps} />);
@@ -136,79 +129,6 @@ describe('StandingsDrawer Responsive Behavior', () => {
     });
   });
 
-  it('handles mobile viewport correctly', async () => {
-    // Simulate mobile viewport
-    Object.defineProperty(window, 'innerWidth', {
-      writable: true,
-      configurable: true,
-      value: 375
-    });
-    Object.defineProperty(window, 'innerHeight', {
-      writable: true,
-      configurable: true,
-      value: 667
-    });
 
-    render(<StandingsDrawer {...mockProps} />);
-    
-    // Open drawer
-    fireEvent.click(screen.getByTestId('drawer-trigger'));
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('drawer-content')).toBeInTheDocument();
-    });
-    
-    // Verify drawer content is accessible on mobile
-    expect(screen.getByTestId('standings-table')).toBeInTheDocument();
-  });
 
-  it('handles tablet viewport correctly', async () => {
-    // Simulate tablet viewport
-    Object.defineProperty(window, 'innerWidth', {
-      writable: true,
-      configurable: true,
-      value: 768
-    });
-    Object.defineProperty(window, 'innerHeight', {
-      writable: true,
-      configurable: true,
-      value: 1024
-    });
-
-    render(<StandingsDrawer {...mockProps} />);
-    
-    // Open drawer
-    fireEvent.click(screen.getByTestId('drawer-trigger'));
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('drawer-content')).toBeInTheDocument();
-    });
-    
-    // Verify drawer content is accessible on tablet
-    expect(screen.getByTestId('standings-table')).toBeInTheDocument();
-  });
-
-  it('maintains state across viewport changes', async () => {
-    render(<StandingsDrawer {...mockProps} />);
-    
-    // Open drawer on desktop
-    fireEvent.click(screen.getByTestId('drawer-trigger'));
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('drawer-content')).toBeInTheDocument();
-    });
-    
-    // Simulate viewport change to mobile
-    Object.defineProperty(window, 'innerWidth', {
-      writable: true,
-      configurable: true,
-      value: 375
-    });
-    
-    fireEvent(window, new Event('resize'));
-    
-    // Drawer should still be open
-    expect(screen.getByTestId('drawer-content')).toBeInTheDocument();
-    expect(screen.getByTestId('standings-table')).toBeInTheDocument();
-  });
 });

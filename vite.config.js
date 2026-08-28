@@ -16,8 +16,6 @@ export default defineConfig({
       'use-sync-external-store',
       'use-sync-external-store/shim',
       'use-callback-ref',
-      '@floating-ui/react',
-      '@floating-ui/react-dom',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-tooltip',
       '@radix-ui/react-alert-dialog',
