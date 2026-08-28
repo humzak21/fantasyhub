@@ -57,7 +57,7 @@ const SeasonProgressBar = ({
     } else if (week < currentWeek) {
       classes += 'bg-blue-500 text-white shadow-sm ';
     } else {
-      classes += 'bg-gray-200 text-gray-600 hover:bg-gray-300 ';
+      classes += 'bg-muted text-muted-foreground hover:bg-muted ';
     }
 
     // Special week styling
@@ -71,7 +71,7 @@ const SeasonProgressBar = ({
     } else if (isTradeDeadline) {
       classes += 'rounded-lg border-2 border-purple-400 ';
     } else if (isPlayoff) {
-      classes += 'rounded-lg border border-gray-400 ';
+      classes += 'rounded-lg border border-border ';
     } else {
       classes += 'rounded ';
     }
@@ -95,7 +95,7 @@ const SeasonProgressBar = ({
       return <Clock size={10} className="text-purple-400" />;
     }
     if (week > regularSeasonWeeks) {
-      return <Calendar size={8} className="text-gray-300" />;
+      return <Calendar size={8} className="text-muted-foreground" />;
     }
     return null;
   };
@@ -151,7 +151,7 @@ const SeasonProgressBar = ({
   return (
     <div className="space-y-4">
       {/* Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-gray-600 dark:text-gray-400">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <span className="font-medium">Week {currentWeek} of {totalWeeks}</span>
         </div>
@@ -165,7 +165,7 @@ const SeasonProgressBar = ({
             <span className="text-xs">Current</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="h-3 w-3 bg-gray-200 rounded"></div>
+            <div className="h-3 w-3 bg-muted rounded"></div>
             <span className="text-xs">Upcoming</span>
           </div>
         </div>
@@ -209,7 +209,7 @@ const SeasonProgressBar = ({
                 <div className="relative flex flex-col items-center justify-center px-1" title="Trade Deadline">
                   <div className="w-px h-8 bg-purple-400"></div>
                   <div className="absolute">
-                    <Clock size={16} className="text-purple-500 bg-white rounded-full" />
+                    <Clock size={16} className="text-purple-500 bg-card rounded-full" />
                   </div>
                 </div>
               )}
@@ -219,7 +219,7 @@ const SeasonProgressBar = ({
         </ScrollHint>
 
         {/* Key Events - ordered from smallest week to largest */}
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <Users size={12} className="text-red-500" />
             <span>Weeks {rivalryWeeks.join(', ')}: Rivalry</span>
@@ -229,7 +229,7 @@ const SeasonProgressBar = ({
             <span>Week {tradeDeadlineWeek}: Trade Deadline</span>
           </div>
           <div className="flex items-center gap-1">
-            <Calendar size={12} className="text-gray-400" />
+            <Calendar size={12} className="text-muted-foreground" />
             <span>Week {playoffStartWeek}+: Playoffs</span>
           </div>
           <div className="flex items-center gap-1">

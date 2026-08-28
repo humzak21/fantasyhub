@@ -185,7 +185,7 @@ const SeasonManager = ({
   };
 
   const getSeasonStatus = (season) => {
-    if (season.isCompleted) return { text: 'Completed', color: 'text-gray-600 bg-gray-100' };
+    if (season.isCompleted) return { text: 'Completed', color: 'text-muted-foreground bg-muted' };
     if (season.isActive) return { text: 'Active', color: 'text-green-600 bg-green-100' };
     return { text: 'Inactive', color: 'text-yellow-600 bg-yellow-100' };
   };
@@ -204,7 +204,7 @@ const SeasonManager = ({
             {onImportSeason && (
               <button
                 onClick={() => setShowImportForm(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted transition-colors"
               >
                 <Upload size={16} />
                 Import
@@ -244,8 +244,8 @@ const SeasonManager = ({
 
       {/*
         Three hand-rolled modals used to live here: `fixed inset-0` with a
-        `bg-white` panel, no focus trap, no Escape handling, no scroll lock,
-        and — since `bg-white` — invisible-on-invisible in dark mode until
+        `bg-card` panel, no focus trap, no Escape handling, no scroll lock,
+        and — since `bg-card` — invisible-on-invisible in dark mode until
         dark-mode.css overrode it. They are `ui/dialog` now, which brings all of
         that plus a body that scrolls at `85dvh` instead of a panel that runs
         off a phone screen.
@@ -278,7 +278,7 @@ const SeasonManager = ({
                   onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
                   className="w-full p-2 border rounded-lg"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   Every date the app derives — the current week, pick&apos;em windows, the
                   weekly sync — counts from here. Without it the season has no week 1.
                 </p>
@@ -357,7 +357,7 @@ const SeasonManager = ({
                     ))}
                   <option value={COPY_NONE}>Start empty (add teams manually)</option>
                 </select>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {copyFrom === COPY_NONE
                     ? 'No teams or divisions will be created.'
                     : copySource
@@ -427,7 +427,7 @@ const SeasonManager = ({
                 dialog, by one admin. Cards would be more chrome than data. */}
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 border-b">
+                <tr className="text-left text-muted-foreground border-b">
                   <th className="py-1 pr-2 font-medium">#</th>
                   <th className="py-1 pr-2 font-medium">Owner</th>
                   <th className="py-1 pr-2 font-medium">Record</th>
@@ -466,8 +466,8 @@ const SeasonManager = ({
 
       {/* Seasons List */}
       {seasons.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <Trophy size={64} className="mx-auto mb-4 text-gray-300" />
+        <div className="text-center py-12 text-muted-foreground">
+          <Trophy size={64} className="mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">No Seasons Yet</h3>
           <p>Create your first season to start tracking power rankings!</p>
         </div>
@@ -476,7 +476,7 @@ const SeasonManager = ({
           {seasons.map(season => {
             const status = getSeasonStatus(season);
             return (
-              <div key={season.id} className="bg-white rounded-lg shadow-md p-6 border border-gray-200">
+              <div key={season.id} className="bg-card rounded-lg shadow-md p-6 border border-border">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
@@ -488,7 +488,7 @@ const SeasonManager = ({
                       </span>
                     </div>
                     
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground mb-4">
                       <div className="flex items-center gap-2">
                         <Calendar size={16} />
                         <span>Year: {season.year}</span>
@@ -507,7 +507,7 @@ const SeasonManager = ({
                     </div>
 
                     {season.teams.length > 0 && (
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         <strong>Teams:</strong> {season.teams.map(team => team.name).join(', ')}
                       </div>
                     )}

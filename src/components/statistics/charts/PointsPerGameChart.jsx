@@ -13,20 +13,20 @@ const CustomPPGTooltip = ({ active, payload, label }) => {
   const data = payload[0].payload;
 
   return (
-    <div className="bg-white dark:bg-gray-900 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-      <p className="font-semibold text-gray-900 dark:text-white mb-2">{data.name}</p>
+    <div className="bg-card p-3 border border-border rounded-lg shadow-lg">
+      <p className="font-semibold text-foreground mb-2">{data.name}</p>
       <div className="space-y-1 text-sm">
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Points Per Game:</span>
-          <span className="font-medium text-gray-900 dark:text-white">{data.ppg?.toFixed(2)}</span>
+          <span className="text-muted-foreground">Points Per Game:</span>
+          <span className="font-medium text-foreground">{data.ppg?.toFixed(2)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Total Points:</span>
-          <span className="font-medium text-gray-900 dark:text-white">{data.totalPoints?.toFixed(2)}</span>
+          <span className="text-muted-foreground">Total Points:</span>
+          <span className="font-medium text-foreground">{data.totalPoints?.toFixed(2)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Games Played:</span>
-          <span className="font-medium text-gray-900 dark:text-white">{data.gamesPlayed}</span>
+          <span className="text-muted-foreground">Games Played:</span>
+          <span className="font-medium text-foreground">{data.gamesPlayed}</span>
         </div>
       </div>
     </div>
@@ -72,7 +72,7 @@ const PointsPerGameChart = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No scoring data available. Complete games to see points per game stats.
       </div>
     );

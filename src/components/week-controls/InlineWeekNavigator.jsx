@@ -108,8 +108,8 @@ const InlineWeekNavigator = ({
         aria-label="Week navigation control"
         className={`
           flex items-center gap-1
-          bg-white/90 backdrop-blur-sm
-          border border-gray-200
+          bg-card/90 backdrop-blur-sm
+          border border-border
           rounded-lg
           px-2 py-1
           shadow-sm
@@ -126,7 +126,7 @@ const InlineWeekNavigator = ({
           className="
             h-7 w-7 
             p-0 rounded-md 
-            hover:bg-gray-100 disabled:opacity-50
+            hover:bg-muted disabled:opacity-50
             transition-all duration-150 ease-out
             disabled:cursor-not-allowed
           "
@@ -143,13 +143,13 @@ const InlineWeekNavigator = ({
             ${condensed ? 'min-w-0' : 'min-w-[70px]'}
             justify-center
             text-sm font-medium
-            hover:bg-gray-100
+            hover:bg-muted
             rounded-md
             transition-colors duration-150
             cursor-pointer
             ${isViewingCurrentWeek
               ? 'text-blue-700 bg-blue-50 hover:bg-blue-100'
-              : 'text-gray-700'
+              : 'text-foreground'
             }
           `}
           role="button"
@@ -158,13 +158,16 @@ const InlineWeekNavigator = ({
           {isViewingCurrentWeek ? (
             <Clock className="h-3 w-3 text-blue-600" aria-hidden="true" />
           ) : (
-            <Calendar className="h-3 w-3 text-gray-500" aria-hidden="true" />
+            <Calendar className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
           )}
-          {!condensed && (
-            <span className="whitespace-nowrap text-xs">
-              {getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
-            </span>
-          )}
+          {/* Condensed used to render the icon alone, which told the reader
+              nothing: the site's most-used control showed a clock and no week.
+              Condensed now means the short form ("W4"), not silence. */}
+          <span className="whitespace-nowrap text-xs">
+            {condensed
+              ? `W${validCurrentWeek}`
+              : getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
+          </span>
         </button>
 
         {/* Next Week Button */}
@@ -177,7 +180,7 @@ const InlineWeekNavigator = ({
           className="
             h-7 w-7 
             p-0 rounded-md 
-            hover:bg-gray-100 disabled:opacity-50
+            hover:bg-muted disabled:opacity-50
             transition-all duration-150 ease-out
             disabled:cursor-not-allowed
           "

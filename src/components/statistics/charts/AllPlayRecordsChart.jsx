@@ -9,15 +9,15 @@ const CustomTooltip = ({ active, payload, label }) => {
   const data = payload[0]?.payload;
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700 shadow-lg">
-      <p className="font-semibold text-gray-900 dark:text-white mb-2 text-sm">{data?.name}</p>
+    <div className="bg-card p-3 rounded border border-border shadow-lg">
+      <p className="font-semibold text-foreground mb-2 text-sm">{data?.name}</p>
       <div className="text-sm">
-        <span className="font-medium text-gray-900 dark:text-white">Record:</span>
-        <span className="ml-2 font-semibold text-gray-900 dark:text-white">{data?.allPlayWins}-{data?.allPlayLosses}</span>
+        <span className="font-medium text-foreground">Record:</span>
+        <span className="ml-2 font-semibold text-foreground">{data?.allPlayWins}-{data?.allPlayLosses}</span>
       </div>
       <div className="text-sm mt-1">
-        <span className="font-medium text-gray-900 dark:text-white">Win %:</span>
-        <span className="ml-2 font-semibold text-gray-900 dark:text-white">{data?.allPlayWinPercentage?.toFixed(2)}%</span>
+        <span className="font-medium text-foreground">Win %:</span>
+        <span className="ml-2 font-semibold text-foreground">{data?.allPlayWinPercentage?.toFixed(2)}%</span>
       </div>
     </div>
   );
@@ -63,7 +63,7 @@ const AllPlayRecordsChart = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No all-play data available. Complete games to see stats.
       </div>
     );

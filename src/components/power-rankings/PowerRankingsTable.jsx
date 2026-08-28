@@ -48,12 +48,16 @@ const PowerRankingsTable = ({
     }
     setExpandedRows(newExpanded);
   };
+  // Podium and tier colours as translucent tints of the brand ramps rather
+  // than Tailwind's 50/100 light tints. The light versions only ever looked
+  // right because dark-mode.css repainted them; stated this way they are
+  // correct on their own.
   const getRankColor = (rank) => {
-    if (rank === 1) return 'bg-gradient-to-br from-ff-rank-gold-50 to-amber-100 text-ff-rank-gold-600 border-[4px] border-amber-300';
-    if (rank === 2) return 'bg-gradient-to-br from-ff-rank-silver-50 to-gray-100 text-ff-rank-silver-600 border-[4px] border-slate-200';
-    if (rank === 3) return 'bg-gradient-to-br from-ff-rank-bronze-50 to-orange-100 text-ff-rank-bronze-600 border-[4px] border-orange-400';
-    if (rank <= 6) return 'bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600 border-2 border-emerald-300';
-    if (rank <= 10) return 'bg-gradient-to-br from-blue-50 to-indigo-100 text-blue-600 border-2 border-blue-300';
+    if (rank === 1) return 'bg-ff-rank-gold-500/15 text-ff-rank-gold-400 border-[3px] border-ff-rank-gold-500/60';
+    if (rank === 2) return 'bg-ff-rank-silver-500/15 text-ff-rank-silver-400 border-[3px] border-ff-rank-silver-500/60';
+    if (rank === 3) return 'bg-ff-rank-bronze-500/15 text-ff-rank-bronze-400 border-[3px] border-ff-rank-bronze-500/60';
+    if (rank <= 6) return 'bg-emerald-500/15 text-emerald-400 border-2 border-emerald-500/50';
+    if (rank <= 10) return 'bg-blue-500/15 text-blue-400 border-2 border-blue-500/50';
     return 'bg-gradient-to-br from-muted to-muted/80 text-muted-foreground border-2 border-border';
   };
 
@@ -75,7 +79,7 @@ const PowerRankingsTable = ({
   const getRankChangeIcon = (change) => {
     if (change > 0) return <TrendingUp size={14} className="text-green-600" />;
     if (change < 0) return <TrendingDown size={14} className="text-red-600" />;
-    return <Minus size={14} className="text-gray-400" />;
+    return <Minus size={14} className="text-muted-foreground" />;
   };
 
   const getStreakDisplay = (streak) => {
@@ -417,7 +421,7 @@ const PowerRankingsTable = ({
             className={`font-mono ${
               (team.recentForm || 0) >= 5 ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
               (team.recentForm || 0) >= 2 ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50' :
-              (team.recentForm || 0) >= -2 ? 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-50' :
+              (team.recentForm || 0) >= -2 ? 'bg-muted text-muted-foreground border-border hover:bg-muted' :
               (team.recentForm || 0) >= -5 ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-50' :
               'bg-red-50 text-red-700 border-red-200 hover:bg-red-50'
             }`}
@@ -515,7 +519,7 @@ const PowerRankingsTable = ({
                 <div className="space-y-1 text-xs text-muted-foreground">
                   {RANKING_COMPONENTS.map((component) => (
                     <div key={component.key}>
-                      <strong className="text-black">
+                      <strong className="text-foreground">
                         {component.label} ({component.weightLabel}):
                       </strong>{' '}
                       {component.description}

@@ -121,9 +121,9 @@ const TeamsAndRosters = ({
       WR: 'bg-blue-100 text-blue-700 border-blue-200',
       TE: 'bg-orange-100 text-orange-700 border-orange-200',
       K: 'bg-purple-100 text-purple-700 border-purple-200',
-      'D/ST': 'bg-gray-100 text-gray-700 border-gray-200'
+      'D/ST': 'bg-muted text-foreground border-border'
     };
-    return colors[position] || 'bg-gray-100 text-gray-700 border-gray-200';
+    return colors[position] || 'bg-muted text-foreground border-border';
   };
 
   const getSlotBadgeColor = (slot) => {
@@ -177,7 +177,7 @@ const TeamsAndRosters = ({
         <div
           className={`flex items-center gap-1.5 p-1.5 rounded text-xs border ${
             isStarter
-              ? 'bg-white border-gray-200 font-medium'
+              ? 'bg-card border-border font-medium'
               : slot === 'IR'
               ? 'bg-red-50 border-red-200 text-red-700'
               : 'bg-muted/50 border-muted text-muted-foreground'
@@ -204,7 +204,7 @@ const TeamsAndRosters = ({
           {/* Starting Lineup Grid */}
           {starters.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-white py-1">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-card py-1">
                 Starters
               </h4>
               <div className="grid grid-cols-1 gap-1">
@@ -218,7 +218,7 @@ const TeamsAndRosters = ({
           {/* Bench Players */}
           {benchPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-white py-1">
+              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-card py-1">
                 Bench
               </h4>
               <div className="grid grid-cols-1 gap-1">
@@ -232,7 +232,7 @@ const TeamsAndRosters = ({
           {/* IR Players */}
           {irPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-red-600 uppercase tracking-wide sticky top-0 bg-white py-1">
+              <h4 className="text-xs font-semibold text-red-600 uppercase tracking-wide sticky top-0 bg-card py-1">
                 Injured Reserve
               </h4>
               <div className="grid grid-cols-1 gap-1">
@@ -428,7 +428,7 @@ const TeamsAndRosters = ({
                         </div>
                         <div className={`font-semibold ${
                           (stats.wins || 0) > (stats.losses || 0) ? 'text-green-600' :
-                          (stats.wins || 0) < (stats.losses || 0) ? 'text-red-600' : 'text-gray-600'
+                          (stats.wins || 0) < (stats.losses || 0) ? 'text-red-600' : 'text-muted-foreground'
                         }`}>
                           {stats.wins || 0}-{stats.losses || 0}
                           {stats.ties > 0 && `-${stats.ties}`}

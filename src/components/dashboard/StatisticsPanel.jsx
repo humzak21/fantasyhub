@@ -110,8 +110,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
 
   if (!rankings || !Array.isArray(rankings) || rankings.length === 0 || !season) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <BarChart3 size={48} className="mx-auto mb-4 text-gray-300" />
+      <div className="text-center py-8 text-muted-foreground">
+        <BarChart3 size={48} className="mx-auto mb-4 text-muted-foreground" />
         <p>No statistics available. Add teams and complete games to see analytics.</p>
       </div>
     );
@@ -182,7 +182,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
         <Icon className={`text-${color}-600`} size={20} />
         <span className={`text-${color}-600 text-sm font-medium`}>{title}</span>
       </div>
-      <div className={`text-2xl font-bold text-gray-900 dark:text-white`}>{value}</div>
+      <div className={`text-2xl font-bold text-foreground`}>{value}</div>
       {subtitle && <div className={`text-${color}-700 text-sm mt-1`}>{subtitle}</div>}
     </div>
   );
@@ -190,10 +190,10 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
   const TeamHighlight = ({ title, team, stat, description, color = 'gray', teamOwnerNames = [] }) => {
     if (!team) {
       return (
-        <div className={`bg-gray-50 p-3 rounded-lg border border-gray-200`}>
-          <div className={`text-gray-700 font-medium text-sm mb-1`}>{title}</div>
-          <div className={`text-gray-900 dark:text-white font-bold`}>No Data</div>
-          <div className={`text-gray-600 text-sm`}>Complete games to see stats</div>
+        <div className={`bg-muted p-3 rounded-lg border border-border`}>
+          <div className={`text-foreground font-medium text-sm mb-1`}>{title}</div>
+          <div className={`text-foreground font-bold`}>No Data</div>
+          <div className={`text-muted-foreground text-sm`}>Complete games to see stats</div>
         </div>
       );
     }
@@ -201,7 +201,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
     return (
       <div className={`bg-${color}-50 p-3 rounded-lg border border-${color}-200`}>
         <div className={`text-${color}-700 font-medium text-sm mb-1`}>{title}</div>
-        <div className={`text-gray-900 dark:text-white font-bold`}>{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</div>
+        <div className={`text-foreground font-bold`}>{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</div>
         <div className={`text-${color}-600 text-sm`}>{stat}</div>
         {description && <div className={`text-${color}-500 text-xs mt-1`}>{description}</div>}
       </div>
@@ -333,7 +333,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
       {/*
       <div>
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <Users className="text-gray-600" size={20} />
+          <Users className="text-muted-foreground" size={20} />
           Strength of Schedule
         </h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -367,14 +367,14 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
             Power Rankings Algorithm Insights
           </h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="bg-white border rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <div className="bg-card border rounded-lg p-4">
+              <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-green-600" />
                 Component Analysis
               </h4>
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Strongest League Component:</span>
+                  <span className="text-muted-foreground">Strongest League Component:</span>
                   <div className="flex items-center gap-2">
                     <span className="font-medium">
                       {algorithmInsights.strongestComponent.key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
@@ -383,7 +383,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Area for Improvement:</span>
+                  <span className="text-muted-foreground">Area for Improvement:</span>
                   <div className="flex items-center gap-2">
                     <span className="font-medium">
                       {algorithmInsights.weakestComponent.key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
@@ -391,14 +391,14 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
                     <span className="text-orange-600 font-bold">{algorithmInsights.weakestComponent.value.toFixed(2)}</span>
                   </div>
                 </div>
-                <div className="pt-2 border-t text-xs text-gray-500">
+                <div className="pt-2 border-t text-xs text-muted-foreground">
                   Analysis based on {algorithmInsights.teamsAnalyzed} teams with complete data
                 </div>
               </div>
             </div>
 
-            <div className="bg-white border rounded-lg p-4">
-              <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <div className="bg-card border rounded-lg p-4">
+              <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Award className="h-4 w-4 text-purple-600" />
                 Component Averages
               </h4>
@@ -456,18 +456,18 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
       */}
 
       {/* Chart Filtering Controls */}
-      <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+      <div className="mt-8 pt-6 border-t border-border">
         <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
           <BarChart3 className="text-blue-600" size={20} />
           Advanced Analytics
         </h3>
 
         {/* Week Range Filter */}
-        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-          <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-3">Week Range Filter</h4>
+        <div className="mb-6 p-4 bg-muted rounded-lg border border-border">
+          <h4 className="font-semibold text-foreground text-sm mb-3">Week Range Filter</h4>
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs font-medium text-foreground mb-1">
                 Min Week: {minWeek}
               </label>
               <input
@@ -480,7 +480,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
               />
             </div>
             <div className="flex-1">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-xs font-medium text-foreground mb-1">
                 Max Week: {maxWeek}
               </label>
               <input
@@ -498,8 +498,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
         <div className="space-y-6">
           {/* Score Distribution - COMMENTED OUT */}
           {/*
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="bg-card p-4 rounded-lg border border-border">
+            <h4 className="text-base font-semibold text-foreground mb-4">
               Score Distribution (Min/Q1/Avg/Q3/Max)
             </h4>
             <ScoreDistributionChart
@@ -513,8 +513,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           */}
 
           {/* Weekly Scoring Trends */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="bg-card p-4 rounded-lg border border-border">
+            <h4 className="text-base font-semibold text-foreground mb-4">
               Weekly Scoring Trends
             </h4>
             <WeeklyScoringTrendsChart
@@ -530,8 +530,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           </div>
 
           {/* Points Per Game */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="bg-card p-4 rounded-lg border border-border">
+            <h4 className="text-base font-semibold text-foreground mb-4">
               Points Per Game
             </h4>
             <PointsPerGameChart
@@ -544,8 +544,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           </div>
 
           {/* Margin of Victory */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="bg-card p-4 rounded-lg border border-border">
+            <h4 className="text-base font-semibold text-foreground mb-4">
               Average Margin of Victory
             </h4>
             <MarginOfVictoryChart
@@ -558,8 +558,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           </div>
 
           {/* All-Play Records */}
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="bg-card p-4 rounded-lg border border-border">
+            <h4 className="text-base font-semibold text-foreground mb-4">
               All-Play Records (vs Median Score)
             </h4>
             <AllPlayRecordsChart
@@ -580,8 +580,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
             League-Wide Comparisons
           </h3>
           <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-              <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="bg-card p-4 rounded-lg border border-border">
+              <h4 className="text-base font-semibold text-foreground mb-4">
                 Power Rankings Movement
               </h4>
               <RankingsMovementChart

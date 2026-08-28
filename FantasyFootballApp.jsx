@@ -194,9 +194,9 @@ const FantasyFootballApp = () => {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="min-h-screen bg-background">
         {/* Header - Responsive Design */}
-        <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
+        <header className="sticky top-0 z-50 w-full border-b bg-card/80 backdrop-blur-sm">
           <PageContainer>
             <div className="flex h-14 items-center justify-between gap-2 sm:h-16">
               {/* Left Section: Logo, Title, and Week Navigator */}
@@ -280,7 +280,7 @@ const FantasyFootballApp = () => {
               week label is visible; it is the single most-used control on the
               site and it had nowhere to live in a 375px header row. */}
           {activeSeason && (
-            <div className="border-t bg-white/60 sm:hidden">
+            <div className="border-t bg-card/60 sm:hidden">
               <div className="flex items-center justify-center px-4 py-1.5">
                 <InlineWeekNavigator
                   currentWeek={viewedWeek}

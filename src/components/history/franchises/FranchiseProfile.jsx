@@ -111,7 +111,7 @@ const FranchiseProfile = ({
         return (
           <div className="flex items-center gap-2 font-semibold">
             {isChampion && <Crown className="h-4 w-4 text-amber-500" />}
-            {isRunnerUp && <Medal className="h-4 w-4 text-gray-400" />}
+            {isRunnerUp && <Medal className="h-4 w-4 text-muted-foreground" />}
             {isThird && <Medal className="h-4 w-4 text-amber-700" />}
             {season.season.year}
             {season.is_current_season && (

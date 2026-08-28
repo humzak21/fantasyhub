@@ -93,7 +93,7 @@ const AllTimeLeaderboards = ({
 
   const getRankIcon = (index) => {
     if (index === 0) return <Crown className="h-4 w-4 text-amber-600" />;
-    if (index === 1) return <Medal className="h-4 w-4 text-gray-600" />;
+    if (index === 1) return <Medal className="h-4 w-4 text-muted-foreground" />;
     if (index === 2) return <Medal className="h-4 w-4 text-orange-600" />;
     return null;
   };
