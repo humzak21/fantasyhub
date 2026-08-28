@@ -443,9 +443,9 @@ const DrawerStandingsTable = ({
    * One column list for both tables below (a division's teams, and the
    * unassigned ones), and for both layouts.
    *
-   * These tables carried `min-w-[500px]` inside a drawer that is `85vw` —
-   * about 320px on a phone — so reading the standings meant scrolling every
-   * row sideways past the team name to reach the numbers. Below sm: each team
+   * These tables carried `min-w-[500px]` inside a drawer that is `w-[95%]` —
+   * about 356px on an iPhone SE — so reading the standings meant scrolling
+   * every row sideways past the team name to reach the numbers. Below sm: each team
    * is a card: rank, team and owner identify it, the record and point totals
    * are a labelled grid.
    *
