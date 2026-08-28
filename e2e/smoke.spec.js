@@ -108,4 +108,30 @@ test.describe('phone navigation', () => {
     await drawer.getByRole('button', { name: 'Statistics' }).click()
     await expect(page).toHaveURL(/\/statistics$/)
   })
+
+  test('the standings drawer opens and fits the screen', async ({ page }) => {
+    await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('#root')).not.toBeEmpty()
+
+    const trigger = page.getByRole('button', { name: /open standings/i })
+    await expect(trigger).toBeVisible()
+    await trigger.click()
+
+    // The panel is `position: fixed`. It spent a long time sizing itself
+    // against a transformed <body> instead of the viewport, which is what
+    // "the sidebar doesn't scroll" and "elements hang off the page" were.
+    const panel = page.locator('.drawer-panel')
+    await expect(panel).toBeVisible()
+
+    const box = await panel.boundingBox()
+    const vw = page.viewportSize().width
+    expect(box.x).toBeGreaterThanOrEqual(-1)
+    expect(box.x + box.width).toBeLessThanOrEqual(vw + 1)
+
+    // …and the standings inside it are showing the card layout, not the
+    // table. ResponsiveDataTable emits both and lets CSS choose, so the check
+    // is visibility, not presence — `toHaveCount(0)` would be asserting the
+    // wrong thing about how that component works.
+    await expect(page.locator('.drawer-panel table').first()).toBeHidden()
+  })
 })
