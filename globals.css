@@ -1,13 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
 @import "tailwindcss";
 
-/* Tailwind v4 does not read tailwind.config.js unless it is pointed at one.
- * Without this line every semantic token (bg-card, text-muted-foreground, …),
- * the `xs` breakpoint, the ff-* ramps and every `animate-*` generated nothing
- * — which is what styles/dark-mode.css's 1,128 `!important` lines were
- * compensating for. scripts/check-css-tokens.js asserts the built CSS really
- * contains them so this cannot silently regress again. */
-@config "./tailwind.config.js";
+/* The theme is defined here, in CSS, not in a tailwind.config.js.
+ *
+ * Phase 0 bridged to the old config with `@config` to get the theme layer
+ * generating at all; this is the finished form. One file now holds the
+ * palette, the breakpoints and the animations, instead of a JS config that
+ * Tailwind v4 only reads when explicitly pointed at it — which is exactly the
+ * failure mode that left every semantic token generating nothing.
+ *
+ * scripts/check-css-tokens.js asserts the result reaches the bundle. */
+
+/* Sources are named explicitly rather than left to auto-detection: this file
+ * sits at the repo root, so auto-detection would sweep dump/, examples/ and
+ * aug2026_refactor/ looking for class names. */
+@source "./index.html";
+@source "./src";
+@source "./hooks";
+@source "./utils";
+@source "./types";
+@source "./services";
+@source "./FantasyFootballApp.jsx";
 
 /* Probe utilities for scripts/check-css-tokens.js, emitted on purpose.
  * The guard needs a fixed target: it must fail when the theme layer stops
@@ -15,6 +28,163 @@
  * one utility per theme facet (colour, breakpoint, brand ramp, animation)
  * here decouples the check from app source entirely. Costs ~5 rules. */
 @source inline("bg-card text-muted-foreground xs:block text-ff-rank-gold-500 animate-float-in");
+
+/* Dark mode is a class on <html>, not a media query — the app owns the choice
+ * (and currently forces dark). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * `@theme inline` rather than plain `@theme`: the palette is stored as bare
+ * HSL triplets in `:root` / `.dark` below, and a great deal of existing CSS
+ * reads them that way (`hsl(var(--border))`). `inline` inlines the
+ * `hsl(var(--x))` expression into each utility, which is what makes opacity
+ * modifiers — `bg-card/50`, `border-border/40` — resolve correctly against a
+ * triplet. Without it they would produce invalid colours.
+ */
+@theme inline {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Fantasy Football brand ramps. Gold/silver/bronze are the podium colours
+     and are deliberately *not* metallic hues — silver is orange and bronze is
+     green, because that is what the rank badges have always used. */
+  --color-ff-rank-gold-50: #fefce8;
+  --color-ff-rank-gold-100: #fef9c3;
+  --color-ff-rank-gold-200: #fef08a;
+  --color-ff-rank-gold-300: #fde047;
+  --color-ff-rank-gold-400: #facc15;
+  --color-ff-rank-gold-500: #eab308;
+  --color-ff-rank-gold-600: #ca8a04;
+  --color-ff-rank-gold-700: #a16207;
+  --color-ff-rank-gold-800: #854d0e;
+  --color-ff-rank-gold-900: #713f12;
+
+  --color-ff-rank-silver-50: #fff7ed;
+  --color-ff-rank-silver-100: #ffedd5;
+  --color-ff-rank-silver-200: #fed7aa;
+  --color-ff-rank-silver-300: #fdba74;
+  --color-ff-rank-silver-400: #fb923c;
+  --color-ff-rank-silver-500: #f97316;
+  --color-ff-rank-silver-600: #ea580c;
+  --color-ff-rank-silver-700: #c2410c;
+  --color-ff-rank-silver-800: #9a3412;
+  --color-ff-rank-silver-900: #7c2d12;
+
+  --color-ff-rank-bronze-50: #f0fdf4;
+  --color-ff-rank-bronze-100: #dcfce7;
+  --color-ff-rank-bronze-200: #bbf7d0;
+  --color-ff-rank-bronze-300: #86efac;
+  --color-ff-rank-bronze-400: #4ade80;
+  --color-ff-rank-bronze-500: #22c55e;
+  --color-ff-rank-bronze-600: #16a34a;
+  --color-ff-rank-bronze-700: #15803d;
+  --color-ff-rank-bronze-800: #166534;
+  --color-ff-rank-bronze-900: #14532d;
+
+  --color-ff-status-completed: #16a34a;
+  --color-ff-status-current: #2563eb;
+  --color-ff-status-future: #6b7280;
+  --color-ff-status-warning: #ea580c;
+  --color-ff-status-error: #dc2626;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --breakpoint-xs: 475px;
+
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-slide-in: slide-in 0.3s ease-out;
+  --animate-modal-in: modal-in 0.2s ease-out;
+  --animate-modal-out: modal-out 0.15s ease-in;
+  --animate-backdrop-in: backdrop-in 0.2s ease-out;
+  --animate-backdrop-out: backdrop-out 0.15s ease-in;
+  --animate-float-in: float-in 0.3s ease-out;
+  --animate-pulse-glow: pulse-glow 2s infinite;
+  --animate-shimmer: shimmer 2s infinite;
+  --animate-bounce-subtle: bounce-subtle 1s ease-in-out infinite;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes fade-in {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-in {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes modal-in {
+    0% { opacity: 0; transform: scale(0.95) translateY(10px); backdrop-filter: blur(0px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); backdrop-filter: blur(8px); }
+  }
+  @keyframes modal-out {
+    0% { opacity: 1; transform: scale(1) translateY(0); backdrop-filter: blur(8px); }
+    100% { opacity: 0; transform: scale(0.95) translateY(10px); backdrop-filter: blur(0px); }
+  }
+  @keyframes backdrop-in {
+    0% { opacity: 0; backdrop-filter: blur(0px); }
+    100% { opacity: 1; backdrop-filter: blur(8px); }
+  }
+  @keyframes backdrop-out {
+    0% { opacity: 1; backdrop-filter: blur(8px); }
+    100% { opacity: 0; backdrop-filter: blur(0px); }
+  }
+  @keyframes float-in {
+    0% { opacity: 0; transform: scale(0.8) translateY(20px); filter: blur(4px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0px); }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); transform: scale(1); }
+    50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); transform: scale(1.02); }
+  }
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  @keyframes bounce-subtle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+  }
+}
 
 @layer base {
   :root {
@@ -48,26 +218,54 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
+  /*
+   * These are the values the app has actually been rendering.
+   *
+   * globals.css used to declare a *neutral* dark palette here (240 10% 3.9%
+   * and friends) which styles/dark-mode.css then overwrote wholesale with a
+   * *slate* one via a `--dm-dark-*` indirection layer. Two palettes, one of
+   * them dead, and no way to tell from this file which was live. The slate
+   * values are adopted directly so removing that override changes nothing,
+   * and so this block is the single answer to "what colour is the app".
+   *
+   * Surfaces 1-3 are the elevation ramp the header, cards and popovers sit on.
+   */
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 5.9% 15%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 25%;
-    --accent-foreground: 0 0% 98%;
+    --background: 222 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 220 65% 7%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 32.6% 17.5%;
+    --input: 217 32.6% 17.5%;
+    --ring: 212 72% 59%;
+
+    /* Elevation ramp. Anything sitting above the page background — the sticky
+       header, a floating control, a drawer — uses one of these rather than a
+       one-off hex. */
+    --surface-1: 220 65% 7%;
+    --surface-2: 217 45% 12%;
+    --surface-3: 215 30% 18%;
+
+    /* Status colours, for badges and alerts that are not destructive. */
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
+    --warning: 47 96% 53%;
+    --warning-foreground: 222 47% 11%;
+    --info: 212 72% 59%;
+    --info-foreground: 210 40% 98%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
