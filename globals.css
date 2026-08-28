@@ -195,7 +195,84 @@
   }
 }
 
+/* Drive the .animate-in / .animate-out utilities above. Each modifier sets one
+ * custom property; anything left `initial` falls back to the identity value,
+ * so `animate-in fade-in-0` moves opacity only and `animate-in
+ * slide-in-from-top-2` moves position only, exactly as the shadcn classes
+ * behave. */
+@keyframes ff-enter {
+  from {
+    opacity: var(--ff-enter-opacity, 1);
+    transform:
+      translate3d(var(--ff-enter-translate-x, 0), var(--ff-enter-translate-y, 0), 0)
+      scale(var(--ff-enter-scale, 1));
+  }
+}
+
+@keyframes ff-exit {
+  to {
+    opacity: var(--ff-exit-opacity, 1);
+    transform:
+      translate3d(var(--ff-exit-translate-x, 0), var(--ff-exit-translate-y, 0), 0)
+      scale(var(--ff-exit-scale, 1));
+  }
+}
+
 @layer utilities {
+
+  /* Radix enter/exit animations.
+   *
+   * dropdown-menu, select, popover, tooltip and alert-dialog were all authored
+   * against `animate-in` / `fade-in-0` / `zoom-in-95` / `slide-in-from-*`.
+   * Those come from the tailwindcss-animate plugin, which this project has
+   * never installed — verified against the built CSS, where not one of them
+   * appears. Every one of those menus has been popping in with no transition
+   * at all since the day it was written.
+   *
+   * Rather than add a dependency for six keyframes, they are defined here, in
+   * the same names the components already use, so those components animate as
+   * written and the new dialog/sheet/drawer primitives can rely on them too.
+   * The set is deliberately only what the codebase references. */
+  .animate-in {
+    animation-name: ff-enter;
+    animation-duration: 150ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-fill-mode: both;
+    --ff-enter-opacity: initial;
+    --ff-enter-scale: initial;
+    --ff-enter-translate-x: initial;
+    --ff-enter-translate-y: initial;
+  }
+
+  .animate-out {
+    animation-name: ff-exit;
+    animation-duration: 120ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-fill-mode: both;
+    --ff-exit-opacity: initial;
+    --ff-exit-scale: initial;
+    --ff-exit-translate-x: initial;
+    --ff-exit-translate-y: initial;
+  }
+
+  .fade-in-0 { --ff-enter-opacity: 0; }
+  .fade-out-0 { --ff-exit-opacity: 0; }
+
+  .zoom-in-95 { --ff-enter-scale: 0.95; }
+  .zoom-out-95 { --ff-exit-scale: 0.95; }
+
+  .slide-in-from-top-2 { --ff-enter-translate-y: -0.5rem; }
+  .slide-in-from-bottom-2 { --ff-enter-translate-y: 0.5rem; }
+  .slide-in-from-left-2 { --ff-enter-translate-x: -0.5rem; }
+  .slide-in-from-right-2 { --ff-enter-translate-x: 0.5rem; }
+  .slide-in-from-left-1 { --ff-enter-translate-x: -0.25rem; }
+  .slide-out-to-left-1 { --ff-exit-translate-x: -0.25rem; }
+
+  .slide-in-from-bottom-full { --ff-enter-translate-y: 100%; }
+  .slide-out-to-bottom-full { --ff-exit-translate-y: 100%; }
+  .slide-in-from-right-full { --ff-enter-translate-x: 100%; }
+  .slide-out-to-right-full { --ff-exit-translate-x: 100%; }
+
 
   .gradient-bg {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

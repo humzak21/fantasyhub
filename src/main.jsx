@@ -9,6 +9,7 @@ import { createQueryClient } from '../hooks/queries/index.js'
 import { ViewedWeekProvider } from '../hooks/queries/useWeek.jsx'
 import { ViewerProvider } from './contexts/ViewerContext.jsx'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
+import { Toaster } from './components/ui/sonner.jsx'
 import '../globals.css'
 import '../styles/fantasy-utilities.css'
 import '../styles/dark-mode.css'
@@ -29,6 +30,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                 {/* Viewer identity + name-masking access, derived once */}
                 <ViewerProvider>
                   <App />
+                  {/* One Toaster for the process, inside DarkModeProvider so
+                      it can follow the theme. */}
+                  <Toaster />
                 </ViewerProvider>
               </ViewedWeekProvider>
             </AuthProvider>
