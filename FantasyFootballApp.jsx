@@ -30,6 +30,7 @@ import InlineWeekNavigator from './src/components/week-controls/InlineWeekNaviga
 
 import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
 import ResponsiveNavigation from './src/components/navigation/ResponsiveNavigation.jsx';
+import PageContainer from './src/components/layout/PageContainer.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
 
 // One chunk per tab. Every tab, both app shells and recharts used to ship in
@@ -196,7 +197,7 @@ const FantasyFootballApp = () => {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         {/* Header - Responsive Design */}
         <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+          <PageContainer>
             <div className="flex h-14 items-center justify-between gap-2 sm:h-16">
               {/* Left Section: Logo, Title, and Week Navigator */}
               <div className="flex min-w-0 items-center">
@@ -273,7 +274,7 @@ const FantasyFootballApp = () => {
                 <LoginDropdown />
               </div>
             </div>
-          </div>
+          </PageContainer>
 
           {/* Week navigator sub-bar — phones only. Full (not condensed), so the
               week label is visible; it is the single most-used control on the
@@ -296,7 +297,7 @@ const FantasyFootballApp = () => {
         </header>
 
         {/* Main Content */}
-        <main className="container mx-auto px-4 py-4 sm:px-6 sm:py-8 lg:px-8">
+        <PageContainer as="main" className="py-4 sm:py-8">
 
 
           {/* Error Display */}
@@ -488,7 +489,7 @@ const FantasyFootballApp = () => {
             )}
             </Suspense>
           </div>
-        </main>
+        </PageContainer>
 
         {/* Standings Drawer */}
         {activeSeason && (
