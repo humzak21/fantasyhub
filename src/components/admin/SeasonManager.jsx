@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Edit3, Trash2, Play, Calendar, Users, Trophy, Settings, Download, Upload, AlertTriangle, Flag } from 'lucide-react';
+import { Button } from '../ui/button';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 
 /** How `copyFrom` below maps onto the data layer's `copyTeamsFromSeasonId`. */
 const COPY_PREVIOUS = 'previous';
@@ -232,12 +242,21 @@ const SeasonManager = ({
         </div>
       )}
 
-      {/* Create Season Form */}
-      {showCreateForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4">Create New Season</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
+      {/*
+        Three hand-rolled modals used to live here: `fixed inset-0` with a
+        `bg-white` panel, no focus trap, no Escape handling, no scroll lock,
+        and — since `bg-white` — invisible-on-invisible in dark mode until
+        dark-mode.css overrode it. They are `ui/dialog` now, which brings all of
+        that plus a body that scrolls at `85dvh` instead of a panel that runs
+        off a phone screen.
+      */}
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Season</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <form id="create-season-form" onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Year</label>
                 <input
@@ -276,7 +295,7 @@ const SeasonManager = ({
                 />
               </div>
               
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 xs:grid-cols-3">
                 <div>
                   <label className="block text-sm font-medium mb-1">League Size</label>
                   <input
@@ -347,33 +366,27 @@ const SeasonManager = ({
                 </p>
               </div>
 
-              <div className="flex gap-2 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateForm(false)}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Creating...' : 'Create Season'}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
-      )}
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setShowCreateForm(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-season-form" disabled={loading}>
+              {loading ? 'Creating...' : 'Create Season'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Import Season Form */}
-      {showImportForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4">Import Season</h3>
-            <form onSubmit={handleImport} className="space-y-4">
+      <Dialog open={showImportForm} onOpenChange={setShowImportForm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Season</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <form id="import-season-form" onSubmit={handleImport} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Season Data (JSON)</label>
                 <textarea
@@ -385,38 +398,34 @@ const SeasonManager = ({
                 />
               </div>
               
-              <div className="flex gap-2 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowImportForm(false)}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Importing...' : 'Import Season'}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
-      )}
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setShowImportForm(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="import-season-form" disabled={loading}>
+              {loading ? 'Importing...' : 'Import Season'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Finalize confirmation: the derived podium, before it is written */}
-      {pendingFinalize && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
-            <h3 className="text-lg font-bold mb-1">Finalize {pendingFinalize.season.year}?</h3>
-            <p className="text-sm text-gray-600 mb-4">
+      <Dialog open={Boolean(pendingFinalize)} onOpenChange={(open) => !open && setPendingFinalize(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Finalize {pendingFinalize?.season.year}?</DialogTitle>
+            <DialogDescription>
               These placements were derived from the season&apos;s games. Applying them marks
               the season completed, computes its awards, and publishes it to League History.
-            </p>
-
-            <table className="w-full text-sm mb-6">
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {/* Deliberately still a plain table, not a ResponsiveDataTable: it
+                is five short columns of derived placements read once, in a
+                dialog, by one admin. Cards would be more chrome than data. */}
+            <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-500 border-b">
                   <th className="py-1 pr-2 font-medium">#</th>
@@ -427,7 +436,7 @@ const SeasonManager = ({
                 </tr>
               </thead>
               <tbody>
-                {pendingFinalize.assignments.map(row => (
+                {pendingFinalize?.assignments.map(row => (
                   <tr key={row.team_id} className="border-b last:border-0">
                     <td className="py-1 pr-2 font-semibold">{row.final_rank}</td>
                     <td className="py-1 pr-2">{row.owner}</td>
@@ -438,27 +447,22 @@ const SeasonManager = ({
                 ))}
               </tbody>
             </table>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setPendingFinalize(null)}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleFinalizeConfirm}
-                disabled={finalizing}
-                className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
-              >
-                {finalizing ? 'Finalizing...' : 'Apply'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setPendingFinalize(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleFinalizeConfirm}
+              disabled={finalizing}
+              className="bg-amber-600 text-white hover:bg-amber-700"
+            >
+              {finalizing ? 'Finalizing...' : 'Apply'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Seasons List */}
       {seasons.length === 0 ? (

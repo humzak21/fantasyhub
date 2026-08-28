@@ -3,14 +3,7 @@ import { ArrowLeft, Trophy, TrendingUp, Award, Calendar, Target, Users, Crown, M
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../ui/table';
+import { ResponsiveDataTable } from '../../ui/responsive-table';
 import {
   BarChart,
   Bar,
@@ -83,6 +76,134 @@ const FranchiseProfile = ({
   };
   const seasonHistory = franchiseData?.seasonHistory || [];
   const awards = franchiseData?.awards || [];
+
+  // Sorted once here rather than inside the render, so the column cells stay
+  // pure functions of a row.
+  const sortedSeasonHistory = [...seasonHistory].sort((a, b) => b.season.year - a.season.year);
+
+  const finishOf = (season) => ({
+    isChampion: season.playoff_finish === 'champion',
+    isRunnerUp: season.playoff_finish === '2nd' || season.playoff_finish === 'runner-up',
+    isThird: season.playoff_finish === '3rd' || season.playoff_finish === '3rd place',
+  });
+
+  const seasonRowClass = (season) => {
+    const { isChampion, isRunnerUp, isThird } = finishOf(season);
+    if (isChampion) return 'bg-amber-500/10';
+    if (isRunnerUp) return 'bg-slate-400/10';
+    if (isThird) return 'bg-amber-700/10';
+    if (season.is_current_season) return 'bg-blue-500/10';
+    return '';
+  };
+
+  // Eight columns of small numbers. Below sm: these same definitions render one
+  // card per season — year, team name and final placement identify the row, and
+  // the point totals become a labelled grid.
+  const seasonColumns = [
+    {
+      key: 'year',
+      header: 'Year',
+      priority: 'primary',
+      headerClassName: 'w-20',
+      className: 'font-semibold',
+      cell: (season) => {
+        const { isChampion, isRunnerUp, isThird } = finishOf(season);
+        return (
+          <div className="flex items-center gap-2 font-semibold">
+            {isChampion && <Crown className="h-4 w-4 text-amber-500" />}
+            {isRunnerUp && <Medal className="h-4 w-4 text-gray-400" />}
+            {isThird && <Medal className="h-4 w-4 text-amber-700" />}
+            {season.season.year}
+            {season.is_current_season && (
+              <Badge variant="secondary" className="ml-1 bg-blue-500/20 text-xs text-blue-400">
+                Live
+              </Badge>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'team',
+      header: 'Team Name',
+      priority: 'primary',
+      cell: (season) => (
+        <p className="truncate text-sm">
+          {getMaskedHistoricalTeamName(season, user, isAdmin, teamOwnerNames)}
+        </p>
+      ),
+    },
+    {
+      key: 'finish',
+      header: 'Finish',
+      priority: 'primary',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (season) =>
+        season.playoff_finish && season.playoff_finish !== 'missed' && season.playoff_finish !== 'none' ? (
+          <Badge variant={finishOf(season).isChampion ? 'default' : 'secondary'}>
+            {formatPlayoffFinish(season.playoff_finish)}
+          </Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">-</span>
+        ),
+    },
+    {
+      key: 'record',
+      header: 'Record',
+      className: 'text-center font-mono text-sm',
+      headerClassName: 'text-center',
+      cell: (season) =>
+        formatRecord(season.regular_season_wins || 0, season.regular_season_losses || 0),
+    },
+    {
+      key: 'winPct',
+      header: 'Win %',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (season) => {
+        const wins = season.regular_season_wins || 0;
+        const losses = season.regular_season_losses || 0;
+        const games = wins + losses;
+        const winPct = games > 0 ? wins / games : 0;
+        return (
+          <span className={winPct >= 0.5 ? 'font-semibold text-green-500' : ''}>
+            {formatWinPercentage(winPct)}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'pf',
+      header: 'PF',
+      cardLabel: 'Points for',
+      className: 'text-center font-mono text-sm',
+      headerClassName: 'text-center',
+      cell: (season) => formatPoints(season.points_for || 0),
+    },
+    {
+      key: 'pa',
+      header: 'PA',
+      cardLabel: 'Points against',
+      className: 'text-center font-mono text-sm',
+      headerClassName: 'text-center',
+      cell: (season) => formatPoints(season.points_against || 0),
+    },
+    {
+      key: 'diff',
+      header: 'Diff',
+      className: 'text-center font-mono text-sm',
+      headerClassName: 'text-center',
+      cell: (season) => {
+        const diff = (season.points_for || 0) - (season.points_against || 0);
+        return (
+          <span className={diff >= 0 ? 'text-green-500' : 'text-red-500'}>
+            {diff >= 0 ? '+' : ''}{diff.toFixed(1)}
+          </span>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -187,99 +308,12 @@ const FranchiseProfile = ({
         </CardHeader>
         <CardContent>
           {seasonHistory.length > 0 ? (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-20">Year</TableHead>
-                    <TableHead>Team Name</TableHead>
-                    <TableHead className="text-center">Record</TableHead>
-                    <TableHead className="text-center">Win %</TableHead>
-                    <TableHead className="text-center">PF</TableHead>
-                    <TableHead className="text-center">PA</TableHead>
-                    <TableHead className="text-center">Diff</TableHead>
-                    <TableHead className="text-center">Finish</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {[...seasonHistory].sort((a, b) => b.season.year - a.season.year).map(season => {
-                    const wins = season.regular_season_wins || 0;
-                    const losses = season.regular_season_losses || 0;
-                    const totalGames = wins + losses;
-                    const winPct = totalGames > 0 ? wins / totalGames : 0;
-                    const pf = season.points_for || 0;
-                    const pa = season.points_against || 0;
-                    const diff = pf - pa;
-                    const isChampion = season.playoff_finish === 'champion';
-                    const isRunnerUp = season.playoff_finish === '2nd' || season.playoff_finish === 'runner-up';
-                    const isThird = season.playoff_finish === '3rd' || season.playoff_finish === '3rd place';
-
-                    const getRowClass = () => {
-                      if (isChampion) return 'bg-amber-500/10';
-                      if (isRunnerUp) return 'bg-slate-400/10';
-                      if (isThird) return 'bg-amber-700/10';
-                      if (season.is_current_season) return 'bg-blue-500/10';
-                      return '';
-                    };
-
-                    const getFinishIcon = () => {
-                      if (isChampion) return <Crown className="h-4 w-4 text-amber-500" />;
-                      if (isRunnerUp) return <Medal className="h-4 w-4 text-gray-400" />;
-                      if (isThird) return <Medal className="h-4 w-4 text-amber-700" />;
-                      return null;
-                    };
-
-                    return (
-                      <TableRow key={season.id} className={getRowClass()}>
-                        <TableCell className="font-semibold">
-                          <div className="flex items-center gap-2">
-                            {getFinishIcon()}
-                            {season.season.year}
-                            {season.is_current_season && (
-                              <Badge variant="secondary" className="text-xs bg-blue-500/20 text-blue-400 ml-1">
-                                Live
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <p className="text-sm">
-                            {getMaskedHistoricalTeamName(season, user, isAdmin, teamOwnerNames)}
-                          </p>
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm">
-                          {formatRecord(wins, losses)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className={winPct >= 0.5 ? 'text-green-500 font-semibold' : ''}>
-                            {formatWinPercentage(winPct)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm">
-                          {formatPoints(pf)}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm">
-                          {formatPoints(pa)}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm">
-                          <span className={diff >= 0 ? 'text-green-500' : 'text-red-500'}>
-                            {diff >= 0 ? '+' : ''}{diff.toFixed(1)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {season.playoff_finish && season.playoff_finish !== 'missed' && season.playoff_finish !== 'none' ? (
-                            <Badge variant={isChampion ? 'default' : 'secondary'}>
-                              {formatPlayoffFinish(season.playoff_finish)}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+            <div className="rounded-lg border p-2 sm:p-0 sm:overflow-hidden">
+              <ResponsiveDataTable
+                columns={seasonColumns}
+                data={sortedSeasonHistory}
+                rowClassName={(season) => seasonRowClass(season)}
+              />
             </div>
           ) : (
             <p className="text-muted-foreground text-center py-8">No season history available</p>
