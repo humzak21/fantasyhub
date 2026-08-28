@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '../ui/dropdown-menu';
+  Drawer,
+  DrawerBody,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '../ui/drawer';
 import { Menu } from 'lucide-react';
 
 // Custom styles for pulsing glow effect
@@ -20,21 +22,8 @@ const glowStyles = `
     }
   }
 
-  @keyframes pulse-glow-sm {
-    0%, 100% {
-      box-shadow: 0 4px 6px -1px rgba(234, 179, 8, 0.5), 0 0 0 1px rgba(234, 179, 8, 0.3);
-    }
-    50% {
-      box-shadow: 0 4px 6px -1px rgba(234, 179, 8, 0.8), 0 0 0 1px rgba(234, 179, 8, 0.6);
-    }
-  }
-
   .awards-glow {
     animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-
-  .awards-glow-sm {
-    animation: pulse-glow-sm 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 `;
 
@@ -44,7 +33,13 @@ const glowStyles = `
  * Intelligently renders navigation buttons that progressively collapse:
  * - Large screens: Full buttons with labels and icons
  * - Medium screens: Icons only (no labels)
- * - Small screens: Dropdown menu
+ * - Small screens: a bottom drawer
+ *
+ * The small tier used to be a dropdown menu: 48px-tall rows in a 192px-wide
+ * popover anchored to the top-right corner — the far end of the screen from a
+ * thumb, with the eight destinations of an entire site crammed into it. It is
+ * a bottom drawer now, which lands where the hand already is, is dismissed by
+ * flicking down, and has room to say what each destination is.
  *
  * @param {Array} tabs - Navigation tab configuration
  * @param {string} activeTab - Currently active tab ID
@@ -57,10 +52,14 @@ const ResponsiveNavigation = ({
   onTabChange,
   shouldShowTab = () => true,
 }) => {
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Filter tabs based on visibility rules
   const visibleTabs = tabs.filter(shouldShowTab);
+
+  // The trigger is the only thing visible below sm, so it has to carry the
+  // notification that individual tabs would otherwise show.
+  const hasAnyNotification = visibleTabs.some(tab => tab.showNotification);
 
   if (visibleTabs.length === 0) {
     return null;
@@ -97,45 +96,67 @@ const ResponsiveNavigation = ({
         ))}
       </nav>
 
-      {/* Dropdown Navigation - Small screens (below sm) */}
+      {/* Drawer Navigation - Small screens (below sm) */}
       <div className="sm:hidden">
-        <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="dark:hover:bg-slate-700 dark:text-slate-200">
-              <Menu className="h-4 w-4" />
+        <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+          <DrawerTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Open navigation"
+              className="relative dark:hover:bg-slate-700 dark:text-slate-200"
+            >
+              <Menu className="h-5 w-5" />
+              {hasAnyNotification && (
+                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-600" />
+              )}
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            {visibleTabs.map(tab => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              const isDisabled = tab.isDisabled || false;
-              const isAwards = tab.id === 'awards';
+          </DrawerTrigger>
 
-              return (
-                <DropdownMenuItem
-                  key={tab.id}
-                  onClick={() => {
-                    onTabChange(tab.id);
-                    setIsDropdownOpen(false);
-                  }}
-                  disabled={isDisabled}
-                  className={`${isActive ? 'bg-accent' : ''} ${
-                    isAwards ? 'awards-glow-sm' : ''
-                  }`}
-                >
-                  <Icon className={`h-4 w-4 mr-2 ${isAwards ? 'hover:fill-yellow-500 transition-colors' : ''}`} />
-                  <span>{tab.label}</span>
-                  {tab.showNotification && (
-                    <Badge variant="destructive" className="ml-auto text-[10px] px-1.5 py-0 bg-red-600 hover:bg-red-700 border-red-600">
-                      !
-                    </Badge>
-                  )}
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>Go to</DrawerTitle>
+            </DrawerHeader>
+
+            <DrawerBody>
+              <nav className="grid gap-1 px-2 pb-4">
+                {visibleTabs.map(tab => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  const isDisabled = tab.isDisabled || false;
+
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => {
+                        onTabChange(tab.id);
+                        setIsDrawerOpen(false);
+                      }}
+                      className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-base transition-colors disabled:pointer-events-none disabled:opacity-50 ${
+                        isActive
+                          ? 'bg-accent font-semibold text-accent-foreground'
+                          : 'hover:bg-accent/50'
+                      }`}
+                    >
+                      <Icon className="h-5 w-5 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                      {tab.showNotification && (
+                        <Badge
+                          variant="destructive"
+                          className="shrink-0 border-red-600 bg-red-600 px-1.5 py-0 text-[10px] hover:bg-red-700"
+                        >
+                          !
+                        </Badge>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            </DrawerBody>
+          </DrawerContent>
+        </Drawer>
       </div>
     </>
   );
