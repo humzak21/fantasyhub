@@ -187,18 +187,15 @@ const PlayoffsBracketManager = ({
 
             {/* Main content */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                    <TabsTrigger value="bracket" className="flex items-center gap-2">
-                        <Target className="h-4 w-4" />
+                <TabsList className="w-full">
+                    <TabsTrigger value="bracket" icon={<Target className="h-4 w-4" />}>
                         Bracket
                     </TabsTrigger>
-                    <TabsTrigger value="standings" className="flex items-center gap-2">
-                        <Trophy className="h-4 w-4" />
+                    <TabsTrigger value="standings" icon={<Trophy className="h-4 w-4" />}>
                         Standings
                     </TabsTrigger>
                     {isAdmin && (
-                        <TabsTrigger value="admin" className="flex items-center gap-2">
-                            <Users className="h-4 w-4" />
+                        <TabsTrigger value="admin" icon={<Users className="h-4 w-4" />}>
                             Admin
                         </TabsTrigger>
                     )}

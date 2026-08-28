@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 /**
@@ -44,6 +44,12 @@ const PointsPerGameChart = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Must be above
+  // the early returns below — a hook after a conditional return is a
+  // rules-of-hooks violation and breaks on the render where the data
+  // arrives.
+  const axis = useMobileAxis();
+
   const chartData = useMemo(() => {
     if (!data.length) return [];
 
@@ -90,8 +96,8 @@ const PointsPerGameChart = ({
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ChartContainer config={{}} className="w-full" style={{ height: 400 }}>
-        <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }}>
+      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[400px]">
+        <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }} {...axis.chart}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
           <XAxis
             dataKey="name"
@@ -100,12 +106,14 @@ const PointsPerGameChart = ({
             height={60}
             tick={{ fontSize: 10 }}
             interval={0}
+            {...axis.x}
           />
           <YAxis
             domain={[70, 150]}
             label={{ value: 'Points Per Game', angle: -90, position: 'insideLeft', offset: -5, dy: 30 }}
             tick={{ fontSize: 10 }}
             width={30}
+            {...axis.y}
           />
           <ChartTooltip content={<CustomPPGTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
 

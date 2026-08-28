@@ -216,7 +216,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           <BarChart3 className="text-blue-600" size={20} />
           League Overview - Week {currentWeek}
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <StatCard
             title="Total Games"
             value={Math.floor(leagueStats.totalGames)}
@@ -249,7 +249,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           <Zap className="text-orange-600" size={20} />
           Offensive Leaders
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TeamHighlight
             title="Highest Scoring"
             team={highestScoringTeam}
@@ -275,7 +275,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           <Target className="text-blue-600" size={20} />
           Defensive Leaders
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TeamHighlight
             title="Best Defense"
             team={bestDefense}
@@ -301,7 +301,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           <TrendingUp className="text-purple-600" size={20} />
           Performance Analysis
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <TeamHighlight
             title="Most Dominant"
             team={mostBlowouts}
@@ -336,7 +336,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           <Users className="text-gray-600" size={20} />
           Strength of Schedule
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TeamHighlight
             title="Toughest Schedule"
             team={toughestSchedule}

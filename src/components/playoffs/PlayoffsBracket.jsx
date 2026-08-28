@@ -621,7 +621,17 @@ const PlayoffsBracket = ({
                 <CardContent>
                     <div className="space-y-8">
                         {/* Main Tournament */}
-                        <div className="flex items-start justify-center gap-6 overflow-x-auto pb-4">
+                        {/*
+                            `justify-center` on a horizontally scrolling flex
+                            container puts the overflow at the *start* of the
+                            line, and negative scroll offset is unreachable —
+                            so at any width narrower than the bracket, round 1
+                            simply could not be seen. `w-max mx-auto` centres
+                            the bracket when it fits and left-aligns it when it
+                            does not, which is what centring was meant to do.
+                        */}
+                        <div className="overflow-x-auto overscroll-x-contain pb-4">
+                          <div className="mx-auto flex w-max items-start gap-6">
                             {/* Division 2 (Left Side) */}
                             <div className="flex flex-col gap-6">
                                 <div className="text-center font-semibold text-sm text-muted-foreground mb-2">
@@ -775,6 +785,7 @@ const PlayoffsBracket = ({
                                 </div>
                             </div>
                         </div>
+                        </div>
 
                         {/* Consolation Games - 3rd and 5th Place */}
                         <div className="border-t pt-6">
@@ -863,7 +874,8 @@ const PlayoffsBracket = ({
                     <CardDescription>8 teams compete across 3 weeks</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex items-start justify-center gap-8 overflow-x-auto pb-4">
+                    <div className="overflow-x-auto overscroll-x-contain pb-4">
+                      <div className="mx-auto flex w-max items-start gap-8">
                         {/* Week 15 - Round 1 (4 matchups) */}
                         <div className="flex flex-col gap-3">
                             <div className="text-center text-xs text-muted-foreground font-semibold mb-2">
@@ -976,6 +988,7 @@ const PlayoffsBracket = ({
                                 );
                             })}
                         </div>
+                    </div>
                     </div>
                 </CardContent>
             </Card>

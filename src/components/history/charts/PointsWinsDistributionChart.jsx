@@ -214,7 +214,7 @@ const PointsWinsDistributionChart = ({
 
   return (
     <Tabs defaultValue="wins" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 mb-4">
+      <TabsList className="mb-4 w-full">
         <TabsTrigger value="wins">Wins</TabsTrigger>
         <TabsTrigger value="points">Points</TabsTrigger>
         <TabsTrigger value="transactions">Transactions</TabsTrigger>

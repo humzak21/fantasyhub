@@ -92,7 +92,7 @@ const PickEmsResults = ({
 
       {/* Results tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="w-full">
           <TabsTrigger value="weekly" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
             Weekly Results

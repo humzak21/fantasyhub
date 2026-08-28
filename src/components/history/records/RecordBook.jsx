@@ -152,7 +152,7 @@ const RecordBook = ({
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="w-full">
           <TabsTrigger value="season">Single Season Records</TabsTrigger>
           <TabsTrigger value="alltime">All-Time Leaders</TabsTrigger>
         </TabsList>

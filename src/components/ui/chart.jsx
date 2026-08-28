@@ -90,44 +90,49 @@ return color ? `  --color-${key}: ${color};` : null
 }
 
 /**
- * Recharts axis props that make an axis legible on a phone.
+ * Small-screen *overrides* for a recharts axis. Empty on desktop.
  *
- * The failure this exists to prevent is `interval={0}` with angled ticks,
- * which is what the statistics charts all did: it forces *every* tick to
- * render, so at 375px fifteen week labels overlap into a grey smear and the
- * angled text overflows the chart box. `preserveStartEnd` lets recharts drop
- * ticks it cannot fit, which is the correct behaviour at every width.
- *
- * Spread onto <XAxis> / <YAxis>; anything you set after it still wins.
+ * Spread these AFTER the chart's own axis props, so a chart keeps its desktop
+ * appearance untouched and only changes below the breakpoint:
  *
  *   const axis = useMobileAxis()
- *   <XAxis dataKey="week" {...axis.x} />
- *   <YAxis {...axis.y} />
+ *   <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} {...axis.x} />
+ *   <YAxis width={30} {...axis.y} />
+ *   <BarChart margin={{ ... }} {...axis.chart}>
+ *
+ * The failure this exists to prevent is `interval={0}` with angled ticks,
+ * which is what every statistics chart here does. `interval={0}` forces every
+ * tick to render, so at 375px fourteen angled team names overlap into a grey
+ * smear that also overflows the plot area. `preserveStartEnd` lets recharts
+ * drop the ticks it cannot fit — correct at any width, and essential at this
+ * one.
+ *
+ * Returning overrides rather than a full axis config is deliberate: a hook
+ * that returned complete props would have to guess each chart's desktop
+ * styling, and would silently flatten it.
  */
 function useMobileAxis() {
   const isMobile = useIsMobile()
 
-  return React.useMemo(() => ({
-    isMobile,
-    x: {
-      interval: isMobile ? "preserveStartEnd" : 0,
-      angle: 0,
-      textAnchor: "middle",
-      height: isMobile ? 24 : 32,
-      tick: { fontSize: isMobile ? 10 : 12 },
-      tickMargin: isMobile ? 4 : 8,
-      minTickGap: isMobile ? 8 : 4,
-    },
-    y: {
-      width: isMobile ? 32 : 48,
-      tick: { fontSize: isMobile ? 10 : 12 },
-      tickMargin: isMobile ? 2 : 4,
-    },
-    /** Chart `margin`. The default leaves room for labels nobody shows on a phone. */
-    margin: isMobile
-      ? { top: 8, right: 8, bottom: 4, left: 0 }
-      : { top: 12, right: 24, bottom: 8, left: 8 },
-  }), [isMobile])
+  return React.useMemo(() => (isMobile
+    ? {
+        isMobile,
+        x: {
+          interval: "preserveStartEnd",
+          angle: 0,
+          textAnchor: "middle",
+          height: 28,
+          tick: { fontSize: 10 },
+          tickMargin: 4,
+          minTickGap: 8,
+        },
+        y: { width: 30, tick: { fontSize: 10 }, tickMargin: 2, label: undefined },
+        // Axis labels and wide gutters are desktop affordances; at 375px they
+        // are most of the plot area.
+        chart: { margin: { top: 8, right: 8, bottom: 4, left: 0 } },
+      }
+    : { isMobile, x: {}, y: {}, chart: {} }
+  ), [isMobile])
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip

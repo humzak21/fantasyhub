@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 /**
@@ -15,6 +15,12 @@ const MarginOfVictoryChart = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Must be above
+  // the early returns below — a hook after a conditional return is a
+  // rules-of-hooks violation and breaks on the render where the data
+  // arrives.
+  const axis = useMobileAxis();
+
   const chartData = useMemo(() => {
     if (!data.length) return [];
 
@@ -43,15 +49,21 @@ const MarginOfVictoryChart = ({
     );
   }
 
+
   return (
     <div className="w-full h-full flex flex-col mt-6">
-      <ChartContainer config={{}} className="w-full" style={{ height: 360 }}>
+      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[360px]">
         <BarChart
           data={chartData}
           layout="vertical"
-          margin={{ top: 10, right: 20, left: 10, bottom: -25 }}
-        >
+          margin={{ top: 10, right: 20, left: 10, bottom: -25 }} {...axis.chart}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+          {/* No `axis.x` / `axis.y` here. This is the one horizontal chart
+              (`layout="vertical"`), so the axis roles are swapped: X is
+              numeric and Y is the category axis, already drawn with no ticks
+              and zero width. The overrides — which exist to thin out crowded
+              category ticks — have nothing to fix and would only add an empty
+              30px gutter. The fluid height and the margin still apply. */}
           <XAxis
             type="number"
             label={{ value: 'Average Margin (Points)', position: 'insideBottomRight', offset: -5 }}
