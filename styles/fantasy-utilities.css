@@ -245,48 +245,21 @@ tr.group:hover {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Force solid backgrounds for all dropdown and popover content */
-[data-radix-dropdown-menu-content],
-[data-radix-popover-content],
-[data-radix-dropdown-menu-sub-content] {
-  background-color: white !important;
-  border: 1px solid hsl(var(--border)) !important;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1) !important;
-}
-
-/* Dark mode dropdown backgrounds */
-.dark [data-radix-dropdown-menu-content],
-.dark [data-radix-popover-content],
-.dark [data-radix-dropdown-menu-sub-content] {
-  background-color: hsl(240 10% 3.9%) !important;
-  border-color: hsl(240 3.7% 15.9%) !important;
-}
-
-/* Additional fallback - target by role */
-[role="menu"],
-[role="dialog"] {
-  background-color: white !important;
-  border: 1px solid hsl(var(--border)) !important;
-}
-
-.dark [role="menu"],
-.dark [role="dialog"] {
-  background-color: hsl(240 10% 3.9%) !important;
-  border-color: hsl(240 3.7% 15.9%) !important;
-}
-
-/* Ensure all popover and dropdown portal containers have no transparency */
-[data-radix-portal] > div[data-radix-dropdown-menu-content],
-[data-radix-portal] > div[data-radix-popover-content] {
-  background-color: white !important;
-  opacity: 1 !important;
-}
-
-.dark [data-radix-portal] > div[data-radix-dropdown-menu-content],
-.dark [data-radix-portal] > div[data-radix-popover-content] {
-  background-color: hsl(240 10% 3.9%) !important;
-  opacity: 1 !important;
-}
+/*
+ * Nothing here forces a background any more.
+ *
+ * This block used to be six rules of `background-color: white !important`
+ * plus `.dark` counterparts hardcoded to `hsl(240 10% 3.9%)` — the *old*
+ * neutral palette, two palettes ago — aimed at
+ * `[data-radix-dropdown-menu-content]`, `[role="menu"]` and `[role="dialog"]`.
+ * They existed because `bg-popover` generated no CSS before the theme layer
+ * was restored, so every menu really was transparent.
+ *
+ * The primitives carry `bg-popover` / `bg-background` themselves now, so the
+ * overrides are not just redundant — `[role="dialog"] { background: white }`
+ * would have painted the new ui/dialog and ui/drawer white, and `!important`
+ * meant no caller could have stopped it.
+ */
 
 /* Ensure all interactive elements have proper cursor */
 a,

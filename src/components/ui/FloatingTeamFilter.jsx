@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ChevronUp, GripHorizontal, GripVertical, ChevronDownCircle, Filter } from 'lucide-react';
 import { getMaskedTeamName } from '../../utils/displayNameUtils';
 import { useIsMobile } from '../../hooks/use-mobile';

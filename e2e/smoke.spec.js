@@ -76,3 +76,36 @@ test.describe('smoke', () => {
     await expect(page).toHaveURL(/\/rankings$/)
   })
 })
+
+/*
+ * The nav is the one thing on a phone that must work before anything else can
+ * be reached, and it is also the component with the longest history of being
+ * broken here: a panel positioned against a transformed <body>, then a panel
+ * made untouchable by `touch-action: none` on <body>, then a dropdown with
+ * eight destinations in a 192px popover. It gets its own test.
+ */
+test.describe('phone navigation', () => {
+  test.skip(({ viewport }) => (viewport?.width ?? 0) >= 640, 'drawer nav is below sm only')
+
+  test('opens, lists destinations, and navigates', async ({ page }) => {
+    await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('#root')).not.toBeEmpty()
+
+    await page.getByRole('button', { name: /open navigation/i }).click()
+
+    const drawer = page.getByRole('dialog')
+    await expect(drawer).toBeVisible()
+
+    // Painted, not transparent — the failure mode when a menu's background
+    // token generates nothing.
+    const bg = await drawer.evaluate((el) => getComputedStyle(el).backgroundColor)
+    expect(bg).not.toBe('rgba(0, 0, 0, 0)')
+
+    // It has to fit the screen it opened on.
+    const box = await drawer.boundingBox()
+    expect(box.width).toBeLessThanOrEqual(page.viewportSize().width + 1)
+
+    await drawer.getByRole('button', { name: 'Statistics' }).click()
+    await expect(page).toHaveURL(/\/statistics$/)
+  })
+})

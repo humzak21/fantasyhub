@@ -13,6 +13,7 @@ import {
   Legend
 } from 'recharts';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/tabs';
+import { useMobileAxis } from '../../ui/chart';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { AXIS_STYLE, GRID_STYLE } from '../utils/chartHelpers';
 import { TRANSACTION_COLORS } from '../../../../types/index.js';
@@ -44,6 +45,11 @@ const PointsWinsDistributionChart = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Above the early
+  // returns below — a hook after a conditional return is a rules-of-hooks
+  // violation that only breaks once the data arrives.
+  const axis = useMobileAxis();
+
   // Transform data for charts
   const chartData = useMemo(() => {
     if (!careerStats.length) return { points: [], ppg: [], wins: [], transactions: [] };
@@ -222,7 +228,7 @@ const PointsWinsDistributionChart = ({
 
       {/* Wins Distribution - Bar Chart */}
       <TabsContent value="wins" className="mt-0">
-        <ResponsiveContainer width="100%" height={400}>
+        <ResponsiveContainer width="100%" height={axis.isMobile ? 280 : 400}>
           <BarChart
             data={chartData.wins}
             margin={{ top: 20, right: 30, left: 20, bottom: 0 }}
@@ -234,11 +240,13 @@ const PointsWinsDistributionChart = ({
               height={100}
               interval={0}
               style={AXIS_STYLE}
+              {...axis.x}
             />
             <YAxis
               label={{ value: 'Total Wins', angle: -90, position: 'insideLeft' }}
               style={AXIS_STYLE}
               allowDecimals={false}
+              {...axis.y}
             />
             <Tooltip content={<WinsTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
             <Bar dataKey="totalWins" radius={[8, 8, 0, 0]}>
@@ -256,7 +264,7 @@ const PointsWinsDistributionChart = ({
           {/* Total Points Pie Chart */}
           <div>
             <h4 className="text-lg font-medium text-center mb-2 text-muted-foreground">Total Points</h4>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={axis.isMobile ? 220 : 280}>
               <PieChart>
                 <Pie
                   data={chartData.points}
@@ -279,7 +287,7 @@ const PointsWinsDistributionChart = ({
           {/* PPG Pie Chart */}
           <div>
             <h4 className="text-lg font-medium text-center mb-2 text-muted-foreground">Points Per Game</h4>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={axis.isMobile ? 220 : 280}>
               <PieChart>
                 <Pie
                   data={chartData.ppg}
@@ -317,7 +325,7 @@ const PointsWinsDistributionChart = ({
       {/* Transactions Distribution - Stacked Bar Chart */}
       <TabsContent value="transactions" className="mt-0">
         {chartData.transactions.length > 0 ? (
-          <ResponsiveContainer width="100%" height={400}>
+          <ResponsiveContainer width="100%" height={axis.isMobile ? 280 : 400}>
             <BarChart
               data={chartData.transactions}
               margin={{ top: 5, right: 30, left: 20, bottom: 0 }}
@@ -329,12 +337,14 @@ const PointsWinsDistributionChart = ({
                 height={115}
                 interval={0}
                 style={AXIS_STYLE}
-              />
+              {...axis.x}
+            />
               <YAxis
                 label={{ value: 'Transactions', angle: -90, position: 'insideLeft' }}
                 style={AXIS_STYLE}
                 allowDecimals={false}
-              />
+              {...axis.y}
+            />
               <Tooltip content={<TransactionsTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
               <Legend
                 verticalAlign="top"
