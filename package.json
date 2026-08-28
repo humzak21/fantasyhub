@@ -28,7 +28,8 @@
     "check-bundle": "node scripts/check-bundle.js",
     "check-css-tokens": "node scripts/check-css-tokens.js",
     "test:e2e": "playwright test",
-    "capture-screens": "node scripts/capture-screens.mjs"
+    "capture-screens": "node scripts/capture-screens.mjs",
+    "check-mobile": "./scripts/check-mobile-conventions.sh"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
