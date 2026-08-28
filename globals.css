@@ -350,6 +350,23 @@
       0 0 0 4px rgba(59, 130, 246, 0.2);
   }
   
+  /* Safe-area helpers, lifted from styles/mobile.css when the phone-only
+   * stylesheet was deleted. index.html sets `viewport-fit=cover`, so on a
+   * notched device env() is non-zero and anything pinned to an edge needs
+   * one of these or it sits under the home indicator / rounded corner.
+   * `max()` keeps a sensible floor on devices where env() is 0. */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pl-safe { padding-left: env(safe-area-inset-left); }
+  .pr-safe { padding-right: env(safe-area-inset-right); }
+
+  .px-safe {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .mb-safe { margin-bottom: env(safe-area-inset-bottom); }
+
   /* Mobile-optimized scrolling for week navigation */
   .mobile-scroll {
     -webkit-overflow-scrolling: touch;
