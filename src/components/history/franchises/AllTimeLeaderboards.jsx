@@ -3,14 +3,7 @@ import { Trophy, TrendingUp, Award, Medal, Crown, Target } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../ui/table';
+import { ResponsiveDataTable } from '../../ui/responsive-table';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatWinPercentage, formatPoints, formatRecord } from '../utils/statFormatters';
 
@@ -122,6 +115,85 @@ const AllTimeLeaderboards = ({
     );
   }
 
+  const leaderboardColumns = [
+    {
+      key: 'rank',
+      header: 'Rank',
+      priority: 'primary',
+      headerClassName: 'w-12',
+      className: 'font-medium',
+      cell: (_f, index) => (
+        <div className="flex items-center gap-2 font-medium">
+          {getRankIcon(index)}
+          {index + 1}
+        </div>
+      ),
+    },
+    {
+      key: 'franchise',
+      header: 'Franchise',
+      priority: 'primary',
+      cell: (franchise) => (
+        <div className="min-w-0">
+          <p className="truncate font-semibold">
+            {getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames)}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {franchise.joined_year}
+            {franchise.left_year ? `-${franchise.left_year}` : '-Present'}
+            {' • '}
+            {franchise.total_seasons || 0} seasons
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'titles',
+      header: 'Titles',
+      priority: 'primary',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (franchise) =>
+        franchise.championships > 0 ? (
+          <Badge className="bg-amber-600">{franchise.championships}</Badge>
+        ) : (
+          <span className="text-muted-foreground">0</span>
+        ),
+    },
+    {
+      key: 'record',
+      header: 'Record',
+      className: 'text-center font-mono text-sm',
+      headerClassName: 'text-center',
+      cell: (franchise) => formatRecord(franchise.total_wins || 0, franchise.total_losses || 0),
+    },
+    {
+      key: 'winPct',
+      header: 'Win %',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (franchise) => (
+        <span className={franchise.avg_win_percentage >= 0.5 ? 'font-semibold text-green-600' : ''}>
+          {formatWinPercentage(franchise.avg_win_percentage)}
+        </span>
+      ),
+    },
+    {
+      key: 'avgPf',
+      header: 'Avg PF',
+      className: 'text-center font-mono text-sm',
+      headerClassName: 'text-center',
+      cell: (franchise) => (franchise.avg_points_for ? formatPoints(franchise.avg_points_for) : '-'),
+    },
+    {
+      key: 'playoffs',
+      header: 'Playoffs',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (franchise) => <Badge variant="secondary">{franchise.playoff_appearances || 0}</Badge>,
+    },
+  ];
+
   return (
     <Card>
       <CardHeader>
@@ -167,75 +239,15 @@ const AllTimeLeaderboards = ({
           </Button>
         </div>
 
-        {/* Leaderboard table */}
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">Rank</TableHead>
-                <TableHead>Franchise</TableHead>
-                <TableHead className="text-center">Titles</TableHead>
-                <TableHead className="text-center">Record</TableHead>
-                <TableHead className="text-center">Win %</TableHead>
-                <TableHead className="text-center">Avg PF</TableHead>
-                <TableHead className="text-center">Playoffs</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedData.map((franchise, index) => (
-                <TableRow
-                  key={franchise.id}
-                  className={`${getRankClass(index)} cursor-pointer hover:bg-muted/50 transition-colors`}
-                  onClick={() => onViewProfile(franchise.id)}
-                >
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      {getRankIcon(index)}
-                      {index + 1}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-semibold">
-                        {getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {franchise.joined_year}
-                        {franchise.left_year ? `-${franchise.left_year}` : '-Present'}
-                        {' • '}
-                        {franchise.total_seasons || 0} seasons
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {franchise.championships > 0 ? (
-                      <Badge className="bg-amber-600">
-                        {franchise.championships}
-                      </Badge>
-                    ) : (
-                      <span className="text-muted-foreground">0</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center font-mono text-sm">
-                    {formatRecord(franchise.total_wins || 0, franchise.total_losses || 0)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <span className={franchise.avg_win_percentage >= 0.5 ? 'text-green-600 font-semibold' : ''}>
-                      {formatWinPercentage(franchise.avg_win_percentage)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-center font-mono text-sm">
-                    {franchise.avg_points_for ? formatPoints(franchise.avg_points_for) : '-'}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="secondary">
-                      {franchise.playoff_appearances || 0}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+        {/* Leaderboard table. Seven columns of small numbers; below sm: the
+            same column definitions render one card per franchise. */}
+        <div className="rounded-lg border p-2 sm:p-0 sm:overflow-hidden">
+          <ResponsiveDataTable
+            columns={leaderboardColumns}
+            data={sortedData}
+            rowClassName={(_f, index) => `${getRankClass(index)} hover:bg-muted/50 transition-colors`}
+            onRowClick={(franchise) => onViewProfile(franchise.id)}
+          />
         </div>
 
         <p className="text-xs text-muted-foreground mt-4">
