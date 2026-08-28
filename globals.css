@@ -9,6 +9,13 @@
  * contains them so this cannot silently regress again. */
 @config "./tailwind.config.js";
 
+/* Probe utilities for scripts/check-css-tokens.js, emitted on purpose.
+ * The guard needs a fixed target: it must fail when the theme layer stops
+ * generating, not when some component happens to stop using a class. Pinning
+ * one utility per theme facet (colour, breakpoint, brand ramp, animation)
+ * here decouples the check from app source entirely. Costs ~5 rules. */
+@source inline("bg-card text-muted-foreground xs:block text-ff-rank-gold-500 animate-float-in");
+
 @layer base {
   :root {
     --background: 0 0% 100%;

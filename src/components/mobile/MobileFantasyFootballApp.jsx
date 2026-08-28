@@ -34,8 +34,7 @@ import {
   MobileLoadingState,
   MobileErrorBoundary,
   useMobilePerformance,
-  useMobileDebounce,
-  mobilePrefetch
+  useMobileDebounce
 } from '../../../utils/mobilePerformance.jsx';
 import {
   MobileFadeIn,
@@ -102,15 +101,6 @@ const MobileFantasyFootballApp = () => {
 
     return () => clearTimeout(initTimer);
   }, []);
-
-  // Prefetch next likely tab components
-  useEffect(() => {
-    if (activeTab === 'rankings') {
-      mobilePrefetch.route('../components/MobileStatistics.jsx');
-    } else if (activeTab === 'statistics') {
-      mobilePrefetch.route('../components/MobilePowerRankings.jsx');
-    }
-  }, [activeTab]);
 
   // The week-seeding effect, the hourly override effect and the rankings fetch
   // effect that used to live here are gone: week derivation is now a pure

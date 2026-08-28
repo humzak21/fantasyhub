@@ -144,7 +144,7 @@ const StandingsDrawerContent = ({ isOpen, onClose, children, loading = false }) 
       className={`
         drawer-panel fixed top-0 right-0 bg-white dark:bg-gray-900 h-full shadow-xl
         w-[95%] max-w-[690px] sm:w-[690px]
-        flex flex-col safe-area-inset-right z-[60]
+        flex flex-col z-[60]
         transition-transform duration-300 ease-out
         ${isAnimatingOpen ? 'translate-x-0' : 'translate-x-full'}
         ${isDragging ? '!transition-none' : ''}

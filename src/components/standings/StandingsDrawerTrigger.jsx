@@ -17,7 +17,6 @@ const StandingsDrawerTrigger = ({ onClick, isOpen }) => {
         flex items-center justify-center
         z-[70]
         touch-manipulation
-        safe-area-inset-bottom safe-area-inset-right
         focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
         dark:focus:ring-blue-400 dark:focus:ring-offset-gray-900
         ${isOpen ? 'open' : ''}
