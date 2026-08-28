@@ -376,70 +376,83 @@ const PickEmsSubmission = ({
             const isBye = isByeWeek(game);
             return (
               <Card key={game.id} className={`overflow-hidden ${isBye ? 'bg-muted/30' : ''}`}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    {/* Game matchup */}
-                    <div className="flex items-center space-x-6">
-                      <div className="text-sm text-muted-foreground font-medium w-16">
-                        {isBye ? (
-                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
-                            BYE
-                          </Badge>
-                        ) : (
-                          `Game ${selectableGames.findIndex(g => g.id === game.id) + 1}`
-                        )}
-                      </div>
+                <CardContent className="p-4 sm:p-6">
+                  {/*
+                    This row used to be a hard 632px: a w-16 label, w-60 + w-8 +
+                    w-60, and three fixed gaps. At 375px (~310px usable) the
+                    second team button sat entirely off-screen behind the root's
+                    overflow-x: hidden, so nobody could pick team 2 on a phone.
 
-                      <div className="flex items-center space-x-4">
-                        {/* Team 1 */}
-                        <button
-                          onClick={() => !isBye && user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
-                          disabled={isBye || !user || status.status !== 'open' || (hasSubmitted && !isEditing)}
-                          className={`
-                            flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
-                            ${isBye
-                              ? 'border-muted bg-muted/50 cursor-not-allowed opacity-60'
-                              : picks[game.id]?.predictedWinnerTeamId === game.team1.id
+                    It is fluid below sm: and pinned to the old track widths
+                    from sm: up, so the desktop layout is byte-for-byte what it
+                    was.
+                  */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+                    <div className="text-sm text-muted-foreground font-medium sm:w-16 sm:shrink-0">
+                      {isBye ? (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                          BYE
+                        </Badge>
+                      ) : (
+                        `Game ${selectableGames.findIndex(g => g.id === game.id) + 1}`
+                      )}
+                    </div>
+
+                    <div
+                      className={`grid w-full min-w-0 items-stretch gap-2 sm:w-auto sm:gap-4 ${
+                        isBye
+                          ? 'grid-cols-1 sm:grid-cols-[15rem]'
+                          : 'grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:grid-cols-[15rem_2rem_15rem]'
+                      }`}
+                    >
+                      {/* Team 1 */}
+                      <button
+                        onClick={() => !isBye && user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
+                        disabled={isBye || !user || status.status !== 'open' || (hasSubmitted && !isEditing)}
+                        className={`
+                          flex min-w-0 items-center justify-center rounded-lg border-2 p-3 transition-all sm:p-4
+                          ${isBye
+                            ? 'border-muted bg-muted/50 cursor-not-allowed opacity-60'
+                            : picks[game.id]?.predictedWinnerTeamId === game.team1.id
+                              ? 'border-blue-600 bg-blue-600 text-white font-semibold'
+                              : 'border-muted hover:border-primary/50 hover:bg-muted/50'
+                          }
+                          ${(!isBye && (!user || status.status !== 'open' || (hasSubmitted && !isEditing))) ? 'cursor-not-allowed opacity-100' : isBye ? '' : 'cursor-pointer'}
+                        `}
+                      >
+                        <div className="w-full min-w-0 text-center">
+                          <div className="truncate text-sm font-medium sm:text-base">{getMaskedTeamName(game.team1, user, isAdmin, teamOwnerNames)}</div>
+                          <div className="truncate text-xs text-muted-foreground">{getMaskedOwnerName(game.team1, user, isAdmin, teamOwnerNames)}</div>
+                          {isBye && (
+                            <div className="text-xs font-semibold text-yellow-700 mt-1">ON BYE</div>
+                          )}
+                        </div>
+                      </button>
+
+                      {!isBye && (
+                        <>
+                          <div className="self-center text-center font-medium text-muted-foreground">vs</div>
+
+                          {/* Team 2 */}
+                          <button
+                            onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
+                            disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
+                            className={`
+                              flex min-w-0 items-center justify-center rounded-lg border-2 p-3 transition-all sm:p-4
+                              ${picks[game.id]?.predictedWinnerTeamId === game.team2.id
                                 ? 'border-blue-600 bg-blue-600 text-white font-semibold'
                                 : 'border-muted hover:border-primary/50 hover:bg-muted/50'
-                            }
-                            ${(!isBye && (!user || status.status !== 'open' || (hasSubmitted && !isEditing))) ? 'cursor-not-allowed opacity-100' : isBye ? '' : 'cursor-pointer'}
-                          `}
-                        >
-                          <div className="text-center w-full">
-                            <div className="font-medium truncate px-2">{getMaskedTeamName(game.team1, user, isAdmin, teamOwnerNames)}</div>
-                            <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team1, user, isAdmin, teamOwnerNames)}</div>
-                            {isBye && (
-                              <div className="text-xs font-semibold text-yellow-700 mt-1">ON BYE</div>
-                            )}
-                          </div>
-                        </button>
-
-                        {!isBye && (
-                          <>
-                            <div className="text-muted-foreground font-medium text-center w-8">vs</div>
-
-                            {/* Team 2 */}
-                            <button
-                              onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
-                              disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
-                              className={`
-                                flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
-                                ${picks[game.id]?.predictedWinnerTeamId === game.team2.id
-                                  ? 'border-blue-600 bg-blue-600 text-white font-semibold'
-                                  : 'border-muted hover:border-primary/50 hover:bg-muted/50'
-                                }
-                                ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
-                              `}
-                            >
-                              <div className="text-center w-full">
-                                <div className="font-medium truncate px-2">{getMaskedTeamName(game.team2, user, isAdmin, teamOwnerNames)}</div>
-                                <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team2, user, isAdmin, teamOwnerNames)}</div>
-                              </div>
-                            </button>
-                          </>
-                        )}
-                      </div>
+                              }
+                              ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
+                            `}
+                          >
+                            <div className="w-full min-w-0 text-center">
+                              <div className="truncate text-sm font-medium sm:text-base">{getMaskedTeamName(game.team2, user, isAdmin, teamOwnerNames)}</div>
+                              <div className="truncate text-xs text-muted-foreground">{getMaskedOwnerName(game.team2, user, isAdmin, teamOwnerNames)}</div>
+                            </div>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardContent>

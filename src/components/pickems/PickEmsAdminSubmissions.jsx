@@ -173,38 +173,39 @@ const PickEmsAdminSubmissions = ({
                         const pickedTeamId = submission.predictedWinnerTeamId;
 
                         return (
-                          <div key={submission.gameId} className="flex items-center justify-between p-3 border rounded-lg bg-muted/20">
-                            <div className="flex items-center space-x-4 flex-1">
-                              <div className={`flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60 ${
+                          <div key={submission.gameId} className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/20 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                            {/* Same 632px overflow as PickEmsSubmission, read-only copy. */}
+                            <div className="grid w-full min-w-0 flex-1 items-stretch gap-2 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:w-auto sm:flex-none sm:gap-4 sm:grid-cols-[15rem_2rem_15rem]">
+                              <div className={`flex min-w-0 items-center justify-center rounded-lg border-2 p-3 transition-all sm:p-4 ${
                                 pickedTeamId === team1?.id
                                   ? 'border-blue-500 bg-[#007AFF] text-white font-semibold shadow-sm'
                                   : 'border-muted bg-background text-muted-foreground'
                               }`}>
-                                <div className="text-center w-full">
-                                  <div className="font-medium truncate px-2">{getMaskedTeamName(team1, user, isAdmin) || 'Team 1'}</div>
-                                  <div className={`text-xs truncate px-2 ${
+                                <div className="w-full min-w-0 text-center">
+                                  <div className="truncate text-sm font-medium sm:text-base">{getMaskedTeamName(team1, user, isAdmin) || 'Team 1'}</div>
+                                  <div className={`truncate text-xs ${
                                     pickedTeamId === team1?.id ? 'text-white/80' : 'text-muted-foreground'
                                   }`}>{getMaskedOwnerName(team1, user, isAdmin) || 'Owner'}</div>
                                 </div>
                               </div>
 
-                              <div className="text-muted-foreground font-medium text-center w-8">vs</div>
+                              <div className="self-center text-center font-medium text-muted-foreground">vs</div>
 
-                              <div className={`flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60 ${
+                              <div className={`flex min-w-0 items-center justify-center rounded-lg border-2 p-3 transition-all sm:p-4 ${
                                 pickedTeamId === team2?.id
                                   ? 'border-blue-500 bg-[#007AFF]/75 text-white font-semibold shadow-sm'
                                   : 'border-muted bg-background text-muted-foreground'
                               }`}>
-                                <div className="text-center w-full">
-                                  <div className="font-medium truncate px-2">{getMaskedTeamName(team2, user, isAdmin) || 'Team 2'}</div>
-                                  <div className={`text-xs truncate px-2 ${
+                                <div className="w-full min-w-0 text-center">
+                                  <div className="truncate text-sm font-medium sm:text-base">{getMaskedTeamName(team2, user, isAdmin) || 'Team 2'}</div>
+                                  <div className={`truncate text-xs ${
                                     pickedTeamId === team2?.id ? 'text-white/80' : 'text-muted-foreground'
                                   }`}>{getMaskedOwnerName(team2, user, isAdmin) || 'Owner'}</div>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="text-xs text-muted-foreground">
+                            <div className="shrink-0 text-xs text-muted-foreground">
                               Week {submission.games?.week || currentWeek}
                             </div>
                           </div>
