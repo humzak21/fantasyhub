@@ -347,8 +347,13 @@ const TeamsAndRosters = ({
             const stats = getTeamStats(team.id);
             const teamRoster = rosters[team.id]?.roster || [];
 
+            // `h-[750px]` was taller than an iPhone SE's entire viewport (667px),
+            // so on a phone a roster card could never be seen whole and the next
+            // card began below the fold with nothing to say it was there. 70vh
+            // keeps the card inside the screen; the roster list inside it already
+            // scrolls, so that is where the scrolling belongs.
             return (
-              <Card key={team.id} className="hover:shadow-lg transition-shadow h-[750px] flex flex-col">
+              <Card key={team.id} className="flex max-h-[70vh] flex-col transition-shadow hover:shadow-lg sm:h-[750px] sm:max-h-none">
                 <CardContent className="p-4 flex flex-col h-full">
                   {/* Team Header */}
                   <div className="flex items-start justify-between mb-3">

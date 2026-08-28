@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -53,6 +53,12 @@ const WeeklyScoringTrendsChart = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Must be above
+  // the early returns below — a hook after a conditional return is a
+  // rules-of-hooks violation and breaks on the render where the data
+  // arrives.
+  const axis = useMobileAxis();
+
   const chartData = useMemo(() => {
     if (!data.length) return [];
 
@@ -89,20 +95,23 @@ const WeeklyScoringTrendsChart = ({
   // Get selected team IDs for rendering lines
   const teamIds = selectedTeams.length > 0 ? selectedTeams : rankings.map(r => r.id);
 
+
   return (
     <div className="w-full h-full flex flex-col mt-6">
-      <ChartContainer config={{}} className="w-full" style={{ height: 360 }}>
-        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: -30 }}>
+      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[360px]">
+        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: -30 }} {...axis.chart}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
           <XAxis
             dataKey="week"
             label={{ value: 'Week', position: 'insideBottomRight', offset: -5 }}
             tick={{ fontSize: 10 }}
+            {...axis.x}
           />
           <YAxis
             label={{ value: 'Points', angle: -90, position: 'insideLeft', offset: -5, dy: 5 }}
             tick={{ fontSize: 10 }}
             width={30}
+            {...axis.y}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.3)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} height={50} />

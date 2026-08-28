@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 import { PowerRankingCalculator } from '../../../../services/powerRankingCalculator.js';
 
@@ -72,6 +72,12 @@ const RankingsMovementChart = ({
   currentWeek = 17,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Must be above
+  // the early returns below — a hook after a conditional return is a
+  // rules-of-hooks violation and breaks on the render where the data
+  // arrives.
+  const axis = useMobileAxis();
+
   const [calculatedData, setCalculatedData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -212,12 +218,13 @@ const RankingsMovementChart = ({
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ChartContainer config={{}} className="w-full" style={{ height: 360 }}>
-        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 5 }}>
+      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[360px]">
+        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 5 }} {...axis.chart}>
           <XAxis
             dataKey="week"
             label={{ value: 'Week', position: 'insideBottomRight', offset: -5 }}
             tick={{ fontSize: 10 }}
+            {...axis.x}
           />
           <YAxis
             reversed
@@ -225,6 +232,7 @@ const RankingsMovementChart = ({
             label={{ value: 'Ranking (1 = Best)', angle: -90, position: 'insideLeft', offset: -5, dy: 5 }}
             tick={{ fontSize: 10 }}
             width={30}
+            {...axis.y}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.3)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} height={50} />
