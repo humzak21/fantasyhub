@@ -1,116 +1,28 @@
 /**
- * Comprehensive Dark Mode Styles
- * Covers all components, features, and interactive elements
- * with proper contrast ratios and accessibility
+ * Dark-mode compensation layer.
+ *
+ * This file is *not* the theme. globals.css owns the palette; what is left
+ * here is the set of overrides that exist because components hardcode
+ * light-palette Tailwind classes (`bg-white`, `bg-gray-100`,
+ * `bg-blue-100`/`text-blue-700` status chips) instead of semantic tokens.
+ * Every rule here is a component that has not been converted yet, and the
+ * file shrinks as they are.
+ *
+ * It started at 1,128 lines with its own `--dm-*` palette shadowing the real
+ * one. The palette is gone — these rules read the same tokens everything else
+ * does — and 74 rule blocks targeting classes that appear nowhere in the app
+ * (the deleted mobile shell, `.team-card`, `.stat-value`, eight unused colour
+ * families) went with it.
+ *
+ * Do not add to this file. Convert the component to tokens instead.
  */
-
-/* Enhanced Dark Mode Color Variables */
-:root {
-  /* Light theme colors (keeping existing) */
-  --dm-light-background: 0 0% 100%;
-  --dm-light-foreground: 240 10% 3.9%;
-  --dm-light-card: 0 0% 100%;
-  --dm-light-card-foreground: 240 10% 3.9%;
-  --dm-light-popover: 0 0% 100%;
-  --dm-light-popover-foreground: 240 10% 3.9%;
-  --dm-light-primary: 240 5.9% 10%;
-  --dm-light-primary-foreground: 0 0% 98%;
-  --dm-light-secondary: 240 4.8% 95.9%;
-  --dm-light-secondary-foreground: 240 5.9% 10%;
-  --dm-light-muted: 240 4.8% 95.9%;
-  --dm-light-muted-foreground: 240 3.8% 46.1%;
-  --dm-light-accent: 240 4.8% 95.9%;
-  --dm-light-accent-foreground: 240 5.9% 10%;
-  --dm-light-destructive: 0 84.2% 60.2%;
-  --dm-light-destructive-foreground: 0 0% 98%;
-  --dm-light-border: 240 5.9% 90%;
-  --dm-light-input: 240 5.9% 90%;
-  --dm-light-ring: 240 5.9% 10%;
-
-  /* Enhanced dark theme colors */
-  --dm-dark-background: 222 84% 4.9%;
-  --dm-dark-foreground: 210 40% 98%;
-  --dm-dark-card: 222 84% 4.9%;
-  --dm-dark-card-foreground: 210 40% 98%;
-  --dm-dark-popover: 222 84% 4.9%;
-  --dm-dark-popover-foreground: 210 40% 98%;
-  --dm-dark-primary: 210 40% 98%;
-  --dm-dark-primary-foreground: 222 47% 11%;
-  --dm-dark-secondary: 217 32.6% 17.5%;
-  --dm-dark-secondary-foreground: 210 40% 98%;
-  --dm-dark-muted: 217 32.6% 17.5%;
-  --dm-dark-muted-foreground: 215 20.2% 65.1%;
-  --dm-dark-accent: 217 32.6% 17.5%;
-  --dm-dark-accent-foreground: 210 40% 98%;
-  --dm-dark-destructive: 0 62.8% 30.6%;
-  --dm-dark-destructive-foreground: 210 40% 98%;
-  --dm-dark-border: 217 32.6% 17.5%;
-  --dm-dark-input: 217 32.6% 17.5%;
-  --dm-dark-ring: 212 72% 59%;
-
-  /* Extended semantic colors for dark mode */
-  --dm-dark-success: 142 76% 36%;
-  --dm-dark-success-foreground: 210 40% 98%;
-  --dm-dark-warning: 47 96% 53%;
-  --dm-dark-warning-foreground: 222 47% 11%;
-  --dm-dark-info: 212 72% 59%;
-  --dm-dark-info-foreground: 210 40% 98%;
-
-  /* Overlay and backdrop colors */
-  --dm-dark-overlay: 222 84% 4.9% / 0.8;
-  --dm-light-overlay: 0 0% 0% / 0.5;
-
-  /* Enhanced contrast colors */
-  --dm-dark-surface-1: 220 65% 7%;
-  --dm-dark-surface-2: 217 45% 12%;
-  --dm-dark-surface-3: 215 30% 18%;
-  --dm-dark-text-high: 210 40% 98%;
-  --dm-dark-text-medium: 215 20.2% 65.1%;
-  --dm-dark-text-low: 215 15% 50%;
-
-  /* Gradient variables */
-  --dm-gradient-primary: linear-gradient(135deg, hsl(212 72% 59%) 0%, hsl(245 58% 51%) 100%);
-  --dm-gradient-secondary: linear-gradient(135deg, hsl(217 32.6% 17.5%) 0%, hsl(215 30% 18%) 100%);
-  --dm-gradient-accent: linear-gradient(135deg, hsl(142 76% 36%) 0%, hsl(160 84% 39%) 100%);
-}
-
-/* Core Dark Mode Application */
-.dark {
-  --background: var(--dm-dark-background);
-  --foreground: var(--dm-dark-foreground);
-  --card: var(--dm-dark-card);
-  --card-foreground: var(--dm-dark-card-foreground);
-  --popover: var(--dm-dark-popover);
-  --popover-foreground: var(--dm-dark-popover-foreground);
-  --primary: var(--dm-dark-primary);
-  --primary-foreground: var(--dm-dark-primary-foreground);
-  --secondary: var(--dm-dark-secondary);
-  --secondary-foreground: var(--dm-dark-secondary-foreground);
-  --muted: var(--dm-dark-muted);
-  --muted-foreground: var(--dm-dark-muted-foreground);
-  --accent: var(--dm-dark-accent);
-  --accent-foreground: var(--dm-dark-accent-foreground);
-  --destructive: var(--dm-dark-destructive);
-  --destructive-foreground: var(--dm-dark-destructive-foreground);
-  --border: var(--dm-dark-border);
-  --input: var(--dm-dark-input);
-  --ring: var(--dm-dark-ring);
-
-  /* Extended semantic colors */
-  --success: var(--dm-dark-success);
-  --success-foreground: var(--dm-dark-success-foreground);
-  --warning: var(--dm-dark-warning);
-  --warning-foreground: var(--dm-dark-warning-foreground);
-  --info: var(--dm-dark-info);
-  --info-foreground: var(--dm-dark-info-foreground);
-}
 
 /* Dark Mode Body and Global Styles */
 .dark,
 .dark body,
 .dark #root {
-  background-color: hsl(var(--dm-dark-background)) !important;
-  color: hsl(var(--dm-dark-foreground));
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground));
 }
 
 .dark body {
@@ -128,11 +40,11 @@
 .dark [class*="bg-slate"],
 .dark [class*="bg-gray"],
 .dark [class*="bg-white"] {
-  background-color: hsl(var(--dm-dark-background)) !important;
+  background-color: hsl(var(--background)) !important;
 }
 
 .dark * {
-  border-color: hsl(var(--dm-dark-border));
+  border-color: hsl(var(--border));
 }
 
 /* Navigation and Header Specific Styles */
@@ -141,69 +53,63 @@
 .dark .header,
 .dark .navigation,
 .dark .nav {
-  background-color: hsl(var(--dm-dark-surface-1)) !important;
-  border-color: hsl(var(--dm-dark-border));
-}
-
-.dark .nav-container,
-.dark .header-container,
-.dark .navbar {
-  background-color: hsl(var(--dm-dark-surface-1)) !important;
+  background-color: hsl(var(--surface-1)) !important;
+  border-color: hsl(var(--border));
 }
 
 /* Week selector and navigation controls */
 .dark .week-selector,
 .dark .week-navigation,
 .dark .week-control {
-  background-color: hsl(var(--dm-dark-surface-2)) !important;
-  border-color: hsl(var(--dm-dark-border));
+  background-color: hsl(var(--surface-2)) !important;
+  border-color: hsl(var(--border));
 }
 
 /* Tab navigation */
 .dark .tab,
 .dark .tab-button,
 .dark [role="tab"] {
-  background-color: hsl(var(--dm-dark-surface-2));
-  color: hsl(var(--dm-dark-text-medium));
-  border-color: hsl(var(--dm-dark-border));
+  background-color: hsl(var(--surface-2));
+  color: hsl(var(--muted-foreground));
+  border-color: hsl(var(--border));
 }
 
 .dark .tab.active,
 .dark .tab-button.active,
 .dark [role="tab"][aria-selected="true"] {
-  background-color: hsl(var(--dm-dark-primary)) !important;
-  color: hsl(var(--dm-dark-primary-foreground)) !important;
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
 }
 
 /* Floating and sticky elements */
 .dark .sticky,
 .dark .fixed,
 .dark .floating {
-  background-color: hsl(var(--dm-dark-surface-1)) !important;
+  background-color: hsl(var(--surface-1)) !important;
 }
 
 /* Tailwind Background Overrides */
 .dark .bg-white {
-  background-color: hsl(var(--dm-dark-surface-1)) !important;
+  background-color: hsl(var(--surface-1)) !important;
 }
 
 /* Semi-transparent white backgrounds */
 .dark [class*="bg-white/"] {
-  background-color: hsl(var(--dm-dark-surface-1) / 0.95) !important;
+  background-color: hsl(var(--surface-1) / 0.95) !important;
 }
 
 .dark .bg-gray-50,
 .dark .bg-gray-100,
 .dark .bg-slate-50,
 .dark .bg-slate-100 {
-  background-color: hsl(var(--dm-dark-surface-1)) !important;
+  background-color: hsl(var(--surface-1)) !important;
 }
 
 .dark .bg-gray-200,
 .dark .bg-gray-300,
 .dark .bg-slate-200,
 .dark .bg-slate-300 {
-  background-color: hsl(var(--dm-dark-surface-2)) !important;
+  background-color: hsl(var(--surface-2)) !important;
 }
 
 /* Gradient Background Overrides */
@@ -215,7 +121,7 @@
 .dark .bg-gradient-to-tr,
 .dark .bg-gradient-to-tl,
 .dark .bg-gradient-to-bl {
-  background: hsl(var(--dm-dark-background)) !important;
+  background: hsl(var(--background)) !important;
 }
 
 /* Specific gradient override for main container */
@@ -223,8 +129,8 @@
 .dark .to-slate-100,
 .dark .from-gray-50,
 .dark .to-gray-100 {
-  --tw-gradient-from: hsl(var(--dm-dark-background)) !important;
-  --tw-gradient-to: hsl(var(--dm-dark-surface-1)) !important;
+  --tw-gradient-from: hsl(var(--background)) !important;
+  --tw-gradient-to: hsl(var(--surface-1)) !important;
 }
 
 /* Text Color Overrides */
@@ -233,21 +139,21 @@
 .dark .text-slate-900,
 .dark .text-slate-800,
 .dark .text-black {
-  color: hsl(var(--dm-dark-text-high)) !important;
+  color: hsl(var(--foreground)) !important;
 }
 
 .dark .text-gray-600,
 .dark .text-gray-700,
 .dark .text-slate-600,
 .dark .text-slate-700 {
-  color: hsl(var(--dm-dark-text-medium)) !important;
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 .dark .text-gray-400,
 .dark .text-gray-500,
 .dark .text-slate-400,
 .dark .text-slate-500 {
-  color: hsl(var(--dm-dark-text-low)) !important;
+  color: hsl(var(--muted-foreground)) !important;
 }
 
 /* Backdrop and Glass Effect Overrides */
@@ -256,7 +162,7 @@
 .dark .backdrop-blur-md,
 .dark .backdrop-blur-lg {
   backdrop-filter: blur(12px) !important;
-  background-color: hsl(var(--dm-dark-surface-1) / 0.9) !important;
+  background-color: hsl(var(--surface-1) / 0.9) !important;
 }
 
 /* Container and Layout Overrides */
@@ -267,16 +173,16 @@
 
 /* Card and Surface Overrides */
 .dark .bg-card {
-  background-color: hsl(var(--dm-dark-surface-2)) !important;
+  background-color: hsl(var(--surface-2)) !important;
 }
 
 .dark .bg-muted {
-  background-color: hsl(var(--dm-dark-surface-2)) !important;
+  background-color: hsl(var(--surface-2)) !important;
 }
 
 .dark .bg-accent {
-  background-color: hsl(var(--dm-dark-accent)) !important;
-  color: hsl(var(--dm-dark-accent-foreground)) !important;
+  background-color: hsl(var(--accent)) !important;
+  color: hsl(var(--accent-foreground)) !important;
 }
 
 /* Border and Divider Overrides */
@@ -285,84 +191,84 @@
 .dark .border-t,
 .dark .border-l,
 .dark .border-r {
-  border-color: hsl(var(--dm-dark-border)) !important;
+  border-color: hsl(var(--border)) !important;
 }
 
 .dark .border-gray-200,
 .dark .border-gray-300,
 .dark .border-slate-200,
 .dark .border-slate-300 {
-  border-color: hsl(var(--dm-dark-border)) !important;
+  border-color: hsl(var(--border)) !important;
 }
 
 /* Enhanced Gradient Utilities for Dark Mode */
 .dark .gradient-bg {
-  background: var(--dm-gradient-primary);
+  background: linear-gradient(135deg, hsl(212 72% 59%) 0%, hsl(245 58% 51%) 100%);
 }
 
 .dark .gradient-card {
-  background: linear-gradient(135deg, hsl(var(--dm-dark-surface-2) / 0.8) 0%, hsl(var(--dm-dark-surface-1) / 0.6) 100%);
+  background: linear-gradient(135deg, hsl(var(--surface-2) / 0.8) 0%, hsl(var(--surface-1) / 0.6) 100%);
   backdrop-filter: blur(12px);
-  border: 1px solid hsl(var(--dm-dark-border) / 0.5);
+  border: 1px solid hsl(var(--border) / 0.5);
 }
 
 .dark .glass-effect {
-  background: hsl(var(--dm-dark-surface-2) / 0.6);
+  background: hsl(var(--surface-2) / 0.6);
   backdrop-filter: blur(12px);
-  border: 1px solid hsl(var(--dm-dark-border) / 0.3);
+  border: 1px solid hsl(var(--border) / 0.3);
 }
 
 /* Enhanced Floating Controls for Dark Mode */
 .dark .floating-control {
-  background: hsl(var(--dm-dark-surface-2) / 0.95);
+  background: hsl(var(--surface-2) / 0.95);
   backdrop-filter: blur(16px);
-  border: 1px solid hsl(var(--dm-dark-border) / 0.4);
+  border: 1px solid hsl(var(--border) / 0.4);
   box-shadow:
     0 4px 6px -1px hsl(222 84% 4.9% / 0.3),
     0 2px 4px -1px hsl(222 84% 4.9% / 0.2),
-    0 0 0 1px hsl(var(--dm-dark-border) / 0.1);
+    0 0 0 1px hsl(var(--border) / 0.1);
 }
 
 .dark .floating-control:hover {
-  background: hsl(var(--dm-dark-surface-2) / 0.98);
+  background: hsl(var(--surface-2) / 0.98);
   box-shadow:
     0 10px 15px -3px hsl(222 84% 4.9% / 0.4),
     0 4px 6px -2px hsl(222 84% 4.9% / 0.3),
-    0 0 0 1px hsl(var(--dm-dark-border) / 0.2);
+    0 0 0 1px hsl(var(--border) / 0.2);
 }
 
 /* Enhanced Modal Styles for Dark Mode */
 .dark .modal-backdrop {
-  background: hsl(var(--dm-dark-overlay));
+  background: hsl(var(--background) / 0.8);
   backdrop-filter: blur(8px);
 }
 
 .dark .modal-content {
-  background: hsl(var(--dm-dark-surface-2) / 0.98);
+  background: hsl(var(--surface-2) / 0.98);
   backdrop-filter: blur(20px);
-  border: 1px solid hsl(var(--dm-dark-border) / 0.3);
+  border: 1px solid hsl(var(--border) / 0.3);
   box-shadow:
     0 25px 50px -12px hsl(222 84% 4.9% / 0.6),
-    0 0 0 1px hsl(var(--dm-dark-border) / 0.1);
+    0 0 0 1px hsl(var(--border) / 0.1);
 }
 
 /* Enhanced Button Styles for Dark Mode */
 .dark .week-button {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-  color: hsl(var(--dm-dark-text-high));
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
 }
 
 .dark .week-button:hover {
-  background: hsl(var(--dm-dark-surface-3));
+  background: hsl(var(--surface-3));
   box-shadow:
     0 4px 8px -2px hsl(222 84% 4.9% / 0.3),
     0 2px 4px -1px hsl(222 84% 4.9% / 0.2);
 }
 
 .dark .week-button.selected {
-  background: hsl(var(--dm-dark-primary));
-  color: hsl(var(--dm-dark-primary-foreground));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
   box-shadow:
     0 0 0 2px hsl(212 72% 59% / 0.5),
     0 4px 8px -2px hsl(212 72% 59% / 0.3);
@@ -372,14 +278,14 @@
 .dark .loading-shimmer {
   background: linear-gradient(
     90deg,
-    hsl(var(--dm-dark-surface-2) / 0.0) 0%,
-    hsl(var(--dm-dark-text-medium) / 0.2) 50%,
-    hsl(var(--dm-dark-surface-2) / 0.0) 100%
+    hsl(var(--surface-2) / 0.0) 0%,
+    hsl(var(--muted-foreground) / 0.2) 50%,
+    hsl(var(--surface-2) / 0.0) 100%
   );
 }
 
 .dark .loading-pulse {
-  background: hsl(var(--dm-dark-surface-2));
+  background: hsl(var(--surface-2));
 }
 
 /* Enhanced Focus States for Dark Mode */
@@ -397,11 +303,11 @@
 
 /* Enhanced Scrollbar for Dark Mode */
 .dark .scrollbar-mobile::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--dm-dark-text-medium) / 0.5);
+  background-color: hsl(var(--muted-foreground) / 0.5);
 }
 
 .dark .scrollbar-mobile::-webkit-scrollbar-thumb:hover {
-  background-color: hsl(var(--dm-dark-text-medium) / 0.7);
+  background-color: hsl(var(--muted-foreground) / 0.7);
 }
 
 /* Enhanced Shadow Utilities for Dark Mode */
@@ -409,141 +315,47 @@
   box-shadow:
     0 4px 6px -1px hsl(222 84% 4.9% / 0.3),
     0 2px 4px -1px hsl(222 84% 4.9% / 0.2),
-    0 0 0 1px hsl(var(--dm-dark-border) / 0.1);
+    0 0 0 1px hsl(var(--border) / 0.1);
 }
 
 .dark .shadow-floating-hover {
   box-shadow:
     0 10px 15px -3px hsl(222 84% 4.9% / 0.4),
     0 4px 6px -2px hsl(222 84% 4.9% / 0.3),
-    0 0 0 1px hsl(var(--dm-dark-border) / 0.2);
+    0 0 0 1px hsl(var(--border) / 0.2);
 }
 
 .dark .shadow-modal {
   box-shadow:
     0 25px 50px -12px hsl(222 84% 4.9% / 0.6),
-    0 0 0 1px hsl(var(--dm-dark-border) / 0.1);
+    0 0 0 1px hsl(var(--border) / 0.1);
 }
 
 /* Enhanced Drawer Styles for Dark Mode */
 .dark .drawer-backdrop {
-  background: hsl(var(--dm-dark-overlay));
+  background: hsl(var(--background) / 0.8);
 }
 
 /* Drawer trigger styles moved to globals.css with proper color classes */
 /* These styles are now handled by .standings-button-dark and .standings-button-light classes */
 
 /* Mobile Navigation Enhancements for Dark Mode */
-.dark .mobile-nav-overlay {
-  background: hsl(var(--dm-dark-overlay));
-}
-
-.dark .mobile-nav-menu {
-  background: hsl(var(--dm-dark-surface-1));
-  border-left: 1px solid hsl(var(--dm-dark-border));
-  box-shadow:
-    -4px 0 6px -1px hsl(222 84% 4.9% / 0.3),
-    -2px 0 4px -1px hsl(222 84% 4.9% / 0.2);
-}
-
-.dark .mobile-nav-item {
-  color: hsl(var(--dm-dark-text-high));
-}
-
-.dark .mobile-nav-item:hover:not(:disabled) {
-  background-color: hsl(var(--dm-dark-surface-2));
-}
-
-.dark .mobile-nav-item:focus-visible {
-  outline: 2px solid hsl(212 72% 59%);
-}
-
-.dark .mobile-nav-item[data-state="active"] {
-  background-color: hsl(212 72% 59%);
-  color: hsl(var(--dm-dark-primary-foreground));
-}
-
-.dark .mobile-nav-item[data-state="recent"] {
-  background-color: hsl(212 72% 59% / 0.15);
-}
 
 /* Enhanced Card Styles for Dark Mode */
-.dark .mobile-card {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .mobile-card:hover {
-  background: hsl(var(--dm-dark-surface-3));
-  box-shadow: 0 8px 25px hsl(222 84% 4.9% / 0.4);
-}
 
 /* Enhanced List Item Styles for Dark Mode */
-.dark .mobile-list-item {
-  background: hsl(var(--dm-dark-surface-1));
-  border-bottom: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .mobile-list-item::after {
-  background: var(--dm-gradient-primary);
-}
-
-.dark .mobile-list-item:active {
-  background-color: hsl(212 72% 59% / 0.1);
-}
 
 /* Enhanced Toggle Styles for Dark Mode */
-.dark .mobile-toggle {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-  color: hsl(var(--dm-dark-text-high));
-}
-
-.dark .mobile-toggle.active {
-  background: hsl(212 72% 59%);
-  color: hsl(var(--dm-dark-primary-foreground));
-}
 
 /* Enhanced Progress Bar for Dark Mode */
-.dark .mobile-progress-bar {
-  background: hsl(var(--dm-dark-surface-2));
-}
-
-.dark .mobile-progress-fill {
-  background: var(--dm-gradient-primary);
-}
 
 /* Enhanced Loading Skeleton for Dark Mode */
-.dark .mobile-loading-skeleton {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--dm-dark-surface-2)) 0%,
-    hsl(var(--dm-dark-surface-3)) 50%,
-    hsl(var(--dm-dark-surface-2)) 100%
-  );
-}
 
 /* Enhanced FAB for Dark Mode */
-.dark .mobile-fab {
-  background: var(--dm-gradient-primary);
-  box-shadow: 0 4px 12px hsl(212 72% 59% / 0.4);
-}
-
-.dark .mobile-fab:hover {
-  box-shadow: 0 8px 20px hsl(212 72% 59% / 0.5);
-}
 
 /* Enhanced Tab Indicator for Dark Mode */
-.dark .mobile-tab-indicator {
-  background: var(--dm-gradient-primary);
-}
 
 /* Enhanced Pull-to-Refresh for Dark Mode */
-.dark .mobile-pull-refresh-indicator {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-  box-shadow: 0 2px 8px hsl(222 84% 4.9% / 0.3);
-}
 
 /* Form Elements and Inputs for Dark Mode */
 .dark input[type="text"],
@@ -555,9 +367,9 @@
 .dark input[type="url"],
 .dark select,
 .dark textarea {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-  color: hsl(var(--dm-dark-text-high));
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
 }
 
 .dark input:focus,
@@ -570,284 +382,137 @@
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: hsl(var(--dm-dark-text-medium));
+  color: hsl(var(--muted-foreground));
 }
 
 /* Table Styles for Dark Mode */
 .dark table {
-  background: hsl(var(--dm-dark-surface-1));
-  border: 1px solid hsl(var(--dm-dark-border));
+  background: hsl(var(--surface-1));
+  border: 1px solid hsl(var(--border));
 }
 
 .dark thead {
-  background: hsl(var(--dm-dark-surface-2));
+  background: hsl(var(--surface-2));
 }
 
 .dark th {
-  border-bottom: 1px solid hsl(var(--dm-dark-border));
-  color: hsl(var(--dm-dark-text-high));
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
 }
 
 .dark td {
-  border-bottom: 1px solid hsl(var(--dm-dark-border) / 0.5);
-  color: hsl(var(--dm-dark-text-high));
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  color: hsl(var(--foreground));
 }
 
 .dark tbody tr:hover {
-  background: hsl(var(--dm-dark-surface-2) / 0.5);
+  background: hsl(var(--surface-2) / 0.5);
 }
 
 /* Badge and Status Indicators for Dark Mode */
 .dark .badge {
-  background: hsl(var(--dm-dark-surface-2));
-  color: hsl(var(--dm-dark-text-high));
-  border: 1px solid hsl(var(--dm-dark-border));
+  background: hsl(var(--surface-2));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
 }
 
 .dark .badge.success {
-  background: hsl(var(--dm-dark-success));
-  color: hsl(var(--dm-dark-success-foreground));
+  background: hsl(var(--success));
+  color: hsl(var(--success-foreground));
 }
 
 .dark .badge.warning {
-  background: hsl(var(--dm-dark-warning));
-  color: hsl(var(--dm-dark-warning-foreground));
+  background: hsl(var(--warning));
+  color: hsl(var(--warning-foreground));
 }
 
 .dark .badge.destructive {
-  background: hsl(var(--dm-dark-destructive));
-  color: hsl(var(--dm-dark-destructive-foreground));
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
 }
 
 .dark .badge.info {
-  background: hsl(var(--dm-dark-info));
-  color: hsl(var(--dm-dark-info-foreground));
+  background: hsl(var(--info));
+  color: hsl(var(--info-foreground));
 }
 
 /* Alert and Notification Styles for Dark Mode */
 .dark .alert {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-  color: hsl(var(--dm-dark-text-high));
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
+  color: hsl(var(--foreground));
 }
 
 .dark .alert.success {
-  background: hsl(var(--dm-dark-success) / 0.1);
-  border-color: hsl(var(--dm-dark-success) / 0.3);
-  color: hsl(var(--dm-dark-success));
+  background: hsl(var(--success) / 0.1);
+  border-color: hsl(var(--success) / 0.3);
+  color: hsl(var(--success));
 }
 
 .dark .alert.warning {
-  background: hsl(var(--dm-dark-warning) / 0.1);
-  border-color: hsl(var(--dm-dark-warning) / 0.3);
-  color: hsl(var(--dm-dark-warning-foreground));
+  background: hsl(var(--warning) / 0.1);
+  border-color: hsl(var(--warning) / 0.3);
+  color: hsl(var(--warning-foreground));
 }
 
 .dark .alert.destructive {
-  background: hsl(var(--dm-dark-destructive) / 0.1);
-  border-color: hsl(var(--dm-dark-destructive) / 0.3);
-  color: hsl(var(--dm-dark-destructive));
+  background: hsl(var(--destructive) / 0.1);
+  border-color: hsl(var(--destructive) / 0.3);
+  color: hsl(var(--destructive));
 }
 
 /* Dropdown and Menu Styles for Dark Mode */
 .dark .dropdown-menu {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
   box-shadow:
     0 10px 15px -3px hsl(222 84% 4.9% / 0.4),
     0 4px 6px -2px hsl(222 84% 4.9% / 0.3);
 }
 
-.dark .dropdown-item {
-  color: hsl(var(--dm-dark-text-high));
-}
-
-.dark .dropdown-item:hover {
-  background: hsl(var(--dm-dark-surface-3));
-}
-
-.dark .dropdown-item:focus {
-  background: hsl(212 72% 59% / 0.15);
-  outline: none;
-}
-
-.dark .dropdown-separator {
-  background: hsl(var(--dm-dark-border));
-}
-
 /* Tooltip Styles for Dark Mode */
 .dark .tooltip {
-  background: hsl(var(--dm-dark-surface-3));
-  color: hsl(var(--dm-dark-text-high));
-  border: 1px solid hsl(var(--dm-dark-border));
+  background: hsl(var(--surface-3));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
   box-shadow: 0 4px 6px -1px hsl(222 84% 4.9% / 0.3);
 }
 
 /* Popover Styles for Dark Mode */
 .dark .popover {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
   box-shadow:
     0 10px 15px -3px hsl(222 84% 4.9% / 0.4),
     0 4px 6px -2px hsl(222 84% 4.9% / 0.3);
 }
 
 /* Tabs and Navigation for Dark Mode */
-.dark .tabs-list {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .tabs-trigger {
-  color: hsl(var(--dm-dark-text-medium));
-}
-
-.dark .tabs-trigger:hover {
-  color: hsl(var(--dm-dark-text-high));
-  background: hsl(var(--dm-dark-surface-3));
-}
-
-.dark .tabs-trigger[data-state="active"] {
-  background: hsl(var(--dm-dark-surface-1));
-  color: hsl(var(--dm-dark-text-high));
-  border-bottom: 2px solid hsl(212 72% 59%);
-}
 
 /* Calendar and Date Picker for Dark Mode */
 .dark .calendar {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .calendar-day {
-  color: hsl(var(--dm-dark-text-high));
-}
-
-.dark .calendar-day:hover {
-  background: hsl(var(--dm-dark-surface-3));
-}
-
-.dark .calendar-day.selected {
-  background: hsl(212 72% 59%);
-  color: hsl(var(--dm-dark-primary-foreground));
-}
-
-.dark .calendar-day.today {
-  background: hsl(var(--dm-dark-accent));
-  color: hsl(var(--dm-dark-accent-foreground));
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
 }
 
 /* Chart and Data Visualization for Dark Mode */
 .dark .chart {
-  background: hsl(var(--dm-dark-surface-1));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .chart-grid {
-  stroke: hsl(var(--dm-dark-border));
-}
-
-.dark .chart-text {
-  fill: hsl(var(--dm-dark-text-medium));
-}
-
-.dark .chart-primary {
-  fill: hsl(212 72% 59%);
-  stroke: hsl(212 72% 59%);
-}
-
-.dark .chart-secondary {
-  fill: hsl(var(--dm-dark-accent));
-  stroke: hsl(var(--dm-dark-accent));
+  background: hsl(var(--surface-1));
+  border: 1px solid hsl(var(--border));
 }
 
 /* Code and Syntax Highlighting for Dark Mode */
-.dark .code-block {
-  background: hsl(var(--dm-dark-surface-3));
-  border: 1px solid hsl(var(--dm-dark-border));
-  color: hsl(var(--dm-dark-text-high));
-}
-
-.dark .code-inline {
-  background: hsl(var(--dm-dark-surface-2));
-  color: hsl(212 72% 69%);
-  padding: 2px 4px;
-  border-radius: 3px;
-}
 
 /* Fantasy Football Specific Components for Dark Mode */
-.dark .team-card {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .team-card:hover {
-  background: hsl(var(--dm-dark-surface-3));
-  box-shadow: 0 4px 8px hsl(222 84% 4.9% / 0.3);
-}
 
 .dark .standings-table {
-  background: hsl(var(--dm-dark-surface-1));
-}
-
-.dark .standings-row {
-  border-bottom: 1px solid hsl(var(--dm-dark-border) / 0.5);
-}
-
-.dark .standings-row:hover {
-  background: hsl(var(--dm-dark-surface-2) / 0.5);
-}
-
-.dark .power-ranking-badge {
-  background: var(--dm-gradient-primary);
-  color: hsl(var(--dm-dark-primary-foreground));
-}
-
-.dark .week-selector {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .schedule-card {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .schedule-card.completed {
-  background: hsl(var(--dm-dark-success) / 0.1);
-  border-color: hsl(var(--dm-dark-success) / 0.3);
-}
-
-.dark .schedule-card.in-progress {
-  background: hsl(var(--dm-dark-warning) / 0.1);
-  border-color: hsl(var(--dm-dark-warning) / 0.3);
+  background: hsl(var(--surface-1));
 }
 
 /* Statistics and Analytics for Dark Mode */
 .dark .stat-card {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .stat-value {
-  color: hsl(var(--dm-dark-text-high));
-  font-weight: 600;
-}
-
-.dark .stat-label {
-  color: hsl(var(--dm-dark-text-medium));
-}
-
-.dark .trend-positive {
-  color: hsl(var(--dm-dark-success));
-}
-
-.dark .trend-negative {
-  color: hsl(var(--dm-dark-destructive));
-}
-
-.dark .trend-neutral {
-  color: hsl(var(--dm-dark-text-medium));
+  background: hsl(var(--surface-2));
+  border: 1px solid hsl(var(--border));
 }
 
 /* Statistics Box Color Overrides - Darker Tints */
@@ -861,10 +526,6 @@
 .dark .text-blue-600,
 .dark .text-blue-700 {
   color: hsl(212 80% 75%) !important;
-}
-
-.dark .text-blue-500 {
-  color: hsl(212 85% 70%) !important;
 }
 
 /* Orange Statistics Boxes */
@@ -963,56 +624,14 @@
 }
 
 /* Cyan/Teal Statistics Boxes */
-.dark .bg-cyan-50,
-.dark .bg-cyan-100,
-.dark .bg-teal-50,
-.dark .bg-teal-100 {
-  background-color: hsl(180 45% 12%) !important;
-  border: 1px solid hsl(180 35% 18%) !important;
-}
-
-.dark .text-cyan-600,
-.dark .text-cyan-700,
-.dark .text-teal-600,
-.dark .text-teal-700 {
-  color: hsl(180 80% 75%) !important;
-}
-
-.dark .text-cyan-500,
-.dark .text-teal-500 {
-  color: hsl(180 85% 70%) !important;
-}
 
 /* Pink Statistics Boxes */
-.dark .bg-pink-50,
-.dark .bg-pink-100 {
-  background-color: hsl(330 45% 12%) !important;
-  border: 1px solid hsl(330 35% 18%) !important;
-}
-
-.dark .text-pink-600,
-.dark .text-pink-700 {
-  color: hsl(330 80% 75%) !important;
-}
-
-.dark .text-pink-500 {
-  color: hsl(330 85% 70%) !important;
-}
 
 /* Indigo Statistics Boxes */
-.dark .bg-indigo-50,
-.dark .bg-indigo-100 {
-  background-color: hsl(230 45% 12%) !important;
-  border: 1px solid hsl(230 35% 18%) !important;
-}
 
 .dark .text-indigo-600,
 .dark .text-indigo-700 {
   color: hsl(230 80% 75%) !important;
-}
-
-.dark .text-indigo-500 {
-  color: hsl(230 85% 70%) !important;
 }
 
 /* General card enhancements for statistics */
@@ -1027,61 +646,10 @@
 }
 
 /* Pick'ems and Predictions for Dark Mode */
-.dark .pickems-card {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .pickems-option {
-  background: hsl(var(--dm-dark-surface-1));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .pickems-option:hover {
-  background: hsl(var(--dm-dark-surface-3));
-}
-
-.dark .pickems-option.selected {
-  background: hsl(212 72% 59% / 0.15);
-  border-color: hsl(212 72% 59%);
-}
-
-.dark .pickems-score {
-  background: var(--dm-gradient-primary);
-  color: hsl(var(--dm-dark-primary-foreground));
-}
 
 /* Admin and Management Components for Dark Mode */
-.dark .admin-panel {
-  background: hsl(var(--dm-dark-surface-1));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .management-card {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .danger-zone {
-  background: hsl(var(--dm-dark-destructive) / 0.05);
-  border: 1px solid hsl(var(--dm-dark-destructive) / 0.2);
-}
 
 /* Login and Authentication for Dark Mode */
-.dark .login-form {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-}
-
-.dark .auth-provider-button {
-  background: hsl(var(--dm-dark-surface-2));
-  border: 1px solid hsl(var(--dm-dark-border));
-  color: hsl(var(--dm-dark-text-high));
-}
-
-.dark .auth-provider-button:hover {
-  background: hsl(var(--dm-dark-surface-3));
-}
 
 /* Accessibility Enhancements for Dark Mode */
 .dark *:focus-visible {
@@ -1090,16 +658,16 @@
 }
 
 .dark .sr-only {
-  color: hsl(var(--dm-dark-text-high));
+  color: hsl(var(--foreground));
 }
 
 /* High Contrast Mode Support */
 @media (prefers-contrast: high) {
   .dark {
-    --dm-dark-background: 0 0% 0%;
-    --dm-dark-foreground: 0 0% 100%;
-    --dm-dark-border: 0 0% 50%;
-    --dm-dark-primary: 212 100% 70%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --border: 0 0% 50%;
+    --primary: 212 100% 70%;
   }
 }
 
@@ -1116,9 +684,9 @@
 /* Print Styles for Dark Mode */
 @media print {
   .dark {
-    --dm-dark-background: 0 0% 100%;
-    --dm-dark-foreground: 0 0% 0%;
-    --dm-dark-border: 0 0% 50%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --border: 0 0% 50%;
   }
 
   .dark * {

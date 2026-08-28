@@ -26,7 +26,9 @@
     "sync-schedule": "node scripts/sync-schedule.js",
     "sync-week": "node scripts/sync-week.js",
     "check-bundle": "node scripts/check-bundle.js",
-    "check-css-tokens": "node scripts/check-css-tokens.js"
+    "check-css-tokens": "node scripts/check-css-tokens.js",
+    "test:e2e": "playwright test",
+    "capture-screens": "node scripts/capture-screens.mjs"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -61,6 +63,7 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.1.17",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",
