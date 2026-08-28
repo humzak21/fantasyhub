@@ -3,8 +3,19 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva } from "class-variance-authority"
 import { cn } from "../../lib/utils"
 
+// Touch sizing lives here, not in a global stylesheet.
+//
+// globals.css used to put `min-width: 44px; min-height: 44px` on every
+// `button` and `[role=button]` in the app. That inflated icon buttons, table
+// controls, chips and week arrows alike and is a large part of why the site
+// felt zoomed in on a phone — and being a bare element selector, no component
+// could opt out of it.
+//
+// `pointer-coarse:` applies the 44px floor only on a device whose primary
+// pointer is a finger, leaves desktop density exactly as it was, and is a
+// class like any other, so a caller can override it.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium pointer-coarse:min-h-11 ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
@@ -22,7 +33,7 @@ const buttonVariants = cva(
         default: "h-10 px-4 py-2",
         sm: "h-9 rounded-md px-3",
         lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10",
+        icon: "h-10 w-10 pointer-coarse:min-w-11",
       },
     },
     defaultVariants: {
