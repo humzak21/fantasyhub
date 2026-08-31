@@ -313,6 +313,13 @@ its `WHERE` clause: a non-admin gets an empty list, not an error.
 commissioner into `isAdmin`** — the dashboard passes the flag into `getMasked*`
 locally, and that substitution stays local.
 
+Their league-wide view (`src/components/parlay/ParlayCommissionerDashboard.jsx`)
+is a **tab inside Pick'ems, next to Submissions**, not a top-level nav
+destination: two people can open it, which is thin grounds for a nav item every
+other layout has to make room for, and it belongs beside the form the picks it
+reports on are entered in. PickEmsManager lazy-loads it and passes `embedded`,
+which drops its `PageHeader` so the page is not titled twice.
+
 `player_week_stats.pro_team_id` and the reserved "vs OPP / @ OPP / BYE" slots in
 both new components are for a future `nfl_schedule` table. Nothing in this
 system knows who a player's team plays in a given week, and the ESPN fetchers do
