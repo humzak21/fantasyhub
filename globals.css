@@ -41,6 +41,11 @@
  * makes the runtime lookup safe. */
 @source inline("{bg,text,border,ring}-team-{1,2,3,4,5,6,7,8,9,10,11,12,13,14}");
 
+/* Chart-palette utilities, for the same reason: `getPositionColor()` and the
+ * chart helpers look these up by key at runtime. */
+@source inline("{bg,text,border}-chart-{1,2,3,4,5,6,7,8,9,10}");
+@source inline("{bg,text}-chart-{1,2,3,4,5,6,7,8,9,10}/15");
+
 /* Dark mode is a class on <html>, not a media query — the app owns the choice
  * (and currently forces dark). */
 @custom-variant dark (&:where(.dark, .dark *));

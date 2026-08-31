@@ -15,8 +15,15 @@ const SeasonProgressBar = ({
   const { totalWeeks, regularSeasonWeeks } = season;
   const playoffStartWeek = regularSeasonWeeks + 1;
   const championshipWeek = totalWeeks;
-  const tradeDeadlineWeek = 14; // After week 13, before week 14
-  const rivalryWeeks = [4, 14];
+
+  // Read from the season, not from a literal in the view layer.
+  //
+  // These were `const tradeDeadlineWeek = 14` and `const rivalryWeeks = [4, 14]`
+  // written here — facts about one league in one year, hardcoded into a
+  // component that renders every season. A season with a different deadline
+  // would have been drawn with this one's, and confidently.
+  const tradeDeadlineWeek = season.tradeDeadlineWeek ?? season.trade_deadline_week ?? null;
+  const rivalryWeeks = season.rivalryWeeks ?? season.rivalry_weeks ?? [];
 
   // Calculate completion status for each week
   const getWeekStatus = (week) => {
@@ -218,23 +225,30 @@ const SeasonProgressBar = ({
           </div>
         </ScrollHint>
 
-        {/* Key Events - ordered from smallest week to largest */}
+        {/* Key dates. Each entry renders only when the season actually has
+            that date — the rivalry and trade-deadline lines used to be
+            unconditional, so a season without them printed "Weeks : Rivalry"
+            and "Week null: Trade Deadline". */}
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Users size={12} className="text-red-500" />
-            <span>Weeks {rivalryWeeks.join(', ')}: Rivalry</span>
+          {rivalryWeeks.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Users size={14} className="text-destructive" aria-hidden="true" />
+              <span>{rivalryWeeks.length === 1 ? 'Week' : 'Weeks'} {rivalryWeeks.join(', ')}: rivalry</span>
+            </div>
+          )}
+          {tradeDeadlineWeek && (
+            <div className="flex items-center gap-1.5">
+              <Clock size={14} className="text-info" aria-hidden="true" />
+              <span>Week {tradeDeadlineWeek}: trade deadline</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Calendar size={14} className="text-muted-foreground" aria-hidden="true" />
+            <span>Week {playoffStartWeek}+: playoffs</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Clock size={12} className="text-purple-500" />
-            <span>Week {tradeDeadlineWeek}: Trade Deadline</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Calendar size={12} className="text-muted-foreground" />
-            <span>Week {playoffStartWeek}+: Playoffs</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Trophy size={12} className="text-yellow-500" />
-            <span>Week {championshipWeek}: Championship</span>
+          <div className="flex items-center gap-1.5">
+            <Trophy size={14} className="text-ff-rank-gold-400" aria-hidden="true" />
+            <span>Week {championshipWeek}: championship</span>
           </div>
         </div>
       </div>
