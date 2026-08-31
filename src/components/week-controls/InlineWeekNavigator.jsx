@@ -140,7 +140,7 @@ const InlineWeekNavigator = ({
           className={`
             flex items-center gap-1
             ${condensed ? 'px-1' : 'px-2'} py-1
-            ${condensed ? 'min-w-0' : 'min-w-[70px]'}
+            ${condensed ? 'min-w-0' : 'min-w-0 2xl:min-w-[70px]'}
             justify-center
             text-sm font-medium
             hover:bg-muted
@@ -160,14 +160,20 @@ const InlineWeekNavigator = ({
           ) : (
             <Calendar className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
           )}
-          {/* Condensed used to render the icon alone, which told the reader
-              nothing: the site's most-used control showed a clock and no week.
-              Condensed now means the short form ("W4"), not silence. */}
-          <span className="whitespace-nowrap text-xs">
-            {condensed
-              ? `W${validCurrentWeek}`
-              : getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
-          </span>
+          {/* Both labels are rendered and CSS picks one, so this stays a single
+              mount. The short form is not the icon alone — condensed once meant
+              rendering a clock and no week at all, which told the reader
+              nothing about the site's most-used control. */}
+          {condensed ? (
+            <span className="whitespace-nowrap text-xs">W{validCurrentWeek}</span>
+          ) : (
+            <>
+              <span className="whitespace-nowrap text-xs 2xl:hidden">W{validCurrentWeek}</span>
+              <span className="hidden whitespace-nowrap text-xs 2xl:inline">
+                {getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
+              </span>
+            </>
+          )}
         </button>
 
         {/* Next Week Button */}
@@ -197,6 +203,7 @@ const InlineWeekNavigator = ({
             title={`Go to current week (Week ${actualCurrentWeek})`}
             aria-label={`Go to current week (Week ${actualCurrentWeek})`}
             className="
+              hidden 2xl:inline-flex
               h-7 w-7
               p-0 rounded-md
               text-primary hover:bg-primary/10

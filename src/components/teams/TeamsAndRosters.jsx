@@ -382,12 +382,9 @@ const TeamsAndRosters = ({
                         showOwner={Boolean(team.owner)}
                         showRecord={stats.gamesPlayed > 0}
                         isViewer={isUserTeam(team, user)}
+                        meta={rank ? `#${rank}` : null}
                       />
-                      {rank && (
-                        <span className="ml-auto shrink-0 text-[11px] font-medium tabular text-muted-foreground">
-                          #{rank}
-                        </span>
-                      )}
+
                     </div>
 
                     {/* Actions */}

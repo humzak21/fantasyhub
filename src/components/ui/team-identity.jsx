@@ -65,6 +65,7 @@ TeamAvatar.displayName = 'TeamAvatar';
  * @param {boolean} [props.showRecord] - append the record to the second line
  * @param {boolean} [props.showAvatar]
  * @param {boolean} [props.isViewer] - the signed-in user's own team
+ * @param {React.ReactNode} [props.meta] - one more fact for the second line
  */
 const TeamIdentity = React.forwardRef(
   (
@@ -75,6 +76,7 @@ const TeamIdentity = React.forwardRef(
       showRecord = false,
       showAvatar = true,
       isViewer = false,
+      meta = null,
       className,
       ...props
     },
@@ -84,7 +86,7 @@ const TeamIdentity = React.forwardRef(
     const s = SIZES[size] ?? SIZES.sm;
     const name = team.name ?? team.teamName ?? team.team_name ?? 'Unknown team';
     const owner = team.ownerName ?? team.owner_name ?? team.owner;
-    const hasSecondLine = (showOwner && owner) || showRecord;
+    const hasSecondLine = (showOwner && owner) || showRecord || meta;
 
     return (
       <div ref={ref} className={cn('flex min-w-0 items-center', s.gap, className)} {...props}>
@@ -109,6 +111,15 @@ const TeamIdentity = React.forwardRef(
                   ties={team.ties}
                   className="shrink-0"
                 />
+              )}
+              {/* An extra fact — a seed, a rank — on the metadata line rather
+                  than beside the name, which is the line that has to survive
+                  a 375px card. */}
+              {meta && (
+                <>
+                  {(showRecord || (showOwner && owner)) && <span aria-hidden="true">·</span>}
+                  <span className="shrink-0 tabular">{meta}</span>
+                </>
               )}
             </div>
           )}
