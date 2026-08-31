@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ChevronDown, ChevronUp, Minus } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 /**
@@ -36,8 +36,12 @@ function podiumClasses(rank) {
 
 const RankBadge = React.forwardRef(
   ({ rank, delta = null, size = 'md', showDelta = true, className, ...props }, ref) => {
-    const hasDelta = showDelta && delta !== null && delta !== undefined && !Number.isNaN(Number(delta));
-    const move = hasDelta ? Number(delta) : 0;
+    // Only movement is worth drawing. Rendering "no change" as a dash puts a
+    // mark on every row of a table where, most weeks, almost nothing moved —
+    // fourteen dashes that say nothing, next to the two arrows that do.
+    const move = Number(delta);
+    const hasDelta =
+      showDelta && delta !== null && delta !== undefined && Number.isFinite(move) && move !== 0;
 
     return (
       <div ref={ref} className={cn('flex items-center gap-1.5', className)} {...props}>
@@ -54,24 +58,18 @@ const RankBadge = React.forwardRef(
           <span
             className={cn(
               'inline-flex items-center text-[11px] font-medium tabular',
-              move > 0 && 'text-success',
-              move < 0 && 'text-destructive',
-              move === 0 && 'text-muted-foreground'
+              move > 0 ? 'text-success' : 'text-destructive'
             )}
-            title={
-              move === 0
-                ? 'No change from last week'
-                : `${Math.abs(move)} ${Math.abs(move) === 1 ? 'place' : 'places'} ${move > 0 ? 'up' : 'down'} from last week`
-            }
+            title={`${Math.abs(move)} ${Math.abs(move) === 1 ? 'place' : 'places'} ${move > 0 ? 'up' : 'down'} from last week`}
           >
-            {move > 0 && <ChevronUp className="h-3 w-3" aria-hidden="true" />}
-            {move < 0 && <ChevronDown className="h-3 w-3" aria-hidden="true" />}
-            {move === 0 && <Minus className="h-3 w-3" aria-hidden="true" />}
-            {move !== 0 && Math.abs(move)}
+            {move > 0 ? (
+              <ChevronUp className="h-3 w-3" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+            )}
+            {Math.abs(move)}
             <span className="sr-only">
-              {move === 0
-                ? 'unchanged from last week'
-                : `${Math.abs(move)} places ${move > 0 ? 'up' : 'down'} from last week`}
+              {`${Math.abs(move)} places ${move > 0 ? 'up' : 'down'} from last week`}
             </span>
           </span>
         )}

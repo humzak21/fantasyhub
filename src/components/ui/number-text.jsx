@@ -6,6 +6,7 @@ import {
   formatPct,
   formatPoints,
   formatRecord,
+  formatSignedPct,
 } from '../../utils/format';
 
 /**
@@ -27,6 +28,7 @@ const VARIANT_FORMATTERS = {
   points: formatPoints,
   percent: formatPct,
   delta: formatDelta,
+  signedPercent: formatSignedPct,
   plain: (v) => (v === null || v === undefined ? '—' : String(v)),
 };
 

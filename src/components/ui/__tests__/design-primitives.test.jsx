@@ -61,9 +61,11 @@ describe('RankBadge', () => {
     expect(screen.getByText(/2 places up from last week/i)).toBeInTheDocument();
   });
 
-  it('says unchanged rather than showing a bare zero', () => {
-    render(<RankBadge rank={4} delta={0} />);
-    expect(screen.getByText(/unchanged from last week/i)).toBeInTheDocument();
+  it('draws nothing for a team that did not move', () => {
+    // Most weeks most teams hold their place, so a "no change" mark would put
+    // a dash on nearly every row of the table and bury the two that moved.
+    const { container } = render(<RankBadge rank={4} delta={0} />);
+    expect(container.textContent).toBe('4');
   });
 
   it('omits movement entirely when there is none to report', () => {
