@@ -5,7 +5,7 @@ import { Badge } from '../ui/badge';
 import { ResponsiveDataTable } from '../ui/responsive-table';
 import { Card, CardContent } from '../ui/card';
 import { EmptyState } from '../ui/empty-state';
-import { SkeletonTable } from '../ui/skeleton';
+import RouteLoading from '../layout/RouteLoading';
 import { NumberText, RecordText } from '../ui/number-text';
 import { RankBadge } from '../ui/rank-badge';
 import { StreakChip } from '../ui/streak-chip';
@@ -60,13 +60,18 @@ const PowerRankingsTable = ({
     return { variant: 'destructive', label: 'Cold' };
   };
 
-  // This used to `return null`, on the reasoning that the app shell's
-  // full-screen overlay was showing the loading state. That overlay is gone —
-  // it blocked the entire page on every mutation — so the table now owns its
-  // own loading state. Returning null here rendered a blank main screen for as
-  // long as anything upstream was in flight.
+  // The same spinner every other route shows, rather than a table skeleton.
+  //
+  // A skeleton is defensible here — this really is a table, so the outline
+  // could stand in for its shape — but it was the last place in the app still
+  // doing it, so a page load flashed a different kind of placeholder depending
+  // on which tab you opened. One loading state, everywhere.
+  //
+  // It was also drawing the skeleton's outlines in white: those rows used a
+  // bare `border` utility, and Tailwind v4 leaves an uncoloured border at
+  // `currentColor`, which on this near-white foreground is a white rule.
   if (initializing || loading) {
-    return <SkeletonTable rows={10} columns={showAdvanced ? 8 : 6} />;
+    return <RouteLoading />;
   }
 
   if (!rankings.length) {
