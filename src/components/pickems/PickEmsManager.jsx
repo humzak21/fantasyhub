@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { SkeletonCards } from '../ui/skeleton';
+import { EmptyState } from '../ui/empty-state';
 import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -289,14 +290,18 @@ const PickEmsManager = ({
       {/* Main content */}
       {!pickEmWeek ? (
         <Card>
-          <CardContent className="p-8 text-center">
-            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Pick&apos;ems Not Available</h3>
-            <p className="text-muted-foreground">
-              Pick&apos;ems have not been set up for week {currentWeek} yet.
-              {isAdmin && ' Use the admin controls above to create a pick&apos;em week.'}
-            </p>
-          </CardContent>
+          {/* The admin sentence used to be an `&apos;` inside a JavaScript
+              string literal rather than JSX text, so it reached the page
+              undecoded and the reader saw "pick&apos;em week". */}
+          <EmptyState
+            icon={Target}
+            title="No pick'ems this week"
+            description={
+              isAdmin
+                ? `Week ${currentWeek} has no pick'em week yet. Create one with the admin controls above.`
+                : `Week ${currentWeek} has no pick'em week yet.`
+            }
+          />
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
