@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import RouteLoading from '../layout/RouteLoading';
 import { EmptyState } from '../ui/empty-state';
 import PageHeader from '../layout/PageHeader';
@@ -8,12 +8,17 @@ import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
-import { Target, Trophy, Settings, AlertCircle, Clock, UserCheck } from 'lucide-react';
+import { Target, Trophy, Settings, AlertCircle, Clock, UserCheck, Crosshair } from 'lucide-react';
 
 import PickEmsSubmission from './PickEmsSubmission';
 import PickEmsResults from './PickEmsResults';
 import PickEmsAdminSubmissions from './PickEmsAdminSubmissions';
 import PickEmsSeasonStandings from './PickEmsSeasonStandings';
+
+// The commissioner view is two people's tab, so it is not in everyone's
+// pick'ems chunk. It used to be its own lazy route on the app shell; moving it
+// here must not undo that.
+const ParlayCommissionerDashboard = lazy(() => import('../parlay/ParlayCommissionerDashboard.jsx'));
 import { getDb } from '../../../services/db/index.js';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 
@@ -26,7 +31,7 @@ const PickEmsManager = ({
   preloadedData = null,
   preloadingInProgress = false,
 }) => {
-  const { user, isAdmin, teamOwnerNames } = useViewer();
+  const { user, isAdmin, teamOwnerNames, isParlayCommissioner } = useViewer();
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
   const [games, setGames] = useState([]);
@@ -306,31 +311,36 @@ const PickEmsManager = ({
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className={`grid w-full ${
-            isAdmin 
-              ? (pickEmStatus?.resultsAvailable ? 'grid-cols-3' : 'grid-cols-3')
-              : (pickEmStatus?.resultsAvailable ? 'grid-cols-2' : 'grid-cols-2')
-          }`}>
+          {/* No `grid grid-cols-N` any more. The strip is four tabs wide for
+              the commissioner, and a grid divides the width by the tab count
+              regardless of how long "Submissions" is; TabsList scrolls and
+              collapses each label to its icon below sm: on its own. */}
+          <TabsList className="w-full">
             {!pickEmStatus?.resultsAvailable && (
-              <TabsTrigger value="picks" className="flex items-center gap-2">
-                <Target className="h-4 w-4" />
+              <TabsTrigger value="picks" icon={<Target />}>
                 Make Picks
               </TabsTrigger>
             )}
             {pickEmStatus?.resultsAvailable && (
-              <TabsTrigger value="results" className="flex items-center gap-2">
-                <Trophy className="h-4 w-4" />
+              <TabsTrigger value="results" icon={<Trophy />}>
                 Results
               </TabsTrigger>
             )}
-            <TabsTrigger value="standings" className="flex items-center gap-2">
-              <Trophy className="h-4 w-4" />
+            <TabsTrigger value="standings" icon={<Trophy />}>
               Standings
             </TabsTrigger>
             {isAdmin && (
-              <TabsTrigger value="admin" className="flex items-center gap-2">
-                <UserCheck className="h-4 w-4" />
+              <TabsTrigger value="admin" icon={<UserCheck />}>
                 Submissions
+              </TabsTrigger>
+            )}
+            {/* The league-wide parlay view. `isParlayCommissioner` already
+                folds the admin in — do not add `isAdmin ||` here, which is the
+                substitution that keeps the role separate from the admin's
+                write paths. */}
+            {isParlayCommissioner && (
+              <TabsTrigger value="parlay" icon={<Crosshair />}>
+                TD Parlay
               </TabsTrigger>
             )}
           </TabsList>
@@ -391,6 +401,14 @@ const PickEmsManager = ({
                 isAdmin={isAdmin}
               teamOwnerNames={teamOwnerNames}
               />
+            </TabsContent>
+          )}
+
+          {isParlayCommissioner && (
+            <TabsContent value="parlay">
+              <Suspense fallback={<RouteLoading />}>
+                <ParlayCommissionerDashboard season={season} embedded />
+              </Suspense>
             </TabsContent>
           )}
         </Tabs>
