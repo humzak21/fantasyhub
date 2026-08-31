@@ -4,6 +4,7 @@
   "description": "Advanced Fantasy Football Power Rankings Application",
   "type": "module",
   "scripts": {
+    "prepare": "scripts/setup-git-merge-driver.sh",
     "dev": "vite",
     "build": "npm config set cache /tmp/.npm-cache && rm -rf node_modules/.vite && vite build",
     "preview": "vite preview",
