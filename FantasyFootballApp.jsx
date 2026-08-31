@@ -216,52 +216,45 @@ const FantasyFootballApp = () => {
         <header className="sticky top-0 z-50 w-full border-b bg-card/80 backdrop-blur-sm">
           <PageContainer>
             <div className="flex h-14 items-center justify-between gap-3 sm:h-16">
-              {/* Left: identity. The season name reads at every width now —
-                  it used to be the first thing sacrificed to make room for the
-                  hamburger, so a phone user could not tell which season they
-                  were looking at. `shrink-0` is what keeps that true: when the
-                  labelled nav arrives at lg the row gets tight, and a
-                  shrinkable brand collapses to nothing rather than pushing
-                  back.
+              {/* LEFT — the constant side: who and when.
+                  Identity, the week being viewed, and the standings. These are
+                  the controls that are on every page and mean the same thing
+                  on every page, so they hold one position the eye can learn.
+                  Keeping them together also frees the right-hand side to grow:
+                  navigation is what changes as the app gains tabs, and it can
+                  do that without shunting the week control around.
 
-                  Below lg it *may* shrink, because there the row has no nav to
-                  protect and the widest thing in it is whatever the account
-                  control happens to be — a signed-out "Login" button is wider
-                  than a signed-in avatar, which is what pushed a 375px header
+                  The season name reads at every width — it used to be the
+                  first thing sacrificed to make room for the hamburger, so a
+                  phone user could not tell which season they were looking at.
+                  Below lg the brand *may* shrink: there is no nav on this row
+                  to protect, and a signed-out "Login" button is wider than a
+                  signed-in avatar, which is what once pushed a 375px header
                   3px past the viewport. Truncating the league name is the
                   right thing to give up there. */}
               <div className="flex min-w-0 shrink items-center gap-2 sm:gap-3 lg:shrink-0">
-                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
-                  <img src="og jits logo.jpg" alt="" className="h-full w-full object-cover" />
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
+                    <img src="og jits logo.jpg" alt="" className="h-full w-full object-cover" />
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="truncate font-display text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+                      og jits
+                    </h1>
+                    {activeSeason && (
+                      <p className="truncate text-xs leading-tight text-muted-foreground">
+                        {activeSeason.name || `${activeSeason.year} Season`}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <h1 className="truncate font-display text-lg font-semibold leading-tight tracking-tight sm:text-xl">
-                    og jits
-                  </h1>
-                  {activeSeason && (
-                    <p className="truncate text-xs leading-tight text-muted-foreground">
-                      {activeSeason.name || `${activeSeason.year} Season`}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* The week, the standings and the account — one control group,
-                  in the header row.
-                  These used to sit on a second bar under the header, a strip
-                  of chrome the width of the page carrying two controls. It
-                  read as a toolbar the app did not need and cost every page
-                  ~40px above the fold. The week navigator belongs beside the
-                  nav because it scopes what the nav shows. */}
-              <div className="flex shrink-0 items-center gap-1">
-                <HeaderNav
-                  tabs={navTabs}
-                  activeTab={activeTab}
-                  shouldShowTab={shouldShowTab}
-                />
 
                 {activeSeason && (
                   <>
+                    {/* A hairline between the brand and the controls, so the
+                        two read as identity *and* tools rather than as one
+                        undifferentiated cluster. */}
+                    <span className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
                     <InlineWeekNavigator
                       currentWeek={viewedWeek}
                       totalWeeks={activeSeason.totalWeeks}
@@ -273,6 +266,19 @@ const FantasyFootballApp = () => {
                     <StandingsTrigger onClick={() => setStandingsOpen(true)} />
                   </>
                 )}
+              </div>
+
+              {/* RIGHT — the side that grows: where to go, and who you are.
+                  Navigation lives here because it is the part of the header
+                  that gains items over time; anything new belongs on this
+                  side, where it pushes against the account control rather
+                  than against the week. */}
+              <div className="flex shrink-0 items-center gap-1">
+                <HeaderNav
+                  tabs={navTabs}
+                  activeTab={activeTab}
+                  shouldShowTab={shouldShowTab}
+                />
 
                 <LoginDropdown />
               </div>
