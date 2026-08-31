@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { SkeletonCards } from '../ui/skeleton';
+import RouteLoading from '../layout/RouteLoading';
 import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -97,12 +97,14 @@ const PlayoffsBracketManager = ({
         }
     }, [isAdmin,season, loadBracketData]);
 
-    // A shape rather than a blank tab; see PickEmsManager for the same fix.
+    // A quiet loader rather than a blank tab. Not a skeleton: the bracket
+    // is not a grid of cards, and a card skeleton standing in for it was
+    // part of the flash of odd boxes on every navigation.
     if (dataLoading && !bracketStatus) {
         return (
             <>
                 <PageHeader icon={Trophy} title="Playoffs" />
-                <SkeletonCards count={3} columns={3} />
+                <RouteLoading />
             </>
         );
     }

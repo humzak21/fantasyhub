@@ -38,6 +38,14 @@ vi.mock('../components/auth/DisplayNamePrompt.jsx', () => ({
 }));
 
 describe('tab routing', () => {
+  // Every test here renders the whole `<App/>` — the router, the four
+  // providers and the module graph behind them — and the first one to run
+  // pays for initialising all of it. That comfortably exceeds vitest's 5s
+  // default when the full suite is running files in parallel, so the file
+  // failed in a complete run while passing on its own. The assertions are
+  // unchanged; only the patience is.
+  vi.setConfig({ testTimeout: 20000 });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
