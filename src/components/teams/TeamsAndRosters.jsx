@@ -18,7 +18,11 @@ import {
 } from '../ui/alert-dialog';
 import { moveUserTeamToFirst } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { getPositionColor } from '../../utils/positionColors';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { toast } from 'sonner';
+import PageHeader from '../layout/PageHeader';
+import { EmptyState } from '../ui/empty-state';
 
 const TeamsAndRosters = ({
   teams = [],
@@ -42,7 +46,10 @@ const TeamsAndRosters = ({
     e.preventDefault();
     
     if (!formData.name.trim()) {
-      alert('Team name is required');
+      // sonner, not `alert()`: a modal browser dialog blocks the page, cannot
+      // be styled, and reads as a browser error rather than as this form
+      // telling the user what it needs.
+      toast.error('Enter a team name.');
       return;
     }
 
@@ -60,7 +67,7 @@ const TeamsAndRosters = ({
       
       setFormData({ name: '', owner: '' });
     } catch (error) {
-      alert('Error saving team: ' + error.message);
+      toast.error(`Could not save the team: ${error.message}`);
     }
   };
 
@@ -83,7 +90,7 @@ const TeamsAndRosters = ({
     try {
       await onRemoveTeam(team.id);
     } catch (error) {
-      alert('Error removing team: ' + error.message);
+      toast.error(`Could not remove the team: ${error.message}`);
     }
   };
 
@@ -113,19 +120,6 @@ const TeamsAndRosters = ({
     return <Trophy className="h-3 w-3" />;
   };
 
-  // Roster helper functions
-  const getPositionColor = (position) => {
-    const colors = {
-      QB: 'bg-red-100 text-red-700 border-red-200',
-      RB: 'bg-green-100 text-green-700 border-green-200',
-      WR: 'bg-blue-100 text-blue-700 border-blue-200',
-      TE: 'bg-orange-100 text-orange-700 border-orange-200',
-      K: 'bg-purple-100 text-purple-700 border-purple-200',
-      'D/ST': 'bg-muted text-foreground border-border'
-    };
-    return colors[position] || 'bg-muted text-foreground border-border';
-  };
-
   const getSlotBadgeColor = (slot) => {
     if (['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'D/ST'].includes(slot)) {
       return 'default';
@@ -140,7 +134,7 @@ const TeamsAndRosters = ({
   const CompactTeamRoster = ({ team, roster }) => {
     if (!roster || roster.length === 0) {
       return (
-        <div className="mt-3 h-full flex items-center justify-center">
+        <div className="mt-3 flex items-center justify-center">
           <div className="p-3 border rounded-lg bg-muted/10">
             <div className="text-center text-xs text-muted-foreground">
               No roster data
@@ -160,12 +154,15 @@ const TeamsAndRosters = ({
       return acc;
     }, {});
 
+    // No `.slice()`. The card used to cap starters at 9 and bench at 6 with no
+    // "+N more" of any kind, so it presented a partial roster as a whole one —
+    // and it did that inside a fixed-height box that was already scrolling,
+    // which is where the rest of the list was assumed to be.
     const starters = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K']
       .map(slot => groupedRoster[slot] || [])
-      .flat()
-      .slice(0, 9); // Show max 9 starters
+      .flat();
 
-    const benchPlayers = (groupedRoster['BE'] || []).slice(0, 6); // Show max 6 bench players
+    const benchPlayers = groupedRoster['BE'] || [];
     const irPlayers = groupedRoster['IR'] || [];
 
     const CompactPlayerBadge = ({ player, slot }) => {
@@ -179,7 +176,7 @@ const TeamsAndRosters = ({
             isStarter
               ? 'bg-card border-border font-medium'
               : slot === 'IR'
-              ? 'bg-red-50 border-red-200 text-red-700'
+              ? 'border-destructive/30 bg-destructive/10 text-destructive'
               : 'bg-muted/50 border-muted text-muted-foreground'
           }`}
           title={`${playerName} (${position})${slot !== 'BE' && slot !== 'IR' ? ` - ${slot}` : ''}`}
@@ -192,15 +189,18 @@ const TeamsAndRosters = ({
           </Badge>
           <span className="truncate" style={{maxWidth: '200px'}}>{playerName}</span>
           {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
-            <div className="w-2 h-2 bg-red-500 rounded-full" title={player.injuryStatus} />
+            <div className="w-2 h-2 bg-destructive rounded-full" title={player.injuryStatus} />
           )}
         </div>
       );
     };
 
+    // No inner scroller. With the card sized to its content there is nothing
+    // to scroll against, and a nested scroll region inside the page's own
+    // scroll is what made these cards awkward to read on a phone.
     return (
-      <div className="mt-3 h-full flex flex-col">
-        <div className="flex-1 overflow-y-auto space-y-3">
+      <div className="mt-3">
+        <div className="space-y-3">
           {/* Starting Lineup Grid */}
           {starters.length > 0 && (
             <div className="space-y-2">
@@ -232,7 +232,7 @@ const TeamsAndRosters = ({
           {/* IR Players */}
           {irPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-red-600 uppercase tracking-wide sticky top-0 bg-card py-1">
+              <h4 className="text-xs font-semibold text-destructive uppercase tracking-wide sticky top-0 bg-card py-1">
                 Injured Reserve
               </h4>
               <div className="grid grid-cols-1 gap-1">
@@ -249,25 +249,20 @@ const TeamsAndRosters = ({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-            <Users className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Teams & Rosters</h2>
-            <p className="text-muted-foreground">Manage teams and view player rosters</p>
-          </div>
-        </div>
-        
-        {isAuthenticated && (
-          <Button onClick={() => setShowAddForm(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Team
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        icon={Users}
+        title="Teams & Rosters"
+        description={`${teams.length} ${teams.length === 1 ? 'team' : 'teams'} in the league`}
+        className="mb-0"
+        actions={
+          isAuthenticated && (
+            <Button onClick={() => setShowAddForm(true)} className="gap-2">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add team
+            </Button>
+          )
+        }
+      />
 
       {/* Add/Edit Team Form */}
       {showAddForm && (
@@ -327,18 +322,20 @@ const TeamsAndRosters = ({
 
       {/* Teams List */}
       {teams.length === 0 ? (
-        <Card className="p-8">
-          <CardContent className="text-center space-y-4">
-            <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-              <Users className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">No Teams Yet</h3>
-              <p className="text-muted-foreground">
-                Add your first team to get started with power rankings!
-              </p>
-            </div>
-          </CardContent>
+        <Card>
+          <EmptyState
+            icon={Users}
+            title="No teams yet"
+            description="Power rankings, the schedule and standings all build on the team list."
+            action={
+              isAuthenticated && (
+                <Button onClick={() => setShowAddForm(true)} className="gap-2">
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add the first team
+                </Button>
+              )
+            }
+          />
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -347,13 +344,14 @@ const TeamsAndRosters = ({
             const stats = getTeamStats(team.id);
             const teamRoster = rosters[team.id]?.roster || [];
 
-            // `h-[750px]` was taller than an iPhone SE's entire viewport (667px),
-            // so on a phone a roster card could never be seen whole and the next
-            // card began below the fold with nothing to say it was there. 70vh
-            // keeps the card inside the screen; the roster list inside it already
-            // scrolls, so that is where the scrolling belongs.
+            // No fixed height at all now. `sm:h-[750px]` forced every card to
+            // one size regardless of roster length — a short roster left a
+            // stretch of dead space, a long one hid its tail in an inner
+            // scroller, and on a phone `max-h-[70vh]` meant every card ended
+            // mid-list with a scroll region inside the page's own scroll.
+            // Cards are as tall as their content; the page scrolls.
             return (
-              <Card key={team.id} className="flex max-h-[70vh] flex-col transition-shadow hover:shadow-lg sm:h-[750px] sm:max-h-none">
+              <Card key={team.id} className="flex flex-col transition-colors">
                 <CardContent className="p-4 flex flex-col h-full">
                   {/* Team Header */}
                   <div className="flex items-start justify-between mb-3">
@@ -382,7 +380,7 @@ const TeamsAndRosters = ({
                           onClick={() => handleEdit(team)}
                           variant="ghost"
                           size="sm"
-                          className="h-7 w-7 p-0"
+                          className="h-8 w-8 p-0 pointer-coarse:h-11 pointer-coarse:w-11"
                         >
                           <Edit3 className="h-3 w-3" />
                         </Button>
@@ -392,7 +390,7 @@ const TeamsAndRosters = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive pointer-coarse:h-11 pointer-coarse:w-11"
                             >
                               <Trash2 className="h-3 w-3" />
                             </Button>
