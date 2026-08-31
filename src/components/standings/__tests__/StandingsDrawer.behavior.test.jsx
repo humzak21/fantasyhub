@@ -1,40 +1,17 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '../../../test/renderWithProviders.jsx';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import StandingsDrawer from '../StandingsDrawer';
-
-// Mock the child components
-vi.mock('../StandingsDrawerTrigger', () => ({
-  default: ({ onClick, isOpen }) => (
-    <button 
-      onClick={onClick}
-      data-testid="drawer-trigger"
-      aria-label={isOpen ? "Close standings" : "Open standings"}
-    >
-      {isOpen ? 'Close' : 'Open'} Standings
-    </button>
-  )
-}));
-
-vi.mock('../StandingsDrawerContent', () => ({
-  default: ({ isOpen, onClose, children }) => (
-    isOpen ? (
-      <div data-testid="drawer-content" className="drawer-content">
-        <button onClick={onClose} data-testid="close-button">Close</button>
-        {children}
-      </div>
-    ) : null
-  )
-}));
+import { render, screen } from '../../../test/renderWithProviders.jsx';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi } from 'vitest';
+import StandingsDrawer, { StandingsTrigger } from '../StandingsDrawer';
 
 vi.mock('../DrawerStandingsTable', () => ({
   default: ({ teams, divisions, loading }) => (
     <div data-testid="standings-table">
       <div>Teams: {teams?.length || 0}</div>
       <div>Divisions: {divisions?.length || 0}</div>
-      {loading && <div>Loading...</div>}
+      {loading && <div>Loading…</div>}
     </div>
-  )
+  ),
 }));
 
 // jsdom has no layout engine: assigning window.innerWidth does not re-evaluate
@@ -44,91 +21,116 @@ vi.mock('../DrawerStandingsTable', () => ({
 // component was visibly broken. Real viewport coverage is the Playwright smoke
 // job; what is left here is behaviour, which jsdom can actually observe.
 describe('StandingsDrawer', () => {
-  const mockProps = {
+  const baseProps = {
     teams: [
       { id: '1', name: 'Team 1', wins: 5, losses: 2, ties: 0 },
-      { id: '2', name: 'Team 2', wins: 4, losses: 3, ties: 0 }
+      { id: '2', name: 'Team 2', wins: 4, losses: 3, ties: 0 },
     ],
-    divisions: [
-      { id: 'div1', name: 'Division 1' }
-    ],
+    divisions: [{ id: 'div1', name: 'Division 1' }],
     standings: { divisions: [], unassigned: [] },
     currentWeek: 8,
     loading: false,
     isAuthenticated: true,
     onDivisionRename: vi.fn(),
     onTeamDivisionChange: vi.fn(),
-    onCreateDivision: vi.fn()
+    onCreateDivision: vi.fn(),
   };
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it('renders nothing until it is opened', () => {
+    render(<StandingsDrawer {...baseProps} open={false} onOpenChange={vi.fn()} />);
+    expect(screen.queryByTestId('standings-table')).not.toBeInTheDocument();
   });
 
+  it('is a real dialog when open, which the hand-rolled panel never was', () => {
+    render(<StandingsDrawer {...baseProps} open onOpenChange={vi.fn()} />);
 
-  it('renders trigger button and drawer content', () => {
-    render(<StandingsDrawer {...mockProps} />);
-    
-    expect(screen.getByTestId('drawer-trigger')).toBeInTheDocument();
-    expect(screen.queryByTestId('drawer-content')).not.toBeInTheDocument();
-  });
-
-  it('opens drawer when trigger is clicked', async () => {
-    render(<StandingsDrawer {...mockProps} />);
-    
-    const trigger = screen.getByTestId('drawer-trigger');
-    fireEvent.click(trigger);
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('drawer-content')).toBeInTheDocument();
-    });
-    
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Standings' })).toBeInTheDocument();
     expect(screen.getByTestId('standings-table')).toBeInTheDocument();
   });
 
-  it('closes drawer when close button is clicked', async () => {
-    render(<StandingsDrawer {...mockProps} />);
-    
-    // Open drawer
-    fireEvent.click(screen.getByTestId('drawer-trigger'));
-    
-    await waitFor(() => {
-      expect(screen.getByTestId('drawer-content')).toBeInTheDocument();
-    });
-    
-    // Close drawer
-    fireEvent.click(screen.getByTestId('close-button'));
-    
-    await waitFor(() => {
-      expect(screen.queryByTestId('drawer-content')).not.toBeInTheDocument();
-    });
+  it('says which week it is showing', () => {
+    render(<StandingsDrawer {...baseProps} open onOpenChange={vi.fn()} />);
+    expect(screen.getByText(/through week 8/i)).toBeInTheDocument();
   });
 
-  it('passes correct props to DrawerStandingsTable', async () => {
-    render(<StandingsDrawer {...mockProps} />);
-    
-    // Open drawer
-    fireEvent.click(screen.getByTestId('drawer-trigger'));
-    
-    await waitFor(() => {
-      const standingsTable = screen.getByTestId('standings-table');
-      expect(standingsTable).toBeInTheDocument();
-      expect(standingsTable).toHaveTextContent('Teams: 2');
-      expect(standingsTable).toHaveTextContent('Divisions: 1');
-    });
+  it('offers a close control and reports the close upward', async () => {
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<StandingsDrawer {...baseProps} open onOpenChange={onOpenChange} />);
+
+    await user.click(screen.getByRole('button', { name: /close/i }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('shows loading state in standings table', async () => {
-    render(<StandingsDrawer {...mockProps} loading={true} />);
-    
-    // Open drawer
-    fireEvent.click(screen.getByTestId('drawer-trigger'));
-    
-    await waitFor(() => {
-      expect(screen.getByText('Loading...')).toBeInTheDocument();
-    });
+  it('closes on Escape', async () => {
+    const onOpenChange = vi.fn();
+    const user = userEvent.setup();
+    render(<StandingsDrawer {...baseProps} open onOpenChange={onOpenChange} />);
+
+    await user.keyboard('{Escape}');
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it('passes its data through to the table', () => {
+    render(<StandingsDrawer {...baseProps} open onOpenChange={vi.fn()} />);
 
+    const table = screen.getByTestId('standings-table');
+    expect(table).toHaveTextContent('Teams: 2');
+    expect(table).toHaveTextContent('Divisions: 1');
+  });
 
+  it('forwards the loading state rather than hiding the panel', () => {
+    render(<StandingsDrawer {...baseProps} open onOpenChange={vi.fn()} loading />);
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  });
+
+  it('opens on an empty league without falling over', () => {
+    render(
+      <StandingsDrawer
+        {...baseProps}
+        open
+        onOpenChange={vi.fn()}
+        teams={[]}
+        divisions={[]}
+        standings={{ divisions: [], unassigned: [] }}
+      />
+    );
+
+    const table = screen.getByTestId('standings-table');
+    expect(table).toHaveTextContent('Teams: 0');
+    expect(table).toHaveTextContent('Divisions: 0');
+  });
+
+  it('stays open across a data refresh', () => {
+    const { rerender } = render(
+      <StandingsDrawer {...baseProps} open onOpenChange={vi.fn()} />
+    );
+    expect(screen.getByTestId('standings-table')).toHaveTextContent('Teams: 2');
+
+    rerender(
+      <StandingsDrawer
+        {...baseProps}
+        open
+        onOpenChange={vi.fn()}
+        teams={[...baseProps.teams, { id: '3', name: 'Team 3', wins: 1, losses: 1, ties: 0 }]}
+      />
+    );
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('standings-table')).toHaveTextContent('Teams: 3');
+  });
+});
+
+describe('StandingsTrigger', () => {
+  it('is a labelled button that reports its click', async () => {
+    const onClick = vi.fn();
+    const user = userEvent.setup();
+    render(<StandingsTrigger onClick={onClick} />);
+
+    const trigger = screen.getByRole('button', { name: /open standings/i });
+    await user.click(trigger);
+    expect(onClick).toHaveBeenCalled();
+  });
 });

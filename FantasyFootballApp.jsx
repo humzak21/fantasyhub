@@ -12,11 +12,8 @@ import {
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
-import { Button } from './src/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src/components/ui/card';
-import { Switch } from './src/components/ui/switch';
-import { Label } from './src/components/ui/label';
-import { Badge } from './src/components/ui/badge';
+import { Card, CardContent } from './src/components/ui/card';
+import { SkeletonTable } from './src/components/ui/skeleton';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
 import ErrorBoundary from './utils/errorBoundary.jsx';
 
@@ -28,9 +25,10 @@ import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTab
 
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
 
-import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
-import ResponsiveNavigation from './src/components/navigation/ResponsiveNavigation.jsx';
+import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
+import { HeaderNav, MobileTabBar } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
+import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
 
 // One chunk per tab. Every tab, both app shells and recharts used to ship in
@@ -47,15 +45,9 @@ const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueH
 /** The tab `/` resolves to. Also where an unknown or forbidden tab lands. */
 const DEFAULT_TAB = 'rankings';
 
-/** Shown while a tab's chunk is in flight. */
-const TabFallback = () => (
-  <Card className="p-8">
-    <CardContent className="flex items-center justify-center gap-3 text-muted-foreground">
-      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
-      <span>Loading…</span>
-    </CardContent>
-  </Card>
-);
+/** Shown while a tab's chunk is in flight. A shape, not a spinner: the page
+ *  settles into the content instead of jumping when the chunk lands. */
+const TabFallback = () => <SkeletonTable rows={8} columns={6} />;
 
 const FantasyFootballApp = () => {
   // Viewer identity and what they may see. `isTeamOwner` replaces an inline
@@ -114,6 +106,7 @@ const FantasyFootballApp = () => {
 
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+  const [standingsOpen, setStandingsOpen] = useState(false);
 
   // Check if awards are accessible
   const isAwardsAccessible = () => {
@@ -137,10 +130,13 @@ const FantasyFootballApp = () => {
     const awardsAccessible = isAwardsAccessible();
 
     return [
-      { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
-      { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
+      // `shortLabel` is what the phone tab bar shows. A 72px tab cannot hold
+      // "Power Rankings", and a truncated label — "Power Ran…" — is a worse
+      // affordance than the icon alone.
+      { id: 'rankings', label: 'Power Rankings', shortLabel: 'Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
+      { id: 'statistics', label: 'Statistics', shortLabel: 'Stats', icon: BarChart3, requiresSeason: true, requiresAuth: false },
       { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
-      { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
+      { id: 'teams', label: 'Teams & Rosters', shortLabel: 'Teams', icon: Users, requiresSeason: true, requiresAuth: false },
       // The admin is let through explicitly, the way every `getMasked*` helper
       // already treats them — owning a team is not a prerequisite for running
       // the league.
@@ -163,6 +159,26 @@ const FantasyFootballApp = () => {
   }, [isAdmin]);
 
   const activeTabDef = mainTabs.find((t) => t.id === activeTab);
+
+  // What the nav actually renders: the tab list plus the one piece of state
+  // that is the shell's to know — whether a tab is waiting on the viewer.
+  //
+  // Nothing is disabled for a missing season any more. That rule used to read
+  // `isAdmin && tab.requiresSeason && !activeSeason`, so the admin got greyed-
+  // out tabs while everyone else got working ones — the inversion of what was
+  // presumably meant, and either way it contradicts the design directly above:
+  // every tab renders its own "no season yet" state, which explains the
+  // situation, where a dead nav item explains nothing.
+  const needsPicks =
+    isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
+  const navTabs = useMemo(
+    () =>
+      mainTabs.map((tab) => ({
+        ...tab,
+        showNotification: tab.id === 'pickems' && needsPicks,
+      })),
+    [mainTabs, needsPicks]
+  );
 
   // Mutations arrive as TanStack objects; the tab components still take plain
   // callbacks, so adapt at the boundary rather than rewriting every child.
@@ -198,32 +214,56 @@ const FantasyFootballApp = () => {
         {/* Header - Responsive Design */}
         <header className="sticky top-0 z-50 w-full border-b bg-card/80 backdrop-blur-sm">
           <PageContainer>
-            <div className="flex h-14 items-center justify-between gap-2 sm:h-16">
-              {/* Left Section: Logo, Title, and Week Navigator */}
-              <div className="flex min-w-0 items-center">
-                {/* Logo and Title */}
-                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                  <div className="h-8 w-8 shrink-0 rounded-lg flex items-center justify-center overflow-hidden">
-                    <img src="og jits logo.jpg" alt="og jits logo" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="min-w-0">
-                    <h1 className="truncate text-lg font-bold tracking-tight sm:text-xl">
-                      og jits
-                    </h1>
-                    {/* The season subtitle is the first thing to go at 375px:
-                        the header has to hold the logo, the nav trigger and the
-                        login control before it earns a second line. */}
-                    {activeSeason && (
-                      <p className="hidden truncate text-sm text-muted-foreground sm:block">
-                        {activeSeason.name || `${activeSeason.year} Season`}
-                      </p>
-                    )}
-                  </div>
+            <div className="flex h-14 items-center justify-between gap-3 sm:h-16">
+              {/* Left: identity. The season name reads at every width now —
+                  it used to be the first thing sacrificed to make room for the
+                  hamburger, so a phone user could not tell which season they
+                  were looking at. `shrink-0` is what keeps that true: when the
+                  labelled nav arrives at lg the row gets tight, and a
+                  shrinkable brand collapses to nothing rather than pushing
+                  back. */}
+              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
+                  <img src="og jits logo.jpg" alt="" className="h-full w-full object-cover" />
                 </div>
+                <div className="min-w-0">
+                  <h1 className="truncate font-display text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+                    og jits
+                  </h1>
+                  {activeSeason && (
+                    <p className="truncate text-xs leading-tight text-muted-foreground">
+                      {activeSeason.name || `${activeSeason.year} Season`}
+                    </p>
+                  )}
+                </div>
+              </div>
 
-                {/* Inline Week Navigator - Desktop (Full) */}
-                {activeSeason && (
-                  <div className="hidden xl:block ml-8">
+              <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
+                <HeaderNav
+                  tabs={navTabs}
+                  activeTab={activeTab}
+                  shouldShowTab={shouldShowTab}
+                />
+                <LoginDropdown />
+              </div>
+            </div>
+          </PageContainer>
+
+          {/* The week gets its own row, at every width.
+              There used to be three InlineWeekNavigators in this header behind
+              different visibility classes — three trees, three sets of
+              document-level key handlers, and a full/condensed switch at a
+              different width from the nav's own switch, which created a
+              1280-1535px tier nobody had designed. One mount now, and on its
+              own line because the alternative is what the inline version did
+              at 1280: squeeze the league name out of the header entirely.
+              It is also the most-used control on the site, which is an
+              argument for giving it room rather than the last 200px of a row. */}
+          {activeSeason && (
+            <div className="border-t bg-card/60">
+              <PageContainer>
+                <div className="flex items-center gap-2 py-1.5">
+                  <div className="min-w-0 flex-1">
                     <InlineWeekNavigator
                       currentWeek={viewedWeek}
                       totalWeeks={activeSeason.totalWeeks}
@@ -234,70 +274,22 @@ const FantasyFootballApp = () => {
                       condensed={false}
                     />
                   </div>
-                )}
-
-                {/* Inline Week Navigator - Tablet/Mobile (Condensed) */}
-                {activeSeason && (
-                  <div className="hidden sm:block xl:hidden ml-4">
-                    <InlineWeekNavigator
-                      currentWeek={viewedWeek}
-                      totalWeeks={activeSeason.totalWeeks}
-                      regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                      onWeekChange={setViewedWeek}
-                      completedWeeks={completedWeeks}
-                      season={activeSeason}
-                      condensed={true}
-                    />
-                  </div>
-                )}
-
-                {/* Below sm the navigator moves to its own sub-bar under the
-                    header — see below. Squeezing it in here left it condensed,
-                    which hides the week label, so the control told you nothing
-                    about which week you were looking at. */}
-              </div>
-
-              {/* Main Navigation - Responsive */}
-              <ResponsiveNavigation
-                tabs={mainTabs.map(tab => ({
-                  ...tab,
-                  isDisabled: isAdmin && tab.requiresSeason && !activeSeason,
-                  showNotification: tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen()
-                }))}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                shouldShowTab={shouldShowTab}
-              />
-
-              {/* Right Section: Login */}
-              <div className="flex shrink-0 items-center space-x-2">
-                <LoginDropdown />
-              </div>
-            </div>
-          </PageContainer>
-
-          {/* Week navigator sub-bar — phones only. Full (not condensed), so the
-              week label is visible; it is the single most-used control on the
-              site and it had nowhere to live in a 375px header row. */}
-          {activeSeason && (
-            <div className="border-t bg-card/60 sm:hidden">
-              <div className="flex items-center justify-center px-4 py-1.5">
-                <InlineWeekNavigator
-                  currentWeek={viewedWeek}
-                  totalWeeks={activeSeason.totalWeeks}
-                  regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                  onWeekChange={setViewedWeek}
-                  completedWeeks={completedWeeks}
-                  season={activeSeason}
-                  condensed={false}
-                />
-              </div>
+                  <StandingsTrigger onClick={() => setStandingsOpen(true)} />
+                </div>
+              </PageContainer>
             </div>
           )}
         </header>
 
-        {/* Main Content */}
-        <PageContainer as="main" className="py-4 sm:py-8">
+        {/* Main content.
+            The bottom padding clears the phone tab bar: it is `fixed`, so it
+            does not occupy layout space, and without this the last row of
+            every page sits under it. `pb-safe` handles the home indicator
+            below that. */}
+        <PageContainer
+          as="main"
+          className="py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8"
+        >
 
 
           {/* Error Display */}
@@ -315,67 +307,29 @@ const FantasyFootballApp = () => {
             <Suspense fallback={<TabFallback />}>
             {activeTab === 'rankings' && (
               <ErrorBoundary key="rankings-error-boundary">
-                <div className="space-y-6">
-                  <div className="space-y-6">
-                    <Card>
-                      <CardHeader>
-                        {/* Title and controls stack below sm:. Side by side
-                            they were ~500px of content in a 310px column, and
-                            the "Advanced Analysis" button ended up outside the
-                            card entirely. */}
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="flex min-w-0 flex-wrap items-center gap-2">
-                            <CardTitle className="text-lg sm:text-2xl">Week {viewedWeek} Power Rankings</CardTitle>
-                            <Badge variant="outline">
-                              {new Date().toLocaleDateString()}
-                            </Badge>
-                          </div>
-
-                          {/* View Switcher */}
-                          <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end sm:gap-4">
-                            {rankingsView === 'table' && (
-                              <div className="flex items-center space-x-2">
-                                <Switch
-                                  id="advanced-stats"
-                                  checked={showAdvancedStats}
-                                  onCheckedChange={setShowAdvancedStats}
-                                />
-                                <Label htmlFor="advanced-stats" className="cursor-pointer whitespace-nowrap text-sm">
-                                  Advanced Stats
-                                </Label>
-                              </div>
-                            )}
-
-                            <Button
-                              onClick={() => setRankingsView(rankingsView === 'table' ? 'analysis' : 'table')}
-                              variant="outline"
-                              size="sm"
-                              className="shrink-0 whitespace-nowrap text-xs font-medium"
-                            >
-                              {rankingsView === 'table' ? 'Advanced Analysis' : 'Rankings Table'}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {rankingsView === 'table' ? (
-                          <PowerRankingsTable
-                            rankings={weeklyRankings}
-                            currentWeek={viewedWeek}
-                            showAdvanced={showAdvancedStats}
-                            loading={rankingsLoading}
-                            initializing={isLoading}
-                          />
-                        ) : (
-                          <PowerRankingsVisualization
-                            rankings={weeklyRankings}
-                            currentWeek={viewedWeek}
-                            loading={rankingsLoading}
-                          />
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
+                <div>
+                  <RankingsHeader
+                    week={viewedWeek}
+                    view={rankingsView}
+                    onViewChange={setRankingsView}
+                    showAdvanced={showAdvancedStats}
+                    onShowAdvancedChange={setShowAdvancedStats}
+                  />
+                  {rankingsView === 'table' ? (
+                    <PowerRankingsTable
+                      rankings={weeklyRankings}
+                      currentWeek={viewedWeek}
+                      showAdvanced={showAdvancedStats}
+                      loading={rankingsLoading}
+                      initializing={isLoading}
+                    />
+                  ) : (
+                    <PowerRankingsVisualization
+                      rankings={weeklyRankings}
+                      currentWeek={viewedWeek}
+                      loading={rankingsLoading}
+                    />
+                  )}
                 </div>
               </ErrorBoundary>
             )}
@@ -383,24 +337,12 @@ const FantasyFootballApp = () => {
 
             {activeTab === 'statistics' && (
               <ErrorBoundary key="statistics-error-boundary">
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>League Analytics</CardTitle>
-                      <CardDescription>
-                        Comprehensive statistics and insights for your league
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <StatisticsPanel
-                        rankings={weeklyRankings}
-                        currentWeek={viewedWeek}
-                        season={activeSeason}
-                        loading={rankingsLoading}
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
+                <StatisticsPanel
+                  rankings={weeklyRankings}
+                  currentWeek={viewedWeek}
+                  season={activeSeason}
+                  loading={rankingsLoading}
+                />
               </ErrorBoundary>
             )}
 
@@ -493,9 +435,18 @@ const FantasyFootballApp = () => {
           </div>
         </PageContainer>
 
+        {/* The phone tab bar is a sibling of the header, not a child of it.
+            The header carries `backdrop-blur`, and backdrop-filter makes an
+            element the containing block for `position: fixed` descendants —
+            nested inside it, `bottom-0` resolved against the header and the
+            bar rendered directly beneath it at the top of the screen. */}
+        <MobileTabBar tabs={navTabs} activeTab={activeTab} shouldShowTab={shouldShowTab} />
+
         {/* Standings Drawer */}
         {activeSeason && (
           <StandingsDrawer
+            open={standingsOpen}
+            onOpenChange={setStandingsOpen}
             teams={activeSeason.teams || []}
             divisions={divisions}
             standings={standings}
