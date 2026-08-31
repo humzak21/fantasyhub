@@ -65,37 +65,4 @@ function SkeletonTable({ rows = 6, columns = 5, className, ...props }) {
   )
 }
 
-/**
- * A grid of card placeholders — stat tiles, team cards, matchups.
- */
-function SkeletonCards({ count = 6, columns = 3, className, ...props }) {
-  const gridCols =
-    columns === 2
-      ? 'sm:grid-cols-2'
-      : columns === 4
-        ? 'sm:grid-cols-2 lg:grid-cols-4'
-        : 'sm:grid-cols-2 lg:grid-cols-3'
-
-  return (
-    <div
-      className={cn('grid grid-cols-1 gap-4', gridCols, className)}
-      role="status"
-      aria-label="Loading"
-      {...props}
-    >
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="space-y-3 rounded-lg border bg-card p-4">
-          <div className="flex items-center justify-between gap-2">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-7 w-7 rounded-md" />
-          </div>
-          <Skeleton className="h-8 w-2/3" />
-          <Skeleton className="h-3 w-1/2" />
-        </div>
-      ))}
-      <span className="sr-only">Loading</span>
-    </div>
-  )
-}
-
-export { Skeleton, SkeletonTable, SkeletonCards }
+export { Skeleton, SkeletonTable }

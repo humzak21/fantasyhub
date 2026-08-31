@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { SkeletonCards } from '../ui/skeleton';
+import RouteLoading from '../layout/RouteLoading';
 import { EmptyState } from '../ui/empty-state';
 import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -186,15 +186,16 @@ const PickEmsManager = ({
     );
   };
 
-  // A skeleton, not `null`. The comment this replaces said the full-screen
+  // A loader, not `null`. The comment this replaces said the full-screen
   // overlay was covering the wait — that overlay was removed for blocking the
   // whole page on every mutation, which left this branch rendering an entirely
-  // blank tab for as long as the fetch took.
+  // blank tab for as long as the fetch took. The header stays up so the page
+  // has an identity while its data arrives.
   if (initializing || dataLoading) {
     return (
       <>
         <PageHeader icon={Target} title="Pick'ems" />
-        <SkeletonCards count={4} columns={1} />
+        <RouteLoading />
       </>
     );
   }

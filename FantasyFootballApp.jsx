@@ -13,7 +13,6 @@ import {
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
 import { Card, CardContent } from './src/components/ui/card';
-import { SkeletonTable } from './src/components/ui/skeleton';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
 import ErrorBoundary from './utils/errorBoundary.jsx';
 
@@ -28,6 +27,7 @@ import InlineWeekNavigator from './src/components/week-controls/InlineWeekNaviga
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
 import { HeaderNav, MobileTabBar } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
+import RouteLoading from './src/components/layout/RouteLoading.jsx';
 import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
 
@@ -45,9 +45,10 @@ const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueH
 /** The tab `/` resolves to. Also where an unknown or forbidden tab lands. */
 const DEFAULT_TAB = 'rankings';
 
-/** Shown while a tab's chunk is in flight. A shape, not a spinner: the page
- *  settles into the content instead of jumping when the chunk lands. */
-const TabFallback = () => <SkeletonTable rows={8} columns={6} />;
+/** Shown while a tab's chunk is in flight — see RouteLoading for why this is
+ *  not a skeleton. Skeletons belong where the shape is known; a route-level
+ *  fallback does not know what it is standing in for. */
+const TabFallback = () => <RouteLoading />;
 
 const FantasyFootballApp = () => {
   // Viewer identity and what they may see. `isTeamOwner` replaces an inline
