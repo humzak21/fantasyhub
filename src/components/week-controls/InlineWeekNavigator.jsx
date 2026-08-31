@@ -148,7 +148,7 @@ const InlineWeekNavigator = ({
             transition-colors duration-150
             cursor-pointer
             ${isViewingCurrentWeek
-              ? 'text-blue-700 bg-blue-50 hover:bg-blue-100'
+              ? 'bg-primary/10 text-primary hover:bg-primary/15'
               : 'text-foreground'
             }
           `}
@@ -156,7 +156,7 @@ const InlineWeekNavigator = ({
           aria-label={`${isViewingCurrentWeek ? 'Current' : 'Selected'} week: ${getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}. Click to open week selector.`}
         >
           {isViewingCurrentWeek ? (
-            <Clock className="h-3 w-3 text-blue-600" aria-hidden="true" />
+            <Clock className="h-3 w-3 text-primary" aria-hidden="true" />
           ) : (
             <Calendar className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
           )}
@@ -199,8 +199,7 @@ const InlineWeekNavigator = ({
             className="
               h-7 w-7
               p-0 rounded-md
-              hover:bg-blue-100
-              text-blue-600 hover:text-blue-700
+              text-primary hover:bg-primary/10
               transition-all duration-150 ease-out
               ml-1
             "

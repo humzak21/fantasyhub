@@ -17,10 +17,10 @@ import { RecordText } from './number-text';
  * team rename.
  */
 const SIZES = {
-  xs: { avatar: 'h-6 w-6 text-[10px]', name: 'text-xs', sub: 'text-[10px]', gap: 'gap-1.5' },
-  sm: { avatar: 'h-8 w-8 text-xs', name: 'text-sm', sub: 'text-xs', gap: 'gap-2' },
-  md: { avatar: 'h-10 w-10 text-sm', name: 'text-base', sub: 'text-xs', gap: 'gap-3' },
-  lg: { avatar: 'h-12 w-12 text-base', name: 'text-lg', sub: 'text-sm', gap: 'gap-3' },
+  xs: { avatar: 'h-6 w-6 text-[10px]', name: 'text-xs', sub: 'text-[10px]', gap: 'gap-2' },
+  sm: { avatar: 'h-7 w-7 text-[11px]', name: 'text-sm', sub: 'text-[11px]', gap: 'gap-2.5' },
+  md: { avatar: 'h-9 w-9 text-xs', name: 'text-[15px]', sub: 'text-xs', gap: 'gap-3' },
+  lg: { avatar: 'h-11 w-11 text-sm', name: 'text-lg', sub: 'text-[13px]', gap: 'gap-3.5' },
 };
 
 /**
@@ -36,17 +36,22 @@ const TeamAvatar = React.forwardRef(({ team, size = 'sm', className, ...props },
       aria-hidden="true"
       className={cn(
         'inline-flex shrink-0 items-center justify-center rounded-full font-semibold',
-        // The tint is the team colour at low alpha with a full-strength ring
-        // and text, which stays legible on the dark field where a solid fill
-        // of the same hue would not.
-        'bg-current/15 ring-1 ring-current/40',
+        // The hue identifies the team; the initials stay neutral.
+        //
+        // Full-strength coloured initials in every row turned a fourteen-team
+        // table into fourteen competing accents. Carrying the identity in a
+        // low tint and a faint ring keeps a team findable at a glance without
+        // the page reading as a paint chart — colour at full strength is
+        // reserved for the charts, where hue *is* the data.
+        'bg-current/[0.18] ring-1 ring-inset ring-current/25',
         color.text,
+        '[&>span]:text-foreground/75',
         s.avatar,
         className
       )}
       {...props}
     >
-      {getTeamInitials(team)}
+      <span className="font-semibold">{getTeamInitials(team)}</span>
     </span>
   );
 });
@@ -85,10 +90,10 @@ const TeamIdentity = React.forwardRef(
       <div ref={ref} className={cn('flex min-w-0 items-center', s.gap, className)} {...props}>
         {showAvatar && <TeamAvatar team={team} size={size} />}
         <div className="min-w-0">
-          <div className={cn('truncate font-semibold leading-tight', s.name)}>
+          <div className={cn('truncate font-medium leading-tight tracking-[-0.006em]', s.name)}>
             {name}
             {isViewer && (
-              <span className="ml-1.5 rounded bg-primary/15 px-1 py-px text-[10px] font-medium uppercase tracking-wide text-primary align-middle">
+              <span className="ml-1.5 align-middle text-[10px] font-medium uppercase tracking-[0.08em] text-primary/80">
                 You
               </span>
             )}

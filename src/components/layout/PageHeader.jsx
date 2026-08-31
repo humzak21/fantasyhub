@@ -33,23 +33,29 @@ export function PageHeader({
   ...props
 }) {
   return (
-    <div className={cn('mb-5 sm:mb-6', className)} {...props}>
+    <div className={cn('mb-6 sm:mb-8', className)} {...props}>
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="flex min-w-0 items-center gap-3">
+          {/* The icon is a marker, not a feature. A filled brand-coloured tile
+              at the top of every page competes with the page's own accent for
+              attention and makes eight tabs look like eight products. */}
           {Icon && (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary sm:h-10 sm:w-10">
-              <Icon className="h-5 w-5" aria-hidden="true" />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground">
+              <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
             </span>
           )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-              <h1 className="font-display text-2xl font-semibold leading-none tracking-tight sm:text-3xl">
+              {/* Tight tracking is most of what makes large type look set
+                  rather than typed. Barlow Condensed at -0.01em keeps the
+                  scoreboard voice from feeling loose at display size. */}
+              <h1 className="font-display text-[26px] font-semibold leading-[1.1] tracking-[-0.01em] sm:text-[32px]">
                 {title}
               </h1>
               {badge}
             </div>
             {description && (
-              <p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>
             )}
           </div>
         </div>
@@ -57,7 +63,7 @@ export function PageHeader({
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
 
-      {children && <div className="mt-4">{children}</div>}
+      {children && <div className="mt-5">{children}</div>}
     </div>
   );
 }

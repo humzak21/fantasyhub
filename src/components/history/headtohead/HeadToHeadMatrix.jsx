@@ -62,20 +62,20 @@ const HeadToHeadMatrix = ({
   const getCellStyle = (wins, losses, hasPlayed) => {
     // Never played: recedes rather than reading as a result.
     if (!hasPlayed) {
-      return { backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' };
+      return { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' };
     }
 
     // 0-0, which is a meeting with no completed games rather than an even one.
     if (!wins && !losses) {
-      return { backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' };
+      return { backgroundColor: 'var(--muted)', color: 'var(--muted-foreground)' };
     }
 
     const winPct = wins / (wins + losses);
-    if (winPct >= 0.7) return { backgroundColor: 'hsl(var(--success) / 0.35)', color: 'hsl(var(--foreground))' };
-    if (winPct > 0.5) return { backgroundColor: 'hsl(var(--success) / 0.18)', color: 'hsl(var(--foreground))' };
-    if (winPct === 0.5) return { backgroundColor: 'hsl(var(--secondary))', color: 'hsl(var(--foreground))' };
-    if (winPct >= 0.3) return { backgroundColor: 'hsl(var(--destructive) / 0.18)', color: 'hsl(var(--foreground))' };
-    return { backgroundColor: 'hsl(var(--destructive) / 0.35)', color: 'hsl(var(--foreground))' };
+    if (winPct >= 0.7) return { backgroundColor: 'color-mix(in oklab, var(--success) 35%, transparent)', color: 'var(--foreground)' };
+    if (winPct > 0.5) return { backgroundColor: 'color-mix(in oklab, var(--success) 18%, transparent)', color: 'var(--foreground)' };
+    if (winPct === 0.5) return { backgroundColor: 'var(--secondary)', color: 'var(--foreground)' };
+    if (winPct >= 0.3) return { backgroundColor: 'color-mix(in oklab, var(--destructive) 18%, transparent)', color: 'var(--foreground)' };
+    return { backgroundColor: 'color-mix(in oklab, var(--destructive) 35%, transparent)', color: 'var(--foreground)' };
   };
 
   // Get display name with masking
@@ -164,7 +164,7 @@ const HeadToHeadMatrix = ({
 
                       if (isSelf) {
                         return (
-                          <td key={col.franchiseId} className="p-1 text-center" style={{ backgroundColor: 'hsl(var(--muted))' }}>
+                          <td key={col.franchiseId} className="p-1 text-center" style={{ backgroundColor: 'var(--muted)' }}>
                             <span className="text-muted-foreground">—</span>
                           </td>
                         );

@@ -5,7 +5,17 @@ const Card = React.forwardRef(({ className, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      // The material, in one place.
+      //
+      // A flat `border + shadow-sm` rectangle is the shadcn default and reads
+      // as a box drawn on the page. What makes a surface look *lit* is the
+      // top edge catching light: the inset highlight below is a one-pixel
+      // white line along the top of every card, which is why real interfaces
+      // built this way (Linear, Vercel, macOS sheets) feel like objects rather
+      // than outlines. The drop shadow is nearly black because the ground is
+      // nearly black — a grey shadow on black is a grey smudge.
+      "rounded-xl border border-border bg-card text-card-foreground",
+      "shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]",
       className
     )}
     {...props}

@@ -79,14 +79,14 @@ export function getTeamColorSlot(team) {
  */
 export function getTeamColor(team) {
   const slot = getTeamColorSlot(team);
-  // The bare triplet lives in :root as `--team-N`; the `--color-team-N` form
-  // is the Tailwind theme entry, which `@theme inline` inlines rather than
-  // emitting, so it is not readable at runtime. Wrap the triplet instead.
+  // `--team-N` is the real custom property; the `--color-team-N` form is the
+  // Tailwind theme entry, which `@theme inline` inlines rather than emitting,
+  // so it is not readable at runtime.
   const varName = `--team-${slot}`;
   return {
     slot,
     varName,
-    value: `hsl(var(${varName}))`,
+    value: `var(${varName})`,
     text: `text-team-${slot}`,
     bg: `bg-team-${slot}`,
     border: `border-team-${slot}`,

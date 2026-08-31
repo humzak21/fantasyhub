@@ -101,10 +101,10 @@ const AllPlayRecordsChart = ({
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '22px' }} height={50} />
-          <ReferenceLine y={50} yAxisId="right" stroke="hsl(var(--border))" strokeDasharray="3 3" />
+          <ReferenceLine y={50} yAxisId="right" stroke="var(--border)" strokeDasharray="3 3" />
 
-          <Bar yAxisId="left" dataKey="allPlayWins" name="All-Play Wins" fill="hsl(var(--success))" opacity={0.8} />
-          <Bar yAxisId="left" dataKey="allPlayLosses" name="All-Play Losses" fill="hsl(var(--destructive))" opacity={0.8} />
+          <Bar yAxisId="left" dataKey="allPlayWins" name="All-Play Wins" fill="var(--success)" opacity={0.8} />
+          <Bar yAxisId="left" dataKey="allPlayLosses" name="All-Play Losses" fill="var(--destructive)" opacity={0.8} />
         </BarChart>
       </ChartContainer>
     </div>

@@ -21,7 +21,6 @@ import { TeamIdentity } from '../ui/team-identity';
 import { NumberText } from '../ui/number-text';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
-import { cn } from '../../lib/utils';
 
 const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
@@ -158,28 +157,17 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
   const TeamHighlight = ({ title, team, value, unit, description, accent = 'neutral' }) => {
     if (!team) {
       return (
-        <div className="rounded-lg border bg-card p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</div>
-          <div className="mt-2 text-sm text-muted-foreground">
-            No completed games yet.
-          </div>
+        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
+          <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{title}</div>
+          <div className="mt-3 text-sm text-muted-foreground">No completed games yet.</div>
         </div>
       );
     }
 
-    const tone = {
-      neutral: 'text-foreground',
-      success: 'text-success',
-      warning: 'text-warning',
-      info: 'text-info',
-      destructive: 'text-destructive',
-      primary: 'text-primary',
-    }[accent] || 'text-foreground';
-
     return (
-      <div className="rounded-lg border bg-card p-4">
-        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</div>
-        <div className="mt-2.5">
+      <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:p-5">
+        <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{title}</div>
+        <div className="mt-3">
           <TeamIdentity
             team={{
               ...team,
@@ -190,22 +178,26 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
             showOwner
           />
         </div>
-        <div className="mt-3 flex items-baseline gap-1.5">
-          <span className={cn('font-display text-2xl font-semibold tracking-tight', tone)}>
+        {/* The figure is neutral. "Highest scoring" is already the claim;
+            painting the number green says the team is *good*, which is an
+            opinion the data does not carry — and it spends the success colour
+            so that it means nothing where it genuinely applies. */}
+        <div className="mt-3.5 flex items-baseline gap-1.5">
+          <span className="font-display text-[26px] font-semibold leading-none tracking-[-0.01em] text-foreground">
             {value}
           </span>
-          {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
+          {unit && <span className="text-[12px] text-muted-foreground">{unit}</span>}
         </div>
-        {description && <div className="mt-1 text-xs text-muted-foreground">{description}</div>}
+        {description && <div className="mt-1.5 text-[12px] text-muted-foreground">{description}</div>}
       </div>
     );
   };
 
   /** A titled block of related cards. */
   const Section = ({ icon: Icon, title, children }) => (
-    <section className="space-y-3">
-      <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        <Icon className="h-4 w-4" aria-hidden="true" />
+    <section className="space-y-3.5">
+      <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
         {title}
       </h2>
       {children}
@@ -223,7 +215,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
         description={`Scoring, defence and luck through week ${currentWeek}.`}
       />
 
-      <div className="space-y-8">
+      <div className="space-y-10">
         <Section icon={BarChart3} title="League overview">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <StatCard

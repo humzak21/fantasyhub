@@ -34,75 +34,60 @@ const SeasonProgressBar = ({
     return 'scheduled';
   };
 
+  /*
+   * The strip is context, not the headline.
+   *
+   * It used to paint every completed week a saturated green, the current week
+   * blue, partial weeks orange, and then ring championship in yellow, rivalry
+   * in red and the trade deadline in purple — six hues at full strength, on a
+   * control whose entire job is to say "you are here, and here is the shape of
+   * the season". Seventeen loud blocks made the most disposable information on
+   * the page the loudest thing on it.
+   *
+   * The rule now: a completed week is the *default* (most of them are), so it
+   * recedes to the muted surface. The selected week takes the brand. What is
+   * still to come is dimmer than what has happened. Special weeks are marked
+   * by a border, not a fill, so the status fill keeps meaning one thing.
+   */
   const getWeekClasses = (week) => {
     const status = getWeekStatus(week);
-    const isCurrentWeek = week === currentWeek;
+    const isSelected = week === currentWeek;
     const isChampionship = week === championshipWeek;
     const isRivalryWeek = rivalryWeeks.includes(week);
     const isTradeDeadline = week === tradeDeadlineWeek;
     const isPlayoff = week > regularSeasonWeeks;
 
-    let classes = 'relative flex items-center justify-center text-xs font-medium transition-all duration-200 cursor-pointer flex-1 hover:opacity-80 ';
+    let classes =
+      'relative flex h-9 min-w-10 flex-1 items-center justify-center gap-1 rounded-lg border text-xs font-medium tabular transition-colors duration-[130ms] cursor-pointer ';
 
-    // Size classes - making them bigger and more consistent
-    if (isChampionship) {
-      classes += 'h-10 min-w-14 text-sm ';
-    } else if (isRivalryWeek || isTradeDeadline) {
-      classes += 'h-9 min-w-12 ';
-    } else {
-      classes += 'h-8 min-w-10 ';
-    }
-
-    // Status-based styling
-    if (status === 'completed') {
-      classes += 'bg-green-500 text-white shadow-md ';
-    } else if (isCurrentWeek) {
-      // Always make current week blue regardless of status
-      classes += 'bg-blue-500 text-white shadow-sm ';
+    if (isSelected) {
+      // The one thing the strip has to answer at a glance.
+      classes += 'border-primary bg-primary text-primary-foreground font-semibold ';
+    } else if (status === 'completed') {
+      classes += 'border-border bg-muted text-foreground/80 hover:bg-accent ';
     } else if (status === 'partial') {
-      classes += 'bg-orange-400 text-white shadow-sm ';
-    } else if (week < currentWeek) {
-      classes += 'bg-blue-500 text-white shadow-sm ';
+      classes += 'border-warning/30 bg-warning/10 text-warning hover:bg-warning/15 ';
     } else {
-      classes += 'bg-muted text-muted-foreground hover:bg-muted ';
+      // Not played yet: present, but plainly ahead of the reader.
+      classes += 'border-border/60 bg-transparent text-muted-foreground/70 hover:bg-accent/40 ';
     }
 
-    // Special week styling
-    if (isChampionship) {
-      classes += 'rounded-lg border-2 border-yellow-400 shadow-lg hover:shadow-xl ';
-      if (status !== 'completed') {
-        classes += 'ring-2 ring-yellow-300 ring-opacity-50 ';
-      }
-    } else if (isRivalryWeek) {
-      classes += 'rounded-lg border-2 border-red-400 ';
-    } else if (isTradeDeadline) {
-      classes += 'rounded-lg border-2 border-purple-400 ';
-    } else if (isPlayoff) {
-      classes += 'rounded-lg border border-border ';
-    } else {
-      classes += 'rounded ';
-    }
-
-    // Current week emphasis
-    if (isCurrentWeek) {
-      classes += 'ring-2 ring-blue-300 ring-opacity-70 ';
+    // Markers, as borders rather than fills, so they can coexist with status.
+    if (!isSelected) {
+      if (isChampionship) classes += 'border-ff-rank-gold-500/60 ';
+      else if (isRivalryWeek) classes += 'border-destructive/40 ';
+      else if (isTradeDeadline) classes += 'border-info/40 ';
+      else if (isPlayoff) classes += 'border-border-strong ';
     }
 
     return classes;
   };
 
+  // Only the championship earns a glyph. The 8px and 10px icons this replaces
+  // were below the size at which a lucide outline resolves into a shape.
   const getWeekIcon = (week) => {
     if (week === championshipWeek) {
-      return <Trophy size={12} className="text-yellow-400" />;
-    }
-    if (rivalryWeeks.includes(week)) {
-      return <Users size={10} className="text-red-400" />;
-    }
-    if (week === tradeDeadlineWeek) {
-      return <Clock size={10} className="text-purple-400" />;
-    }
-    if (week > regularSeasonWeeks) {
-      return <Calendar size={8} className="text-muted-foreground" />;
+      return <Trophy size={12} className="text-ff-rank-gold-400" aria-hidden="true" />;
     }
     return null;
   };
@@ -156,26 +141,19 @@ const SeasonProgressBar = ({
   }, [currentWeek]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Legend */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-muted-foreground">
         <div className="flex items-center gap-2">
-          <span className="font-medium">Week {currentWeek} of {totalWeeks}</span>
+          <span className="text-[11px] font-medium uppercase tracking-[0.06em]">
+            Week {currentWeek} of {totalWeeks}
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 bg-green-500 rounded"></div>
-            <span className="text-xs">Complete</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 bg-blue-500 rounded"></div>
-            <span className="text-xs">Current</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="h-3 w-3 bg-muted rounded"></div>
-            <span className="text-xs">Upcoming</span>
-          </div>
-        </div>
+        {/* The swatch legend is gone. Three colour keys for "complete /
+            current / upcoming" explained a code that the strip no longer
+            needs: the selected week is the only filled chip, played weeks are
+            solid, and unplayed ones are dim. A legend that has to be read
+            before a control can be used is a sign the control is over-coded. */}
       </div>
 
       {/* Progress Bar */}
