@@ -248,15 +248,26 @@ over a league-sized board, so a future `nfl_game` take can sort by kickoff
 without a generated column to migrate — which is also why
 `takes_target_type_check` is named and DO-guarded.
 
-**The tab is members-only, and that gate is the shell's, not the database's.**
-`customAccess: isAuthenticated` hides `/takes` from a signed-out viewer and the
-route guard redirects them — but note `requiresAuth` is *not* the flag for
-this: despite the name it means admin-only. The `Public read takes` policy is
-still `USING (true)`, so this is a navigation decision, not a confidentiality
-one; anything that must be unreadable signed out needs the policy changed too.
-The guard waits on `isAuthLoading` because `isAuthenticated` reads false while
-a stored session is still resolving, which would otherwise bounce a member's
-bookmarked `/takes` on every cold load.
+**Takes are members-only, and that is enforced in both halves.** The board
+shipped public-read and was closed in `20260831140000_takes_members_only.sql`;
+`Members read takes` / `Members read take_participants` are
+`FOR SELECT TO authenticated`, so a signed-out caller reads zero rows straight
+from PostgREST. The shell half is `customAccess: isAuthenticated` on the takes
+tab — note `requiresAuth` is *not* the flag for that: despite the name it means
+admin-only (`requiresAuth && !isAdmin`). The nav gate alone would have been
+decoration, since the anon key ships in the client bundle.
+
+**The route guard waits on `isAuthLoading`.** `isAuthenticated` reads false
+while a stored session is still being read back, which is indistinguishable
+from signed out — gating on the flag alone bounces a member's bookmarked
+`/takes` on every cold load. `ViewerContext` exposes it for the same reason it
+exposes `isParlayCommissionerLoading`.
+
+**The `take_participants` write policies subquery `takes`,** and an RLS
+subquery runs as the calling user — so restricting who may SELECT `takes` can
+silently break the +1. It does not here (both are `authenticated`), and there
+is a probe asserting it, but a future narrowing of the read policy has to
+re-check it.
 
 ### Seasons end explicitly
 `public.finalize_season(season_id, dry_run)` derives a season's final placements
