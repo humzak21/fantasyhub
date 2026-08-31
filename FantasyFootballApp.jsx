@@ -215,7 +215,15 @@ const FantasyFootballApp = () => {
         {/* Header - Responsive Design */}
         <header className="sticky top-0 z-50 w-full border-b bg-card/80 backdrop-blur-sm">
           <PageContainer>
-            <div className="flex h-14 items-center justify-between gap-3 sm:h-16">
+            {/* Not `justify-between`.
+                That pushed the two groups to opposite edges and parked all the
+                slack in one visible void between the standings button and the
+                first nav item — 159px of it at 1536. The row is a single flex
+                line with one gap now: navigation sits directly after the
+                controls it belongs with, and the leftover space collects in
+                front of the account control, in the corner, where it reads as
+                margin rather than as a hole. */}
+            <div className="flex h-14 items-center gap-2 sm:h-16 sm:gap-3">
               {/* LEFT — the constant side: who and when.
                   Identity, the week being viewed, and the standings. These are
                   the controls that are on every page and mean the same thing
@@ -273,13 +281,21 @@ const FantasyFootballApp = () => {
                   that gains items over time; anything new belongs on this
                   side, where it pushes against the account control rather
                   than against the week. */}
-              <div className="flex shrink-0 items-center gap-1">
+              {/* The nav takes the remaining width and lays its items out from
+                  the left, so the distance from the standings button to the
+                  first tab is the row's own gap and nothing more. Growing the
+                  tab list consumes this space outwards instead of re-centring
+                  everything; when it runs out, the nav scrolls rather than
+                  pushing the page wider. */}
+              <div className="flex min-w-0 flex-1 items-center">
                 <HeaderNav
                   tabs={navTabs}
                   activeTab={activeTab}
                   shouldShowTab={shouldShowTab}
                 />
+              </div>
 
+              <div className="flex shrink-0 items-center">
                 <LoginDropdown />
               </div>
             </div>

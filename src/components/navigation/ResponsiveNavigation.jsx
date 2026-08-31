@@ -55,7 +55,18 @@ export const HeaderNav = ({ tabs, activeTab, shouldShowTab = () => true }) => {
 };
 
 const DesktopNav = ({ tabs, activeTab }) => (
-  <nav aria-label="Main" className="hidden min-w-0 lg:flex lg:items-center">
+  /*
+    Scrolls rather than overflows. The row gives this element whatever width is
+    left, and eight tabs currently sit well inside it — but a ninth or a longer
+    label should push the page wider, and the honest degradation for a nav that
+    outgrows its line is to scroll it. No `justify-center`: centring an
+    overflowing flex line puts its start at an unreachable negative offset,
+    which CI greps for.
+  */
+  <nav
+    aria-label="Main"
+    className="hidden min-w-0 overflow-x-auto overscroll-x-contain lg:flex lg:items-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+  >
     {tabs.map((tab) => {
       const Icon = tab.icon;
       const isActive = activeTab === tab.id;
@@ -66,7 +77,7 @@ const DesktopNav = ({ tabs, activeTab }) => (
           aria-disabled={tab.isDisabled || undefined}
           onClick={(e) => tab.isDisabled && e.preventDefault()}
           className={cn(
-            'relative flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors xl:px-3',
+            'relative flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors xl:px-3',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             isActive
               ? 'bg-accent text-accent-foreground'
