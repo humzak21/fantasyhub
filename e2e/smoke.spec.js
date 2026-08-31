@@ -36,6 +36,22 @@ test.describe('smoke', () => {
       await expect(page.locator('#root')).not.toBeEmpty()
       await page.waitForFunction(() => document.querySelector('#root')?.clientHeight > 100)
 
+      /*
+       * The app rendered, not the error boundary.
+       *
+       * Without this, every assertion below is satisfied by the crash page:
+       * it fills #root, it is taller than 100px, and it does not overflow.
+       * That is not hypothetical — this suite ran green in CI against
+       * "Something went wrong" on every route, because the environment had
+       * no Supabase config and the shell rendered an Error object as a React
+       * child. A smoke test that passes on a crashed app is worse than none:
+       * it reports that the thing it is watching is fine.
+       */
+      await expect(
+        page.getByText('Something went wrong'),
+        `${route} rendered the error boundary instead of the page`
+      ).toHaveCount(0)
+
       // Screenshot before asserting. It is the artifact you actually want when
       // one of the assertions below fails, and taking it afterwards means you
       // never get it for exactly the runs that needed it.
