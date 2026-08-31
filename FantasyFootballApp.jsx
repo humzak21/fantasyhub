@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame } from 'lucide-react';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -41,6 +41,7 @@ const PickEmsManager = lazy(() => import('./src/components/pickems/PickEmsManage
 const AwardsManager = lazy(() => import('./src/components/awards/AwardsManager.jsx'));
 const PlayoffsBracketManager = lazy(() => import('./src/components/playoffs/PlayoffsBracketManager.jsx'));
 const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueHistoryManager.jsx'));
+const TakesManager = lazy(() => import('./src/components/takes/TakesManager.jsx'));
 
 /** The tab `/` resolves to. Also where an unknown or forbidden tab lands. */
 const DEFAULT_TAB = 'rankings';
@@ -148,6 +149,10 @@ const FantasyFootballApp = () => {
       // the league.
       { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAdmin || isTeamOwner },
       { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
+      // Readable signed out, postable signed in — the gate is in the page, not
+      // in the nav, so a visitor can see what the league called before they
+      // decide whether to join in.
+      { id: 'takes', label: 'Takes', icon: Flame, requiresSeason: true, requiresAuth: false },
       { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       // The league-wide TD parlay view is not a destination of its own. It
       // lives inside Pick'ems, next to Submissions, beside the form the picks
@@ -430,6 +435,19 @@ const FantasyFootballApp = () => {
                     loading={isLoading}
                     isAuthenticated={isAuthenticated}
                     initializing={isLoading}
+                  />
+                </div>
+              </ErrorBoundary>
+            )}
+
+            {activeTab === 'takes' && (
+              <ErrorBoundary key="takes-error-boundary">
+                <div className="space-y-6">
+                  <TakesManager
+                    season={activeSeason}
+                    currentWeek={viewedWeek}
+                    loading={isLoading}
+                    isAuthenticated={isAuthenticated}
                   />
                 </div>
               </ErrorBoundary>
