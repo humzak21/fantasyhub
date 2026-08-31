@@ -517,48 +517,44 @@ const PlayoffsBracket = ({
             {/* Status Bar */}
             <Card>
                 <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-wrap items-center gap-2">
                             <div className="flex items-center gap-2">
-                                <Target className="h-4 w-4 text-orange-600" />
+                                <Target className="h-4 w-4 text-primary" aria-hidden="true" />
                                 <span className="font-medium">
                                     {hasSubmitted && !isEditing ? 'Your Picks Submitted' : 'Make Your Picks'}
                                 </span>
                             </div>
 
                             {hasSubmitted && !isEditing && (
-                                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                <Badge variant="info">
                                     <CheckCircle2 className="h-3 w-3 mr-1" />
                                     Submitted
                                 </Badge>
                             )}
 
                             {isEditing && hasChanges && (
-                                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                                <Badge variant="warning">
                                     Changes Made
                                 </Badge>
                             )}
                         </div>
 
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div>
-                                    <div className="font-medium">Ready to submit?</div>
-                                    <div className="text-sm text-muted-foreground">
-                                        {picksCount}/{totalMatchups} matchups selected
-                                        {!allPicksMade && (
-                                            <span className="text-orange-600 ml-1">
-                                                ({totalMatchups - picksCount} remaining)
-                                            </span>
-                                        )}
-                                    </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+                            <div className="min-w-0">
+                                <div className="text-sm font-medium">Ready to submit?</div>
+                                <div className="text-sm text-muted-foreground">
+                                    {picksCount}/{totalMatchups} matchups selected
+                                    {!allPicksMade && (
+                                        <span className="ml-1 text-warning">
+                                            ({totalMatchups - picksCount} remaining)
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
                             {!user ? (
-                                <div className="text-sm text-muted-foreground px-4 py-2 bg-yellow-50 border border-yellow-200 rounded">
-                                    Please log in to submit picks
-                                </div>
+                                <p className="text-sm text-muted-foreground">Sign in to submit picks.</p>
                             ) : canEdit ? (
                                 hasSubmitted && !isEditing ? (
                                     <>
@@ -821,7 +817,15 @@ const PlayoffsBracket = ({
                             <div className="text-center text-sm font-semibold text-muted-foreground mb-4">
                                 Consolation Games
                             </div>
-                            <div className="flex items-center justify-center gap-8">
+                            {/* The third wide row on this page, and the one that
+                                was still overflowing the viewport at 375px: it
+                                had no scroller at all, and `justify-center` on
+                                a row of fixed-width slots pushed its start to a
+                                negative offset. `mx-auto w-max` inside a
+                                ScrollHint centres it when it fits and
+                                left-aligns it when it does not. */}
+                            <ScrollHint className="pb-2">
+                              <div className="mx-auto flex w-max items-start gap-8">
                                 {/* 5th Place - Week 16 & 17 */}
                                 <div className="flex flex-col gap-4">
                                     <div className="text-xs text-muted-foreground text-center font-medium">
@@ -888,6 +892,7 @@ const PlayoffsBracket = ({
                                     </div>
                                 </div>
                             </div>
+                            </ScrollHint>
                         </div>
                     </div>
                 </CardContent>

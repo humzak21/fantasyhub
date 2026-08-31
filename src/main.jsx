@@ -11,7 +11,6 @@ import { ViewerProvider } from './contexts/ViewerContext.jsx'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
 import { Toaster } from './components/ui/sonner.jsx'
 import '../globals.css'
-import '../styles/fantasy-utilities.css'
 
 // One client for the process. Created here rather than at module scope in
 // queryClient.js so tests can mount a tree with their own.
