@@ -82,11 +82,11 @@ describe('getTeamColorSlot', () => {
 describe('getTeamColor', () => {
   it('points at a custom property that is emitted at runtime', () => {
     // `--color-team-N` is a @theme entry and is inlined away by `@theme
-    // inline`; only the bare `--team-N` triplet survives into the bundle, and
-    // recharts needs a value it can actually resolve.
+    // inline`; only `--team-N` survives into the bundle as a real custom
+    // property, and recharts needs a value it can actually resolve.
     const color = getTeamColor({ ownerName: 'Humza Khalil' });
     expect(color.varName).toMatch(/^--team-\d+$/);
-    expect(color.value).toBe(`hsl(var(${color.varName}))`);
+    expect(color.value).toBe(`var(${color.varName})`);
   });
 
   it('returns class names matching the safelisted utilities', () => {

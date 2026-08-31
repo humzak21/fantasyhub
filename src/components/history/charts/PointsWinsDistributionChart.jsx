@@ -276,7 +276,7 @@ const PointsWinsDistributionChart = ({
                   width={axis.isMobile ? 70 : 110}
                   tick={{ fontSize: axis.isMobile ? 9 : 11 }}
                 />
-                <Tooltip content={<PointsTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                <Tooltip content={<PointsTooltip />} cursor={{ fill: 'var(--muted)' }} />
                 <Bar dataKey="totalPoints" radius={[0, 4, 4, 0]}>
                   {chartData.points.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -314,7 +314,7 @@ const PointsWinsDistributionChart = ({
                   width={axis.isMobile ? 70 : 110}
                   tick={{ fontSize: axis.isMobile ? 9 : 11 }}
                 />
-                <Tooltip content={<PPGTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                <Tooltip content={<PPGTooltip />} cursor={{ fill: 'var(--muted)' }} />
                 <Bar dataKey="ppg" radius={[0, 4, 4, 0]}>
                   {chartData.ppg.map((entry, index) => (
                     <Cell key={`cell-ppg-${index}`} fill={entry.color} />

@@ -126,8 +126,12 @@ const PowerRankingsTable = ({
       priority: 'primary',
       className: 'text-right',
       headerClassName: 'text-right',
+      // The number this page exists to show. Everything else in the row is
+      // supporting evidence, so the rating is the only value set at display
+      // size — hierarchy comes from one thing being bigger, not from six
+      // things being bold.
       cell: (team) => (
-        <NumberText value={team.powerRating} display className="text-xl" />
+        <NumberText value={team.powerRating} display className="text-[22px] leading-none" />
       ),
     },
     {
@@ -136,7 +140,7 @@ const PowerRankingsTable = ({
       className: 'text-center',
       headerClassName: 'text-center',
       cell: (team) => (
-        <RecordText wins={team.wins} losses={team.losses} ties={team.ties} className="font-semibold" />
+        <RecordText wins={team.wins} losses={team.losses} ties={team.ties} className="font-medium" />
       ),
     },
     {
@@ -147,7 +151,9 @@ const PowerRankingsTable = ({
       // Not colour-coded. It is the record expressed as a percentage, and the
       // record is right beside it — a second red/green scale for the same
       // fact is what made a single row carry six of them.
-      cell: (team) => <NumberText value={(team.winPercentage || 0) * 100} variant="percent" />,
+      cell: (team) => (
+        <NumberText value={(team.winPercentage || 0) * 100} variant="percent" className="text-muted-foreground" />
+      ),
     },
     {
       key: 'pointsFor',
@@ -155,7 +161,7 @@ const PowerRankingsTable = ({
       cardLabel: 'Points for',
       className: 'text-right',
       headerClassName: 'text-right',
-      cell: (team) => <NumberText value={team.pointsFor} />,
+      cell: (team) => <NumberText value={team.pointsFor} className="text-muted-foreground" />,
     },
     {
       key: 'pointsAgainst',
@@ -163,7 +169,7 @@ const PowerRankingsTable = ({
       cardLabel: 'Points against',
       className: 'text-right',
       headerClassName: 'text-right',
-      cell: (team) => <NumberText value={team.pointsAgainst} />,
+      cell: (team) => <NumberText value={team.pointsAgainst} className="text-muted-foreground" />,
     },
     {
       key: 'pointDiff',

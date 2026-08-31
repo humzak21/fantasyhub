@@ -23,6 +23,8 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { toast } from 'sonner';
 import PageHeader from '../layout/PageHeader';
 import { EmptyState } from '../ui/empty-state';
+import { TeamIdentity } from '../ui/team-identity';
+import { isUserTeam } from '../../utils/userTeamUtils';
 
 const TeamsAndRosters = ({
   teams = [],
@@ -170,26 +172,33 @@ const TeamsAndRosters = ({
       const position = player.position || player.player?.position || '?';
       const isStarter = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'].includes(slot);
 
+      // A roster is a list. Boxing each of sixteen players in its own bordered,
+      // filled rectangle turned a card into a stack of tiles and made the
+      // position chip — the only thing that needs to be scannable — compete
+      // with a border for attention.
       return (
         <div
-          className={`flex items-center gap-1.5 p-1.5 rounded text-xs border ${
-            isStarter
-              ? 'bg-card border-border font-medium'
-              : slot === 'IR'
-              ? 'border-destructive/30 bg-destructive/10 text-destructive'
-              : 'bg-muted/50 border-muted text-muted-foreground'
+          className={`flex items-center gap-2.5 rounded px-1 py-[3px] text-xs ${
+            isStarter ? 'text-foreground' : 'text-muted-foreground'
           }`}
           title={`${playerName} (${position})${slot !== 'BE' && slot !== 'IR' ? ` - ${slot}` : ''}`}
         >
-          <Badge
-            variant="outline"
-            className={`text-xs h-4 px-1 w-10 justify-center ${getPositionColor(position)}`}
+          <span
+            className={`w-9 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold ${getPositionColor(position)}`}
           >
             {position}
-          </Badge>
-          <span className="truncate" style={{maxWidth: '200px'}}>{playerName}</span>
-          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
-            <div className="w-2 h-2 bg-destructive rounded-full" title={player.injuryStatus} />
+          </span>
+          <span className="min-w-0 flex-1 truncate">{playerName}</span>
+          {slot === 'IR' && (
+            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-destructive">
+              IR
+            </span>
+          )}
+          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && slot !== 'IR' && (
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive"
+              title={player.injuryStatus}
+            />
           )}
         </div>
       );
@@ -204,10 +213,10 @@ const TeamsAndRosters = ({
           {/* Starting Lineup Grid */}
           {starters.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-card py-1">
+              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
                 Starters
               </h4>
-              <div className="grid grid-cols-1 gap-1">
+              <div className="grid grid-cols-1 gap-px">
                 {starters.map((player, idx) => (
                   <CompactPlayerBadge key={`starter-${idx}`} player={player} slot={player.rosterSlot} />
                 ))}
@@ -218,10 +227,10 @@ const TeamsAndRosters = ({
           {/* Bench Players */}
           {benchPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-card py-1">
+              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
                 Bench
               </h4>
-              <div className="grid grid-cols-1 gap-1">
+              <div className="grid grid-cols-1 gap-px">
                 {benchPlayers.map((player, idx) => (
                   <CompactPlayerBadge key={`bench-${idx}`} player={player} slot="BE" />
                 ))}
@@ -232,10 +241,10 @@ const TeamsAndRosters = ({
           {/* IR Players */}
           {irPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-destructive uppercase tracking-wide sticky top-0 bg-card py-1">
-                Injured Reserve
+              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-destructive">
+                Injured reserve
               </h4>
-              <div className="grid grid-cols-1 gap-1">
+              <div className="grid grid-cols-1 gap-px">
                 {irPlayers.map((player, idx) => (
                   <CompactPlayerBadge key={`ir-${idx}`} player={player} slot="IR" />
                 ))}
@@ -353,23 +362,31 @@ const TeamsAndRosters = ({
             return (
               <Card key={team.id} className="flex flex-col transition-colors">
                 <CardContent className="p-4 flex flex-col h-full">
-                  {/* Team Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-bold truncate">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</h3>
-                        {rank && (
-                          <Badge variant={getRankBadgeVariant(rank)} className="gap-1 shrink-0">
-                            {getRankIcon(rank)}
-                            #{rank}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {team.owner && (
-                        <div className="text-sm text-muted-foreground truncate">
-                          <strong>Owner:</strong> {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
-                        </div>
+                  {/* Team Header. The identity chip, the name, the owner and
+                      the record read as one block — the version this replaces
+                      spelled out "Owner:" and "Record" as labels and stacked
+                      them, which spent four lines saying what the shape of the
+                      information already says. */}
+                  <div className="mb-4 flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <TeamIdentity
+                        team={{
+                          ...team,
+                          name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
+                          ownerName: getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
+                          wins: stats.wins,
+                          losses: stats.losses,
+                          ties: stats.ties,
+                        }}
+                        size="md"
+                        showOwner={Boolean(team.owner)}
+                        showRecord={stats.gamesPlayed > 0}
+                        isViewer={isUserTeam(team, user)}
+                      />
+                      {rank && (
+                        <span className="ml-auto shrink-0 text-[11px] font-medium tabular text-muted-foreground">
+                          #{rank}
+                        </span>
                       )}
                     </div>
 
@@ -380,9 +397,10 @@ const TeamsAndRosters = ({
                           onClick={() => handleEdit(team)}
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 pointer-coarse:h-11 pointer-coarse:w-11"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground pointer-coarse:h-11 pointer-coarse:w-11"
+                          aria-label={`Edit ${team.name}`}
                         >
-                          <Edit3 className="h-3 w-3" />
+                          <Edit3 className="h-3.5 w-3.5" />
                         </Button>
 
                         <AlertDialog>
@@ -390,9 +408,10 @@ const TeamsAndRosters = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive pointer-coarse:h-11 pointer-coarse:w-11"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive pointer-coarse:h-11 pointer-coarse:w-11"
+                              aria-label={`Remove ${team.name}`}
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -416,24 +435,6 @@ const TeamsAndRosters = ({
                       </div>
                     )}
                   </div>
-
-                  {/* Team Stats - Only Record */}
-                  {stats.gamesPlayed > 0 && (
-                    <div className="mb-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <span className="text-xs">Record</span>
-                        </div>
-                        <div className={`font-semibold ${
-                          (stats.wins || 0) > (stats.losses || 0) ? 'text-green-600' :
-                          (stats.wins || 0) < (stats.losses || 0) ? 'text-red-600' : 'text-muted-foreground'
-                        }`}>
-                          {stats.wins || 0}-{stats.losses || 0}
-                          {stats.ties > 0 && `-${stats.ties}`}
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Compact Roster Section */}
                   <div className="flex-1 overflow-hidden">

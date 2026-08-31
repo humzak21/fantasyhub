@@ -288,7 +288,7 @@ const FantasyFootballApp = () => {
             below that. */}
         <PageContainer
           as="main"
-          className="py-4 pb-[calc(4.5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-8"
+          className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-10"
         >
 
 

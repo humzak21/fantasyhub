@@ -328,6 +328,55 @@ that coloured every link `--primary`) fighting the `ui/` primitives. That link
 rule was overriding the nav's own colours, so every inactive tab in the bottom
 bar rendered as though it were active.
 
+### The look
+
+Black first. The field is a near-black neutral (`oklch(0.145 0.004 265)`) and
+every surface above it is a step of *perceptual lightness*, not a different
+hue: page → card → popover, each step about what a 3% white overlay would
+give. Small steps, because on black small steps read clearly and large ones
+look like unrelated panels. The app used to sit on a blue-slate with slate
+cards, which is the default dashboard look and the reason it read as "a
+dashboard" rather than as this league's.
+
+**The palette is oklch, and that is load-bearing.** Its L is perceptual
+lightness, so accents declared at the same L and C genuinely look like one
+family whatever their hue — where equal-L HSL yellows blaze and blues sink.
+Every accent is L 0.72; the chart and team wheels are that same lightness
+swept around the hue circle. Declaring a new colour means picking a hue at
+that lightness, not eyeballing a hex.
+
+**Colour cascades from one hue.** The brand is orange at 45°, and the
+secondary pole is its complement at 240°. Warm means *yours* and *act* — the
+viewer's own row, the primary button, the selected week. Cool means *told*.
+Success and danger sit either side.
+
+**Colour on a number means the number has a direction.** A gain, a loss, a
+deviation from an expectation. A total is just a total: "111 games played" in
+the info blue and "132.2 points per game" in the success green said those
+figures were *informational* and *good*, which is neither true nor useful, and
+it spent the palette's meaning so that it read as nothing where it genuinely
+applied. Accent tints the icon; the figure stays `text-foreground`.
+
+**Surfaces are lit, not outlined.** Every card, filled button and table
+container carries `shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]`
+— a near-black drop shadow (a grey one on black is a smudge) and a one-pixel
+highlight along the top edge. That inset line is most of why a surface reads
+as an object rather than a rectangle drawn on the page.
+
+**Hairlines are suggestions.** `--border` is about a 7% white overlay. On a
+near-black ground a full-strength rule between every table row draws harder
+than the values it separates, and the eye ends up reading the grid.
+
+**One thing per view is big.** Hierarchy comes from a single element being
+larger — the power rating, the score, the stat figure — not from six things
+being bold. Large type is set tight (`tracking-[-0.01em]`); small labels are
+uppercase at 10-11px with `tracking-[0.06em]`.
+
+**Restraint with identity colour.** A team's hue appears at full strength in
+charts, where hue *is* the data. In tables it is a low tint and a faint ring
+with neutral initials — fourteen full-strength chips turn a table into a paint
+chart.
+
 **The app is dark-only, by design.** `src/contexts/DarkModeContext.jsx` states
 that in about forty lines; it used to be 251, most of them a light-mode
 implementation commented out behind `DISABLED_LIGHT_MODE` markers. The `dark`

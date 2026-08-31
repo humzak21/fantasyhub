@@ -113,8 +113,12 @@ export function ResponsiveDataTable({
         ))}
       </div>
 
-      {/* ---------- Real table: md and up ---------- */}
-      <div className="hidden md:block">
+      {/* ---------- Real table: md and up ----------
+          Contained. A bare <table> on the page background is a grid drawn on
+          the ground; the same table inside a bordered, rounded surface is an
+          object with edges, which is what lets the header strip and the row
+          dividers read as structure rather than as more lines. */}
+      <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] md:block">
         <Table className={tableClassName}>
           <TableHeader>
             <TableRow>
@@ -122,7 +126,7 @@ export function ResponsiveDataTable({
                 <TableHead
                   key={c.key}
                   className={cn(
-                    c.sticky && 'sticky left-0 z-10 bg-background',
+                    c.sticky && 'sticky left-0 z-10 bg-muted',
                     c.headerClassName
                   )}
                 >
@@ -142,7 +146,7 @@ export function ResponsiveDataTable({
                   <TableCell
                     key={c.key}
                     className={cn(
-                      c.sticky && 'sticky left-0 z-10 bg-background',
+                      c.sticky && 'sticky left-0 z-10 bg-card',
                       c.className
                     )}
                   >
@@ -164,7 +168,8 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-card p-3 text-card-foreground',
+        'rounded-xl border border-border bg-card p-3.5 text-card-foreground',
+        'shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]',
         onClick && 'cursor-pointer active:bg-accent/40',
         className
       )}
@@ -180,17 +185,28 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
         </div>
       )}
 
+      {/*
+        Stat blocks — label above value — rather than `label: value` rows.
+        Side by side, the label and the number are the same size on the same
+        line and compete; stacked, the eye lands on a row of values and the
+        labels stay available underneath. It is also denser: three fit across a
+        375px card where two `label: value` pairs did, and nothing truncates.
+      */}
       {secondary.length > 0 && (
         <dl
           className={cn(
-            'grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3',
-            primary.length > 0 && 'mt-2'
+            'grid grid-cols-3 gap-x-3 gap-y-2.5 xs:grid-cols-4',
+            primary.length > 0 && 'mt-3.5 border-t border-border/60 pt-3'
           )}
         >
           {secondary.map((c) => (
-            <div key={c.key} className="flex min-w-0 items-baseline justify-between gap-2">
-              <dt className="truncate text-xs text-muted-foreground">{c.cardLabel ?? c.header}</dt>
-              <dd className="shrink-0 text-sm tabular">{c.cell(row, index)}</dd>
+            <div key={c.key} className="min-w-0">
+              <dt className="truncate text-[10px] font-medium uppercase tracking-[0.05em] text-muted-foreground">
+                {c.cardLabel ?? c.header}
+              </dt>
+              <dd className="mt-0.5 truncate text-[13px] font-medium tabular">
+                {c.cell(row, index)}
+              </dd>
             </div>
           ))}
         </dl>
@@ -206,20 +222,22 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
               e.stopPropagation()
               setOpen((v) => !v)
             }}
-            className="mt-2 flex min-h-9 w-full items-center justify-center gap-1 rounded-md text-xs text-muted-foreground hover:bg-accent/50"
+            className="mt-3 flex min-h-9 w-full items-center justify-center gap-1 rounded-md border border-border/60 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent/50"
           >
             {open ? 'Less' : 'More'}
             <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
           </button>
 
           {open && (
-            <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border pt-2 sm:grid-cols-3">
+            <dl className="mt-1 grid grid-cols-3 gap-x-3 gap-y-2.5 border-t border-border/60 pt-3 xs:grid-cols-4">
               {detail.map((c) => (
-                <div key={c.key} className="flex min-w-0 items-baseline justify-between gap-2">
-                  <dt className="truncate text-xs text-muted-foreground">
+                <div key={c.key} className="min-w-0">
+                  <dt className="truncate text-[10px] font-medium uppercase tracking-[0.05em] text-muted-foreground">
                     {c.cardLabel ?? c.header}
                   </dt>
-                  <dd className="shrink-0 text-sm tabular">{c.cell(row, index)}</dd>
+                  <dd className="mt-0.5 truncate text-[13px] font-medium tabular">
+                    {c.cell(row, index)}
+                  </dd>
                 </div>
               ))}
             </dl>

@@ -435,8 +435,14 @@ const GameCard = ({
     return (
       <div
         className={cn(
-          'flex items-center justify-between gap-3 px-3 py-2.5',
-          isWinner && 'bg-success/10'
+          // The winner is marked by weight and a hairline, not by a green
+          // wash. Two rows, one of them tinted, already reads as "this one" —
+          // a full success tint on half of every card turned the schedule
+          // into a field of green blocks and spent the success colour on a
+          // fact that is not about success at all, just about which score is
+          // higher.
+          'flex items-center justify-between gap-3 px-3.5 py-3',
+          isWinner && 'bg-foreground/[0.035]'
         )}
       >
         <div className="flex min-w-0 items-center gap-2.5">
@@ -478,8 +484,8 @@ const GameCard = ({
         ) : (
           <span
             className={cn(
-              'font-display text-xl font-semibold tabular tracking-tight',
-              isWinner ? 'text-foreground' : 'text-muted-foreground'
+              'font-display text-[21px] leading-none tabular tracking-[-0.01em]',
+              isWinner ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
             )}
           >
             {score !== null && score !== undefined ? formatPoints(score) : '—'}
@@ -490,10 +496,18 @@ const GameCard = ({
   };
 
   return (
-    <div className={cn('overflow-hidden rounded-lg border bg-card', highlightClasses)}>
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+    <div
+      className={cn(
+        'overflow-hidden rounded-xl border border-border bg-card',
+        'shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]',
+        highlightClasses
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-3.5 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Week {game.week}</span>
+          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            Week {game.week}
+          </span>
           {game.isCompleted && game.isBlowout && <Badge variant="warning">Blowout</Badge>}
           {game.isCompleted && game.isClose && <Badge variant="info">Close</Badge>}
           {!game.isCompleted && <Badge variant="secondary">Scheduled</Badge>}
@@ -560,7 +574,7 @@ const GameCard = ({
 
       {!isBye && hasRosters && (
         <details className="group border-t">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1.5 px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-center gap-1.5 px-3 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground">
             <ChevronDown
               className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
               aria-hidden="true"

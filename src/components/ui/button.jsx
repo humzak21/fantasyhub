@@ -15,25 +15,35 @@ import { cn } from "../../lib/utils"
 // pointer is a finger, leaves desktop density exactly as it was, and is a
 // class like any other, so a caller can override it.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium pointer-coarse:min-h-11 ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  // 130ms, not 200: below about 150ms a hover reads as the surface responding,
+  // above it as an animation playing. Focus is a ring offset from the control
+  // so it stays visible against a near-black ground.
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium pointer-coarse:min-h-11 ring-offset-background transition-colors duration-[130ms] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-md",
+        // The filled button carries the same top highlight as a card: on black,
+        // a flat fill of one colour looks printed on, and one line of light
+        // along its top edge makes it an object.
+        default:
+          "bg-primary text-primary-foreground font-semibold shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.18)] hover:bg-primary/90",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 hover:shadow-md",
+          "bg-destructive text-destructive-foreground font-semibold shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.15)] hover:bg-destructive/90",
+        // Outline sits *on* the card, so it takes the card's own surface a
+        // step up rather than the page background — a background-coloured
+        // button on a card reads as a hole punched through it.
         outline:
-          "border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground hover:shadow",
+          "border border-border bg-secondary/40 hover:bg-accent hover:border-border-strong",
         secondary:
-          "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80 hover:shadow",
+          "bg-secondary text-secondary-foreground hover:bg-accent",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3",
-        lg: "h-11 rounded-md px-8",
-        icon: "h-10 w-10 pointer-coarse:min-w-11",
+        default: "h-9 px-3.5 py-2",
+        sm: "h-8 rounded-md px-3 text-[13px]",
+        lg: "h-11 rounded-lg px-6",
+        icon: "h-9 w-9 pointer-coarse:min-w-11",
       },
     },
     defaultVariants: {

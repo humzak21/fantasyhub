@@ -18,11 +18,11 @@ const THEMES = {
  * page — several dark-grey *text* colours (`#1f2937`, `#374151`) used as
  * fills. Series colours come from the theme now.
  *
- * These are `hsl(var(--chart-N))` rather than the `--color-chart-N` theme
+ * These read `var(--chart-N)` rather than the `--color-chart-N` theme
  * entries: `@theme inline` inlines those into utilities without emitting a
  * custom property, and recharts needs a value it can resolve at runtime.
  */
-const CHART_COLORS = Array.from({ length: 10 }, (_, i) => `hsl(var(--chart-${i + 1}))`)
+const CHART_COLORS = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`)
 
 /** The colour for a series index, wrapping around the palette. */
 function chartColor(index) {

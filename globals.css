@@ -51,80 +51,87 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * `@theme inline` rather than plain `@theme`: the palette is stored as bare
- * HSL triplets in `:root` / `.dark` below, and a great deal of existing CSS
- * reads them that way (`hsl(var(--border))`). `inline` inlines the
- * `hsl(var(--x))` expression into each utility, which is what makes opacity
- * modifiers — `bg-card/50`, `border-border/40` — resolve correctly against a
- * triplet. Without it they would produce invalid colours.
+ * `@theme inline`, and the palette below is stored as *complete colours* in
+ * oklch — not as the bare HSL triplets this file used to hold.
+ *
+ * The triplet convention existed so opacity modifiers (`bg-card/50`) would
+ * resolve; Tailwind v4 does that for any colour format via color-mix, so the
+ * indirection bought nothing and cost the ability to reason about the palette.
+ *
+ * oklch is the point, not a flourish. Its L is perceptual lightness, so a set
+ * of accents declared at the same L and C genuinely *look* like one family
+ * whatever their hue — where HSL's "lightness" does not, and equal-L HSL
+ * yellows blaze while blues sink. Every accent here is L 0.72 / C 0.15-0.19,
+ * and the chart and team wheels are the same lightness swept around the hue
+ * circle. That is what makes the colour system cohere.
  */
 @theme inline {
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
 
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
 
   /* Status colours. Real utilities (`bg-success/15`, `text-warning`) so a
      component can state what a value *means* instead of picking a hue. These
      are the migration target for the `bg-green-50`-style light tints that the
      `.dark` remap block further down has to compensate for. */
-  --color-success: hsl(var(--success));
-  --color-success-foreground: hsl(var(--success-foreground));
-  --color-warning: hsl(var(--warning));
-  --color-warning-foreground: hsl(var(--warning-foreground));
-  --color-info: hsl(var(--info));
-  --color-info-foreground: hsl(var(--info-foreground));
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
 
   /* Categorical chart palette. Every chart used to invent its own hexes —
      ~200 of them, including recharts' default #8884d8 and dark-grey *text*
      colours used as fills on a dark page. Series colours come from here now,
      and `teamChartColor()` keeps a given team the same colour everywhere. */
-  --color-chart-1: hsl(var(--chart-1));
-  --color-chart-2: hsl(var(--chart-2));
-  --color-chart-3: hsl(var(--chart-3));
-  --color-chart-4: hsl(var(--chart-4));
-  --color-chart-5: hsl(var(--chart-5));
-  --color-chart-6: hsl(var(--chart-6));
-  --color-chart-7: hsl(var(--chart-7));
-  --color-chart-8: hsl(var(--chart-8));
-  --color-chart-9: hsl(var(--chart-9));
-  --color-chart-10: hsl(var(--chart-10));
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+  --color-chart-9: var(--chart-9);
+  --color-chart-10: var(--chart-10);
 
   /* Team identity wheel. A franchise is assigned one of these deterministically
      (src/utils/teamColors.js) and keeps it in every table, chart, avatar and
      bracket slot — charts used to colour teams by array index, so the same
      team was a different colour on every chart. 14 slots for a 14-team league,
      spaced around the wheel so adjacent seeds stay distinguishable. */
-  --color-team-1: hsl(var(--team-1));
-  --color-team-2: hsl(var(--team-2));
-  --color-team-3: hsl(var(--team-3));
-  --color-team-4: hsl(var(--team-4));
-  --color-team-5: hsl(var(--team-5));
-  --color-team-6: hsl(var(--team-6));
-  --color-team-7: hsl(var(--team-7));
-  --color-team-8: hsl(var(--team-8));
-  --color-team-9: hsl(var(--team-9));
-  --color-team-10: hsl(var(--team-10));
-  --color-team-11: hsl(var(--team-11));
-  --color-team-12: hsl(var(--team-12));
-  --color-team-13: hsl(var(--team-13));
-  --color-team-14: hsl(var(--team-14));
+  --color-team-1: var(--team-1);
+  --color-team-2: var(--team-2);
+  --color-team-3: var(--team-3);
+  --color-team-4: var(--team-4);
+  --color-team-5: var(--team-5);
+  --color-team-6: var(--team-6);
+  --color-team-7: var(--team-7);
+  --color-team-8: var(--team-8);
+  --color-team-9: var(--team-9);
+  --color-team-10: var(--team-10);
+  --color-team-11: var(--team-11);
+  --color-team-12: var(--team-12);
+  --color-team-13: var(--team-13);
+  --color-team-14: var(--team-14);
 
   /* Fantasy Football podium ramps. These are now actual podium metals: silver
      used to be orange and bronze used to be green, which is why neither of the
@@ -215,8 +222,8 @@
      <style> element rendered from inside ResponsiveNavigation, re-injected on
      every render of the component. */
   @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--warning) / 0.5), 0 0 12px -2px hsl(var(--warning) / 0.4); }
-    50% { box-shadow: 0 0 0 4px hsl(var(--warning) / 0), 0 0 16px -2px hsl(var(--warning) / 0.7); }
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning) 50%, transparent), 0 0 12px -2px color-mix(in oklab, var(--warning) 40%, transparent); }
+    50% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--warning) 0%, transparent), 0 0 16px -2px color-mix(in oklab, var(--warning) 70%, transparent); }
   }
   @keyframes bounce-subtle {
     0%, 100% { transform: translateY(0); }
@@ -225,141 +232,132 @@
 }
 
 @layer base {
+  /*
+   * THE PALETTE
+   *
+   * Black first. The field is a true near-black at L 0.145 with almost no
+   * chroma, and every surface above it is a step of perceptual lightness, not
+   * a different hue. The app used to sit on a blue-slate (222 47% 5%) with
+   * slate cards, which is the default dashboard look and the reason the
+   * interface read as "a dashboard" rather than as this league's.
+   *
+   * The surface ramp is deliberately shallow — 0.145 → 0.185 → 0.215. On black,
+   * small steps read clearly, and large ones look like unrelated panels. Each
+   * step is roughly what a 3% white overlay would give, which is the same
+   * material logic as a translucent card over a dark ground.
+   *
+   * Colour cascades from one hue. The brand is orange at 45deg; the secondary
+   * pole is its complement at 240deg. Warm means *yours* and *act* — your team,
+   * the primary button, the live week. Cool means *told* — information,
+   * neutral emphasis. Everything else is that same pair extended: success and
+   * danger sit either side, and the categorical wheels are the identical
+   * lightness swept around the circle.
+   *
+   * Every accent is L 0.72. That is the whole trick behind a palette that
+   * looks designed: at equal perceptual lightness, six different hues carry
+   * equal weight, so no single colour shouts and the page reads as one
+   * surface with information on it.
+   */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
+    /* --- the field --------------------------------------------------- */
+    --background: oklch(0.145 0.004 265);
+    --foreground: oklch(0.975 0.002 265);
 
-    /* Defined here as well as under .dark so no token resolves to nothing if
-       the dark class is ever absent for a frame. The app is dark-only; this
-       block is the fallback, not a second design. */
-    --success: 142 71% 34%;
-    --success-foreground: 0 0% 98%;
-    --warning: 38 92% 45%;
-    --warning-foreground: 0 0% 98%;
-    --info: 199 89% 44%;
-    --info-foreground: 0 0% 98%;
+    /* Raised surfaces. `card` is what content sits on; `popover` is what
+       floats above content. */
+    --card: oklch(0.185 0.005 265);
+    --card-foreground: oklch(0.975 0.002 265);
+    --popover: oklch(0.215 0.006 265);
+    --popover-foreground: oklch(0.975 0.002 265);
 
-    /* Chart and team hues live here as triplets, not in `@theme inline`.
+    /* Recessed and quiet surfaces. `muted` is a well *below* the card —
+       a table header, an inset panel — and `accent` is the hover lift above
+       it. They used to be the same colour, which left hover with nowhere
+       to go. */
+    --muted: oklch(0.205 0.005 265);
+    --muted-foreground: oklch(0.705 0.012 265);
+    --accent: oklch(0.245 0.007 265);
+    --accent-foreground: oklch(0.975 0.002 265);
+    --secondary: oklch(0.225 0.006 265);
+    --secondary-foreground: oklch(0.975 0.002 265);
+
+    /* Hairlines. A border on black wants to be a *suggestion* — around a 7%
+       white overlay. The old `217 30% 17%` was a solid slate that drew as
+       hard as the text it was separating. */
+    --border: oklch(0.265 0.006 265);
+    --border-strong: oklch(0.34 0.008 265);
+    --input: oklch(0.285 0.007 265);
+
+    /* --- the accents, all at L 0.72 ---------------------------------- */
+    --primary: oklch(0.72 0.185 45);
+    --primary-foreground: oklch(0.145 0.004 265);
+    --ring: oklch(0.72 0.185 45);
+
+    --info: oklch(0.72 0.145 240);
+    --info-foreground: oklch(0.145 0.004 265);
+    --success: oklch(0.72 0.165 150);
+    --success-foreground: oklch(0.145 0.004 265);
+    --warning: oklch(0.78 0.155 85);
+    --warning-foreground: oklch(0.145 0.004 265);
+    --destructive: oklch(0.66 0.205 22);
+    --destructive-foreground: oklch(0.975 0.002 265);
+
+    --radius: 0.625rem;
+
+    /* --- categorical wheels ------------------------------------------- */
+    /*
+     * Chart series and team identity, both swept around the hue circle at the
+     * accent lightness. Declared as real custom properties because recharts
+     * takes a colour *string* prop — `@theme inline` inlines its tokens into
+     * utilities and emits no property, so a chart could not read one.
      *
-     * `inline` inlines a token's value into each utility and deliberately does
-     * *not* emit the custom property, which is right for `bg-card` but wrong
-     * for anything JavaScript has to read: recharts takes a colour string
-     * prop, so `teamChartColor()` needs a `var()` that actually resolves at
-     * runtime. Declaring them here and referencing them from `@theme` gives
-     * both — real utilities *and* a live custom property.
-     *
-     * These are identity colours, not theme colours: they do not change with
-     * the palette, so they are declared once rather than per theme. */
-    --chart-1: 24 95% 58%;
-    --chart-2: 199 89% 58%;
-    --chart-3: 142 69% 48%;
-    --chart-4: 280 65% 68%;
-    --chart-5: 47 96% 58%;
-    --chart-6: 340 75% 62%;
-    --chart-7: 172 66% 48%;
-    --chart-8: 221 83% 65%;
-    --chart-9: 15 80% 58%;
-    --chart-10: 258 70% 68%;
+     * The chart wheel starts on the brand hue and steps ~36deg; the team wheel
+     * steps 360/14 so fourteen franchises are as far apart as fourteen hues
+     * can be. Neither is a hand-picked list of hexes, which is what they
+     * replaced — those had two teams sharing a colour outright.
+     */
+    --chart-1: oklch(0.72 0.16 45);
+    --chart-2: oklch(0.72 0.16 240);
+    --chart-3: oklch(0.72 0.16 150);
+    --chart-4: oklch(0.72 0.16 305);
+    --chart-5: oklch(0.75 0.16 95);
+    --chart-6: oklch(0.72 0.16 195);
+    --chart-7: oklch(0.70 0.16 15);
+    --chart-8: oklch(0.72 0.16 275);
+    --chart-9: oklch(0.73 0.16 125);
+    --chart-10: oklch(0.71 0.16 340);
 
-    --team-1: 24 90% 58%;
-    --team-2: 199 85% 58%;
-    --team-3: 142 65% 48%;
-    --team-4: 280 62% 66%;
-    --team-5: 47 92% 56%;
-    --team-6: 340 72% 62%;
-    --team-7: 172 62% 46%;
-    --team-8: 221 80% 66%;
-    --team-9: 12 78% 58%;
-    --team-10: 258 66% 68%;
-    --team-11: 96 55% 50%;
-    --team-12: 310 60% 64%;
-    --team-13: 186 70% 50%;
-    --team-14: 64 70% 50%;
+    --team-1: oklch(0.72 0.15 45);
+    --team-2: oklch(0.72 0.15 71);
+    --team-3: oklch(0.74 0.15 97);
+    --team-4: oklch(0.73 0.15 123);
+    --team-5: oklch(0.72 0.15 148);
+    --team-6: oklch(0.72 0.15 174);
+    --team-7: oklch(0.72 0.15 200);
+    --team-8: oklch(0.72 0.15 226);
+    --team-9: oklch(0.72 0.15 251);
+    --team-10: oklch(0.72 0.15 277);
+    --team-11: oklch(0.72 0.15 303);
+    --team-12: oklch(0.71 0.15 329);
+    --team-13: oklch(0.70 0.15 355);
+    --team-14: oklch(0.71 0.15 19);
   }
 
   /*
-   * These are the values the app has actually been rendering.
-   *
-   * globals.css used to declare a *neutral* dark palette here (240 10% 3.9%
-   * and friends) which styles/dark-mode.css then overwrote wholesale with a
-   * *slate* one via a `--dm-dark-*` indirection layer. Two palettes, one of
-   * them dead, and no way to tell from this file which was live. The slate
-   * values are adopted directly so removing that override changes nothing,
-   * and so this block is the single answer to "what colour is the app".
-   *
-   * Surfaces 1-3 are the elevation ramp the header, cards and popovers sit on.
+   * The app is dark-only; the palette above is the design, not a light theme.
+   * `.dark` stays applied to <html> because the status-colour remap and any
+   * residual `dark:` utility compile against it — see DarkModeContext.
    */
   .dark {
-    /* The elevation ramp is the palette. `--card` used to be *the same colour*
-       as `--background`, so every card in the app was an invisible rectangle
-       distinguished only by its border, and the `--surface-1/2/3` tokens that
-       were supposed to fix that were never mapped into the theme and never
-       used. The ramp lives in the real tokens now: page → card → popover →
-       accent, each step a genuine lift. */
-    --background: 222 47% 5%;
-    --foreground: 210 40% 98%;
-    --card: 222 40% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 220 38% 11%;
-    --popover-foreground: 210 40% 98%;
-
-    /* Orange is the brand. It was already the app's accent — hardcoded as a
-       `!important` hex on the standings button because there was no token to
-       reach for. Cool slate field, one warm accent. */
-    --primary: 24 94% 53%;
-    --primary-foreground: 222 47% 8%;
-
-    /* secondary / muted / accent were three names for one colour
-       (217 32.6% 17.5%), which left hover states with nowhere to go. */
-    --secondary: 217 33% 15%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 14%;
-    --muted-foreground: 215 20% 68%;
-    --accent: 215 30% 20%;
-    --accent-foreground: 210 40% 98%;
-
-    /* Destructive was 30.6% lightness — too dark to read white text on and
-       too dark to register as an alarm colour next to the new field. */
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217 30% 17%;
-    --input: 217 30% 17%;
-    --ring: 24 94% 53%;
-
-    /* Status colours, now mapped into @theme as real utilities. */
-    --success: 142 69% 45%;
-    --success-foreground: 222 47% 8%;
-    --warning: 43 96% 56%;
-    --warning-foreground: 222 47% 8%;
-    --info: 199 89% 58%;
-    --info-foreground: 222 47% 8%;
+    color-scheme: dark;
   }
 }
 
 @layer base {
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: var(--background);
+    color: var(--foreground);
     font-family: 'Inter', sans-serif;
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
@@ -496,6 +494,35 @@
 
 @layer utilities {
 
+  /* The signed-in viewer's own row, in a table or as a card.
+   *
+   * Split by element because the two layouts need different mechanics: a
+   * table row cannot reliably carry a border or a positioned pseudo-element
+   * under `border-collapse: collapse`, so its rail is an inset shadow on the
+   * first cell; a card is an ordinary block and takes a pseudo-element. */
+  .ff-viewer-row {
+    background-color: color-mix(in oklab, var(--primary) 7%, transparent);
+  }
+
+  tr.ff-viewer-row > td:first-child {
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  div.ff-viewer-row {
+    position: relative;
+    overflow: hidden;
+    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  }
+
+  div.ff-viewer-row::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 3px;
+    background: var(--primary);
+  }
+
   /* Bracket connectors.
    *
    * A bracket's structure *is* the lines: which two slots feed which. The
@@ -525,7 +552,7 @@
       position: absolute;
       top: 50%;
       width: 0.75rem;
-      border-top: 1px solid hsl(var(--border));
+      border-top: 1px solid var(--border);
       pointer-events: none;
     }
 
@@ -669,13 +696,13 @@
    * background class of their own, so both rendered white-on-dark. It reads
    * from the popover token now, like every other overlay. */
   .modal-content {
-    background: hsl(var(--popover));
-    color: hsl(var(--popover-foreground));
+    background: var(--popover);
+    color: var(--popover-foreground);
     backdrop-filter: blur(20px);
-    border: 1px solid hsl(var(--border));
+    border: 1px solid var(--border);
     box-shadow:
       0 25px 50px -12px rgb(0 0 0 / 0.5),
-      0 0 0 1px hsl(var(--border) / 0.5);
+      0 0 0 1px color-mix(in oklab, var(--border) 50%, transparent);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
@@ -1051,7 +1078,7 @@
 
   /* Mobile-specific focus styles */
   .mobile-optimized *:focus-visible {
-    outline: 2px solid hsl(var(--primary));
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -1203,7 +1230,7 @@
 }
 
 .dark *:focus-visible {
-  outline: 2px solid hsl(var(--ring));
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 

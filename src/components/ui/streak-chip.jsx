@@ -20,10 +20,10 @@ const StreakChip = React.forwardRef(({ streak, className, ...props }, ref) => {
     <span
       ref={ref}
       className={cn(
-        'inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-semibold tabular',
-        parsed.type === 'win' && 'bg-success/15 text-success',
-        parsed.type === 'loss' && 'bg-destructive/15 text-destructive',
-        parsed.type === 'tie' && 'bg-muted text-muted-foreground',
+        'inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium leading-5 tabular',
+        parsed.type === 'win' && 'border-success/20 bg-success/10 text-success',
+        parsed.type === 'loss' && 'border-destructive/20 bg-destructive/10 text-destructive',
+        parsed.type === 'tie' && 'border-border bg-muted text-muted-foreground',
         className
       )}
       {...props}

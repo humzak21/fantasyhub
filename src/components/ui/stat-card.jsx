@@ -14,13 +14,23 @@ import { NumberText } from './number-text';
  * The accent is a semantic token chosen from a fixed set, so the classes are
  * literal and the meaning travels with the value.
  */
+/*
+ * The accent tints the icon, never the figure.
+ *
+ * Colouring the value meant "111 games played" rendered in the info blue and
+ * "132.2 points per game" in the success green — which says those numbers are
+ * *informational* and *good*, when they are neither. A total is just a total.
+ * Colour on a number should mean the number carries a direction (a gain, a
+ * loss, a deviation); everywhere else it is decoration that spends the
+ * palette's meaning for nothing.
+ */
 const ACCENTS = {
-  neutral: { icon: 'text-muted-foreground bg-muted', value: 'text-foreground' },
-  primary: { icon: 'text-primary bg-primary/15', value: 'text-foreground' },
-  success: { icon: 'text-success bg-success/15', value: 'text-success' },
-  warning: { icon: 'text-warning bg-warning/15', value: 'text-warning' },
-  info: { icon: 'text-info bg-info/15', value: 'text-info' },
-  destructive: { icon: 'text-destructive bg-destructive/15', value: 'text-destructive' },
+  neutral: 'bg-muted text-muted-foreground',
+  primary: 'bg-primary/12 text-primary',
+  success: 'bg-success/12 text-success',
+  warning: 'bg-warning/12 text-warning',
+  info: 'bg-info/12 text-info',
+  destructive: 'bg-destructive/12 text-destructive',
 };
 
 /**
@@ -37,33 +47,34 @@ const StatCard = React.forwardRef(
     { label, value, format, icon: Icon, accent = 'neutral', footer, className, children, ...props },
     ref
   ) => {
-    const tone = ACCENTS[accent] ?? ACCENTS.neutral;
+    const iconTone = ACCENTS[accent] ?? ACCENTS.neutral;
 
     return (
       <div
         ref={ref}
         className={cn(
-          'flex flex-col gap-2 rounded-lg border bg-card p-4 transition-colors',
+          'flex flex-col gap-2.5 rounded-xl border border-border bg-card p-4 sm:p-5',
+          'shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]',
           className
         )}
         {...props}
       >
         <div className="flex items-start justify-between gap-2">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
             {label}
           </span>
           {Icon && (
-            <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', tone.icon)}>
-              <Icon className="h-4 w-4" aria-hidden="true" />
+            <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', iconTone)}>
+              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
             </span>
           )}
         </div>
 
-        <div className={cn('font-display text-2xl font-semibold leading-none tracking-tight sm:text-3xl', tone.value)}>
+        <div className="font-display text-[30px] font-semibold leading-none tracking-[-0.01em] text-foreground sm:text-[34px]">
           {format ? <NumberText value={value} variant={format} /> : value}
         </div>
 
-        {footer && <div className="text-xs text-muted-foreground">{footer}</div>}
+        {footer && <div className="text-[12px] leading-snug text-muted-foreground">{footer}</div>}
         {children}
       </div>
     );
