@@ -221,8 +221,15 @@ const FantasyFootballApp = () => {
                   were looking at. `shrink-0` is what keeps that true: when the
                   labelled nav arrives at lg the row gets tight, and a
                   shrinkable brand collapses to nothing rather than pushing
-                  back. */}
-              <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                  back.
+
+                  Below lg it *may* shrink, because there the row has no nav to
+                  protect and the widest thing in it is whatever the account
+                  control happens to be — a signed-out "Login" button is wider
+                  than a signed-in avatar, which is what pushed a 375px header
+                  3px past the viewport. Truncating the league name is the
+                  right thing to give up there. */}
+              <div className="flex min-w-0 shrink items-center gap-2 sm:gap-3 lg:shrink-0">
                 <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
                   <img src="og jits logo.jpg" alt="" className="h-full w-full object-cover" />
                 </div>
@@ -238,32 +245,22 @@ const FantasyFootballApp = () => {
                 </div>
               </div>
 
-              <div className="flex min-w-0 shrink items-center justify-end gap-1.5">
+              {/* The week, the standings and the account — one control group,
+                  in the header row.
+                  These used to sit on a second bar under the header, a strip
+                  of chrome the width of the page carrying two controls. It
+                  read as a toolbar the app did not need and cost every page
+                  ~40px above the fold. The week navigator belongs beside the
+                  nav because it scopes what the nav shows. */}
+              <div className="flex shrink-0 items-center gap-1">
                 <HeaderNav
                   tabs={navTabs}
                   activeTab={activeTab}
                   shouldShowTab={shouldShowTab}
                 />
-                <LoginDropdown />
-              </div>
-            </div>
-          </PageContainer>
 
-          {/* The week gets its own row, at every width.
-              There used to be three InlineWeekNavigators in this header behind
-              different visibility classes — three trees, three sets of
-              document-level key handlers, and a full/condensed switch at a
-              different width from the nav's own switch, which created a
-              1280-1535px tier nobody had designed. One mount now, and on its
-              own line because the alternative is what the inline version did
-              at 1280: squeeze the league name out of the header entirely.
-              It is also the most-used control on the site, which is an
-              argument for giving it room rather than the last 200px of a row. */}
-          {activeSeason && (
-            <div className="border-t bg-card/60">
-              <PageContainer>
-                <div className="flex items-center gap-2 py-1.5">
-                  <div className="min-w-0 flex-1">
+                {activeSeason && (
+                  <>
                     <InlineWeekNavigator
                       currentWeek={viewedWeek}
                       totalWeeks={activeSeason.totalWeeks}
@@ -271,14 +268,15 @@ const FantasyFootballApp = () => {
                       onWeekChange={setViewedWeek}
                       completedWeeks={completedWeeks}
                       season={activeSeason}
-                      condensed={false}
                     />
-                  </div>
-                  <StandingsTrigger onClick={() => setStandingsOpen(true)} />
-                </div>
-              </PageContainer>
+                    <StandingsTrigger onClick={() => setStandingsOpen(true)} />
+                  </>
+                )}
+
+                <LoginDropdown />
+              </div>
             </div>
-          )}
+          </PageContainer>
         </header>
 
         {/* Main content.

@@ -179,6 +179,8 @@ const WeekScheduleView = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  const [openLineupId, setOpenLineupId] = useState(null);
+
   if (games.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -189,7 +191,17 @@ const WeekScheduleView = ({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    /*
+      `items-start`, and one open lineup at a time.
+      Two bugs lived in this grid. A CSS one: grid items stretch to the row's
+      height by default, so opening one card's lineups grew the row and the
+      card beside it stretched to match — it looked like the neighbour had
+      opened too, blank. And a behavioural one: each card owned its own
+      `<details>`, so several could sit open at once and the page became a
+      wall of squad lists. The open card is state here now, so opening one
+      closes the rest.
+    */
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
       {games.map(game => (
         <GameCard
           key={game.id}
@@ -203,6 +215,10 @@ const WeekScheduleView = ({
           rosters={rosters}
           isAdmin={isAdmin}
           teamOwnerNames={teamOwnerNames}
+          isLineupOpen={openLineupId === game.id}
+          onToggleLineup={() =>
+            setOpenLineupId((current) => (current === game.id ? null : game.id))
+          }
         />
       ))}
     </div>
@@ -355,7 +371,9 @@ const GameCard = ({
   powerRankings = [],
   rosters = {},
   isAdmin = false,
-  teamOwnerNames = []
+  teamOwnerNames = [],
+  isLineupOpen = false,
+  onToggleLineup,
 }) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
@@ -573,26 +591,35 @@ const GameCard = ({
       </div>
 
       {!isBye && hasRosters && (
-        <details className="group border-t">
-          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-center gap-1.5 px-3 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground">
+        <div className="border-t border-border/60">
+          <button
+            type="button"
+            aria-expanded={isLineupOpen}
+            onClick={onToggleLineup}
+            className="flex min-h-10 w-full cursor-pointer items-center justify-center gap-1.5 px-3 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+          >
             <ChevronDown
-              className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
+              className={cn('h-3.5 w-3.5 transition-transform', isLineupOpen && 'rotate-180')}
               aria-hidden="true"
             />
-            Lineups
-          </summary>
+            {isLineupOpen ? 'Hide lineups' : 'Lineups'}
+          </button>
 
-          <div className="grid grid-cols-1 gap-4 border-t p-3 sm:grid-cols-2">
-            <TeamRosterPreview
-              roster={rosters[game.team1Id]?.roster || []}
-              teamName={team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : ''}
-            />
-            <TeamRosterPreview
-              roster={rosters[game.team2Id]?.roster || []}
-              teamName={team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : ''}
-            />
-          </div>
-        </details>
+          {/* Rendered only while open, so a week of fixtures does not carry
+              fourteen squad lists in the DOM. */}
+          {isLineupOpen && (
+            <div className="grid grid-cols-1 gap-5 border-t border-border/60 p-3.5 sm:grid-cols-2">
+              <TeamRosterPreview
+                roster={rosters[game.team1Id]?.roster || []}
+                teamName={team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : ''}
+              />
+              <TeamRosterPreview
+                roster={rosters[game.team2Id]?.roster || []}
+                teamName={team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : ''}
+              />
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

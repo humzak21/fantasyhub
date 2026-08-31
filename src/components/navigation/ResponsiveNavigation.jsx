@@ -55,7 +55,7 @@ export const HeaderNav = ({ tabs, activeTab, shouldShowTab = () => true }) => {
 };
 
 const DesktopNav = ({ tabs, activeTab }) => (
-  <nav aria-label="Main" className="hidden min-w-0 lg:flex lg:items-center lg:gap-0.5">
+  <nav aria-label="Main" className="hidden min-w-0 lg:flex lg:items-center">
     {tabs.map((tab) => {
       const Icon = tab.icon;
       const isActive = activeTab === tab.id;
@@ -66,7 +66,7 @@ const DesktopNav = ({ tabs, activeTab }) => (
           aria-disabled={tab.isDisabled || undefined}
           onClick={(e) => tab.isDisabled && e.preventDefault()}
           className={cn(
-            'relative flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium transition-colors',
+            'relative flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors xl:px-3',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             isActive
               ? 'bg-accent text-accent-foreground'
@@ -77,7 +77,21 @@ const DesktopNav = ({ tabs, activeTab }) => (
           )}
         >
           <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="whitespace-nowrap">{tab.label}</span>
+          {/* Short label until there is room for the long one.
+              Eight full labels come to ~920px, which at 1280 leaves nothing
+              for the brand, the week control and the account — that shortfall
+              is what the old icon-only tier was papering over. Shortening the
+              three long ones ("Power Rankings" → "Rankings") buys ~165px and
+              costs nothing: the full label stays the accessible name, so
+              nothing is hidden from a screen reader, and it returns in full
+              at 2xl where the row can hold it. */}
+          <span className="whitespace-nowrap 2xl:hidden" aria-hidden="true">
+            {tab.shortLabel || tab.label}
+          </span>
+          <span className="hidden whitespace-nowrap 2xl:inline" aria-hidden="true">
+            {tab.label}
+          </span>
+          <span className="sr-only">{tab.label}</span>
           {tab.showNotification && (
             <span
               className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-destructive"
