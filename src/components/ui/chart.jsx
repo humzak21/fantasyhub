@@ -10,6 +10,25 @@ const THEMES = {
   dark: ".dark"
 }
 
+/**
+ * The categorical series palette.
+ *
+ * Charts used to pick their own colours: ~200 hardcoded hexes across the
+ * chart components, including recharts' default `#8884d8` and — on a dark
+ * page — several dark-grey *text* colours (`#1f2937`, `#374151`) used as
+ * fills. Series colours come from the theme now.
+ *
+ * These are `hsl(var(--chart-N))` rather than the `--color-chart-N` theme
+ * entries: `@theme inline` inlines those into utilities without emitting a
+ * custom property, and recharts needs a value it can resolve at runtime.
+ */
+const CHART_COLORS = Array.from({ length: 10 }, (_, i) => `hsl(var(--chart-${i + 1}))`)
+
+/** The colour for a series index, wrapping around the palette. */
+function chartColor(index) {
+  return CHART_COLORS[index % CHART_COLORS.length]
+}
+
 const ChartContext = React.createContext(null)
 
 function useChart() {
@@ -258,7 +277,7 @@ const ChartTooltipContent = React.forwardRef((
                         </span>
                       </div>
                       {item.value && (
-                        <span className="font-mono font-medium tabular-nums text-foreground">
+                        <span className="tabular font-medium text-foreground">
                           {item.value.toLocaleString()}
                         </span>
                       )}
@@ -369,4 +388,10 @@ export {
   ChartLegendContent,
   ChartStyle,
   useMobileAxis,
+  CHART_COLORS,
+  chartColor,
 }
+// Re-exported so a chart has one import for "what colour is this team": the
+// team wheel and the categorical palette are different systems (identity vs.
+// series) and a chart usually wants the first.
+export { teamChartColor } from "../../utils/teamColors"
