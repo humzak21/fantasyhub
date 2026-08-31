@@ -85,31 +85,52 @@ test.describe('smoke', () => {
  * eight destinations in a 192px popover. It gets its own test.
  */
 test.describe('phone navigation', () => {
-  test.skip(({ viewport }) => (viewport?.width ?? 0) >= 640, 'drawer nav is below sm only')
+  test.skip(({ viewport }) => (viewport?.width ?? 0) >= 1024, 'the tab bar is below lg only')
 
-  test('opens, lists destinations, and navigates', async ({ page }) => {
+  test('every destination is reachable from the tab bar', async ({ page }) => {
     await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('#root')).not.toBeEmpty()
 
-    await page.getByRole('button', { name: /open navigation/i }).click()
+    const bar = page.getByRole('navigation', { name: 'Main' }).last()
+    await expect(bar).toBeVisible()
 
-    const drawer = page.getByRole('dialog')
-    await expect(drawer).toBeVisible()
+    // Every tab carries a visible label. The tier this replaces delivered them
+    // through the `title` attribute, which does not exist on touch at all.
+    await expect(bar.getByRole('link', { name: 'Statistics' })).toBeVisible()
 
-    // Painted, not transparent — the failure mode when a menu's background
-    // token generates nothing.
-    const bg = await drawer.evaluate((el) => getComputedStyle(el).backgroundColor)
-    expect(bg).not.toBe('rgba(0, 0, 0, 0)')
-
-    // It has to fit the screen it opened on.
-    const box = await drawer.boundingBox()
-    expect(box.width).toBeLessThanOrEqual(page.viewportSize().width + 1)
-
-    await drawer.getByRole('button', { name: 'Statistics' }).click()
+    // The bar scrolls rather than hiding destinations behind a "More" sheet,
+    // so a link may start out beyond the fold; Playwright scrolls it into the
+    // scroller before clicking.
+    await bar.getByRole('link', { name: 'Statistics' }).click()
     await expect(page).toHaveURL(/\/statistics$/)
+
+    // It is a real link, so it has an href — cmd-click and "open in new tab"
+    // work, which they did not when these were buttons calling navigate().
+    await expect(bar.getByRole('link', { name: 'Schedule' })).toHaveAttribute('href', '/schedule')
   })
 
-  test('the standings drawer opens and fits the screen', async ({ page }) => {
+  test('the tab bar does not cover the end of the page', async ({ page }) => {
+    await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('#root')).not.toBeEmpty()
+
+    const bar = page.getByRole('navigation', { name: 'Main' }).last()
+    const barBox = await bar.boundingBox()
+    const vh = page.viewportSize().height
+
+    // Pinned to the bottom edge, full width, and no wider than the screen.
+    expect(barBox.y + barBox.height).toBeLessThanOrEqual(vh + 1)
+    expect(barBox.width).toBeLessThanOrEqual(page.viewportSize().width + 1)
+
+    // The page reserves room for it: scrolled to the bottom, the last content
+    // still clears the bar rather than sitting under it.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+    const mainBottom = await page
+      .locator('main')
+      .evaluate((el) => el.getBoundingClientRect().bottom)
+    expect(mainBottom).toBeLessThanOrEqual(barBox.y + 1)
+  })
+
+  test('the standings sheet opens and fits the screen', async ({ page }) => {
     await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('#root')).not.toBeEmpty()
 
@@ -117,10 +138,9 @@ test.describe('phone navigation', () => {
     await expect(trigger).toBeVisible()
     await trigger.click()
 
-    // The panel is `position: fixed`. It spent a long time sizing itself
-    // against a transformed <body> instead of the viewport, which is what
-    // "the sidebar doesn't scroll" and "elements hang off the page" were.
-    const panel = page.locator('.drawer-panel')
+    // A real dialog now — the panel this replaces rendered no backdrop, had no
+    // role, and could not be closed by clicking away or pressing Escape.
+    const panel = page.getByRole('dialog')
     await expect(panel).toBeVisible()
 
     const box = await panel.boundingBox()
@@ -132,6 +152,9 @@ test.describe('phone navigation', () => {
     // table. ResponsiveDataTable emits both and lets CSS choose, so the check
     // is visibility, not presence — `toHaveCount(0)` would be asserting the
     // wrong thing about how that component works.
-    await expect(page.locator('.drawer-panel table').first()).toBeHidden()
+    await expect(panel.locator('table').first()).toBeHidden()
+
+    await page.keyboard.press('Escape')
+    await expect(panel).not.toBeVisible()
   })
 })
