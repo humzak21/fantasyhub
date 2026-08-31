@@ -24,12 +24,33 @@ const normaliseSwid = (value) => {
   return trimmed.startsWith('{') && trimmed.endsWith('}') ? trimmed : `{${trimmed.replace(/^\{|\}$/g, '')}}`;
 };
 
+/**
+ * Every field is a getter, and that is load-bearing.
+ *
+ * Reading `process.env` while this module is being evaluated bakes in whatever
+ * the environment held at import time, and ES imports are hoisted above every
+ * statement in the importing file — so a script whose first *statement* is
+ * `dotenv.config()` had already lost. `scripts/updateRosters.js` did exactly
+ * that and silently ran as an unauthenticated public-league reader, reporting
+ * "Private League: No" with the cookies sitting in `.env.local` unread.
+ *
+ * Resolving on access instead means import order no longer decides whether
+ * credentials exist. `requireEspnCredentials` below always read env lazily, so
+ * the two used to disagree with each other; now they cannot.
+ */
 export const ESPN_CONFIG = {
-  leagueId: process.env.ESPN_LEAGUE_ID || '67674700',
-  seasonYear: process.env.ESPN_SEASON_YEAR ? Number(process.env.ESPN_SEASON_YEAR) : null,
-
-  espnS2: process.env.ESPN_S2 || null,
-  swid: normaliseSwid(process.env.ESPN_SWID)
+  get leagueId() {
+    return process.env.ESPN_LEAGUE_ID || '67674700';
+  },
+  get seasonYear() {
+    return process.env.ESPN_SEASON_YEAR ? Number(process.env.ESPN_SEASON_YEAR) : null;
+  },
+  get espnS2() {
+    return process.env.ESPN_S2 || null;
+  },
+  get swid() {
+    return normaliseSwid(process.env.ESPN_SWID);
+  }
 };
 
 /**
