@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Trophy, Target, Clock, CheckCircle2, AlertCircle, Save, Edit3, X } from 'lucide-react';
+import { Trophy, Target, Clock, CheckCircle2, AlertCircle, Save, Edit3, X, Check } from 'lucide-react';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getDb } from '../../../services/db/index.js';
+import { ScrollHint } from '../ui/scroll-hint';
 
 /**
  * Bracket matchup slot component
@@ -21,7 +22,8 @@ const BracketSlot = ({
     showResult,
     user,
     isAdmin,
-    teamOwnerNames
+    teamOwnerNames,
+    className
 }) => {
     const isTeam1Selected = selectedTeam?.id === team1?.id;
     const isTeam2Selected = selectedTeam?.id === team2?.id;
@@ -29,30 +31,40 @@ const BracketSlot = ({
     const isTeam2Winner = actualWinner?.id === team2?.id;
     const isCorrect = selectedTeam && actualWinner && selectedTeam.id === actualWinner.id;
 
+    // Status tokens rather than raw light tints. `bg-green-50 text-green-800`
+    // on this dark page rendered only because globals.css remaps those exact
+    // selectors, and the selected state was a solid fill that made the team
+    // name white-on-blue while every other slot stayed on the card colour.
     const getTeamStyle = (team, isSelected, isWinner) => {
         if (showResult && isWinner) {
-            if (isSelected) {
-                return 'border-green-500 bg-green-500 text-white';
-            }
-            return 'border-green-500 bg-green-50 text-green-800';
+            return isSelected
+                ? 'border-success bg-success/20 text-success font-semibold'
+                : 'border-success/50 bg-success/10 text-success';
         }
         if (showResult && isSelected && !isWinner) {
-            return 'border-red-500 bg-red-50 text-red-800 line-through';
+            return 'border-destructive/50 bg-destructive/10 text-destructive line-through';
         }
         if (isSelected) {
-            return 'border-blue-600 bg-blue-600 text-white font-semibold';
+            return 'border-primary bg-primary/10 font-semibold';
         }
-        return 'border-muted hover:border-primary/50 hover:bg-muted/50';
+        return 'border-border hover:border-foreground/30 hover:bg-accent/50';
     };
 
     return (
-        <div className="flex flex-col gap-1 p-2 bg-card rounded-lg border shadow-sm min-w-[180px]">
+        <div
+            role="radiogroup"
+            aria-label="Pick the winner of this matchup"
+            className={`flex min-w-[180px] flex-col gap-1 rounded-lg border bg-card p-2 ${className || ''}`}
+        >
             {/* Team 1 */}
             <button
+                type="button"
+                role="radio"
+                aria-checked={isTeam1Selected}
                 onClick={() => team1 && onSelect(matchupId, team1)}
                 disabled={disabled || !team1}
                 className={`
-          flex items-center justify-center p-3 rounded-md border-2 transition-all
+          flex items-center justify-center p-3 rounded-md border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
           ${team1 ? getTeamStyle(team1, isTeam1Selected, isTeam1Winner) : 'border-dashed border-muted bg-muted/20'}
           ${disabled || !team1 ? 'cursor-not-allowed' : 'cursor-pointer'}
         `}
@@ -62,7 +74,7 @@ const BracketSlot = ({
                         {team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : 'TBD'}
                     </div>
                     {team1 && (
-                        <div className={`text-xs truncate ${isTeam1Selected ? 'text-white/80' : 'text-muted-foreground'}`}>
+                        <div className="truncate text-xs text-muted-foreground">
                             {getMaskedOwnerName(team1, user, isAdmin, teamOwnerNames)}
                         </div>
                     )}
@@ -73,10 +85,13 @@ const BracketSlot = ({
 
             {/* Team 2 */}
             <button
+                type="button"
+                role="radio"
+                aria-checked={isTeam2Selected}
                 onClick={() => team2 && onSelect(matchupId, team2)}
                 disabled={disabled || !team2}
                 className={`
-          flex items-center justify-center p-3 rounded-md border-2 transition-all
+          flex items-center justify-center p-3 rounded-md border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
           ${team2 ? getTeamStyle(team2, isTeam2Selected, isTeam2Winner) : 'border-dashed border-muted bg-muted/20'}
           ${disabled || !team2 ? 'cursor-not-allowed' : 'cursor-pointer'}
         `}
@@ -86,7 +101,7 @@ const BracketSlot = ({
                         {team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : 'TBD'}
                     </div>
                     {team2 && (
-                        <div className={`text-xs truncate ${isTeam2Selected ? 'text-white/80' : 'text-muted-foreground'}`}>
+                        <div className="truncate text-xs text-muted-foreground">
                             {getMaskedOwnerName(team2, user, isAdmin, teamOwnerNames)}
                         </div>
                     )}
@@ -95,8 +110,17 @@ const BracketSlot = ({
 
             {/* Result indicator */}
             {showResult && selectedTeam && (
-                <div className={`text-center text-xs font-medium mt-1 ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
-                    {isCorrect ? '✓ Correct' : '✗ Wrong'}
+                <div
+                    className={`mt-1 flex items-center justify-center gap-1 text-xs font-medium ${
+                        isCorrect ? 'text-success' : 'text-destructive'
+                    }`}
+                >
+                    {isCorrect ? (
+                        <Check className="h-3 w-3" aria-hidden="true" />
+                    ) : (
+                        <X className="h-3 w-3" aria-hidden="true" />
+                    )}
+                    {isCorrect ? 'Correct' : 'Wrong'}
                 </div>
             )}
         </div>
@@ -106,22 +130,22 @@ const BracketSlot = ({
 /**
  * Bye slot component - shows team with a bye (no opponent)
  */
-const ByeSlot = ({ team, user, isAdmin, teamOwnerNames }) => {
+const ByeSlot = ({ team, user, isAdmin, teamOwnerNames, className }) => {
     return (
-        <div className="flex flex-col gap-1 p-2 bg-card rounded-lg border shadow-sm min-w-[180px]">
-            <div className="flex items-center justify-center p-3 rounded-md border-2 border-green-500 bg-green-50">
-                <div className="text-center w-full">
-                    <div className="font-medium text-sm truncate text-green-800">
+        <div className={`flex min-w-[180px] flex-col gap-1 rounded-lg border bg-card p-2 ${className || ''}`}>
+            <div className="flex items-center justify-center rounded-md border-2 border-success/50 bg-success/10 p-3">
+                <div className="w-full text-center">
+                    <div className="truncate text-sm font-medium text-success">
                         {team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'TBD'}
                     </div>
                     {team && (
-                        <div className="text-xs truncate text-green-700">
+                        <div className="truncate text-xs text-success/80">
                             {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
                         </div>
                     )}
                 </div>
             </div>
-            <div className="text-center text-xs text-green-600 font-medium">BYE</div>
+            <div className="text-center text-xs font-medium text-success">Bye</div>
         </div>
     );
 };
@@ -630,7 +654,7 @@ const PlayoffsBracket = ({
                             the bracket when it fits and left-aligns it when it
                             does not, which is what centring was meant to do.
                         */}
-                        <div className="overflow-x-auto overscroll-x-contain pb-4">
+                        <ScrollHint className="pb-4">
                           <div className="mx-auto flex w-max items-start gap-6">
                             {/* Division 2 (Left Side) */}
                             <div className="flex flex-col gap-6">
@@ -651,6 +675,7 @@ const PlayoffsBracket = ({
                                     {/* #2 vs #3 */}
                                     <BracketSlot
                                         matchupId="div2_r1"
+                                        className="ff-feeds-forward"
                                         team1={playoffs.div2.r1?.team1}
                                         team2={playoffs.div2.r1?.team2}
                                         selectedTeam={getPick('div2_r1')}
@@ -670,6 +695,7 @@ const PlayoffsBracket = ({
                                 <div className="text-center text-xs text-muted-foreground mb-2">Week 16</div>
                                 <BracketSlot
                                     matchupId="div2_semi"
+                                        className="ff-fed-from-left ff-feeds-forward"
                                     team1={div2SemiTeam1}
                                     team2={div2SemiTeam2}
                                     selectedTeam={getPick('div2_semi')}
@@ -692,6 +718,7 @@ const PlayoffsBracket = ({
                                 <div className="text-xs text-muted-foreground mb-2 text-center">Championship</div>
                                 <BracketSlot
                                     matchupId="championship"
+                                        className="ff-fed-from-left"
                                     team1={champTeam1}
                                     team2={champTeam2}
                                     selectedTeam={getPick('championship')}
@@ -739,6 +766,7 @@ const PlayoffsBracket = ({
                                 <div className="text-center text-xs text-muted-foreground mb-2">Week 16</div>
                                 <BracketSlot
                                     matchupId="div1_semi"
+                                        className="ff-fed-from-left"
                                     team1={div1SemiTeam1}
                                     team2={div1SemiTeam2}
                                     selectedTeam={getPick('div1_semi')}
@@ -771,6 +799,7 @@ const PlayoffsBracket = ({
                                     {/* #2 vs #3 */}
                                     <BracketSlot
                                         matchupId="div1_r1"
+                                        className="ff-feeds-forward"
                                         team1={playoffs.div1.r1?.team1}
                                         team2={playoffs.div1.r1?.team2}
                                         selectedTeam={getPick('div1_r1')}
@@ -785,7 +814,7 @@ const PlayoffsBracket = ({
                                 </div>
                             </div>
                         </div>
-                        </div>
+                        </ScrollHint>
 
                         {/* Consolation Games - 3rd and 5th Place */}
                         <div className="border-t pt-6">
@@ -874,7 +903,7 @@ const PlayoffsBracket = ({
                     <CardDescription>8 teams compete across 3 weeks</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="overflow-x-auto overscroll-x-contain pb-4">
+                    <ScrollHint className="pb-4">
                       <div className="mx-auto flex w-max items-start gap-8">
                         {/* Week 15 - Round 1 (4 matchups) */}
                         <div className="flex flex-col gap-3">
@@ -989,7 +1018,7 @@ const PlayoffsBracket = ({
                             })}
                         </div>
                     </div>
-                    </div>
+                    </ScrollHint>
                 </CardContent>
             </Card>
 

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { SkeletonCards } from '../ui/skeleton';
+import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -95,8 +97,14 @@ const PlayoffsBracketManager = ({
         }
     }, [isAdmin,season, loadBracketData]);
 
+    // A shape rather than a blank tab; see PickEmsManager for the same fix.
     if (dataLoading && !bracketStatus) {
-        return null;
+        return (
+            <>
+                <PageHeader icon={Trophy} title="Playoffs" />
+                <SkeletonCards count={3} columns={3} />
+            </>
+        );
     }
 
     if (!season) {

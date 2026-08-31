@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { SkeletonCards } from '../ui/skeleton';
+import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -183,9 +185,17 @@ const PickEmsManager = ({
     );
   };
 
-  // During initialization or while loading pick'em data, don't show placeholder states (full-screen overlay handles loading)
+  // A skeleton, not `null`. The comment this replaces said the full-screen
+  // overlay was covering the wait — that overlay was removed for blocking the
+  // whole page on every mutation, which left this branch rendering an entirely
+  // blank tab for as long as the fetch took.
   if (initializing || dataLoading) {
-    return null;
+    return (
+      <>
+        <PageHeader icon={Target} title="Pick'ems" />
+        <SkeletonCards count={4} columns={1} />
+      </>
+    );
   }
 
   if (!season) {
