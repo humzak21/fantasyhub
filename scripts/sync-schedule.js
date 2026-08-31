@@ -86,7 +86,8 @@ async function writeImportLog({ seasonId, espn, scheduleData, teamResult, gameRe
     `teams: ${teamResult.inserted} added / ${teamResult.updated} updated · ` +
     `games: ${gameResult.inserted} added / ${gameResult.updated} updated / ` +
     `${gameResult.unchanged} unchanged` +
-    (gameResult.unmatched.length ? ` · ${gameResult.unmatched.length} unmatched` : '');
+    (gameResult.unmatched.length ? ` · ${gameResult.unmatched.length} unmatched` : '') +
+    (gameResult.conflicts?.length ? ` · ${gameResult.conflicts.length} conflicted` : '');
 
   const { error } = await getContext().client.from('espn_schedule_imports').insert({
     espn_league_id: String(espn.leagueId),
@@ -173,6 +174,16 @@ export async function syncSchedule(argv = []) {
     );
   }
 
+  // A row ESPN disagrees with that already has a result. The import refuses to
+  // re-point those on its own, so they need a person.
+  for (const clash of gameResult.conflicts ?? []) {
+    console.error(
+      `❌ game ${clash.id} (ESPN matchup ${clash.matchupId}): ${clash.reason} — ` +
+      `stored week ${clash.storedWeek} ${clash.storedTeams.join(' vs ')}, ` +
+      `ESPN week ${clash.espnWeek} ${clash.espnTeams.join(' vs ')}`
+    );
+  }
+
   if (dryRun) {
     console.log('   --dry-run: nothing was written.');
     return { dryRun: true, seasonId, teamResult, gameResult };
@@ -191,7 +202,7 @@ export async function syncSchedule(argv = []) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   syncSchedule(process.argv.slice(2))
     .then((result) => {
-      if (result.gameResult?.unmatched?.length) process.exit(1);
+      if (result.gameResult?.unmatched?.length || result.gameResult?.conflicts?.length) process.exit(1);
     })
     .catch((error) => {
       console.error(`❌ ${error.message}`);
