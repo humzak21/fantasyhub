@@ -11,11 +11,21 @@
  *     expect(ctx.client.calls).toContainEqual(...);
  */
 
-export function makeClient(handlers = {}) {
+export function makeClient(handlers = {}, { session = null } = {}) {
   const calls = [];
 
   return {
     calls,
+    /**
+     * Just enough of GoTrue for the modules that read the caller's id before
+     * querying. `session` defaults to null — the signed-out case, which several
+     * of these functions are supposed to short-circuit on.
+     */
+    auth: {
+      getSession: () => Promise.resolve({ data: { session }, error: null }),
+      getUser: () =>
+        Promise.resolve({ data: { user: session?.user ?? null }, error: null })
+    },
     /** Calls for one table, optionally one operation. */
     callsFor(table, op = null) {
       return calls.filter((call) => call.table === table && (op === null || call.op === op));
@@ -98,6 +108,14 @@ export function makeClient(handlers = {}) {
           state.filters[`neq:${column}`] = value;
           return builder;
         },
+        ilike: (column, value) => {
+          state.filters[`ilike:${column}`] = value;
+          return builder;
+        },
+        gte: (column, value) => {
+          state.filters[`gte:${column}`] = value;
+          return builder;
+        },
         is: (column, value) => {
           state.filters[`is:${column}`] = value;
           return builder;
@@ -111,7 +129,15 @@ export function makeClient(handlers = {}) {
           return builder;
         },
         order: () => builder,
-        limit: () => builder,
+        limit: (count) => {
+          state.limit = count;
+          return builder;
+        },
+        maybeSingle: () =>
+          run().then(({ data, error }) => ({
+            data: Array.isArray(data) ? data[0] ?? null : data,
+            error
+          })),
         single: () =>
           run().then(({ data, error }) => ({
             data: Array.isArray(data) ? data[0] ?? null : data,
@@ -126,6 +152,10 @@ export function makeClient(handlers = {}) {
 }
 
 /** A `ctx` around a fake client, in the shape `services/db/` expects. */
-export function makeCtx(handlers = {}) {
-  return { client: makeClient(handlers), seasonsCache: new Map(), activeSeasonId: null };
+export function makeCtx(handlers = {}, options = {}) {
+  return {
+    client: makeClient(handlers, options),
+    seasonsCache: new Map(),
+    activeSeasonId: null
+  };
 }

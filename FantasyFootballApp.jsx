@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Crosshair } from 'lucide-react';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -41,6 +41,7 @@ const PickEmsManager = lazy(() => import('./src/components/pickems/PickEmsManage
 const AwardsManager = lazy(() => import('./src/components/awards/AwardsManager.jsx'));
 const PlayoffsBracketManager = lazy(() => import('./src/components/playoffs/PlayoffsBracketManager.jsx'));
 const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueHistoryManager.jsx'));
+const ParlayCommissionerDashboard = lazy(() => import('./src/components/parlay/ParlayCommissionerDashboard.jsx'));
 
 /** The tab `/` resolves to. Also where an unknown or forbidden tab lands. */
 const DEFAULT_TAB = 'rankings';
@@ -54,7 +55,14 @@ const FantasyFootballApp = () => {
   // Viewer identity and what they may see. `isTeamOwner` replaces an inline
   // `teamOwnerNames.includes(user.user_metadata.display_name)` that decided
   // History-tab access from the shell.
-  const { user, isAuthenticated, isAdmin, isTeamOwner } = useViewer();
+  const {
+    user,
+    isAuthenticated,
+    isAdmin,
+    isTeamOwner,
+    isParlayCommissioner,
+    isParlayCommissionerLoading
+  } = useViewer();
 
   // One query per thing, each with its own loading state. Replaces the
   // 60-callback mega-hook whose every mutation refetched the entire league.
@@ -144,9 +152,14 @@ const FantasyFootballApp = () => {
       { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAdmin || isTeamOwner },
       { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
       { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
-      { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
+      { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible },
+      // Two people can open this: the admin and whoever holds the
+      // `parlay_commissioner` role. Everyone else's parlay lives at the foot
+      // of the pick'ems form — this tab is the *league-wide* view, and the
+      // rows behind it are RLS-gated besides.
+      { id: 'parlay', label: 'TD Parlay', shortLabel: 'Parlay', icon: Crosshair, requiresSeason: true, requiresAuth: false, customAccess: isParlayCommissioner }
     ];
-  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig]);
+  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, isParlayCommissioner]);
 
   // One definition of "may this viewer see this tab", shared by the nav and by
   // the route guard below — they must not be able to disagree.
@@ -204,8 +217,13 @@ const FantasyFootballApp = () => {
   // tab this viewer may not open is only knowable once the league data that
   // access depends on has arrived — redirecting before then would bounce a
   // legitimate deep link to /awards or /history on every cold load.
+  //
+  // The parlay tab's access is a database round trip of its own, so the same
+  // reasoning applies to it separately: `isLoading` covers the league data, and
+  // a commissioner deep-linking /parlay would be bounced on every cold load if
+  // the redirect fired before the role query resolved.
   if (!activeTabDef) return <Navigate to={`/${DEFAULT_TAB}`} replace />;
-  if (!isLoading && !shouldShowTab(activeTabDef)) {
+  if (!isLoading && !isParlayCommissionerLoading && !shouldShowTab(activeTabDef)) {
     return <Navigate to={`/${DEFAULT_TAB}`} replace />;
   }
 
@@ -458,6 +476,14 @@ const FantasyFootballApp = () => {
                   <LeagueHistoryManager
                     activeSeason={activeSeason}
                   />
+                </div>
+              </ErrorBoundary>
+            )}
+
+            {activeTab === 'parlay' && (
+              <ErrorBoundary key="parlay-error-boundary">
+                <div className="space-y-6">
+                  <ParlayCommissionerDashboard season={activeSeason} />
                 </div>
               </ErrorBoundary>
             )}

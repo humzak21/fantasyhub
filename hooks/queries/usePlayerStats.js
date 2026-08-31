@@ -44,3 +44,30 @@ export function useTeamPlayerStats(seasonId, teamId, throughWeek = null) {
     data: teamId && query.data ? query.data[teamId] ?? {} : undefined
   };
 }
+
+/**
+ * One week's rows, grouped by fantasy team: `{ [teamId]: rows }`.
+ *
+ * The live-week counterpart to `useSeasonPlayerStats`, whose `throughWeek` is
+ * exclusive and so can never return the week you are looking at. This is what
+ * the pick'ems research cards read, and it works because the sync writes the
+ * coming week's *projections* on Tuesday at 04:00 ET — a whole pick'ems window
+ * before that week's actual points exist.
+ *
+ * Grouping happens in `select`, so it runs on cache reads rather than on every
+ * render of every consumer, and the raw rows stay in the cache once.
+ */
+export function useWeekPlayerStats(seasonId, week, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: qk.playerStats.forWeek(seasonId, week),
+    queryFn: () => db().playerWeekStats.getPlayerWeekStatsForWeek(seasonId, week),
+    enabled: Boolean(seasonId) && Boolean(week) && enabled,
+    select: (rows) => {
+      const byTeam = {};
+      for (const row of rows ?? []) (byTeam[row.teamId] ??= []).push(row);
+      return byTeam;
+    },
+    // Projections are rewritten once a week by the cron, out of this process.
+    staleTime: 10 * 60_000
+  });
+}

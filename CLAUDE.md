@@ -264,6 +264,60 @@ double-counted every 2020-24 matchup.
 over the *active* season, not over 2025 — it is what labelled 2026's numbers
 "2025".
 
+### The TD parlay is one row per member per week
+
+Each member names one NFL player they think scores a touchdown. It lives at the
+foot of the pick'ems form (`src/components/pickems/ParlayPickSection.jsx`) and
+has **no deadline of its own**: `pick_em_weeks` supplies the window, the row's
+existence supplies the activation, and PickEmsSubmission passes its own
+`getPickEmStatus()` result down rather than letting the section recompute one.
+No pick'em week, no parlay — the section renders `null`.
+
+Three rules are the database's, not the UI's, and that is what makes them true:
+
+- **Privacy is RLS.** `td_parlay_picks` is readable as: your own row always,
+  everyone's once `submission_closes_at` passes (or `is_closed`), everything for
+  the admin and the parlay commissioner. Hiding picks in the component would
+  hide nothing — the anon key reaches PostgREST directly. So the reads in
+  `services/db/parlay.js` carry no privacy filter and return fewer rows before
+  the deadline; that empty result is the feature.
+- **The deadline is `submit_td_parlay_pick`.** It raises outside
+  `[submission_opens_at, submission_closes_at)`. There is **no user INSERT or
+  UPDATE policy** on the table, so the RPC is the only write path. (This is
+  deliberately stricter than `submit_pick_em_picks`, which checks no deadline
+  at all — a pre-existing gap, still open.)
+- **The canonical name comes from `players`.** Pass `p_player_id` and the
+  function looks the name up itself; pass only `p_player_name` and it stores the
+  trimmed text. `player_name_raw` is NOT NULL either way, because the FK is
+  `ON DELETE SET NULL` and a pick has to stay readable without the join.
+
+A free-text pick is not a fallback for bad input. `players` only holds people
+ESPN has rostered in this league, so the fringe goal-line back this parlay
+invites may genuinely not be there.
+
+`scored_td` is nullable and **NULL means ungraded, not "no touchdown"** —
+nothing ingests TD stats yet, and re-picking resets it to NULL. Grading happens
+in SQL for now; `GradeCell` in the dashboard is its own component so the future
+toggle has one place to land.
+
+**The commissioner is a role, not an admin.** `league_roles` +
+`is_parlay_commissioner()` exist because `is_admin()` is a single hardcoded
+email and the parlay needs people who can *read* everyone's picks without
+gaining the league's write paths. Grants are keyed on `user_id`, so they survive
+an email change, and the admin assigns them in **Settings → Roles**
+(`src/components/admin/LeagueRolesManager.jsx`) — the role changes hands and
+more than one person can hold it, so it is a UI, not a migration. The picker's
+member list comes from `list_league_members()`, whose `is_admin()` guard is in
+its `WHERE` clause: a non-admin gets an empty list, not an error.
+`isParlayCommissioner` on `useViewer()` folds the admin in; **never fold the
+commissioner into `isAdmin`** — the dashboard passes the flag into `getMasked*`
+locally, and that substitution stays local.
+
+`player_week_stats.pro_team_id` and the reserved "vs OPP / @ OPP / BYE" slots in
+both new components are for a future `nfl_schedule` table. Nothing in this
+system knows who a player's team plays in a given week, and the ESPN fetchers do
+not ask.
+
 ### No analytics subsystem
 The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,
 `server.js`, `useAnalyticsData`) was **deleted on 2026-08-06**, along with the

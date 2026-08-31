@@ -19,7 +19,7 @@
 import { createContext, useContext, useMemo } from 'react';
 
 import { useAuth } from './AuthContext.jsx';
-import { useActiveSeason } from '../../hooks/queries/index.js';
+import { useActiveSeason, useIsParlayCommissioner } from '../../hooks/queries/index.js';
 import { getTeamOwnerNames, isUserATeamOwner } from '../utils/displayNameUtils.js';
 
 const ViewerContext = createContext(null);
@@ -27,6 +27,14 @@ const ViewerContext = createContext(null);
 export function ViewerProvider({ children }) {
   const { user, isAuthenticated, isAdmin } = useAuth();
   const { data: activeSeason } = useActiveSeason();
+
+  /**
+   * The one non-admin role the league has. It is a database round trip, not a
+   * JWT claim, so `isPending` is part of the answer: the route guard has to
+   * wait for it or a commissioner deep-linking /parlay is bounced to the
+   * default tab on every cold load, before the RPC has resolved.
+   */
+  const { data: isCommissioner, isPending: commissionerPending } = useIsParlayCommissioner();
 
   const teamOwnerNames = useMemo(() => getTeamOwnerNames(activeSeason), [activeSeason]);
 
@@ -51,9 +59,20 @@ export function ViewerProvider({ children }) {
        * `isUserATeamOwner` resolves the name the way the rest of the app does
        * and accepts both shapes.
        */
-      isTeamOwner: Boolean(isAuthenticated && user && isUserATeamOwner(user, teamOwnerNames))
+      isTeamOwner: Boolean(isAuthenticated && user && isUserATeamOwner(user, teamOwnerNames)),
+      /**
+       * May this viewer see everyone's TD parlay picks?
+       *
+       * The admin is folded in here, as they are in every `getMasked*` helper —
+       * but only here. The reverse must not happen: a commissioner is not an
+       * admin, and nothing that reads `isAdmin` should start reading this.
+       */
+      isParlayCommissioner: Boolean(isAdmin || isCommissioner),
+      /** True while the role is still unknown. Never true for a signed-out
+       *  viewer — the query is disabled, so there is nothing to wait for. */
+      isParlayCommissionerLoading: Boolean(isAuthenticated && commissionerPending)
     }),
-    [user, isAuthenticated, isAdmin, teamOwnerNames]
+    [user, isAuthenticated, isAdmin, teamOwnerNames, isCommissioner, commissionerPending]
   );
 
   return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
@@ -65,7 +84,9 @@ export function ViewerProvider({ children }) {
  *   isAuthenticated: boolean,
  *   isAdmin: boolean,
  *   teamOwnerNames: string[],
- *   isTeamOwner: boolean
+ *   isTeamOwner: boolean,
+ *   isParlayCommissioner: boolean,
+ *   isParlayCommissionerLoading: boolean
  * }}
  */
 export function useViewer() {

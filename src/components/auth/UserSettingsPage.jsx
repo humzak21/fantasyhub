@@ -9,9 +9,10 @@ import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
-import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle } from 'lucide-react'
+import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import SeasonManager from '../admin/SeasonManager.jsx'
+import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
 import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
 
 export const UserSettingsPage = () => {
@@ -213,6 +214,15 @@ export const UserSettingsPage = () => {
                     </Button>
 
                     <Button
+                      variant={activeSettingsTab === 'roles' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('roles')}
+                    >
+                      <ShieldCheck className="mr-2 h-4 w-4" />
+                      Roles
+                    </Button>
+
+                    <Button
                       variant={activeSettingsTab === 'testing' ? 'default' : 'ghost'}
                       className="w-full justify-start"
                       onClick={() => setActiveSettingsTab('testing')}
@@ -368,6 +378,13 @@ export const UserSettingsPage = () => {
             {/* ESPN import log */}
             {activeSettingsTab === 'import' && isAdmin && (
               <ScheduleImportHistory />
+            )}
+
+            {/* Role assignment. The `isAdmin` here is the affordance; the
+                boundary is RLS on `league_roles` plus the guard inside
+                `list_league_members()`. */}
+            {activeSettingsTab === 'roles' && isAdmin && (
+              <LeagueRolesManager />
             )}
 
             {/* Testing Tools - Admin Only */}
