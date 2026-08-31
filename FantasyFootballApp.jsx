@@ -58,6 +58,7 @@ const FantasyFootballApp = () => {
   const {
     user,
     isAuthenticated,
+    isAuthLoading,
     isAdmin,
     isTeamOwner
   } = useViewer();
@@ -149,10 +150,11 @@ const FantasyFootballApp = () => {
       // the league.
       { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAdmin || isTeamOwner },
       { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
-      // Readable signed out, postable signed in — the gate is in the page, not
-      // in the nav, so a visitor can see what the league called before they
-      // decide whether to join in.
-      { id: 'takes', label: 'Takes', icon: Flame, requiresSeason: true, requiresAuth: false },
+      // Members only. `requiresAuth` is *not* the flag for this — despite the
+      // name it means admin-only (`requiresAuth && !isAdmin`), which would hide
+      // the board from the fourteen people it is for. `customAccess` is how
+      // History already expresses a non-admin audience.
+      { id: 'takes', label: 'Takes', icon: Flame, requiresSeason: true, requiresAuth: false, customAccess: isAuthenticated },
       { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       // The league-wide TD parlay view is not a destination of its own. It
       // lives inside Pick'ems, next to Submissions, beside the form the picks
@@ -218,8 +220,15 @@ const FantasyFootballApp = () => {
   // tab this viewer may not open is only knowable once the league data that
   // access depends on has arrived — redirecting before then would bounce a
   // legitimate deep link to /awards or /history on every cold load.
+  //
+  // The session is the other half of that answer, and it resolves on its own
+  // schedule: `isAuthenticated` reads false while a stored session is still
+  // being read back, which is indistinguishable from signed out. Waiting for
+  // `isAuthLoading` is what lets a member's bookmarked /takes survive a cold
+  // load — and it fixes the same latent bounce on /history, whose access runs
+  // through `isTeamOwner` and so was already exposed to it.
   if (!activeTabDef) return <Navigate to={`/${DEFAULT_TAB}`} replace />;
-  if (!isLoading && !shouldShowTab(activeTabDef)) {
+  if (!isLoading && !isAuthLoading && !shouldShowTab(activeTabDef)) {
     return <Navigate to={`/${DEFAULT_TAB}`} replace />;
   }
 
@@ -446,7 +455,11 @@ const FantasyFootballApp = () => {
                   <TakesManager
                     season={activeSeason}
                     currentWeek={viewedWeek}
-                    loading={isLoading}
+                    /* Auth counts as loading here. Until the session resolves
+                       the page cannot tell a member from a visitor, and the
+                       honest answer to "who is this" is not yet, rather than a
+                       board that flashes its signed-out state and then flips. */
+                    loading={isLoading || isAuthLoading}
                     isAuthenticated={isAuthenticated}
                   />
                 </div>
