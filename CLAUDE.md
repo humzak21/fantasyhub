@@ -248,6 +248,16 @@ over a league-sized board, so a future `nfl_game` take can sort by kickoff
 without a generated column to migrate — which is also why
 `takes_target_type_check` is named and DO-guarded.
 
+**The tab is members-only, and that gate is the shell's, not the database's.**
+`customAccess: isAuthenticated` hides `/takes` from a signed-out viewer and the
+route guard redirects them — but note `requiresAuth` is *not* the flag for
+this: despite the name it means admin-only. The `Public read takes` policy is
+still `USING (true)`, so this is a navigation decision, not a confidentiality
+one; anything that must be unreadable signed out needs the policy changed too.
+The guard waits on `isAuthLoading` because `isAuthenticated` reads false while
+a stored session is still resolving, which would otherwise bounce a member's
+bookmarked `/takes` on every cold load.
+
 ### Seasons end explicitly
 `public.finalize_season(season_id, dry_run)` derives a season's final placements
 from its games and writes `teams.made_playoffs/playoff_seed/playoff_wins/

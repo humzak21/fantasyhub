@@ -25,7 +25,7 @@ import { getTeamOwnerNames, isUserATeamOwner } from '../utils/displayNameUtils.j
 const ViewerContext = createContext(null);
 
 export function ViewerProvider({ children }) {
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { user, isAuthenticated, isAdmin, loading: authLoading } = useAuth();
   const { data: activeSeason } = useActiveSeason();
 
   /**
@@ -43,6 +43,16 @@ export function ViewerProvider({ children }) {
       user,
       isAuthenticated,
       isAdmin,
+      /**
+       * True until the session has been resolved.
+       *
+       * `isAuthenticated` is false while a stored session is still being read
+       * back, which is indistinguishable from "signed out" to anything that
+       * only looks at the flag. A route guard that gates on authentication has
+       * to wait for this or it bounces a signed-in viewer's deep link on every
+       * cold load — the same trap `isParlayCommissionerLoading` exists for.
+       */
+      isAuthLoading: Boolean(authLoading),
       teamOwnerNames,
       /**
        * Does this viewer own a team? Drives History-tab access, which the
@@ -72,7 +82,7 @@ export function ViewerProvider({ children }) {
        *  viewer — the query is disabled, so there is nothing to wait for. */
       isParlayCommissionerLoading: Boolean(isAuthenticated && commissionerPending)
     }),
-    [user, isAuthenticated, isAdmin, teamOwnerNames, isCommissioner, commissionerPending]
+    [user, isAuthenticated, isAdmin, authLoading, teamOwnerNames, isCommissioner, commissionerPending]
   );
 
   return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
@@ -83,6 +93,7 @@ export function ViewerProvider({ children }) {
  *   user: Object|null,
  *   isAuthenticated: boolean,
  *   isAdmin: boolean,
+ *   isAuthLoading: boolean,
  *   teamOwnerNames: string[],
  *   isTeamOwner: boolean,
  *   isParlayCommissioner: boolean,
