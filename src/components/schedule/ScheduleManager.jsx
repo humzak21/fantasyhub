@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { EmptyState } from '../ui/empty-state';
 import { TeamIdentity } from '../ui/team-identity';
+import { IndependentColumns } from '../ui/independent-columns';
 import PageHeader from '../layout/PageHeader';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
@@ -192,19 +193,22 @@ const WeekScheduleView = ({
 
   return (
     /*
-      `items-start`, and one open lineup at a time.
-      Two bugs lived in this grid. A CSS one: grid items stretch to the row's
-      height by default, so opening one card's lineups grew the row and the
-      card beside it stretched to match — it looked like the neighbour had
-      opened too, blank. And a behavioural one: each card owned its own
-      `<details>`, so several could sit open at once and the page became a
-      wall of squad lists. The open card is state here now, so opening one
-      closes the rest.
+      Independent columns, and one open lineup at a time.
+      Three things went wrong here. Grid cells stretch to their row's height,
+      so opening one card's lineups made the card beside it grow to match and
+      look "open but blank". Grid *rows* then pushed everything below down,
+      so expanding on the left moved the right-hand column too. And each card
+      owned its own `<details>`, so several could sit open at once and the
+      week became a wall of squad lists. Columns are their own block flow now,
+      the open card is state here, and opening one closes the rest.
     */
-    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-      {games.map(game => (
+    <IndependentColumns
+      items={games}
+      itemKey={(game) => game.id}
+      columns={2}
+    >
+      {(game) => (
         <GameCard
-          key={game.id}
           game={game}
           onUpdateGame={onUpdateGame}
           onDeleteGame={onDeleteGame}
@@ -220,8 +224,8 @@ const WeekScheduleView = ({
             setOpenLineupId((current) => (current === game.id ? null : game.id))
           }
         />
-      ))}
-    </div>
+      )}
+    </IndependentColumns>
   );
 };
 

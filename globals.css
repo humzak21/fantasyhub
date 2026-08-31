@@ -494,6 +494,21 @@
 
 @layer utilities {
 
+  /* Card sections stack without doubling their padding.
+   *
+   * A CardContent that follows a CardHeader does not want its own top padding
+   * — the header's bottom padding is already there. Expressed as an
+   * adjacent-sibling rule rather than baked into CardContent's classes,
+   * because only the DOM knows what is actually above it: the version that
+   * hardcoded `pt-0` broke every card used without a header, and the version
+   * that asked `:not(:first-child)` broke any card with a decorative element
+   * before its content. */
+  [data-slot='card-header'] + [data-slot='card-content'],
+  [data-slot='card-header'] + [data-slot='card-footer'],
+  [data-slot='card-content'] + [data-slot='card-footer'] {
+    padding-top: 0;
+  }
+
   /* The signed-in viewer's own row, in a table or as a card.
    *
    * Split by element because the two layouts need different mechanics: a
