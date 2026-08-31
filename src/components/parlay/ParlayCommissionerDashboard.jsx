@@ -41,7 +41,7 @@ import { getPositionColor } from '../../utils/positionColors';
 const NO_PICKS = [];
 const NO_WEEKS = [];
 
-const ParlayCommissionerDashboard = ({ season }) => {
+const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
   const { isAdmin, isParlayCommissioner, isParlayCommissionerLoading } = useViewer();
   const seasonId = season?.id ?? null;
 
@@ -190,14 +190,27 @@ const ParlayCommissionerDashboard = ({ season }) => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={Crosshair}
-        title="TD Parlay"
-        description={`Every member's touchdown pick, ${season.name || season.year}.`}
-        badge={
-          !isAdmin ? <Badge variant="info">Commissioner</Badge> : null
-        }
-      />
+      {/* `embedded` is the pick'ems tab, which already carries a page header —
+          a second one under it would title the page twice. The season and the
+          commissioner badge still have to say themselves somewhere, so they
+          move into a line rather than being dropped. */}
+      {embedded ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-muted-foreground">
+            {`Every member's touchdown pick, ${season.name || season.year}.`}
+          </p>
+          {!isAdmin && <Badge variant="info">Commissioner</Badge>}
+        </div>
+      ) : (
+        <PageHeader
+          icon={Crosshair}
+          title="TD Parlay"
+          description={`Every member's touchdown pick, ${season.name || season.year}.`}
+          badge={
+            !isAdmin ? <Badge variant="info">Commissioner</Badge> : null
+          }
+        />
+      )}
 
       {weekNumbers.length === 0 ? (
         <EmptyState
