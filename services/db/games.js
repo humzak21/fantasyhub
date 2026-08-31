@@ -98,7 +98,7 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
 
     let query = ctx.client
       .from('games')
-      .select('id, week, team1_id, team2_id, team1_score, team2_score, type, espn_matchup_id, espn_scoring_period_id')
+      .select('id, week, team1_id, team2_id, team1_score, team2_score, type, is_completed, espn_matchup_id, espn_scoring_period_id')
       .eq('season_id', seasonId);
     if (week != null) query = query.eq('week', week);
 
@@ -124,6 +124,7 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
         updated: plan.updates.length,
         unchanged: plan.unchanged,
         unmatched: plan.unmatched,
+        conflicts: plan.conflicts,
         plan,
         dryRun: true
       };
@@ -154,14 +155,25 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
 
     log.info(
       `espn games: ${plan.inserts.length} inserted, ${plan.updates.length} updated, ` +
-      `${plan.unchanged} unchanged, ${plan.unmatched.length} unmatched`
+      `${plan.unchanged} unchanged, ${plan.unmatched.length} unmatched, ` +
+      `${plan.conflicts.length} conflicted`
     );
+
+    // A conflict is a row ESPN disagrees with that this function refused to
+    // rewrite because it already has a result. Silence here would be the same
+    // failure the pairing check exists to end, so say so at warning level.
+    for (const clash of plan.conflicts) {
+      log.warn(
+        `game ${clash.id} (ESPN matchup ${clash.matchupId}, week ${clash.storedWeek}): ${clash.reason}`
+      );
+    }
 
     return {
       inserted: plan.inserts.length,
       updated: plan.updates.length,
       unchanged: plan.unchanged,
       unmatched: plan.unmatched,
+      conflicts: plan.conflicts,
       plan
     };
   } catch (error) {

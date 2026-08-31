@@ -1,13 +1,54 @@
 #!/usr/bin/env node
 
-// Load environment variables for Node.js
-import dotenv from 'dotenv';
-dotenv.config({ path: '.env.local' });
+// `client.server.js` loads the .env files as a side effect of being imported,
+// and it has to be the FIRST import. This file used to call `dotenv.config()`
+// in its module body, which reads as though it runs first but does not: ES
+// imports are hoisted above every statement, so `config/espn-config.js` was
+// evaluated — and read `process.env` — before dotenv ever ran. The cookies in
+// `.env.local` were never seen, and the script silently authenticated as a
+// public-league reader, printing "Private League: No". `sync-week.js` and
+// `sync-schedule.js` order it this way for the same reason.
+//
+// `espn-config.js` now resolves env lazily too, so this is belt and braces
+// rather than the only thing holding it up.
+import '../services/db/client.server.js';
 
 import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
-
+import { getContext } from '../services/db/index.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
-const config = ESPN_CONFIG;
+import { toSeasonConfig } from '../utils/seasonConfig.js';
+
+/**
+ * The ESPN league and season to talk to.
+ *
+ * The active season row owns both, exactly as it does for `sync-week.js` and
+ * `sync-schedule.js`; `ESPN_CONFIG` is only the fallback. This script used to
+ * read `ESPN_SEASON_YEAR` and nothing else, so with that variable unset — which
+ * is its normal state, it is in neither `.env.local` nor `.env.example` — the
+ * fetch URL was built with `undefined` where the year belongs.
+ */
+async function resolveEspnTarget() {
+  const { data, error } = await getContext()
+    .client.from('v_active_season')
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `No active season found. Mark one with seasons.is_active = true. (${error?.message ?? 'no row'})`
+    );
+  }
+
+  const season = toSeasonConfig(data);
+
+  return {
+    leagueId: season.espnLeagueId || ESPN_CONFIG.leagueId,
+    seasonYear: season.espnSeasonYear || season.year || ESPN_CONFIG.seasonYear,
+    espnS2: ESPN_CONFIG.espnS2,
+    swid: ESPN_CONFIG.swid,
+    seasonLabel: season.year
+  };
+}
 
 function printUsage() {
   console.log(`
@@ -55,17 +96,23 @@ async function main() {
     return;
   }
 
-  if (!config.leagueId) {
-    console.error('❌ Error: League ID not configured');
-    console.error('Run: node scripts/setupESPN.js');
-    console.error('Then edit config/espn-config.js with your league details');
-    process.exit(1);
-  }
-
   try {
+    const config = await resolveEspnTarget();
+
+    if (!config.leagueId) {
+      console.error('❌ Error: no ESPN league id.');
+      console.error('   Set seasons.espn_league_id for the active season, or ESPN_LEAGUE_ID.');
+      process.exit(1);
+    }
+    if (!config.seasonYear) {
+      console.error('❌ Error: no ESPN season year.');
+      console.error('   Set seasons.espn_season_year (or seasons.year) for the active season.');
+      process.exit(1);
+    }
+
     console.log(`🔧 Initializing ESPN roster updater...`);
     console.log(`   League ID: ${config.leagueId}`);
-    console.log(`   Season: ${config.seasonYear}`);
+    console.log(`   Season: ${config.seasonYear} (active season ${config.seasonLabel})`);
     console.log(`   Private League: ${config.espnS2 ? 'Yes' : 'No'}`);
     console.log('');
 

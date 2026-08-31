@@ -12,7 +12,7 @@
  * executes it. That split is what makes the interesting parts testable without
  * a client.
  *
- * Two rules run through the whole file:
+ * Three rules run through the whole file:
  *
  *   1. **`type` is written on insert and never on update.** The 2025 postseason
  *      types were corrected by hand (migration 20260805100000) and an ESPN sync
@@ -24,6 +24,11 @@
  *      `is_completed` is generated. Sending `completed_at: null` in a patch
  *      would make the trigger re-stamp it with the import time, which is the
  *      exact bug being removed here.
+ *   3. **A matched row is checked against ESPN, not just patched.** ESPN reuses
+ *      matchup ids when it re-draws a schedule, so matching on one proves
+ *      nothing about the teams. A scoreless row that disagrees is re-pointed;
+ *      one that already has a result is reported as a conflict and left alone,
+ *      because its scores belong to the teams currently stored.
  */
 
 /** Columns the database owns. A payload containing any of these is a bug. */
@@ -146,6 +151,28 @@ const sameScore = (a, b) => {
   return Number(a) === Number(b);
 };
 
+/**
+ * Do a stored row and an ESPN matchup name the same two teams?
+ *
+ * Unordered on purpose. A row is allowed to store the pair the other way round
+ * from ESPN's home/away — `findExistingGame` matches those, and the score
+ * assignment above respects them — so only a genuinely different pair of teams
+ * counts as drift. A bye compares `null` against `null` and needs no special
+ * case.
+ */
+const isSamePairing = (row, team1Id, team2Id) =>
+  (row.team1_id === team1Id && row.team2_id === team2Id) ||
+  (row.team1_id === team2Id && row.team2_id === team1Id);
+
+/**
+ * Has this row got a result already?
+ *
+ * `is_completed` is generated from the scores, so either is sufficient; both
+ * are checked because a caller may not have selected the generated column.
+ */
+const hasResult = (row) =>
+  row.team1_score != null || row.team2_score != null || row.is_completed === true;
+
 /** The two teams of a matchup, or a reason why they could not be resolved. */
 function resolveSides(matchup, teamIndex) {
   const home = matchup.homeTeam?.teamId != null
@@ -216,7 +243,7 @@ function findExistingGame(existingGames, { matchup, week, team1, team2, isBye })
  * @param {number} [options.currentScoringPeriod]
  * @param {string} [options.userId]      stamped on inserts only
  * @param {number} [options.week]        only consider this week
- * @returns {{inserts: Array, updates: Array, unchanged: number, unmatched: Array}}
+ * @returns {{inserts: Array, updates: Array, unchanged: number, unmatched: Array, conflicts: Array}}
  */
 export function planGameWrites({
   seasonId,
@@ -231,6 +258,7 @@ export function planGameWrites({
   const inserts = [];
   const updates = [];
   const unmatched = [];
+  const conflicts = [];
   let unchanged = 0;
 
   // Rows this plan has already claimed, so two matchups cannot both adopt the
@@ -260,13 +288,8 @@ export function planGameWrites({
     );
 
     const played = !isBye && hasFinalScore(matchup, { currentScoringPeriod });
-    // A game's scores follow the teams, not ESPN's home/away, once a row exists
-    // with the pair stored the other way round.
-    const homeIsTeam1 = existing ? existing.row.team1_id === team1.id : true;
     const homeScore = matchup.homeTeam?.score ?? null;
     const awayScore = matchup.awayTeam?.score ?? null;
-    const team1Score = played ? (homeIsTeam1 ? homeScore : awayScore) : null;
-    const team2Score = played ? (homeIsTeam1 ? awayScore : homeScore) : null;
 
     if (!existing) {
       inserts.push({
@@ -274,8 +297,8 @@ export function planGameWrites({
         week: matchupWeek,
         team1_id: team1.id,
         team2_id: team2?.id ?? null,
-        team1_score: team1Score,
-        team2_score: team2Score,
+        team1_score: played ? homeScore : null,
+        team2_score: played ? awayScore : null,
         type: resolveGameType(matchup, {
           isBye,
           playoffIndex: matchupWeek - regularSeasonWeeks
@@ -290,6 +313,55 @@ export function planGameWrites({
     claimed.add(existing.row.id);
     const row = existing.row;
     const patch = {};
+
+    // Does the stored row still describe the fixture ESPN is reporting?
+    //
+    // Rung 1 of `findExistingGame` matches on the ESPN matchup id alone, and
+    // ESPN reuses those ids when it reshuffles a schedule. Without this check
+    // the patch below could only ever carry scores and ESPN ids, so a
+    // re-drawn week matched its old row, produced an empty patch and was
+    // reported as "unchanged" — which is exactly what happened to all seven
+    // 2026 week-1 games, twice, including under --dry-run. The stale pairing
+    // survived a full re-import because no amount of re-running could express
+    // the correction.
+    const espnTeam2Id = team2?.id ?? null;
+    const samePairing = isSamePairing(row, team1.id, espnTeam2Id);
+    const sameWeek = row.week === matchupWeek;
+
+    if (!samePairing || !sameWeek) {
+      // A row that already has a result must never be silently re-pointed:
+      // those scores were produced by the teams currently stored, and moving
+      // the row would attribute a played game to somebody who did not play it.
+      // Report it and let a person decide.
+      if (hasResult(row)) {
+        conflicts.push({
+          id: row.id,
+          matchupId: matchup.matchupId ?? null,
+          matchedBy: existing.matchedBy,
+          storedWeek: row.week,
+          espnWeek: matchupWeek,
+          storedTeams: [row.team1_id, row.team2_id],
+          espnTeams: [team1.id, espnTeam2Id],
+          reason: samePairing
+            ? 'ESPN moved this matchup to another week, but the stored row already has a result'
+            : 'ESPN reports different teams for this matchup, but the stored row already has a result'
+        });
+        continue;
+      }
+
+      if (!samePairing) {
+        patch.team1_id = team1.id;
+        patch.team2_id = espnTeam2Id;
+      }
+      if (!sameWeek) patch.week = matchupWeek;
+    }
+
+    // Scores follow the teams the row will hold *after* this patch, not ESPN's
+    // home/away: a row may legitimately store the pair the other way round, and
+    // a re-pointed row takes ESPN's order.
+    const team1IsHome = patch.team1_id !== undefined ? true : row.team1_id === team1.id;
+    const team1Score = played ? (team1IsHome ? homeScore : awayScore) : null;
+    const team2Score = played ? (team1IsHome ? awayScore : homeScore) : null;
 
     // Never null out a stored score: ESPN reporting a game as undecided again
     // (a mid-week refetch) must not erase last week's result.
@@ -318,5 +390,5 @@ export function planGameWrites({
     updates.push({ id: row.id, patch, matchedBy: existing.matchedBy, week: matchupWeek });
   }
 
-  return { inserts, updates, unchanged, unmatched };
+  return { inserts, updates, unchanged, unmatched, conflicts };
 }
