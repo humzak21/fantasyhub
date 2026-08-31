@@ -10,6 +10,13 @@
 # Hooked to `prepare`, so it runs on `npm install` and nobody has to know it
 # exists. It exits 0 unconditionally: a git config detail must never be the
 # reason an install fails.
+#
+# The `prepare` entry in package.json guards on this file *existing*, which is
+# not paranoia. npm runs `prepare` in contexts where the repository is not
+# present — most importantly a Docker build, which copies package*.json and
+# runs `npm ci` before copying the source, precisely so the install layer
+# caches. In that layer `scripts/` does not exist yet, and `sh: not found`
+# exits 127 before anything in this file can decide otherwise.
 set -uo pipefail
 
 # Not a git checkout — a tarball, a CI cache restore, an install as a
