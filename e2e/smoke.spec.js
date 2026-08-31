@@ -3,10 +3,10 @@ import { test, expect } from '@playwright/test'
 /**
  * Every tab is a route now, so every tab is reachable from here.
  *
- * `/history` and `/awards` are access-gated and redirect a signed-out viewer
- * to `/rankings`; that is correct behaviour, not a failure, so the assertions
- * below are about layout and about the page not being broken — never about
- * which URL you ended up on.
+ * `/history`, `/awards` and `/takes` are access-gated and redirect a signed-out
+ * viewer to `/rankings`; that is correct behaviour, not a failure, so the
+ * assertions below are about layout and about the page not being broken —
+ * never about which URL you ended up on.
  */
 const ROUTES = [
   '/',
