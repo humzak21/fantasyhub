@@ -482,22 +482,21 @@ const FantasyFootballApp = () => {
         )}
 
         {/*
-          First load only. This used to be `{loading && ...}` on the mega-hook's
-          single flag, which every mutation set — so saving one score blacked out
-          the whole page behind a modal until seasons, teams, games, rosters,
-          divisions and standings had all been refetched. Widgets now show their
-          own loading state and the page stays usable.
+          There is no full-screen loading overlay any more.
+          It was already halfway to being removed: a previous pass narrowed it
+          from "any loading" to "first load with no season", because every
+          mutation used to black out the page behind a modal. The remaining
+          case was still wrong, and CI proved it — a fixed `inset-0` panel at
+          z-50 sits *above* the z-40 tab bar, so whenever the league data does
+          not arrive the app is not merely blank, it is unusable: navigation is
+          covered, and no tab can be reached to see what else works.
+
+          "Does not arrive" is not hypothetical. It is a dropped connection, an
+          outage, a bad anon key — and in those cases the shell, the nav and
+          every page's own empty state are exactly what the reader needs. Each
+          surface already owns its loading state (RouteLoading, SkeletonTable,
+          per-page empty states), so nothing here needs a modal on top of them.
         */}
-        {isLoading && !activeSeason && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="p-6">
-              <div className="flex items-center space-x-3">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                <span>Loading...</span>
-              </div>
-            </Card>
-          </div>
-        )}
       </div>
     </ErrorBoundary>
   );
