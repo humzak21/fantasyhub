@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   graphql_public: {
     Tables: {
@@ -764,6 +764,27 @@ export type Database = {
         }
         Relationships: []
       }
+      league_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pick_em_results: {
         Row: {
           actual_winner_team_id: string | null
@@ -1121,6 +1142,7 @@ export type Database = {
           lineup_slot_id: number | null
           player_id: string
           position: string | null
+          pro_team_id: number | null
           projected_points: number | null
           roster_slot: string | null
           season_id: string
@@ -1138,6 +1160,7 @@ export type Database = {
           lineup_slot_id?: number | null
           player_id: string
           position?: string | null
+          pro_team_id?: number | null
           projected_points?: number | null
           roster_slot?: string | null
           season_id: string
@@ -1155,6 +1178,7 @@ export type Database = {
           lineup_slot_id?: number | null
           player_id?: string
           position?: string | null
+          pro_team_id?: number | null
           projected_points?: number | null
           roster_slot?: string | null
           season_id?: string
@@ -1928,6 +1952,77 @@ export type Database = {
           },
           {
             foreignKeyName: "sync_runs_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_season"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      td_parlay_picks: {
+        Row: {
+          created_at: string | null
+          id: string
+          pick_em_week_id: string
+          player_id: string | null
+          player_name_raw: string
+          scored_td: boolean | null
+          season_id: string
+          submitted_at: string
+          updated_at: string | null
+          user_id: string
+          week: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pick_em_week_id: string
+          player_id?: string | null
+          player_name_raw: string
+          scored_td?: boolean | null
+          season_id: string
+          submitted_at?: string
+          updated_at?: string | null
+          user_id?: string
+          week: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pick_em_week_id?: string
+          player_id?: string | null
+          player_name_raw?: string
+          scored_td?: boolean | null
+          season_id?: string
+          submitted_at?: string
+          updated_at?: string | null
+          user_id?: string
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "td_parlay_picks_pick_em_week_id_fkey"
+            columns: ["pick_em_week_id"]
+            isOneToOne: false
+            referencedRelation: "pick_em_weeks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "td_parlay_picks_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "td_parlay_picks_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "td_parlay_picks_season_id_fkey"
             columns: ["season_id"]
             isOneToOne: false
             referencedRelation: "v_active_season"
@@ -2922,13 +3017,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["franchise_id"]
-            isOneToOne: false
-            referencedRelation: "league_franchises"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "teams_franchise_id_fkey"
             columns: ["opponent_franchise_id"]
             isOneToOne: false
             referencedRelation: "league_franchises"
@@ -2937,13 +3025,20 @@ export type Database = {
           {
             foreignKeyName: "teams_franchise_id_fkey"
             columns: ["franchise_id"]
+            isOneToOne: false
+            referencedRelation: "league_franchises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_franchise_id_fkey"
+            columns: ["opponent_franchise_id"]
             isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
           },
           {
             foreignKeyName: "teams_franchise_id_fkey"
-            columns: ["opponent_franchise_id"]
+            columns: ["franchise_id"]
             isOneToOne: false
             referencedRelation: "v_franchise_career"
             referencedColumns: ["franchise_id"]
@@ -3371,6 +3466,16 @@ export type Database = {
         }[]
       }
       is_admin: { Args: never; Returns: boolean }
+      is_parlay_commissioner: { Args: never; Returns: boolean }
+      list_league_members: {
+        Args: never
+        Returns: {
+          created_at: string
+          display_name: string
+          email: string
+          id: string
+        }[]
+      }
       refresh_season_stats: { Args: { season_id: string }; Returns: undefined }
       refresh_team_stats: { Args: { team_id: string }; Returns: undefined }
       save_enhanced_power_rankings_snapshot: {
@@ -3409,6 +3514,32 @@ export type Database = {
           p_season_id: string
         }
         Returns: Json
+      }
+      submit_td_parlay_pick: {
+        Args: {
+          p_pick_em_week_id: string
+          p_player_id?: string
+          p_player_name?: string
+        }
+        Returns: {
+          created_at: string | null
+          id: string
+          pick_em_week_id: string
+          player_id: string | null
+          player_name_raw: string
+          scored_td: boolean | null
+          season_id: string
+          submitted_at: string
+          updated_at: string | null
+          user_id: string
+          week: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "td_parlay_picks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       sync_espn_player_stats: {
         Args: {

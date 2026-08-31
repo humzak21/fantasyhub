@@ -422,6 +422,24 @@ export const validatePickEmSubmission = (submission) => {
     typeof submission.predictedWinnerTeamId !== 'undefined';
 };
 
+/**
+ * A TD parlay pick, before it is sent.
+ *
+ * Two shapes are valid, which is the point: a `playerId` from the autocomplete,
+ * or a non-blank name typed by hand. The free-text branch is not a fallback for
+ * bad input — `players` only holds people ESPN has rostered in this league, so
+ * a fringe goal-line back may genuinely not be in it, and a validator that
+ * demanded an id would make him unpickable.
+ *
+ * The deadline is not checked here. It is checked in `submit_td_parlay_pick`,
+ * where a client cannot skip it.
+ */
+export const validateParlayPick = (pick) => {
+  if (!pick || typeof pick.pickEmWeekId === 'undefined' || !pick.pickEmWeekId) return false;
+  if (pick.playerId) return true;
+  return typeof pick.playerName === 'string' && pick.playerName.trim().length > 0;
+};
+
 // Pick'ems time utilities
 export const getPickEmTimeStatus = (submissionOpensAt, submissionClosesAt, resultsRevealAt) => {
   const now = new Date();

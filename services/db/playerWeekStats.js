@@ -156,6 +156,11 @@ export async function upsertPlayerWeekStats(ctx, seasonId, week, mappedRows = []
         team_id: team.id,
         player_id: playerId,
         espn_player_id: row.espnPlayerId,
+        // The NFL team, not the fantasy one (`team_id`). The mapper has always
+        // extracted it and this writer has always dropped it; it is the join
+        // key a future NFL-schedule table needs, and it cannot be backfilled
+        // without re-fetching every past week from ESPN.
+        pro_team_id: row.proTeamId ?? null,
         lineup_slot_id: row.lineupSlotId,
         roster_slot: mapESPNRosterSlot(row.lineupSlotId),
         started: row.started,
@@ -219,5 +224,57 @@ export async function getPlayerWeekStats(ctx, seasonId, { throughWeek = null } =
     return byTeam;
   } catch (error) {
     throwDbError(error, 'Get player week stats');
+  }
+}
+
+/**
+ * One week's rows, flat, with the player joined.
+ *
+ * A separate function rather than a `throughWeek` that can also mean "at": that
+ * parameter is exclusive on purpose — the calculator's `week < viewingWeek`
+ * rule — and bending it so one caller can see the current week is how a
+ * historical ranking starts seeing a week the reader has not navigated to.
+ *
+ * This is the read for the *live* week, which exists because the sync writes
+ * the coming week's projections on Tuesday at 04:00 ET, a full pick'ems window
+ * before its actual points land the following Tuesday.
+ *
+ * @returns {Promise<object[]>} rows, camelCased, each with `.player`
+ */
+export async function getPlayerWeekStatsForWeek(ctx, seasonId, week) {
+  try {
+    const { data, error } = await ctx.client
+      .from('player_week_stats')
+      .select(`
+        id,
+        season_id,
+        week,
+        team_id,
+        player_id,
+        espn_player_id,
+        pro_team_id,
+        lineup_slot_id,
+        roster_slot,
+        started,
+        position,
+        actual_points,
+        projected_points,
+        injury_status,
+        player:players (
+          id,
+          name,
+          position,
+          team_abbreviation,
+          pro_team_id
+        )
+      `)
+      .eq('season_id', seasonId)
+      .eq('week', week);
+
+    if (error) throw error;
+
+    return (data || []).map(formatFromDatabase);
+  } catch (error) {
+    throwDbError(error, 'Get player week stats for week');
   }
 }
