@@ -9,6 +9,8 @@ import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUt
 import { getTeamColor } from '../../utils/teamColors';
 import { cn } from '../../lib/utils';
 import PickEmsSubmitBar from './PickEmsSubmitBar';
+import MatchupResearchSection from './MatchupResearchSection';
+import ParlayPickSection from './ParlayPickSection';
 
 const PickEmsSubmission = ({
   season,
@@ -271,6 +273,17 @@ const PickEmsSubmission = ({
         </Alert>
       )}
 
+      {/* Research, above the picks: the point of it is to be read before a
+          choice is made, and a panel underneath the buttons is a panel nobody
+          opens. Collapsed by default — see MatchupResearchSection. */}
+      {status.status !== 'no-week' && availableGames.length > 0 && (
+        <MatchupResearchSection
+          seasonId={season?.id ?? pickEmWeek?.seasonId ?? null}
+          week={currentWeek}
+          games={availableGames}
+        />
+      )}
+
       {/* Games list */}
       {status.status === 'no-week' ? (
         <Card>
@@ -384,6 +397,20 @@ const PickEmsSubmission = ({
           onCancelEdit={handleCancelEdit}
         />
       )}
+
+      {/* The parlay sits *below* the pick'ems submit bar, because it has its
+          own Submit: above it, the page would show two submit buttons and the
+          nearer one would not be the one that saves your picks.
+
+          `status` is passed rather than recomputed so the two windows are the
+          same window by construction. The section renders nothing without a
+          pick'em week, which is the whole of the "only when pick'ems is
+          activated" rule. */}
+      <ParlayPickSection
+        pickEmWeek={pickEmWeek}
+        status={status}
+        weekNumber={currentWeek}
+      />
     </div>
   );
 };

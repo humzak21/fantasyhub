@@ -173,3 +173,51 @@ export async function getAllPlayers(ctx, seasonId = null) {
     throwDbError(error, 'Get all players');
   }
 }
+
+/**
+ * Players whose name contains `query`, most-owned first.
+ *
+ * For the parlay's autocomplete, which needs a *bounded* answer: the
+ * no-season branch of `getAllPlayers` above selects every active player in the
+ * database with no limit, which is thousands of rows to fill a ten-row list.
+ *
+ * Under two characters this returns `[]` without a network call. "a" matches
+ * most of the NFL and ranks it by ownership, which is a list of famous players
+ * rather than an answer; the request is not worth making.
+ *
+ * Ordered by `percent_owned` because a member typing "jefferson" means the
+ * one everybody rosters. Nulls sort last so an unsynced player cannot lead.
+ */
+export async function searchPlayers(ctx, query, { limit = 10 } = {}) {
+  const term = (query ?? '').trim();
+  if (term.length < 2) return [];
+
+  try {
+    // `%` and `_` are wildcards to ILIKE; a name is not a pattern.
+    const escaped = term.replace(/[\\%_]/g, (char) => `\\${char}`);
+
+    const { data, error } = await ctx.client
+      .from('players')
+      .select(`
+        id,
+        espn_player_id,
+        name,
+        position,
+        team_abbreviation,
+        pro_team_id,
+        pro_team_name,
+        injury_status,
+        percent_owned
+      `)
+      .ilike('name', `%${escaped}%`)
+      .eq('is_active', true)
+      .order('percent_owned', { ascending: false, nullsFirst: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    return formatFromDatabase(data || []);
+  } catch (error) {
+    throwDbError(error, 'Search players');
+  }
+}

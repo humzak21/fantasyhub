@@ -55,7 +55,23 @@ export {
   usePickEmMutations
 } from './usePickEms.js';
 
-export { useSeasonPlayerStats, useTeamPlayerStats } from './usePlayerStats.js';
+export {
+  useSeasonPlayerStats,
+  useTeamPlayerStats,
+  useWeekPlayerStats
+} from './usePlayerStats.js';
+
+export {
+  useMyParlayPick,
+  useParlayWeekPicks,
+  useSeasonParlayPicks,
+  useSubmitParlayPick,
+  usePlayerSearch,
+  useIsParlayCommissioner,
+  useLeagueMembers,
+  useParlayCommissioners,
+  useSetParlayCommissioners
+} from './useParlay.js';
 
 export { useAwardsUnlockStatus, useAwards, useAwardsMutations } from './useAwards.js';
 
