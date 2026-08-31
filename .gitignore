@@ -217,3 +217,8 @@ authorized_keys
 # Supabase CLI local state (migrations themselves ARE tracked)
 supabase/.temp/
 supabase/.branches/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

@@ -337,11 +337,11 @@ const PlayoffsBracketAdmin = ({
                                     {/* Slot 0 */}
                                     <div className="p-4 border rounded-lg bg-green-50 border-green-200">
                                         <div className="flex items-center justify-between mb-2">
-                                            <Badge variant="outline" className="bg-white">Slot 0 (Highest Seeds)</Badge>
+                                            <Badge variant="outline" className="bg-card">Slot 0 (Highest Seeds)</Badge>
                                             <span className="text-xs text-muted-foreground">Best consolation matchup</span>
                                         </div>
                                         <select
-                                            className="w-full p-2 text-sm border rounded bg-white"
+                                            className="w-full p-2 text-sm border rounded bg-card"
                                             value={slotAssignments[0] || ''}
                                             onChange={(e) => handleSlotChange(0, e.target.value)}
                                         >
@@ -357,10 +357,10 @@ const PlayoffsBracketAdmin = ({
                                     {/* Slot 1 */}
                                     <div className="p-4 border rounded-lg bg-yellow-50 border-yellow-200">
                                         <div className="flex items-center justify-between mb-2">
-                                            <Badge variant="outline" className="bg-white">Slot 1</Badge>
+                                            <Badge variant="outline" className="bg-card">Slot 1</Badge>
                                         </div>
                                         <select
-                                            className="w-full p-2 text-sm border rounded bg-white"
+                                            className="w-full p-2 text-sm border rounded bg-card"
                                             value={slotAssignments[1] || ''}
                                             onChange={(e) => handleSlotChange(1, e.target.value)}
                                         >
@@ -376,10 +376,10 @@ const PlayoffsBracketAdmin = ({
                                     {/* Slot 2 */}
                                     <div className="p-4 border rounded-lg bg-orange-50 border-orange-200">
                                         <div className="flex items-center justify-between mb-2">
-                                            <Badge variant="outline" className="bg-white">Slot 2</Badge>
+                                            <Badge variant="outline" className="bg-card">Slot 2</Badge>
                                         </div>
                                         <select
-                                            className="w-full p-2 text-sm border rounded bg-white"
+                                            className="w-full p-2 text-sm border rounded bg-card"
                                             value={slotAssignments[2] || ''}
                                             onChange={(e) => handleSlotChange(2, e.target.value)}
                                         >
@@ -395,11 +395,11 @@ const PlayoffsBracketAdmin = ({
                                     {/* Slot 3 */}
                                     <div className="p-4 border rounded-lg bg-red-50 border-red-200">
                                         <div className="flex items-center justify-between mb-2">
-                                            <Badge variant="outline" className="bg-white">Slot 3 (Lowest Seeds)</Badge>
+                                            <Badge variant="outline" className="bg-card">Slot 3 (Lowest Seeds)</Badge>
                                             <span className="text-xs text-muted-foreground">Worst consolation matchup</span>
                                         </div>
                                         <select
-                                            className="w-full p-2 text-sm border rounded bg-white"
+                                            className="w-full p-2 text-sm border rounded bg-card"
                                             value={slotAssignments[3] || ''}
                                             onChange={(e) => handleSlotChange(3, e.target.value)}
                                         >

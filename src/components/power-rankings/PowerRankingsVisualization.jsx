@@ -13,6 +13,7 @@ import {
 } from '../ui/dropdown-menu';
 import { getMaskedTeamName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { cn } from '../../lib/utils';
 import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../types/index.js';
 
 /**
@@ -153,7 +154,7 @@ const PowerRankingsVisualization = ({
                       <TrendingUp className="h-3 w-3 text-green-600" />
                     )}
                   </div>
-                  <span className={`font-mono font-semibold ${color}`}>
+                  <span className={`tabular font-semibold ${color}`}>
                     {formatValue ? formatValue(value) : value.toFixed(2)}
                   </span>
                 </div>
@@ -176,7 +177,7 @@ const PowerRankingsVisualization = ({
           <div className="pt-2 border-t">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>League Average:</span>
-              <span className="font-mono">
+              <span className="tabular">
                 {formatValue ? formatValue(average) : average.toFixed(2)}
               </span>
             </div>
@@ -189,13 +190,18 @@ const PowerRankingsVisualization = ({
   const StandoutCard = ({ title, team, metric, icon: Icon, color, description }) => {
     if (!team?.powerRatingComponents) return null;
 
+    // `${color.replace('text-','bg-')}10` produced class names like
+    // `bg-blue-60010`, which is not a class, so these icon chips have never
+    // had a background. The rail and the chip each set `currentColor` and paint
+    // from it, so there is one source and nothing to mistype — and the tint
+    // stays on those two elements rather than colouring the whole card.
     return (
       <Card className="relative overflow-hidden">
-        <div className={`absolute top-0 left-0 w-1 h-full ${color.replace('text-', 'bg-')}`} />
+        <div className={cn('absolute left-0 top-0 h-full w-1 bg-current', color)} />
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
-            <div className={`p-2 rounded-full ${color.replace('text-', 'bg-').replace('bg-', 'bg-')}10`}>
-              <Icon className={`h-4 w-4 ${color}`} />
+            <div className={cn('rounded-full bg-current/15 p-2', color)}>
+              <Icon className="h-4 w-4" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">

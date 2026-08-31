@@ -1,4 +1,5 @@
-import { useState, useMemo, lazy, Suspense } from 'react';
+import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History } from 'lucide-react';
 import {
   useLeagueData,
@@ -11,11 +12,7 @@ import {
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
-import { Button } from './src/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './src/components/ui/card';
-import { Switch } from './src/components/ui/switch';
-import { Label } from './src/components/ui/label';
-import { Badge } from './src/components/ui/badge';
+import { Card, CardContent } from './src/components/ui/card';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
 import ErrorBoundary from './utils/errorBoundary.jsx';
 
@@ -27,8 +24,11 @@ import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTab
 
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
 
-import StandingsDrawer from './src/components/standings/StandingsDrawer.jsx';
-import ResponsiveNavigation from './src/components/navigation/ResponsiveNavigation.jsx';
+import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
+import { HeaderNav, MobileTabBar } from './src/components/navigation/ResponsiveNavigation.jsx';
+import PageContainer from './src/components/layout/PageContainer.jsx';
+import RouteLoading from './src/components/layout/RouteLoading.jsx';
+import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
 
 // One chunk per tab. Every tab, both app shells and recharts used to ship in
@@ -42,15 +42,13 @@ const AwardsManager = lazy(() => import('./src/components/awards/AwardsManager.j
 const PlayoffsBracketManager = lazy(() => import('./src/components/playoffs/PlayoffsBracketManager.jsx'));
 const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueHistoryManager.jsx'));
 
-/** Shown while a tab's chunk is in flight. */
-const TabFallback = () => (
-  <Card className="p-8">
-    <CardContent className="flex items-center justify-center gap-3 text-muted-foreground">
-      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary" />
-      <span>Loading…</span>
-    </CardContent>
-  </Card>
-);
+/** The tab `/` resolves to. Also where an unknown or forbidden tab lands. */
+const DEFAULT_TAB = 'rankings';
+
+/** Shown while a tab's chunk is in flight — see RouteLoading for why this is
+ *  not a skeleton. Skeletons belong where the shape is known; a route-level
+ *  fallback does not know what it is standing in for. */
+const TabFallback = () => <RouteLoading />;
 
 const FantasyFootballApp = () => {
   // Viewer identity and what they may see. `isTeamOwner` replaces an inline
@@ -99,9 +97,17 @@ const FantasyFootballApp = () => {
   const { status: awardsUnlockStatus } = useAwardsUnlockStatus(seasonId);
 
 
-  const [activeTab, setActiveTab] = useState('rankings');
+  // The tab is the URL, not component state. It used to be `useState`, which
+  // meant the phone's back button left the site instead of walking back a tab,
+  // and no tab could be linked to or survive a refresh.
+  const navigate = useNavigate();
+  const { tab } = useParams();
+  const activeTab = tab || DEFAULT_TAB;
+  const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
+
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+  const [standingsOpen, setStandingsOpen] = useState(false);
 
   // Check if awards are accessible
   const isAwardsAccessible = () => {
@@ -125,10 +131,13 @@ const FantasyFootballApp = () => {
     const awardsAccessible = isAwardsAccessible();
 
     return [
-      { id: 'rankings', label: 'Power Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
-      { id: 'statistics', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false },
+      // `shortLabel` is what the phone tab bar shows. A 72px tab cannot hold
+      // "Power Rankings", and a truncated label — "Power Ran…" — is a worse
+      // affordance than the icon alone.
+      { id: 'rankings', label: 'Power Rankings', shortLabel: 'Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
+      { id: 'statistics', label: 'Statistics', shortLabel: 'Stats', icon: BarChart3, requiresSeason: true, requiresAuth: false },
       { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
-      { id: 'teams', label: 'Teams & Rosters', icon: Users, requiresSeason: true, requiresAuth: false },
+      { id: 'teams', label: 'Teams & Rosters', shortLabel: 'Teams', icon: Users, requiresSeason: true, requiresAuth: false },
       // The admin is let through explicitly, the way every `getMasked*` helper
       // already treats them — owning a team is not a prerequisite for running
       // the league.
@@ -137,9 +146,40 @@ const FantasyFootballApp = () => {
       { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
     ];
-  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner]);
+  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig]);
 
+  // One definition of "may this viewer see this tab", shared by the nav and by
+  // the route guard below — they must not be able to disagree.
+  const shouldShowTab = useCallback((t) => {
+    if (t.requiresAuth && !isAdmin) return false;
+    if (t.customAccess !== undefined) {
+      const hasAccess = typeof t.customAccess === 'function' ? t.customAccess() : t.customAccess;
+      if (!hasAccess) return false;
+    }
+    return true;
+  }, [isAdmin]);
 
+  const activeTabDef = mainTabs.find((t) => t.id === activeTab);
+
+  // What the nav actually renders: the tab list plus the one piece of state
+  // that is the shell's to know — whether a tab is waiting on the viewer.
+  //
+  // Nothing is disabled for a missing season any more. That rule used to read
+  // `isAdmin && tab.requiresSeason && !activeSeason`, so the admin got greyed-
+  // out tabs while everyone else got working ones — the inversion of what was
+  // presumably meant, and either way it contradicts the design directly above:
+  // every tab renders its own "no season yet" state, which explains the
+  // situation, where a dead nav item explains nothing.
+  const needsPicks =
+    isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
+  const navTabs = useMemo(
+    () =>
+      mainTabs.map((tab) => ({
+        ...tab,
+        showNotification: tab.id === 'pickems' && needsPicks,
+      })),
+    [mainTabs, needsPicks]
+  );
 
   // Mutations arrive as TanStack objects; the tab components still take plain
   // callbacks, so adapt at the boundary rather than rewriting every child.
@@ -160,35 +200,69 @@ const FantasyFootballApp = () => {
   // Note: Allow users to stay on any tab even without an active season
   // Each tab will show appropriate "no season available" messages
 
+  // A URL naming a tab that does not exist is wrong right away. A URL naming a
+  // tab this viewer may not open is only knowable once the league data that
+  // access depends on has arrived — redirecting before then would bounce a
+  // legitimate deep link to /awards or /history on every cold load.
+  if (!activeTabDef) return <Navigate to={`/${DEFAULT_TAB}`} replace />;
+  if (!isLoading && !shouldShowTab(activeTabDef)) {
+    return <Navigate to={`/${DEFAULT_TAB}`} replace />;
+  }
+
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="min-h-screen bg-background">
         {/* Header - Responsive Design */}
-        <header className="sticky top-0 z-50 w-full border-b bg-white/80 backdrop-blur-sm">
-          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex h-16 items-center justify-between">
-              {/* Left Section: Logo, Title, and Week Navigator */}
-              <div className="flex items-center">
-                {/* Logo and Title */}
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
-                    <img src="og jits logo.jpg" alt="og jits logo" className="w-full h-full object-cover" />
+        <header className="sticky top-0 z-50 w-full border-b bg-card/80 backdrop-blur-sm">
+          <PageContainer>
+            {/* Not `justify-between`.
+                That pushed the two groups to opposite edges and parked all the
+                slack in one visible void between the standings button and the
+                first nav item — 159px of it at 1536. The row is a single flex
+                line with one gap now: navigation sits directly after the
+                controls it belongs with, and the leftover space collects in
+                front of the account control, in the corner, where it reads as
+                margin rather than as a hole. */}
+            <div className="flex h-14 items-center gap-2 sm:h-16 sm:gap-3">
+              {/* LEFT — the constant side: who and when.
+                  Identity, the week being viewed, and the standings. These are
+                  the controls that are on every page and mean the same thing
+                  on every page, so they hold one position the eye can learn.
+                  Keeping them together also frees the right-hand side to grow:
+                  navigation is what changes as the app gains tabs, and it can
+                  do that without shunting the week control around.
+
+                  The season name reads at every width — it used to be the
+                  first thing sacrificed to make room for the hamburger, so a
+                  phone user could not tell which season they were looking at.
+                  Below lg the brand *may* shrink: there is no nav on this row
+                  to protect, and a signed-out "Login" button is wider than a
+                  signed-in avatar, which is what once pushed a 375px header
+                  3px past the viewport. Truncating the league name is the
+                  right thing to give up there. */}
+              <div className="flex min-w-0 shrink items-center gap-2 sm:gap-3 lg:shrink-0">
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
+                    <img src="og jits logo.jpg" alt="" className="h-full w-full object-cover" />
                   </div>
-                  <div>
-                    <h1 className="text-xl font-bold tracking-tight">
+                  <div className="min-w-0">
+                    <h1 className="truncate font-display text-lg font-semibold leading-tight tracking-tight sm:text-xl">
                       og jits
                     </h1>
                     {activeSeason && (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="truncate text-xs leading-tight text-muted-foreground">
                         {activeSeason.name || `${activeSeason.year} Season`}
                       </p>
                     )}
                   </div>
                 </div>
 
-                {/* Inline Week Navigator - Desktop (Full) */}
                 {activeSeason && (
-                  <div className="hidden xl:block ml-8">
+                  <>
+                    {/* A hairline between the brand and the controls, so the
+                        two read as identity *and* tools rather than as one
+                        undifferentiated cluster. */}
+                    <span className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
                     <InlineWeekNavigator
                       currentWeek={viewedWeek}
                       totalWeeks={activeSeason.totalWeeks}
@@ -196,80 +270,63 @@ const FantasyFootballApp = () => {
                       onWeekChange={setViewedWeek}
                       completedWeeks={completedWeeks}
                       season={activeSeason}
-                      condensed={false}
                     />
-                  </div>
-                )}
-
-                {/* Inline Week Navigator - Tablet/Mobile (Condensed) */}
-                {activeSeason && (
-                  <div className="hidden sm:block xl:hidden ml-4">
-                    <InlineWeekNavigator
-                      currentWeek={viewedWeek}
-                      totalWeeks={activeSeason.totalWeeks}
-                      regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                      onWeekChange={setViewedWeek}
-                      completedWeeks={completedWeeks}
-                      season={activeSeason}
-                      condensed={true}
-                    />
-                  </div>
-                )}
-
-                {/* Inline Week Navigator - Mobile Only (Condensed) */}
-                {activeSeason && (
-                  <div className="sm:hidden ml-2">
-                    <InlineWeekNavigator
-                      currentWeek={viewedWeek}
-                      totalWeeks={activeSeason.totalWeeks}
-                      regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                      onWeekChange={setViewedWeek}
-                      completedWeeks={completedWeeks}
-                      season={activeSeason}
-                      condensed={true}
-                    />
-                  </div>
+                    <StandingsTrigger onClick={() => setStandingsOpen(true)} />
+                  </>
                 )}
               </div>
 
-              {/* Main Navigation - Responsive */}
-              <ResponsiveNavigation
-                tabs={mainTabs.map(tab => ({
-                  ...tab,
-                  isDisabled: isAdmin && tab.requiresSeason && !activeSeason,
-                  showNotification: tab.id === 'pickems' && isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen()
-                }))}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                shouldShowTab={(tab) => {
-                  // Check auth requirements
-                  if (tab.requiresAuth && !isAdmin) return false;
-                  // Check custom access (can be boolean or function for backwards compatibility)
-                  if (tab.customAccess !== undefined) {
-                    const hasAccess = typeof tab.customAccess === 'function' ? tab.customAccess() : tab.customAccess;
-                    if (!hasAccess) return false;
-                  }
-                  return true;
-                }}
-              />
+              {/* RIGHT — the side that grows: where to go, and who you are.
+                  Navigation lives here because it is the part of the header
+                  that gains items over time; anything new belongs on this
+                  side, where it pushes against the account control rather
+                  than against the week. */}
+              {/* The nav takes the remaining width and lays its items out from
+                  the left, so the distance from the standings button to the
+                  first tab is the row's own gap and nothing more. Growing the
+                  tab list consumes this space outwards instead of re-centring
+                  everything; when it runs out, the nav scrolls rather than
+                  pushing the page wider. */}
+              <div className="flex min-w-0 flex-1 items-center">
+                <HeaderNav
+                  tabs={navTabs}
+                  activeTab={activeTab}
+                  shouldShowTab={shouldShowTab}
+                />
+              </div>
 
-              {/* Right Section: Login */}
-              <div className="flex items-center space-x-2">
+              <div className="flex shrink-0 items-center">
                 <LoginDropdown />
               </div>
             </div>
-          </div>
+          </PageContainer>
         </header>
 
-        {/* Main Content */}
-        <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Main content.
+            The bottom padding clears the phone tab bar: it is `fixed`, so it
+            does not occupy layout space, and without this the last row of
+            every page sits under it. `pb-safe` handles the home indicator
+            below that. */}
+        <PageContainer
+          as="main"
+          className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-10"
+        >
 
 
           {/* Error Display */}
+          {/* `{error}` — not `{error.message}` — was rendering an Error object
+              as a React child, which is React error #31 and takes down the
+              whole tree. So the one branch that exists to *report* a failed
+              load was itself the thing that turned a failed load into
+              "Something went wrong", with the real message lost. Any data
+              error did this; it needed no exotic conditions, only a request
+              that did not succeed. */}
           {error && (
             <Card className="mb-6 border-destructive">
               <CardContent className="p-4">
-                <p className="text-destructive">{error}</p>
+                <p className="text-destructive">
+                  {error instanceof Error ? error.message : String(error)}
+                </p>
               </CardContent>
             </Card>
           )}
@@ -280,65 +337,29 @@ const FantasyFootballApp = () => {
             <Suspense fallback={<TabFallback />}>
             {activeTab === 'rankings' && (
               <ErrorBoundary key="rankings-error-boundary">
-                <div className="space-y-6">
-                  <div className="space-y-6">
-                    <Card>
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <CardTitle>Week {viewedWeek} Power Rankings</CardTitle>
-                            <Badge variant="outline">
-                              {new Date().toLocaleDateString()}
-                            </Badge>
-                          </div>
-
-                          {/* View Switcher */}
-                          <div className="flex items-center gap-4">
-                            {rankingsView === 'table' && (
-                              <div className="flex items-center space-x-4">
-                                <div className="flex items-center space-x-2">
-                                  <Switch
-                                    id="advanced-stats"
-                                    checked={showAdvancedStats}
-                                    onCheckedChange={setShowAdvancedStats}
-                                  />
-                                  <Label htmlFor="advanced-stats" className="cursor-pointer">
-                                    Advanced Stats
-                                  </Label>
-                                </div>
-                              </div>
-                            )}
-
-                            <Button
-                              onClick={() => setRankingsView(rankingsView === 'table' ? 'analysis' : 'table')}
-                              variant="outline"
-                              size="sm"
-                              className="text-xs font-medium"
-                            >
-                              {rankingsView === 'table' ? 'Advanced Analysis' : 'Rankings Table'}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {rankingsView === 'table' ? (
-                          <PowerRankingsTable
-                            rankings={weeklyRankings}
-                            currentWeek={viewedWeek}
-                            showAdvanced={showAdvancedStats}
-                            loading={rankingsLoading}
-                            initializing={isLoading}
-                          />
-                        ) : (
-                          <PowerRankingsVisualization
-                            rankings={weeklyRankings}
-                            currentWeek={viewedWeek}
-                            loading={rankingsLoading}
-                          />
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
+                <div>
+                  <RankingsHeader
+                    week={viewedWeek}
+                    view={rankingsView}
+                    onViewChange={setRankingsView}
+                    showAdvanced={showAdvancedStats}
+                    onShowAdvancedChange={setShowAdvancedStats}
+                  />
+                  {rankingsView === 'table' ? (
+                    <PowerRankingsTable
+                      rankings={weeklyRankings}
+                      currentWeek={viewedWeek}
+                      showAdvanced={showAdvancedStats}
+                      loading={rankingsLoading}
+                      initializing={isLoading}
+                    />
+                  ) : (
+                    <PowerRankingsVisualization
+                      rankings={weeklyRankings}
+                      currentWeek={viewedWeek}
+                      loading={rankingsLoading}
+                    />
+                  )}
                 </div>
               </ErrorBoundary>
             )}
@@ -346,24 +367,12 @@ const FantasyFootballApp = () => {
 
             {activeTab === 'statistics' && (
               <ErrorBoundary key="statistics-error-boundary">
-                <div className="space-y-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>League Analytics</CardTitle>
-                      <CardDescription>
-                        Comprehensive statistics and insights for your league
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <StatisticsPanel
-                        rankings={weeklyRankings}
-                        currentWeek={viewedWeek}
-                        season={activeSeason}
-                        loading={rankingsLoading}
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
+                <StatisticsPanel
+                  rankings={weeklyRankings}
+                  currentWeek={viewedWeek}
+                  season={activeSeason}
+                  loading={rankingsLoading}
+                />
               </ErrorBoundary>
             )}
 
@@ -454,11 +463,20 @@ const FantasyFootballApp = () => {
             )}
             </Suspense>
           </div>
-        </main>
+        </PageContainer>
+
+        {/* The phone tab bar is a sibling of the header, not a child of it.
+            The header carries `backdrop-blur`, and backdrop-filter makes an
+            element the containing block for `position: fixed` descendants —
+            nested inside it, `bottom-0` resolved against the header and the
+            bar rendered directly beneath it at the top of the screen. */}
+        <MobileTabBar tabs={navTabs} activeTab={activeTab} shouldShowTab={shouldShowTab} />
 
         {/* Standings Drawer */}
         {activeSeason && (
           <StandingsDrawer
+            open={standingsOpen}
+            onOpenChange={setStandingsOpen}
             teams={activeSeason.teams || []}
             divisions={divisions}
             standings={standings}
@@ -473,22 +491,21 @@ const FantasyFootballApp = () => {
         )}
 
         {/*
-          First load only. This used to be `{loading && ...}` on the mega-hook's
-          single flag, which every mutation set — so saving one score blacked out
-          the whole page behind a modal until seasons, teams, games, rosters,
-          divisions and standings had all been refetched. Widgets now show their
-          own loading state and the page stays usable.
+          There is no full-screen loading overlay any more.
+          It was already halfway to being removed: a previous pass narrowed it
+          from "any loading" to "first load with no season", because every
+          mutation used to black out the page behind a modal. The remaining
+          case was still wrong, and CI proved it — a fixed `inset-0` panel at
+          z-50 sits *above* the z-40 tab bar, so whenever the league data does
+          not arrive the app is not merely blank, it is unusable: navigation is
+          covered, and no tab can be reached to see what else works.
+
+          "Does not arrive" is not hypothetical. It is a dropped connection, an
+          outage, a bad anon key — and in those cases the shell, the nav and
+          every page's own empty state are exactly what the reader needs. Each
+          surface already owns its loading state (RouteLoading, SkeletonTable,
+          per-page empty states), so nothing here needs a modal on top of them.
         */}
-        {isLoading && !activeSeason && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <Card className="p-6">
-              <div className="flex items-center space-x-3">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                <span>Loading...</span>
-              </div>
-            </Card>
-          </div>
-        )}
       </div>
     </ErrorBoundary>
   );

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 import { PowerRankingCalculator } from '../../../../services/powerRankingCalculator.js';
 
@@ -8,12 +8,12 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload || payload.length === 0) return null;
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700 shadow-lg">
-      <p className="font-semibold text-gray-900 dark:text-white mb-2 text-sm">Week {label}</p>
+    <div className="bg-card p-3 rounded border border-border shadow-lg">
+      <p className="font-semibold text-foreground mb-2 text-sm">Week {label}</p>
       {payload.map((entry, index) => (
         <div key={index} className="text-sm">
           <span style={{ color: entry.color }} className="font-medium">{entry.name}:</span>
-          <span className="ml-2 font-semibold text-gray-900 dark:text-white">#{entry.value !== null && entry.value !== undefined ? entry.value : 'N/A'}</span>
+          <span className="ml-2 font-semibold text-foreground">#{entry.value !== null && entry.value !== undefined ? entry.value : 'N/A'}</span>
         </div>
       ))}
     </div>
@@ -72,6 +72,12 @@ const RankingsMovementChart = ({
   currentWeek = 17,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Must be above
+  // the early returns below — a hook after a conditional return is a
+  // rules-of-hooks violation and breaks on the render where the data
+  // arrives.
+  const axis = useMobileAxis();
+
   const [calculatedData, setCalculatedData] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -179,9 +185,9 @@ const RankingsMovementChart = ({
 
   if (isLoading) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         <div className="flex items-center justify-center gap-2">
-          <div className="animate-spin rounded-full h-4 w-4 border border-gray-300 border-t-gray-600"></div>
+          <div className="animate-spin rounded-full h-4 w-4 border border-border border-t-gray-600"></div>
           Calculating power rankings for each week...
         </div>
       </div>
@@ -190,7 +196,7 @@ const RankingsMovementChart = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No ranking data available for the selected week range.
       </div>
     );
@@ -212,12 +218,13 @@ const RankingsMovementChart = ({
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ChartContainer config={{}} className="w-full" style={{ height: 360 }}>
-        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 5 }}>
+      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[360px]">
+        <LineChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 5 }} {...axis.chart}>
           <XAxis
             dataKey="week"
             label={{ value: 'Week', position: 'insideBottomRight', offset: -5 }}
             tick={{ fontSize: 10 }}
+            {...axis.x}
           />
           <YAxis
             reversed
@@ -225,6 +232,7 @@ const RankingsMovementChart = ({
             label={{ value: 'Ranking (1 = Best)', angle: -90, position: 'insideLeft', offset: -5, dy: 5 }}
             tick={{ fontSize: 10 }}
             width={30}
+            {...axis.y}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.3)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} height={50} />
@@ -253,8 +261,8 @@ const RankingsMovementChart = ({
           })}
         </LineChart>
       </ChartContainer>
-      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-        <p className="font-semibold text-gray-900 dark:text-white mb-2">Rankings Movement Guide:</p>
+      <div className="mt-4 p-4 bg-muted rounded-lg text-sm text-muted-foreground">
+        <p className="font-semibold text-foreground mb-2">Rankings Movement Guide:</p>
         <ul className="space-y-1 text-xs">
           <li><span className="font-semibold">Upward line:</span> Team improving in power rankings (moving toward #1)</li>
           <li><span className="font-semibold">Downward line:</span> Team declining in power rankings (moving down)</li>

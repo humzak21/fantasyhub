@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -9,15 +9,15 @@ const CustomTooltip = ({ active, payload, label }) => {
   const data = payload[0]?.payload;
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-700 shadow-lg">
-      <p className="font-semibold text-gray-900 dark:text-white mb-2 text-sm">{data?.name}</p>
+    <div className="bg-card p-3 rounded border border-border shadow-lg">
+      <p className="font-semibold text-foreground mb-2 text-sm">{data?.name}</p>
       <div className="text-sm">
-        <span className="font-medium text-gray-900 dark:text-white">Record:</span>
-        <span className="ml-2 font-semibold text-gray-900 dark:text-white">{data?.allPlayWins}-{data?.allPlayLosses}</span>
+        <span className="font-medium text-foreground">Record:</span>
+        <span className="ml-2 font-semibold text-foreground">{data?.allPlayWins}-{data?.allPlayLosses}</span>
       </div>
       <div className="text-sm mt-1">
-        <span className="font-medium text-gray-900 dark:text-white">Win %:</span>
-        <span className="ml-2 font-semibold text-gray-900 dark:text-white">{data?.allPlayWinPercentage?.toFixed(2)}%</span>
+        <span className="font-medium text-foreground">Win %:</span>
+        <span className="ml-2 font-semibold text-foreground">{data?.allPlayWinPercentage?.toFixed(2)}%</span>
       </div>
     </div>
   );
@@ -34,6 +34,12 @@ const AllPlayRecordsChart = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Must be above
+  // the early returns below — a hook after a conditional return is a
+  // rules-of-hooks violation and breaks on the render where the data
+  // arrives.
+  const axis = useMobileAxis();
+
   const chartData = useMemo(() => {
     if (!data.length) return [];
 
@@ -57,7 +63,7 @@ const AllPlayRecordsChart = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No all-play data available. Complete games to see stats.
       </div>
     );
@@ -65,8 +71,8 @@ const AllPlayRecordsChart = ({
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ChartContainer config={{}} className="w-full" style={{ height: 360 }}>
-        <BarChart data={chartData} margin={{ top: 10, right: 18, left: 35, bottom: -10 }}>
+      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[360px]">
+        <BarChart data={chartData} margin={{ top: 10, right: 18, left: 35, bottom: -10 }} {...axis.chart}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
           <XAxis
             dataKey="name"
@@ -75,12 +81,14 @@ const AllPlayRecordsChart = ({
             height={60}
             tick={{ fontSize: 10 }}
             interval={0}
+            {...axis.x}
           />
           <YAxis
             yAxisId="left"
             label={{ value: 'Games', angle: -90, position: 'insideLeft', offset: -5, dy: 5 }}
             tick={{ fontSize: 10 }}
             width={30}
+            {...axis.y}
           />
           <YAxis
             yAxisId="right"
@@ -89,13 +97,14 @@ const AllPlayRecordsChart = ({
             domain={[0, 100]}
             tick={{ fontSize: 10 }}
             width={30}
+            {...axis.y}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '22px' }} height={50} />
-          <ReferenceLine y={50} yAxisId="right" stroke="#999" strokeDasharray="3 3" />
+          <ReferenceLine y={50} yAxisId="right" stroke="var(--border)" strokeDasharray="3 3" />
 
-          <Bar yAxisId="left" dataKey="allPlayWins" name="All-Play Wins" fill="#10b981" opacity={0.8} />
-          <Bar yAxisId="left" dataKey="allPlayLosses" name="All-Play Losses" fill="#ef4444" opacity={0.8} />
+          <Bar yAxisId="left" dataKey="allPlayWins" name="All-Play Wins" fill="var(--success)" opacity={0.8} />
+          <Bar yAxisId="left" dataKey="allPlayLosses" name="All-Play Losses" fill="var(--destructive)" opacity={0.8} />
         </BarChart>
       </ChartContainer>
     </div>

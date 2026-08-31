@@ -1,0 +1,13 @@
+# package-lock.json is generated, not written.
+#
+# `merge=npm-lockfile` routes it to scripts/git-merge-lockfile.sh, which throws
+# away both sides and regenerates the lock from the merged package.json —
+# because that is the only resolution that yields a dependency graph npm would
+# actually produce. The driver is registered by `npm install` (see the
+# `prepare` script); without that registration git falls back to its default
+# line-by-line merge.
+#
+# `linguist-generated` collapses it by default in GitHub diffs, so it stops
+# burying the reviewable part of a large PR. It stays expandable, and `git
+# diff` is untouched.
+package-lock.json merge=npm-lockfile linguist-generated=true

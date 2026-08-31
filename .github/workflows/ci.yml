@@ -45,6 +45,59 @@ jobs:
       - name: Check the bundle is loadable
         run: npm run check-bundle
 
+      # A missing Tailwind theme layer is invisible to every other gate above:
+      # it type-checks, tests and builds clean, and only shows up as a
+      # thousand small unstyled places in the browser. This is the check whose
+      # absence let that ship.
+      - name: Check the Tailwind theme layer reaches the bundle
+        run: npm run check-css-tokens
+
+      # Greps for the specific mistakes that broke this site on a phone and
+      # then stayed for months. Each one names the bug it prevents; see
+      # scripts/check-mobile-conventions.sh.
+      - name: Check mobile conventions
+        run: npm run check-mobile
+
+  # jsdom has no layout engine, so nothing in the vitest suite can observe a
+  # width-dependent bug — six test files here used to *claim* to and passed at
+  # every width, including widths where the page was visibly broken. This job
+  # is the only thing that measures real layout: it loads every route in a
+  # 375x667 and a 1280x800 browser and asserts the page does not scroll
+  # sideways. Screenshots are uploaded either way.
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Smoke test at 375px and 1280px
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-screenshots
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   migrations:
     runs-on: ubuntu-latest
     timeout-minutes: 10

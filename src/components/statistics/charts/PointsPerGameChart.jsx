@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, useMobileAxis, teamChartColor } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 /**
@@ -13,20 +13,20 @@ const CustomPPGTooltip = ({ active, payload, label }) => {
   const data = payload[0].payload;
 
   return (
-    <div className="bg-white dark:bg-gray-900 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-      <p className="font-semibold text-gray-900 dark:text-white mb-2">{data.name}</p>
+    <div className="bg-card p-3 border border-border rounded-lg shadow-lg">
+      <p className="font-semibold text-foreground mb-2">{data.name}</p>
       <div className="space-y-1 text-sm">
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Points Per Game:</span>
-          <span className="font-medium text-gray-900 dark:text-white">{data.ppg?.toFixed(2)}</span>
+          <span className="text-muted-foreground">Points Per Game:</span>
+          <span className="font-medium text-foreground">{data.ppg?.toFixed(2)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Total Points:</span>
-          <span className="font-medium text-gray-900 dark:text-white">{data.totalPoints?.toFixed(2)}</span>
+          <span className="text-muted-foreground">Total Points:</span>
+          <span className="font-medium text-foreground">{data.totalPoints?.toFixed(2)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-gray-600 dark:text-gray-400">Games Played:</span>
-          <span className="font-medium text-gray-900 dark:text-white">{data.gamesPlayed}</span>
+          <span className="text-muted-foreground">Games Played:</span>
+          <span className="font-medium text-foreground">{data.gamesPlayed}</span>
         </div>
       </div>
     </div>
@@ -44,6 +44,12 @@ const PointsPerGameChart = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Must be above
+  // the early returns below — a hook after a conditional return is a
+  // rules-of-hooks violation and breaks on the render where the data
+  // arrives.
+  const axis = useMobileAxis();
+
   const chartData = useMemo(() => {
     if (!data.length) return [];
 
@@ -60,38 +66,33 @@ const PointsPerGameChart = ({
         ppg: Math.round(team.ppg * 100) / 100,
         totalPoints: Math.round(team.totalPoints * 100) / 100,
         gamesPlayed: team.gamesPlayed,
-        teamId: team.teamId
+        teamId: team.teamId,
+        // Carried through so the bar can be coloured by franchise. The owner
+        // is what `teamColors` keys on when there is no franchise id.
+        franchiseId: team.franchiseId ?? team.franchise_id,
+        owner: team.owner
       }));
   }, [data, selectedTeams, user, isAdmin, teamOwnerNames]);
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No scoring data available. Complete games to see points per game stats.
       </div>
     );
   }
 
-  // Color gradient from highest to lowest
-  const getBarColor = (index, total) => {
-    const ratio = index / Math.max(total - 1, 1);
-
-    // Gradient from green (best) to orange (middle) to red (worst)
-    if (ratio < 0.5) {
-      // Green to orange
-      const localRatio = ratio * 2;
-      return `rgb(${Math.round(16 + (249 - 16) * localRatio)}, ${Math.round(185 - (185 - 115) * localRatio)}, ${Math.round(129 - 129 * localRatio)})`;
-    } else {
-      // Orange to red
-      const localRatio = (ratio - 0.5) * 2;
-      return `rgb(${Math.round(249 - (249 - 239) * localRatio)}, ${Math.round(115 - (115 - 68) * localRatio)}, ${Math.round(22 - 22 * localRatio)})`;
-    }
-  };
+  /*
+   * Bars carry the team's own colour, not a green-to-red ramp by position.
+   * The ramp encoded rank — which is already the sort order, stated twice —
+   * and it did so with interpolated rgb() values that owed nothing to the
+   * theme. Team colour lets a reader find their team in the chart instead.
+   */
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ChartContainer config={{}} className="w-full" style={{ height: 400 }}>
-        <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }}>
+      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[400px]">
+        <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }} {...axis.chart}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
           <XAxis
             dataKey="name"
@@ -100,12 +101,14 @@ const PointsPerGameChart = ({
             height={60}
             tick={{ fontSize: 10 }}
             interval={0}
+            {...axis.x}
           />
           <YAxis
             domain={[70, 150]}
             label={{ value: 'Points Per Game', angle: -90, position: 'insideLeft', offset: -5, dy: 30 }}
             tick={{ fontSize: 10 }}
             width={30}
+            {...axis.y}
           />
           <ChartTooltip content={<CustomPPGTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
 
@@ -113,7 +116,7 @@ const PointsPerGameChart = ({
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={getBarColor(index, chartData.length)}
+                fill={teamChartColor({ franchiseId: entry.franchiseId, ownerName: entry.owner, name: entry.name })}
                 opacity={0.85}
               />
             ))}

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 /**
@@ -20,13 +20,13 @@ const CustomScoreTooltip = ({ active, payload, label }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-900 p-3 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
-      <p className="font-semibold text-gray-900 dark:text-white mb-2">{data.name}</p>
+    <div className="bg-card p-3 border border-border rounded-lg shadow-lg">
+      <p className="font-semibold text-foreground mb-2">{data.name}</p>
       <div className="space-y-1 text-sm">
         {Object.entries(labels).map(([key, label]) => (
           <div key={key} className="flex justify-between gap-4">
-            <span className="text-gray-600 dark:text-gray-400">{label}:</span>
-            <span className="font-medium text-gray-900 dark:text-white">{data[key]?.toFixed(2)}</span>
+            <span className="text-muted-foreground">{label}:</span>
+            <span className="font-medium text-foreground">{data[key]?.toFixed(2)}</span>
           </div>
         ))}
       </div>
@@ -46,6 +46,12 @@ const ScoreDistributionChart = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  // Small-screen axis overrides; empty object on desktop. Must be above
+  // the early returns below — a hook after a conditional return is a
+  // rules-of-hooks violation and breaks on the render where the data
+  // arrives.
+  const axis = useMobileAxis();
+
   const chartData = useMemo(() => {
     if (!data.length) return [];
 
@@ -71,7 +77,7 @@ const ScoreDistributionChart = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500 text-sm">
+      <div className="p-4 text-center text-muted-foreground text-sm">
         No score distribution data available. Complete games to see trends.
       </div>
     );
@@ -79,8 +85,8 @@ const ScoreDistributionChart = ({
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ChartContainer config={{}} className="w-full" style={{ height: 520 }}>
-        <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }}>
+      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[520px]">
+        <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }} {...axis.chart}>
           <XAxis
             dataKey="name"
             angle={-45}
@@ -88,11 +94,13 @@ const ScoreDistributionChart = ({
             height={60}
             tick={{ fontSize: 10 }}
             interval={0}
+            {...axis.x}
           />
           <YAxis
             label={{ value: 'Points', angle: -90, position: 'insideLeft', offset: -5, dy: 10 }}
             tick={{ fontSize: 10 }}
             width={30}
+            {...axis.y}
           />
           <ChartTooltip content={<CustomScoreTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
           <Legend
@@ -107,8 +115,8 @@ const ScoreDistributionChart = ({
           <Bar dataKey="max" name="Max" fill="#06b6d4" opacity={0.6} />
         </BarChart>
       </ChartContainer>
-      <div className="mt-2 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg text-sm text-gray-600 dark:text-gray-400">
-        <p className="font-semibold text-gray-900 dark:text-white mb-2">Score Distribution Guide:</p>
+      <div className="mt-2 p-4 bg-muted rounded-lg text-sm text-muted-foreground">
+        <p className="font-semibold text-foreground mb-2">Score Distribution Guide:</p>
         <ul className="space-y-1 text-xs">
           <li><span className="font-semibold">Min/Max:</span> Lowest and highest individual game scores</li>
           <li><span className="font-semibold">Q1/Q3:</span> 25th and 75th percentile scores (middle 50% of games)</li>

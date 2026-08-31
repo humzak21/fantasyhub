@@ -21,6 +21,14 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 - `npm run lint` - Run ESLint to check for code issues
 - `npm run lint:fix` - Automatically fix ESLint errors
 - `npm run type-check` - Run TypeScript checking without emitting files
+- `npm run test:e2e` - Playwright smoke: every route at 375x667 and 1280x800,
+  asserting no horizontal overflow. Needs a build first.
+- `npm run check-css-tokens` - Assert the Tailwind theme layer reached the
+  built CSS. Run after `npm run build`.
+- `npm run check-mobile` - Grep guards for the mobile mistakes this codebase
+  has actually made; each rule names the bug it prevents.
+- `npm run capture-screens <dir>` - Shoot every tab at 375/768/1280 against a
+  running preview server. For before/after comparison on CSS changes.
 
 ### Database
 - `npm run db:push` / `db:push:dry` - Apply migrations in `supabase/migrations/`
@@ -35,6 +43,7 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
+- `npm run check-bundle` - Assert no circular static imports between eager chunks
 
 ## Architecture Overview
 
@@ -52,9 +61,11 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
   instance.**
 - **Components**: `src/components/` — **one tree**. The root-level
   `components/ui/` shadcn tree was deleted; `@/components/ui/*` resolves here.
-- **Mobile**: `src/components/mobile/` is the phone *shell* only (header,
-  navigation, week selector, touch primitives). Feature components are shared
-  with desktop and responsive — do not add a `Mobile*` twin of a feature.
+- **One shell, one tree.** `src/components/mobile/` is gone, along with the
+  user-agent sniffing that used to pick between two whole applications. Every
+  component is responsive. See "Mobile is not a separate app" below.
+- **Layout**: `src/components/layout/PageContainer.jsx` is the page gutter.
+- **Tabs are routes** (`/rankings`, `/statistics`, …), not `useState`.
 - **Viewer identity**: `user`, `isAdmin` and `teamOwnerNames` come from
   `useViewer()` (`src/contexts/ViewerContext.jsx`), not from props.
 
@@ -96,6 +107,40 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 were deleted on 2026-08-06. Nothing should reference them.
 `services/leagueHistoryManager.js` and `src/hooks/useLeagueHistory.js` were
 deleted on 2026-08-18; see "League History reads the live schema" below.
+
+### package-lock.json conflicts resolve themselves
+
+The lockfile is generated, not written, and git merges it line by line like
+prose. Any two branches that both touched dependencies conflict textually even
+when they do not disagree — which is how a 150-file PR merges clean everywhere
+except `package.json` and `package-lock.json`, repeatedly.
+
+`.gitattributes` routes the lockfile to `scripts/git-merge-lockfile.sh`, which
+discards both sides and regenerates from the merged `package.json`. That is the
+only resolution that yields a graph npm would actually produce: hand-stitching
+two resolved dependency trees can describe a tree npm would never generate, and
+it installs fine right up until it doesn't. If `package.json` is *also*
+conflicted the driver refuses and says so — the intent has to be settled by a
+person before any generated file can be right.
+
+The driver is defined in `.git/config`, which is not committed, so
+`scripts/setup-git-merge-driver.sh` registers it from npm's `prepare` hook —
+it runs on `npm install` and nobody has to know it exists. **Without that
+registration the attribute points at nothing and git silently line-merges
+anyway**, so if lockfile conflicts come back, check `git config --get
+merge.npm-lockfile.driver` first.
+
+`.github/dependabot.yml` is the other half: grouped, weekly updates so `main`'s
+lockfile moves a few times a month instead of daily. Majors are neither grouped
+nor ignored — they arrive as their own PR, which is what react-router 6→7
+needed and did not get.
+
+To resolve one by hand:
+
+```bash
+# settle package.json first, then
+npm install --package-lock-only && git add package-lock.json
+```
 
 ### Scripts write to production
 Every script in `scripts/` guards its entry point (`import.meta.url ===
@@ -225,12 +270,253 @@ The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,
 `weekly_player_stats` and `team_analytics_summary` tables. Do not reintroduce
 references to it. `PowerRankingCalculator` takes no `analyticsService`.
 
+### Mobile is not a separate app
+
+There used to be two applications here, picked by sniffing the user agent: a
+desktop shell and a phone shell that was missing the playoffs tab, the history
+tab and the standings drawer entirely, and that never received `isAdmin`, so no
+admin control could render on a phone. Every new feature started at 0% mobile
+coverage by construction. That fork is deleted. These rules are what keep it
+deleted.
+
+**Never create a `Mobile*` twin of a feature.** A phone-specific copy drifts
+from the desktop one immediately — that is not a prediction, it is what
+happened. Make the component responsive.
+
+**Prefer CSS breakpoints to JS branching.** `useIsMobile()`
+(`src/hooks/use-mobile.jsx`, matchMedia at 768px) is the *only* sanctioned
+render-branching hook, and it is for cases where the two presentations are
+structurally different components — a popover versus a bottom sheet — not two
+skins of one tree. Anything that is one tree uses `sm:`/`md:`, which costs no
+render and cannot flash the wrong layout on first paint.
+
+**768px (`md`) is the structural boundary, everywhere.** Table vs card stack,
+popover vs sheet, tab bar vs header nav. Two "mobile" widths used to coexist —
+`useIsMobile()`/`useMobileAxis()` at 768 and every responsive class at 640 — so
+a landscape phone at 700px got one component's mobile behaviour and another's
+desktop behaviour at the same time. `sm:` remains fine for cosmetic shifts:
+padding, wrapping, a grid gaining a column.
+
+**Navigation is a bottom tab bar below `lg`, labelled header items above it.**
+Every destination is in the bar; it scrolls horizontally and scrolls the active
+tab into view. There is no icon-only tier at any width — the one that covered
+640-1535px delivered labels through the `title` attribute, which is delayed on
+a desktop and does not exist on touch. **Render `MobileTabBar` at the app root,
+never inside the header:** the header has `backdrop-blur`, and `backdrop-filter`
+(like `transform`) makes an element the containing block for `position: fixed`
+descendants, which pins the bar directly under the header. Pages must keep the
+bottom padding that clears it.
+
+**Pages use `PageContainer`.** Not a hand-written `container mx-auto px-4
+sm:px-6 lg:px-8`; that string had already drifted across the four places it
+was pasted.
+
+**Tables wider than about four columns use `ResponsiveDataTable`**
+(`ui/responsive-table.jsx`). Columns declare a `priority` and the component
+renders a real table at `md:`+ and a card stack below it, from one set of
+column definitions. Do not solve a wide table by scrolling it sideways: the
+reader loses their row the moment the first column leaves the viewport.
+
+**Charts use `ChartContainer` and `useMobileAxis()`** (`ui/chart.jsx`). Never
+an inline pixel height — 520px is 139% of an iPhone SE viewport, and an inline
+style cannot be overridden by a breakpoint. `useMobileAxis()` returns
+*overrides*, empty on desktop, so spread it **after** your own axis props.
+Its main job is replacing `interval={0}`, which forces every tick to render
+and smears fourteen angled team names together at 375px.
+
+**Touch sizing lives on the `ui/` primitives, behind `pointer-coarse:`.**
+Never as a blanket rule in a stylesheet: `button { min-height: 44px }` in
+globals.css inflated icon buttons, chips and table controls equally, no
+component could opt out, and it was a large part of why the app felt zoomed in.
+
+**Content that is legitimately wide scrolls in its own container**, via
+`ui/scroll-hint.jsx`, which also shows a hint — but only when the content
+actually overflows. Never `justify-center` on a scrolling flex container:
+centring an overflowing line pushes its start to a negative scroll offset that
+cannot be reached, which is how round 1 of the playoff bracket became
+unviewable.
+
+**Sizes that must fit the screen use `dvh`, not `vh`.** On iOS Safari `100vh`
+is the *expanded* viewport, so a `vh`-sized panel runs under the address bar
+and its last row is unreachable.
+
+**Never put a `transform` on `<body>` or the app root**, and never set
+`touch-action: none` on `<body>`. A transformed element becomes the containing
+block for every `position: fixed` descendant; `touch-action: none` on an
+ancestor cannot be re-enabled by a descendant's `pan-y`. Those two lines
+produced most of the original bug reports.
+
+`scripts/check-mobile-conventions.sh` enforces the mechanical half of this in
+CI, and each rule names the bug it prevents.
+
+### Styling: one stylesheet, one theme
+
+`globals.css` is the whole stylesheet: the Tailwind v4 `@theme`, the palette,
+the status-colour remap, and a shrinking set of legacy utilities. There is
+**no `tailwind.config.js`** — Tailwind v4 reads the theme from CSS — and there
+is no second stylesheet. `styles/fantasy-utilities.css` was deleted in the
+design overhaul: all 49 of its `.ff-*` classes were unreferenced, and its
+first 300 lines were unscoped element selectors (`button:active`,
+`button[class*="bg-blue"]`, `input[type=checkbox]`, and an `a:not(...)` rule
+that coloured every link `--primary`) fighting the `ui/` primitives. That link
+rule was overriding the nav's own colours, so every inactive tab in the bottom
+bar rendered as though it were active.
+
+### The look
+
+Black first. The field is a near-black neutral (`oklch(0.145 0.004 265)`) and
+every surface above it is a step of *perceptual lightness*, not a different
+hue: page → card → popover, each step about what a 3% white overlay would
+give. Small steps, because on black small steps read clearly and large ones
+look like unrelated panels. The app used to sit on a blue-slate with slate
+cards, which is the default dashboard look and the reason it read as "a
+dashboard" rather than as this league's.
+
+**The palette is oklch, and that is load-bearing.** Its L is perceptual
+lightness, so accents declared at the same L and C genuinely look like one
+family whatever their hue — where equal-L HSL yellows blaze and blues sink.
+Every accent is L 0.72; the chart and team wheels are that same lightness
+swept around the hue circle. Declaring a new colour means picking a hue at
+that lightness, not eyeballing a hex.
+
+**Colour cascades from one hue.** The brand is orange at 45°, and the
+secondary pole is its complement at 240°. Warm means *yours* and *act* — the
+viewer's own row, the primary button, the selected week. Cool means *told*.
+Success and danger sit either side.
+
+**Colour on a number means the number has a direction.** A gain, a loss, a
+deviation from an expectation. A total is just a total: "111 games played" in
+the info blue and "132.2 points per game" in the success green said those
+figures were *informational* and *good*, which is neither true nor useful, and
+it spent the palette's meaning so that it read as nothing where it genuinely
+applied. Accent tints the icon; the figure stays `text-foreground`.
+
+**Surfaces are lit, not outlined.** Every card, filled button and table
+container carries `shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]`
+— a near-black drop shadow (a grey one on black is a smudge) and a one-pixel
+highlight along the top edge. That inset line is most of why a surface reads
+as an object rather than a rectangle drawn on the page.
+
+**Hairlines are suggestions.** `--border` is about a 7% white overlay. On a
+near-black ground a full-strength rule between every table row draws harder
+than the values it separates, and the eye ends up reading the grid.
+
+**One thing per view is big.** Hierarchy comes from a single element being
+larger — the power rating, the score, the stat figure — not from six things
+being bold. Large type is set tight (`tracking-[-0.01em]`); small labels are
+uppercase at 10-11px with `tracking-[0.06em]`.
+
+**Restraint with identity colour.** A team's hue appears at full strength in
+charts, where hue *is* the data. In tables it is a low tint and a faint ring
+with neutral initials — fourteen full-strength chips turn a table into a paint
+chart.
+
+**The app is dark-only, by design.** `src/contexts/DarkModeContext.jsx` states
+that in about forty lines; it used to be 251, most of them a light-mode
+implementation commented out behind `DISABLED_LIGHT_MODE` markers. The `dark`
+class stays on `<html>` because the status remap and any residual `dark:`
+variant compile against it. The `:root` palette is a fallback so tokens always
+resolve — not a designed second theme. Adding light mode is new work, not a
+flag to flip.
+
+This was four layers as recently as this refactor, and the reason is worth
+knowing: `globals.css` had a bare `@import "tailwindcss"` and no `@config`, so
+the config was never loaded and **every semantic token generated no CSS at
+all** — `bg-card`, `text-muted-foreground`, the `xs` breakpoint, the ff-*
+ramps, every `animate-*`. Nothing failed. It type-checked, tested and built
+clean while rendering unstyled in a thousand small places, and
+`styles/dark-mode.css` grew to 1,128 lines and 72 `!important`s compensating
+for it. `scripts/check-css-tokens.js` asserts the theme layer reaches the built
+CSS so that cannot recur silently.
+
+Consequences for writing components:
+
+- **Use semantic tokens** — `bg-card`, `bg-muted`, `text-foreground`,
+  `text-muted-foreground`, `border-border` — not `bg-white` or `text-gray-600`.
+- **Status is `success` / `warning` / `info` / `destructive`**, as real tokens:
+  `bg-success/15 text-success`, `<Badge variant="warning">`. Prefer these over
+  `bg-green-50 text-green-700`. The `.dark` remap block at the end of
+  globals.css still rewrites those light tints and is **still load-bearing** —
+  about 320 usages across ~30 feature components depend on it. Migrate a file's
+  tints to tokens when you touch it; the block can be deleted when that count
+  reaches zero, and not before.
+- **Never add a `!important` colour override.** If a colour is not applying,
+  the token is missing or an inline style is winning; fix that.
+- **A team's colour comes from `src/utils/teamColors.js`**, keyed on
+  `franchise_id` (owner name as fallback — team names change between seasons,
+  owners do not). One franchise is one colour in every table, chart, avatar and
+  bracket slot. Never colour a team by its index in an array: that is why the
+  same team used to be a different colour on every chart.
+- **`@theme inline` does not emit custom properties.** It inlines a token's
+  value into each utility, which is right for `bg-card` and wrong for anything
+  JavaScript reads — recharts takes a colour string, so `var(--color-chart-1)`
+  would resolve to nothing. Chart and team hues are declared as HSL triplets in
+  `:root` and referenced from `@theme`, giving both a utility and a live
+  custom property.
+- **A class name built at runtime is a class that does not exist.** Tailwind
+  scans source text, so `bg-${color}-50` and `bg-team-${slot}` generate no CSS.
+  Either use literal class names, or name the full set in `@source inline(...)`
+  as the team and chart utilities do. StatisticsPanel shipped interpolated
+  cards for months that only looked styled because the dark remap happened to
+  catch the same selectors.
+
+### The shared vocabulary
+
+Before writing a header, a number, a stat tile or an empty state, use these —
+each replaced four or five hand-rolled variants:
+
+- `layout/PageHeader.jsx` — the one page header. Every tab uses it.
+- `utils/format.js` + `ui/number-text.jsx` — one precision policy (points and
+  percentages to one decimal, missing values as an em dash, never `0`) and one
+  numeric face. Use `.tabular`, never `font-mono`: Inter has tabular figures,
+  and a system mono at 14px mismatches its x-height.
+- `ui/team-identity.jsx` — a team's chip, name, owner, record.
+- `ui/rank-badge.jsx`, `ui/streak-chip.jsx`, `ui/stat-card.jsx`,
+  `ui/empty-state.jsx`.
+- `ui/skeleton.jsx` — `SkeletonTable` / `SkeletonCards`. **Loading is a
+  skeleton, never `return null`** (which renders a blank tab) and never a bare
+  spinner.
+- `utils/positionColors.js` — lineup-slot chips, shared by Schedule and Teams.
+
+Typography: `font-display` (Barlow Condensed) is the scoreboard voice — page
+titles, scores, hero numbers, nothing else. Inter carries the interface.
+
+### Verifying a visual change
+
+`npm run test:e2e` loads every route at 375x667 and 1280x800 and asserts the
+page does not scroll horizontally. That single assertion would have caught most
+of the mobile backlog — including a 632px Pick'Ems row whose second team button
+was off-screen and unclickable, so nobody could pick team 2 on a phone.
+
+It is only meaningful because the root `overflow-x: hidden` is gone. Do not
+reintroduce it: it hid every one of those bugs from measurement and from the
+reader alike.
+
+For a change to shared CSS, `scripts/capture-screens.mjs` shoots every tab at
+375/768/1280 into a directory. Capture, change, capture again, `cmp` the two.
+That is how the dark-mode consolidation was verified.
+
 ### Tests and CI
 Tests are tracked (the blanket `**/__tests__/` ignore is gone) and live beside
 their subject. Components that consume `ViewerContext`, `ViewedWeekProvider` or
 TanStack Query must be rendered through `src/test/renderWithProviders.jsx`, not
 bare `render`. CI (`.github/workflows/ci.yml`) gates type-check, tests and
-build; lint is advisory until its pre-existing error backlog is cleared.
+build, the CSS token check, the mobile-convention greps, and a Playwright
+smoke job. Lint is advisory repo-wide until its pre-existing ~800-error backlog
+is cleared, **except** in `src/components/ui/**` and
+`src/components/layout/**`, where `rules-of-hooks`, `exhaustive-deps` and
+`no-unused-vars` are errors — those files are the foundation everything else is
+built on, they are new, and a hook-ordering mistake in one breaks every
+consumer at once.
+
+Two things jsdom cannot do, so do not write tests that pretend otherwise:
+it has **no layout engine**, so assigning `window.innerWidth` re-evaluates no
+media query and a "375px viewport" test asserts nothing (six such files existed
+and passed at every width, including widths where the page was broken); and it
+applies **no CSS**, so `ResponsiveDataTable`'s two branches are both visible to
+Testing Library even though exactly one is `display: none` in a browser —
+scope those assertions with `within(screen.getByRole('table'))`. Real viewport
+coverage is `npm run test:e2e`.
 
 ## Data Models
 
@@ -257,7 +543,7 @@ This fantasy football module integrates with:
 - **Authentication**: Uses `useAuth` context for user management
 - **React Router**: Navigation
 - **UI components**: From `src/components/ui/` (button, card, tabs, badge) using shadcn/ui
-- **Tailwind CSS**: Styling with custom design system
+- **Tailwind CSS v4**: theme in `globals.css`; there is no `tailwind.config.js`
 
 ## Development Notes
 
@@ -265,7 +551,8 @@ This fantasy football module integrates with:
 - Uses TypeScript checking without compilation (JSDoc + .ts config)
 - Supabase provides real-time data synchronization
 - ESPN integration allows automatic data import
-- Responsive design with mobile-first approach
+- Responsive design with mobile-first approach — see "Mobile is not a separate
+  app" for the rules that make that true rather than aspirational
 - This project has 1 admin user. All other users are authenticated to create pick'ems, but any user can visualize the data (without logging in). RLS policies should reflect this. Only authenticated users can change their own pickems, but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
 - Owner names eg: "Humza Khalil" are stored in the database and should be the first thing to check against when looking for data for a team. Team names often change but owner names are consistent.
 - **Creating a season carries the previous season's teams forward.**

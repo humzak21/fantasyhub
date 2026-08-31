@@ -235,13 +235,15 @@ const LeagueHistoryManager = ({
 
       {/* Sub-tabs Navigation */}
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-5">
+        {/* This is where the `icon` prop came from — `hidden sm:inline` on the
+            label, done by hand here first. It is a TabsTrigger feature now, so
+            the label also survives as the accessible name. */}
+        <TabsList className="w-full">
           {subTabs.map(tab => {
             const Icon = tab.icon;
             return (
-              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
+              <TabsTrigger key={tab.id} value={tab.id} icon={<Icon className="h-4 w-4" />}>
+                {tab.label}
               </TabsTrigger>
             );
           })}

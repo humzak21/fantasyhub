@@ -22,9 +22,18 @@ export const isUserTeam = (team, user) => {
 export const getUserTeamHighlightClasses = (isCurrentUserTeam) => {
   if (!isCurrentUserTeam) return '';
 
-  // Use CSS classes that work with both light and dark mode
-  // Tailwind's dark: prefix will automatically handle the theme switching
-  return 'bg-blue-50/80 border-blue-300/60 ring-2 ring-blue-200/50 shadow-blue-200/30 dark:bg-blue-900/20 dark:border-blue-500/50 dark:ring-blue-500/30 dark:shadow-blue-500/20';
+  // A tint and a brand-coloured rail — not a blue 2px ring.
+  //
+  // The ring pre-dated the palette and fought it: a blue halo around one row
+  // of an orange-accented, near-black table, drawing hard enough to make the
+  // viewer's own row the loudest thing on the page. A rail lets them find
+  // their row at a glance without shouting.
+  //
+  // The class is defined in globals.css rather than composed from utilities
+  // because it has to work on both layouts ResponsiveDataTable emits, and a
+  // `<tr>` cannot carry a left border or a positioned pseudo-element under
+  // `border-collapse: collapse` — the rail has to go on its first cell.
+  return 'ff-viewer-row';
 };
 
 export const moveUserTeamToFirst = (teams, user) => {

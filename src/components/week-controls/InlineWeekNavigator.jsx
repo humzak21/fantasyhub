@@ -108,8 +108,8 @@ const InlineWeekNavigator = ({
         aria-label="Week navigation control"
         className={`
           flex items-center gap-1
-          bg-white/90 backdrop-blur-sm
-          border border-gray-200
+          bg-card/90 backdrop-blur-sm
+          border border-border
           rounded-lg
           px-2 py-1
           shadow-sm
@@ -126,7 +126,7 @@ const InlineWeekNavigator = ({
           className="
             h-7 w-7 
             p-0 rounded-md 
-            hover:bg-gray-100 disabled:opacity-50
+            hover:bg-muted disabled:opacity-50
             transition-all duration-150 ease-out
             disabled:cursor-not-allowed
           "
@@ -140,30 +140,39 @@ const InlineWeekNavigator = ({
           className={`
             flex items-center gap-1
             ${condensed ? 'px-1' : 'px-2'} py-1
-            ${condensed ? 'min-w-0' : 'min-w-[70px]'}
+            ${condensed ? 'min-w-0' : 'min-w-0 2xl:min-w-[70px]'}
             justify-center
             text-sm font-medium
-            hover:bg-gray-100
+            hover:bg-muted
             rounded-md
             transition-colors duration-150
             cursor-pointer
             ${isViewingCurrentWeek
-              ? 'text-blue-700 bg-blue-50 hover:bg-blue-100'
-              : 'text-gray-700'
+              ? 'bg-primary/10 text-primary hover:bg-primary/15'
+              : 'text-foreground'
             }
           `}
           role="button"
           aria-label={`${isViewingCurrentWeek ? 'Current' : 'Selected'} week: ${getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}. Click to open week selector.`}
         >
           {isViewingCurrentWeek ? (
-            <Clock className="h-3 w-3 text-blue-600" aria-hidden="true" />
+            <Clock className="h-3 w-3 text-primary" aria-hidden="true" />
           ) : (
-            <Calendar className="h-3 w-3 text-gray-500" aria-hidden="true" />
+            <Calendar className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
           )}
-          {!condensed && (
-            <span className="whitespace-nowrap text-xs">
-              {getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
-            </span>
+          {/* Both labels are rendered and CSS picks one, so this stays a single
+              mount. The short form is not the icon alone — condensed once meant
+              rendering a clock and no week at all, which told the reader
+              nothing about the site's most-used control. */}
+          {condensed ? (
+            <span className="whitespace-nowrap text-xs">W{validCurrentWeek}</span>
+          ) : (
+            <>
+              <span className="whitespace-nowrap text-xs 2xl:hidden">W{validCurrentWeek}</span>
+              <span className="hidden whitespace-nowrap text-xs 2xl:inline">
+                {getWeekLabel(validCurrentWeek, regularSeasonWeeks, totalWeeks)}
+              </span>
+            </>
           )}
         </button>
 
@@ -177,7 +186,7 @@ const InlineWeekNavigator = ({
           className="
             h-7 w-7 
             p-0 rounded-md 
-            hover:bg-gray-100 disabled:opacity-50
+            hover:bg-muted disabled:opacity-50
             transition-all duration-150 ease-out
             disabled:cursor-not-allowed
           "
@@ -194,10 +203,10 @@ const InlineWeekNavigator = ({
             title={`Go to current week (Week ${actualCurrentWeek})`}
             aria-label={`Go to current week (Week ${actualCurrentWeek})`}
             className="
+              hidden 2xl:inline-flex
               h-7 w-7
               p-0 rounded-md
-              hover:bg-blue-100
-              text-blue-600 hover:text-blue-700
+              text-primary hover:bg-primary/10
               transition-all duration-150 ease-out
               ml-1
             "

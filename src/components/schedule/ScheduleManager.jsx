@@ -1,10 +1,22 @@
 import React, { useState } from 'react';
-import { Calendar, Users, RefreshCw, Download, Upload, Plus, Edit3, Trash2, CheckCircle, Clock } from 'lucide-react';
+import { Calendar, Users, Edit3, Trash2, ChevronDown, CheckCircle, Clock } from 'lucide-react';
 import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { EmptyState } from '../ui/empty-state';
+import { TeamIdentity } from '../ui/team-identity';
+import { IndependentColumns } from '../ui/independent-columns';
+import PageHeader from '../layout/PageHeader';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { getPositionColor } from '../../utils/positionColors';
+import { formatPoints } from '../../utils/format';
+import { cn } from '../../lib/utils';
 import SeasonProgressBar from '../season/SeasonProgressBar';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+
+/** The slots this league starts, in lineup order. Matches OPTIMAL_LINEUP_TEMPLATE. */
+const STARTER_SLOTS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
 
 const ScheduleManager = ({
   season = null,
@@ -23,10 +35,14 @@ const ScheduleManager = ({
 
   if (!season) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <Calendar size={48} className="mx-auto mb-4 text-gray-300" />
-        <p>No active season. Please select or create a season first.</p>
-      </div>
+      <>
+        <PageHeader icon={Calendar} title="Schedule" />
+        <EmptyState
+          icon={Calendar}
+          title="No active season"
+          description="Create a season, or make one active, to see its schedule."
+        />
+      </>
     );
   }
 
@@ -54,87 +70,58 @@ const ScheduleManager = ({
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle size={16} className="text-green-600" />;
+        return <CheckCircle size={16} className="text-success" aria-hidden="true" />;
       case 'partial':
-        return <Clock size={16} className="text-orange-600" />;
-      case 'scheduled':
-        return <Calendar size={16} className="text-blue-600" />;
+        return <Clock size={16} className="text-warning" aria-hidden="true" />;
       default:
-        return <Calendar size={16} className="text-gray-400" />;
+        return <Calendar size={16} className="text-muted-foreground" aria-hidden="true" />;
     }
   };
 
+  // `text-foreground/50/50` — two opacity modifiers on one utility, which
+  // Tailwind does not parse, so the "scheduled" and default weeks had no text
+  // colour at all. Statuses read from the tokens now.
   const getStatusColor = (status) => {
     switch (status) {
       case 'completed':
-        return 'bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800/30 dark:text-green-300';
+        return 'border-success/30 bg-success/10 text-success';
       case 'partial':
-        return 'bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-900/20 dark:border-orange-800/30 dark:text-orange-300';
-      case 'scheduled':
-        return 'bg-gray-100 border-gray-300 text-gray-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300';
+        return 'border-warning/30 bg-warning/10 text-warning';
       default:
-        return 'bg-gray-100 border-gray-300 text-gray-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-300';
+        return 'border-border bg-muted text-muted-foreground';
     }
   };
 
-
-
-  const exportSchedule = () => {
-    const scheduleData = {
-      seasonInfo: {
-        year: season.year,
-        name: season.name,
-        teams: season.teams.map(t => ({ id: t.id, name: t.name }))
-      },
-      schedule: schedule,
-      exportedAt: new Date().toISOString()
-    };
-
-    const dataStr = JSON.stringify(scheduleData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `schedule-${season.year}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold flex items-center gap-3">
-          <Calendar className="text-blue-600" size={28} />
-          Schedule
-        </h2>
-        
-        <div className="flex gap-2">
-          <button
-            onClick={() => setViewMode(viewMode === 'week' ? 'full' : 'week')}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            <Users size={16} />
-            {viewMode === 'week' ? 'Full View' : 'Week View'}
-          </button>
-        </div>
-      </div>
-
-      {/* Season Progress Bar */}
-      <SeasonProgressBar
-        season={season}
-        schedule={schedule}
-        currentWeek={currentWeek}
-        onWeekChange={onWeekChange}
+    <div>
+      <PageHeader
+        icon={Calendar}
+        title="Schedule"
+        description={`Week ${currentWeek} of ${season.totalWeeks || '—'}`}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'week' ? 'full' : 'week')}>
+            <Users className="mr-1.5 h-4 w-4" aria-hidden="true" />
+            {viewMode === 'week' ? 'Full season' : 'This week'}
+          </Button>
+        }
       />
 
+      {/* Season Progress Bar */}
+      <div className="mb-6">
+        <SeasonProgressBar
+          season={season}
+          schedule={schedule}
+          currentWeek={currentWeek}
+          onWeekChange={onWeekChange}
+        />
+      </div>
+
       {season.teams.length < 2 ? (
-        <div className="text-center py-12 text-gray-500">
-          <Users size={64} className="mx-auto mb-4 text-gray-300" />
-          <h3 className="text-lg font-medium mb-2">Not Enough Teams</h3>
-          <p>You need at least 2 teams to create a schedule.</p>
-        </div>
+        <EmptyState
+          icon={Users}
+          title="Not enough teams"
+          description="A schedule needs at least two teams in the season."
+        />
       ) : (
         <>
           {/* View Mode: Week */}
@@ -193,20 +180,35 @@ const WeekScheduleView = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  const [openLineupId, setOpenLineupId] = useState(null);
+
   if (games.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-        <Calendar size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+      <div className="text-center py-8 text-muted-foreground">
+        <Calendar size={48} className="mx-auto mb-4 text-muted-foreground" />
         <p>No games scheduled for Week {week}</p>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {games.map(game => (
+    /*
+      Independent columns, and one open lineup at a time.
+      Three things went wrong here. Grid cells stretch to their row's height,
+      so opening one card's lineups made the card beside it grow to match and
+      look "open but blank". Grid *rows* then pushed everything below down,
+      so expanding on the left moved the right-hand column too. And each card
+      owned its own `<details>`, so several could sit open at once and the
+      week became a wall of squad lists. Columns are their own block flow now,
+      the open card is state here, and opening one closes the rest.
+    */
+    <IndependentColumns
+      items={games}
+      itemKey={(game) => game.id}
+      columns={2}
+    >
+      {(game) => (
         <GameCard
-          key={game.id}
           game={game}
           onUpdateGame={onUpdateGame}
           onDeleteGame={onDeleteGame}
@@ -217,9 +219,13 @@ const WeekScheduleView = ({
           rosters={rosters}
           isAdmin={isAdmin}
           teamOwnerNames={teamOwnerNames}
+          isLineupOpen={openLineupId === game.id}
+          onToggleLineup={() =>
+            setOpenLineupId((current) => (current === game.id ? null : game.id))
+          }
         />
-      ))}
-    </div>
+      )}
+    </IndependentColumns>
   );
 };
 
@@ -277,11 +283,11 @@ const FullScheduleView = ({
                   const team1 = teams.find(t => t.id === game.team1Id);
                   const team2 = teams.find(t => t.id === game.team2Id);
                   const isUserGame = isUserTeam(team1, user) || isUserTeam(team2, user);
-                  const baseClasses = "bg-white bg-opacity-50 rounded p-3 border";
+                  const baseClasses = "bg-card bg-opacity-50 rounded p-3 border";
                   const highlightClasses = getUserTeamHighlightClasses(isUserGame);
                   const borderClasses = game.isCompleted
                     ? "border-green-200 dark:border-green-700/30"
-                    : "border-gray-200 dark:border-gray-600";
+                    : "border-border";
 
                   const isTeam1Winner = game.isCompleted && game.winnerTeamId === game.team1Id;
                   const isTeam2Winner = game.isCompleted && game.winnerTeamId === game.team2Id;
@@ -291,14 +297,14 @@ const FullScheduleView = ({
                       <div className="flex items-center justify-between gap-4">
                         {/* Team 1 */}
                         <div className={`flex-1 flex items-center gap-2 ${isTeam1Winner ? 'font-bold' : 'font-medium'}`}>
-                          <span className="flex-1 truncate dark:text-white">
+                          <span className="flex-1 truncate">
                             {getTeamName(game.team1Id, game)}
                           </span>
                           {game.isCompleted && (
                             <span className={`text-lg font-bold min-w-[3rem] text-right ${
                               isTeam1Winner
                                 ? 'text-green-600 dark:text-green-400'
-                                : 'text-gray-600 dark:text-gray-400'
+                                : 'text-muted-foreground'
                             }`}>
                               {game.team1Score}
                             </span>
@@ -308,9 +314,9 @@ const FullScheduleView = ({
                         {/* VS or Score Separator */}
                         <div className="flex-shrink-0 px-2">
                           {game.isCompleted ? (
-                            <span className="text-gray-400 dark:text-gray-500 font-medium">-</span>
+                            <span className="text-muted-foreground font-medium">-</span>
                           ) : (
-                            <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">vs</span>
+                            <span className="text-muted-foreground text-xs font-medium">vs</span>
                           )}
                         </div>
 
@@ -320,12 +326,12 @@ const FullScheduleView = ({
                             <span className={`text-lg font-bold min-w-[3rem] ${
                               isTeam2Winner
                                 ? 'text-green-600 dark:text-green-400'
-                                : 'text-gray-600 dark:text-gray-400'
+                                : 'text-muted-foreground'
                             }`}>
                               {game.team2Score}
                             </span>
                           )}
-                          <span className="flex-1 truncate text-right dark:text-white">
+                          <span className="flex-1 truncate text-right">
                             {getTeamName(game.team2Id, game)}
                           </span>
                         </div>
@@ -369,7 +375,9 @@ const GameCard = ({
   powerRankings = [],
   rosters = {},
   isAdmin = false,
-  teamOwnerNames = []
+  teamOwnerNames = [],
+  isLineupOpen = false,
+  onToggleLineup,
 }) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
@@ -413,273 +421,158 @@ const GameCard = ({
   };
 
 
-  const getRankIcon = (rank) => {
-    if (rank === 1) return '👑';
-    if (rank <= 3) return '🥉';
-    if (rank <= 6) return '🏆';
-    return '🏅';
-  };
-
-  const getPositionColor = (position) => {
-    const colors = {
-      QB: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
-      RB: 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700',
-      WR: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
-      TE: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700',
-      K: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700',
-      'D/ST': 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-600'
-    };
-    return colors[position] || 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800/30 dark:text-gray-300 dark:border-gray-600';
-  };
-
-  const TeamRosterPreview = ({ roster }) => {
-    if (!roster || roster.length === 0) {
-      return (
-        <div className="text-xs text-gray-500 dark:text-gray-400">No roster data</div>
-      );
-    }
-
-    // Group players by roster slot
-    const groupedRoster = roster.reduce((acc, player) => {
-      const slot = player.rosterSlot || 'BE';
-      if (!acc[slot]) {
-        acc[slot] = [];
-      }
-      acc[slot].push(player);
-      return acc;
-    }, {});
-
-    const starters = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K']
-      .map(slot => groupedRoster[slot] || [])
-      .flat();
-
-    const benchPlayers = groupedRoster['BE'] || [];
-    const irPlayers = groupedRoster['IR'] || [];
-
-    const PlayerBadge = ({ player, slot }) => {
-      const playerName = player.playerName || player.player?.name || 'Unknown';
-      const position = player.position || player.player?.position || '?';
-      const isStarter = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'].includes(slot);
-
-      return (
-        <div
-          className={`flex items-center gap-1 p-1 rounded text-xs border ${
-            isStarter
-              ? 'bg-white border-gray-200 font-medium dark:bg-gray-800 dark:border-gray-600'
-              : slot === 'IR'
-              ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-900/30 dark:border-red-700 dark:text-red-300'
-              : 'bg-gray-50 border-gray-200 text-gray-600 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-400'
-          }`}
-          title={`${playerName} (${position})${slot !== 'BE' && slot !== 'IR' ? ` - ${slot}` : ''}`}
-        >
-          <Badge
-            variant="outline"
-            className={`text-xs w-10 justify-center ${getPositionColor(position)}`}
-          >
-            {position}
-          </Badge>
-          <span className="truncate text-xs" style={{maxWidth: '140px'}}>{playerName}</span>
-          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
-            <div className="w-1.5 h-1.5 bg-red-500 rounded-full flex-shrink-0" title={player.injuryStatus} />
-          )}
-        </div>
-      );
-    };
-
-    return (
-      <div className="space-y-2 max-h-128 overflow-y-auto">
-        {/* Starting Lineup */}
-        {starters.length > 0 && (
-          <div className="space-y-1">
-            <h5 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              Starters
-            </h5>
-            <div className="grid grid-cols-1 gap-1">
-              {starters.map((player, idx) => (
-                <PlayerBadge key={`starter-${idx}`} player={player} slot={player.rosterSlot} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Bench Players */}
-        {benchPlayers.length > 0 && (
-          <div className="space-y-1">
-            <h5 className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
-              Bench
-            </h5>
-            <div className="grid grid-cols-1 gap-1">
-              {benchPlayers.map((player, idx) => (
-                <PlayerBadge key={`bench-${idx}`} player={player} slot="BE" />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* IR Players */}
-        {irPlayers.length > 0 && (
-          <div className="space-y-1">
-            <h5 className="text-xs font-semibold text-red-600 dark:text-red-400 uppercase tracking-wide">
-              Injured Reserve
-            </h5>
-            <div className="grid grid-cols-1 gap-1">
-              {irPlayers.map((player, idx) => (
-                <PlayerBadge key={`ir-${idx}`} player={player} slot="IR" />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const TeamCard = ({ teamId, score, isWinner }) => {
-    // Handle bye weeks
-    const isBye = game.type === 'bye' && teamId === game.team2Id;
-    const team = teams.find(t => t.id === teamId);
-    const stats = getTeamStats(teamId);
-    const rank = getTeamRanking(teamId);
-    const roster = rosters[teamId]?.roster || [];
-    const teamName = isBye ? 'BYE' : (team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown Team');
-
-    return (
-      <div className={`flex-1 p-3 rounded-lg border ${
-        isWinner && game.isCompleted
-          ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-700'
-          : 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-600'
-      }`}>
-        <div className="space-y-2">
-          {/* Team Header */}
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-base truncate dark:text-white">{teamName}</h4>
-              {!isBye && team?.owner && (
-                <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                  {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
-                </div>
-              )}
-              {/* Record */}
-              {!isBye && stats.gamesPlayed > 0 && (
-                <div className="text-xs mt-1">
-                  <span className="text-gray-600 dark:text-gray-400">Record: </span>
-                  <span className={`font-semibold ${
-                    (stats.wins || 0) > (stats.losses || 0)
-                      ? 'text-green-600 dark:text-green-400'
-                      : (stats.wins || 0) < (stats.losses || 0)
-                      ? 'text-red-600 dark:text-red-400'
-                      : 'text-gray-600 dark:text-gray-400'
-                  }`}>
-                    {stats.wins || 0}-{stats.losses || 0}
-                    {stats.ties > 0 && `-${stats.ties}`}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-col items-center gap-1">
-              {!isBye && rank && (
-                <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  rank === 1
-                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-                    : rank <= 3
-                    ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                    : 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                }`}>
-                  {getRankIcon(rank)} #{rank}
-                </div>
-              )}
-
-              {/* Score Display */}
-              {!isBye && editing ? (
-                <input
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  value={teamId === game.team1Id ? scores.team1Score : scores.team2Score}
-                  onChange={(e) => setScores(prev => ({
-                    ...prev,
-                    [teamId === game.team1Id ? 'team1Score' : 'team2Score']: e.target.value
-                  }))}
-                  className="p-1 border rounded text-center w-16 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                  placeholder="0"
-                />
-              ) : (
-                <div className="text-2xl font-bold dark:text-white">
-                  {score !== null && score !== undefined ? score : '-'}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Roster Preview */}
-          {!isBye && <TeamRosterPreview roster={roster} />}
-        </div>
-      </div>
-    );
-  };
-
-  // Check if this game involves the user's team
-  const team1 = teams.find(t => t.id === game.team1Id);
-  const team2 = teams.find(t => t.id === game.team2Id);
+  const isBye = game.type === 'bye';
+  const team1 = teams.find((t) => t.id === game.team1Id);
+  const team2 = teams.find((t) => t.id === game.team2Id);
   const isUserGame = isUserTeam(team1, user) || isUserTeam(team2, user);
   const highlightClasses = getUserTeamHighlightClasses(isUserGame);
 
-  return (
-    <div className={`bg-white dark:bg-gray-900 border rounded-lg p-4 shadow-sm ${highlightClasses}`}>
-      {/* Game Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="text-base font-semibold dark:text-white">Week {game.week}</div>
-          {game.isCompleted && (
-            <div className="flex items-center gap-1">
-              {game.isBlowout && <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 text-xs rounded dark:bg-orange-900/30 dark:text-orange-300">Blowout</span>}
-              {game.isClose && <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs rounded dark:bg-blue-900/30 dark:text-blue-300">Close</span>}
-            </div>
+  const hasRosters =
+    (rosters[game.team1Id]?.roster?.length || 0) > 0 ||
+    (rosters[game.team2Id]?.roster?.length || 0) > 0;
+
+  /**
+   * One team's line in the matchup.
+   *
+   * The card this replaces gave each team a panel containing its full roster —
+   * up to sixteen player rows a side, inline, always. Stacked on a phone a
+   * single matchup ran several screen-heights, so the schedule stopped being
+   * a schedule: you could not see who was playing whom without scrolling past
+   * a squad list. The line is the fixture; the roster is behind a disclosure
+   * and is not rendered until it is opened.
+   */
+  const TeamRow = ({ teamId, score, isWinner, isByeSlot }) => {
+    const team = teams.find((t) => t.id === teamId);
+    const stats = getTeamStats(teamId);
+    const rank = getTeamRanking(teamId);
+
+    if (isByeSlot) {
+      return (
+        <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm text-muted-foreground">
+          Bye week
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={cn(
+          // The winner is marked by weight and a hairline, not by a green
+          // wash. Two rows, one of them tinted, already reads as "this one" —
+          // a full success tint on half of every card turned the schedule
+          // into a field of green blocks and spent the success colour on a
+          // fact that is not about success at all, just about which score is
+          // higher.
+          'flex items-center justify-between gap-3 px-3.5 py-3',
+          isWinner && 'bg-foreground/[0.035]'
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2.5">
+          {rank && (
+            <span className="w-6 shrink-0 text-xs tabular text-muted-foreground">#{rank}</span>
           )}
+          <TeamIdentity
+            team={{
+              ...team,
+              name: team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown team',
+              ownerName: team ? getMaskedOwnerName(team, user, isAdmin, teamOwnerNames) : null,
+              wins: stats.wins,
+              losses: stats.losses,
+              ties: stats.ties,
+            }}
+            size="sm"
+            showOwner
+            showRecord={stats.gamesPlayed > 0}
+            isViewer={isUserTeam(team, user)}
+          />
+        </div>
+
+        {editing ? (
+          <Input
+            type="number"
+            min="0"
+            step="0.1"
+            aria-label={`Score for ${team?.name || 'team'}`}
+            value={teamId === game.team1Id ? scores.team1Score : scores.team2Score}
+            onChange={(e) =>
+              setScores((prev) => ({
+                ...prev,
+                [teamId === game.team1Id ? 'team1Score' : 'team2Score']: e.target.value,
+              }))
+            }
+            className="w-20 text-center"
+            placeholder="0"
+          />
+        ) : (
+          <span
+            className={cn(
+              'font-display text-[21px] leading-none tabular tracking-[-0.01em]',
+              isWinner ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
+            )}
+          >
+            {score !== null && score !== undefined ? formatPoints(score) : '—'}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className={cn(
+        'overflow-hidden rounded-xl border border-border bg-card',
+        'shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]',
+        highlightClasses
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-3.5 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            Week {game.week}
+          </span>
+          {game.isCompleted && game.isBlowout && <Badge variant="warning">Blowout</Badge>}
+          {game.isCompleted && game.isClose && <Badge variant="info">Close</Badge>}
+          {!game.isCompleted && <Badge variant="secondary">Scheduled</Badge>}
         </div>
 
         {isAuthenticated && (
           <div className="flex items-center gap-1">
             {editing ? (
               <>
-                <button
-                  onClick={() => setEditing(false)}
-                  className="px-2 py-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded text-xs transition-colors dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
-                >
+                <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
                   Cancel
-                </button>
-                <button
-                  onClick={handleSave}
-                  className="px-2 py-1 text-green-600 hover:text-green-800 hover:bg-green-100 rounded text-xs transition-colors dark:text-green-400 dark:hover:text-green-200 dark:hover:bg-green-900/30"
-                >
+                </Button>
+                <Button size="sm" onClick={handleSave}>
                   Save
-                </button>
+                </Button>
               </>
             ) : (
               <>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Edit scores for week ${game.week}`}
                   onClick={() => {
                     setScores({
-                      team1Score: game.team1Score || '',
-                      team2Score: game.team2Score || ''
+                      team1Score: game.team1Score ?? '',
+                      team2Score: game.team2Score ?? '',
                     });
                     setEditing(true);
                   }}
-                  className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors dark:text-blue-400 dark:hover:text-blue-200 dark:hover:bg-blue-900/30"
-                  title="Edit scores"
                 >
-                  <Edit3 size={14} />
-                </button>
+                  <Edit3 className="h-4 w-4" aria-hidden="true" />
+                </Button>
                 {/* Deletion has no implementation; the shell passes null and
                     the button stays hidden rather than raising an alert. */}
                 {onDeleteGame && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete week ${game.week} game`}
                     onClick={handleDelete}
-                    className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors dark:text-red-400 dark:hover:text-red-200 dark:hover:bg-red-900/30"
-                    title="Delete game"
                   >
-                    <Trash2 size={14} />
-                  </button>
+                    <Trash2 className="h-4 w-4 text-destructive" aria-hidden="true" />
+                  </Button>
                 )}
               </>
             )}
@@ -687,29 +580,117 @@ const GameCard = ({
         )}
       </div>
 
-      {/* Versus Layout — stacked on phones, side by side from `sm` up. The
-          mobile shell renders this same component, and two roster cards side
-          by side at 390px pushed the second one out of view. */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3">
-        <TeamCard
+      <div className="divide-y">
+        <TeamRow
           teamId={game.team1Id}
           score={game.team1Score}
           isWinner={game.isCompleted && game.winnerTeamId === game.team1Id}
         />
-
-        <div className="flex-shrink-0 text-center self-center">
-          <div className="text-lg font-bold text-gray-400 dark:text-gray-500">VS</div>
-          {!game.isCompleted && (
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Scheduled</div>
-          )}
-        </div>
-
-        <TeamCard
+        <TeamRow
           teamId={game.team2Id}
           score={game.team2Score}
           isWinner={game.isCompleted && game.winnerTeamId === game.team2Id}
+          isByeSlot={isBye}
         />
       </div>
+
+      {!isBye && hasRosters && (
+        <div className="border-t border-border/60">
+          <button
+            type="button"
+            aria-expanded={isLineupOpen}
+            onClick={onToggleLineup}
+            className="flex min-h-10 w-full cursor-pointer items-center justify-center gap-1.5 px-3 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+          >
+            <ChevronDown
+              className={cn('h-3.5 w-3.5 transition-transform', isLineupOpen && 'rotate-180')}
+              aria-hidden="true"
+            />
+            {isLineupOpen ? 'Hide lineups' : 'Lineups'}
+          </button>
+
+          {/* Rendered only while open, so a week of fixtures does not carry
+              fourteen squad lists in the DOM. */}
+          {isLineupOpen && (
+            <div className="grid grid-cols-1 gap-5 border-t border-border/60 p-3.5 sm:grid-cols-2">
+              <TeamRosterPreview
+                roster={rosters[game.team1Id]?.roster || []}
+                teamName={team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : ''}
+              />
+              <TeamRosterPreview
+                roster={rosters[game.team2Id]?.roster || []}
+                teamName={team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : ''}
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * A team's lineup, grouped by slot. Rendered only when its matchup card is
+ * expanded, so a week of fixtures does not carry fourteen squad lists.
+ */
+const TeamRosterPreview = ({ roster, teamName }) => {
+  if (!roster || roster.length === 0) {
+    return <div className="text-xs text-muted-foreground">No roster data</div>;
+  }
+
+  const grouped = roster.reduce((acc, player) => {
+    const slot = player.rosterSlot || 'BE';
+    (acc[slot] ||= []).push(player);
+    return acc;
+  }, {});
+
+  const starters = STARTER_SLOTS.flatMap((slot) => grouped[slot] || []);
+  const bench = grouped.BE || [];
+  const injured = grouped.IR || [];
+
+  const group = (label, players, tone) =>
+    players.length > 0 && (
+      <div className="space-y-1">
+        <h5 className={cn('text-[11px] font-semibold uppercase tracking-wide', tone)}>{label}</h5>
+        {players.map((player, idx) => (
+          <PlayerRow key={`${label}-${idx}`} player={player} muted={label !== 'Starters'} />
+        ))}
+      </div>
+    );
+
+  return (
+    <div className="space-y-3">
+      {teamName && <h4 className="truncate text-sm font-semibold">{teamName}</h4>}
+      {group('Starters', starters, 'text-muted-foreground')}
+      {group('Bench', bench, 'text-muted-foreground')}
+      {group('Injured reserve', injured, 'text-destructive')}
+    </div>
+  );
+};
+
+const PlayerRow = ({ player, muted }) => {
+  const playerName = player.playerName || player.player?.name || 'Unknown';
+  const position = player.position || player.player?.position || '?';
+  const isInjured = player.injuryStatus && player.injuryStatus !== 'ACTIVE';
+
+  return (
+    <div className={cn('flex items-center gap-2 text-xs', muted && 'text-muted-foreground')}>
+      <span
+        className={cn(
+          'w-10 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold',
+          getPositionColor(position)
+        )}
+      >
+        {position}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{playerName}</span>
+      {isInjured && (
+        <span
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive"
+          title={player.injuryStatus}
+          aria-label={player.injuryStatus}
+        />
+      )}
     </div>
   );
 };

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Edit2, Settings, Plus, X } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { ResponsiveDataTable } from '../ui/responsive-table';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -393,10 +393,10 @@ const DrawerStandingsTable = ({
         {/* Loading header */}
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
-            <div className="h-5 w-20 bg-gray-200 rounded animate-pulse"></div>
-            <div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-5 w-20 bg-muted rounded animate-pulse"></div>
+            <div className="h-4 w-12 bg-muted rounded animate-pulse"></div>
           </div>
-          <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
+          <div className="h-6 w-16 bg-muted rounded animate-pulse"></div>
         </div>
         
         {/* Loading divisions */}
@@ -404,31 +404,31 @@ const DrawerStandingsTable = ({
           <div key={i} className="space-y-2">
             {/* Division header loading */}
             <div className="flex items-center justify-between px-1">
-              <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-4 w-6 bg-gray-200 rounded animate-pulse"></div>
+              <div className="h-4 w-24 bg-muted rounded animate-pulse"></div>
+              <div className="h-4 w-6 bg-muted rounded animate-pulse"></div>
             </div>
             
             {/* Table loading */}
             <div className="rounded-md border">
               <div className="p-2 border-b">
                 <div className="flex gap-2">
-                  <div className="h-3 w-8 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-12 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-8 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-8 bg-gray-200 rounded animate-pulse"></div>
-                  <div className="h-3 w-8 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-3 w-8 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-16 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-12 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-8 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-8 bg-muted rounded animate-pulse"></div>
+                  <div className="h-3 w-8 bg-muted rounded animate-pulse"></div>
                 </div>
               </div>
               {[1, 2, 3].map((j) => (
                 <div key={j} className="p-2 border-b last:border-b-0">
                   <div className="flex gap-2">
-                    <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
-                    <div className="h-4 w-8 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-4 w-8 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-16 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-12 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-8 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-8 bg-muted rounded animate-pulse"></div>
+                    <div className="h-4 w-8 bg-muted rounded animate-pulse"></div>
                   </div>
                 </div>
               ))}
@@ -439,12 +439,129 @@ const DrawerStandingsTable = ({
     );
   }
 
+  /*
+   * One column list for both tables below (a division's teams, and the
+   * unassigned ones), and for both layouts.
+   *
+   * These tables carried `min-w-[500px]` inside a drawer that is `w-[95%]` —
+   * about 356px on an iPhone SE — so reading the standings meant scrolling
+   * every row sideways past the team name to reach the numbers. Below sm: each team
+   * is a card: rank, team and owner identify it, the record and point totals
+   * are a labelled grid.
+   *
+   * `withRank` is false for the unassigned list, which has no division
+   * standing to show.
+   */
+  const standingsColumns = ({ withRank, moveTargets, moveLabel }) => [
+    ...(withRank
+      ? [{
+          key: 'rank',
+          header: '#',
+          priority: 'primary',
+          headerClassName: 'w-12 px-3 py-2 text-sm',
+          className: 'px-3 py-2 font-medium',
+          cell: (team) => <span className="font-medium">{team.divisionRank}</span>,
+        }]
+      : []),
+    {
+      key: 'team',
+      header: 'Team',
+      priority: 'primary',
+      headerClassName: 'px-3 py-2 text-sm min-w-[140px]',
+      className: 'px-3 py-2 font-medium',
+      cell: (team) => (
+        <div className="min-w-0">
+          <div className="truncate font-medium">
+            {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+          </div>
+          {/* The owner is its own column at sm:+; on a card it belongs under
+              the team name rather than in the stats grid. */}
+          <div className="truncate text-xs text-muted-foreground sm:hidden">
+            {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'owner',
+      header: 'Owner',
+      priority: 'detail',
+      headerClassName: 'px-3 py-2 text-sm min-w-[120px]',
+      className: 'px-3 py-2 text-muted-foreground',
+      cell: (team) => getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
+    },
+    {
+      key: 'record',
+      header: 'Record',
+      headerClassName: 'w-20 px-2 py-2 text-center text-sm',
+      className: 'px-2 py-2 text-center',
+      cell: (team) => `${team.wins}-${team.losses}-${team.ties}`,
+    },
+    {
+      key: 'winPct',
+      header: 'Win %',
+      headerClassName: 'w-16 px-2 py-2 text-center text-sm',
+      className: 'px-2 py-2 text-center',
+      cell: (team) => `${((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%`,
+    },
+    {
+      key: 'pf',
+      header: 'PF',
+      cardLabel: 'Points for',
+      headerClassName: 'w-16 px-2 py-2 text-center text-sm',
+      className: 'px-2 py-2 text-center',
+      cell: (team) => (team.pointsFor || 0).toFixed(2),
+    },
+    {
+      key: 'pa',
+      header: 'PA',
+      cardLabel: 'Points against',
+      headerClassName: 'w-16 px-2 py-2 text-center text-sm',
+      className: 'px-2 py-2 text-center',
+      cell: (team) => (team.pointsAgainst || 0).toFixed(2),
+    },
+    {
+      key: 'diff',
+      header: 'Diff',
+      headerClassName: 'w-16 px-2 py-2 text-center text-sm',
+      className: 'px-2 py-2 text-center',
+      cell: (team) => (
+        <span className={`font-medium ${team.pointDifferential >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+          {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
+        </span>
+      ),
+    },
+    ...(isManaging
+      ? [{
+          key: 'move',
+          header: moveLabel,
+          headerClassName: 'w-20 px-2 py-2 text-center text-sm',
+          className: 'px-2 py-2 text-center',
+          cell: (team) => (
+            <div className="flex flex-col gap-1">
+              {moveTargets(team).map((targetDivision) => (
+                <Button
+                  key={targetDivision.id}
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 py-1 text-xs"
+                  onClick={() => handleTeamMove(team.id, targetDivision.id)}
+                >
+                  → {targetDivision.name}
+                </Button>
+              ))}
+            </div>
+          ),
+        }]
+      : []),
+  ];
+
   return (
     <div className="space-y-4">
       {/* Header with management controls and close button */}
-      <div className="flex items-center justify-between px-1 pb-4 border-b border-gray-200">
+      <div className="flex items-center justify-between px-1 pb-4 border-b border-border">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Standings</h2>
+          <h2 className="text-lg sm:text-xl font-semibold text-foreground">Standings</h2>
           {currentWeek && (
             <Badge variant="outline" className="text-xs">
               Week {currentWeek}
@@ -508,11 +625,11 @@ const DrawerStandingsTable = ({
           )}
           <button
             onClick={onClose}
-            className="p-2 sm:p-3 rounded-md hover:bg-gray-100 active:bg-gray-200 transition-colors duration-200 touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="p-2 sm:p-3 rounded-md hover:bg-muted active:bg-muted transition-colors duration-200 touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             aria-label="Close standings drawer"
             style={{ minHeight: '44px', minWidth: '44px' }}
           >
-            <X size={20} className="text-gray-500" />
+            <X size={20} className="text-muted-foreground" />
           </button>
         </div>
       </div>
@@ -572,84 +689,20 @@ const DrawerStandingsTable = ({
 
             {/* Full table for drawer */}
             {division.teams.length > 0 ? (
-              <div className="rounded-md border overflow-x-auto">
-                <Table className="min-w-[500px]">
-                  <TableHeader>
-                    <TableRow className="text-sm">
-                      <TableHead className="w-12 px-3 py-2 text-sm">#</TableHead>
-                      <TableHead className="px-3 py-2 text-sm min-w-[140px]">Team</TableHead>
-                      <TableHead className="px-3 py-2 text-sm min-w-[120px]">Owner</TableHead>
-                      <TableHead className="w-20 px-2 py-2 text-center text-sm">Record</TableHead>
-                      <TableHead className="w-16 px-2 py-2 text-center text-sm">Win %</TableHead>
-                      <TableHead className="w-16 px-2 py-2 text-center text-sm">PF</TableHead>
-                      <TableHead className="w-16 px-2 py-2 text-center text-sm">PA</TableHead>
-                      <TableHead className="w-16 px-2 py-2 text-center text-sm">Diff</TableHead>
-                      {isManaging && <TableHead className="w-20 px-2 py-2 text-center text-sm">Move</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {division.teams.map((team) => (
-                      <TableRow
-                        key={team.id}
-                        className={`text-sm transition-all duration-200 hover:bg-muted/50 ${
-                          team.isPlayoffSpot ? 'bg-green-50 dark:bg-green-900/20' : ''
-                        }`}
-                      >
-                        <TableCell className="px-3 py-2 font-medium">
-                          <div className="flex items-center gap-2">
-                            <span>
-                              {team.divisionRank}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-3 py-2 font-medium">
-                          {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
-                        </TableCell>
-                        <TableCell className="px-3 py-2 text-muted-foreground">
-                          {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
-                        </TableCell>
-                        <TableCell className="px-2 py-2 text-center">
-                          {team.wins}-{team.losses}-{team.ties}
-                        </TableCell>
-                        <TableCell className="px-2 py-2 text-center">
-                          {((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%
-                        </TableCell>
-                        <TableCell className="px-2 py-2 text-center">
-                          {(team.pointsFor || 0).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="px-2 py-2 text-center">
-                          {(team.pointsAgainst || 0).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="px-2 py-2 text-center">
-                          <span className={`font-medium ${
-                            team.pointDifferential >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
-                          </span>
-                        </TableCell>
-                        {isManaging && (
-                          <TableCell className="px-2 py-2 text-center">
-                            <div className="flex flex-col gap-1">
-                              {divisionStandings
-                                .filter(d => d.id !== division.id)
-                                .map(targetDivision => (
-                                  <Button
-                                    key={targetDivision.id}
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-xs px-2 py-1 h-6"
-                                    onClick={() => handleTeamMove(team.id, targetDivision.id)}
-                                  >
-                                    → {targetDivision.name}
-                                  </Button>
-                                ))}
-                            </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="rounded-md border p-2 sm:p-0">
+                <ResponsiveDataTable
+                  columns={standingsColumns({
+                    withRank: true,
+                    moveLabel: 'Move',
+                    moveTargets: () => divisionStandings.filter((d) => d.id !== division.id),
+                  })}
+                  data={division.teams}
+                  rowClassName={(team) =>
+                    `text-sm transition-all duration-200 hover:bg-muted/50 ${
+                      team.isPlayoffSpot ? 'bg-green-50 dark:bg-green-900/20' : ''
+                    }`
+                  }
+                />
               </div>
             ) : (
               <div className="text-center py-4 text-muted-foreground text-xs">
@@ -665,72 +718,16 @@ const DrawerStandingsTable = ({
             <div className="flex items-center gap-2 px-1">
               <h3 className="text-base font-semibold text-muted-foreground">Unassigned</h3>
             </div>
-            <div className="rounded-md border overflow-x-auto">
-              <Table className="min-w-[500px]">
-                <TableHeader>
-                  <TableRow className="text-sm">
-                    <TableHead className="px-3 py-2 text-sm min-w-[140px]">Team</TableHead>
-                    <TableHead className="px-3 py-2 text-sm min-w-[120px]">Owner</TableHead>
-                    <TableHead className="w-20 px-2 py-2 text-center text-sm">Record</TableHead>
-                    <TableHead className="w-16 px-2 py-2 text-center text-sm">Win %</TableHead>
-                    <TableHead className="w-16 px-2 py-2 text-center text-sm">PF</TableHead>
-                    <TableHead className="w-16 px-2 py-2 text-center text-sm">PA</TableHead>
-                    <TableHead className="w-16 px-2 py-2 text-center text-sm">Diff</TableHead>
-                    {isManaging && <TableHead className="w-20 px-2 py-2 text-center text-sm">Assign</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {unassigned.map((team) => (
-                    <TableRow
-                      key={team.id}
-                      className="text-sm transition-all duration-200 hover:bg-muted/50"
-                    >
-                      <TableCell className="px-3 py-2 font-medium">
-                        {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
-                      </TableCell>
-                      <TableCell className="px-3 py-2 text-muted-foreground">
-                        {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
-                      </TableCell>
-                      <TableCell className="px-2 py-2 text-center">
-                        {team.wins}-{team.losses}-{team.ties}
-                      </TableCell>
-                      <TableCell className="px-2 py-2 text-center">
-                        {((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%
-                      </TableCell>
-                      <TableCell className="px-2 py-2 text-center">
-                        {(team.pointsFor || 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="px-2 py-2 text-center">
-                        {(team.pointsAgainst || 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="px-2 py-2 text-center">
-                        <span className={`font-medium ${
-                          team.pointDifferential >= 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
-                        </span>
-                      </TableCell>
-                      {isManaging && (
-                        <TableCell className="px-2 py-2 text-center">
-                          <div className="flex flex-col gap-1">
-                            {divisionStandings.map(targetDivision => (
-                              <Button
-                                key={targetDivision.id}
-                                variant="outline"
-                                size="sm"
-                                className="text-xs px-2 py-1 h-6"
-                                onClick={() => handleTeamMove(team.id, targetDivision.id)}
-                              >
-                                → {targetDivision.name}
-                              </Button>
-                            ))}
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+            <div className="rounded-md border p-2 sm:p-0">
+              <ResponsiveDataTable
+                columns={standingsColumns({
+                  withRank: false,
+                  moveLabel: 'Assign',
+                  moveTargets: () => divisionStandings,
+                })}
+                data={unassigned}
+                rowClassName={() => 'text-sm transition-all duration-200 hover:bg-muted/50'}
+              />
             </div>
           </div>
         )}

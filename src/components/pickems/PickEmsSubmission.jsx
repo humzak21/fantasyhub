@@ -6,6 +6,9 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Separator } from '../ui/separator';
 import { Clock, Trophy, Users, Target, AlertCircle, CheckCircle2, Calendar, Edit3, Save, X } from 'lucide-react';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { getTeamColor } from '../../utils/teamColors';
+import { cn } from '../../lib/utils';
+import PickEmsSubmitBar from './PickEmsSubmitBar';
 
 const PickEmsSubmission = ({
   season,
@@ -248,87 +251,6 @@ const PickEmsSubmission = ({
           </div>
         </CardHeader>
 
-        {status.status === 'open' && (
-          <CardContent>
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-yellow-600" />
-                  <span className="font-medium">
-                    {hasSubmitted && !isEditing ? 'Picks Submitted:' : 'Picks Made:'}
-                  </span>
-                  <span>{totalPicks}/{selectableGames.length}</span>
-                </div>
-
-                {hasSubmitted && !isEditing && (
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    All Submitted
-                  </Badge>
-                )}
-
-                {!hasSubmitted && totalPicks === selectableGames.length && (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    Ready to Submit
-                  </Badge>
-                )}
-
-                {isEditing && hasChanges && (
-                  <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                    Changes Made
-                  </Badge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {!user ? (
-                  <div className="text-sm text-muted-foreground px-4 py-2 bg-yellow-50 border border-yellow-200 rounded">
-                    Please log in to submit or edit picks
-                  </div>
-                ) : hasSubmitted && !isEditing ? (
-                  <Button
-                    onClick={() => setIsEditing(true)}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                    Edit Picks
-                  </Button>
-                ) : (
-                  <>
-                    {isEditing && (
-                      <Button
-                        onClick={handleCancelEdit}
-                        variant="outline"
-                        className="flex items-center gap-2"
-                      >
-                        <X className="h-4 w-4" />
-                        Cancel
-                      </Button>
-                    )}
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={submitting || totalPicks !== selectableGames.length}
-                      className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white"
-                    >
-                      {submitting ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Submitting...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4" />
-                          Submit Picks
-                        </>
-                      )}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        )}
       </Card>
 
       {/* Success confirmation */}
@@ -374,72 +296,71 @@ const PickEmsSubmission = ({
         <div className="space-y-4">
           {availableGames.map((game, index) => {
             const isBye = isByeWeek(game);
+            // One expression for "may this viewer change this pick", instead
+            // of the same four-clause condition repeated in each button's
+            // onClick, its `disabled` and twice more in its class string.
+            const canPick = Boolean(user) && status.status === 'open' && (!hasSubmitted || isEditing);
             return (
               <Card key={game.id} className={`overflow-hidden ${isBye ? 'bg-muted/30' : ''}`}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    {/* Game matchup */}
-                    <div className="flex items-center space-x-6">
-                      <div className="text-sm text-muted-foreground font-medium w-16">
-                        {isBye ? (
-                          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
-                            BYE
-                          </Badge>
-                        ) : (
-                          `Game ${selectableGames.findIndex(g => g.id === game.id) + 1}`
-                        )}
-                      </div>
+                <CardContent className="p-4 sm:p-6">
+                  {/*
+                    This row used to be a hard 632px: a w-16 label, w-60 + w-8 +
+                    w-60, and three fixed gaps. At 375px (~310px usable) the
+                    second team button sat entirely off-screen behind the root's
+                    overflow-x: hidden, so nobody could pick team 2 on a phone.
 
-                      <div className="flex items-center space-x-4">
-                        {/* Team 1 */}
-                        <button
-                          onClick={() => !isBye && user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team1.id)}
-                          disabled={isBye || !user || status.status !== 'open' || (hasSubmitted && !isEditing)}
-                          className={`
-                            flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
-                            ${isBye
-                              ? 'border-muted bg-muted/50 cursor-not-allowed opacity-60'
-                              : picks[game.id]?.predictedWinnerTeamId === game.team1.id
-                                ? 'border-blue-600 bg-blue-600 text-white font-semibold'
-                                : 'border-muted hover:border-primary/50 hover:bg-muted/50'
-                            }
-                            ${(!isBye && (!user || status.status !== 'open' || (hasSubmitted && !isEditing))) ? 'cursor-not-allowed opacity-100' : isBye ? '' : 'cursor-pointer'}
-                          `}
-                        >
-                          <div className="text-center w-full">
-                            <div className="font-medium truncate px-2">{getMaskedTeamName(game.team1, user, isAdmin, teamOwnerNames)}</div>
-                            <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team1, user, isAdmin, teamOwnerNames)}</div>
-                            {isBye && (
-                              <div className="text-xs font-semibold text-yellow-700 mt-1">ON BYE</div>
-                            )}
+                    It is fluid below sm: and pinned to the old track widths
+                    from sm: up, so the desktop layout is byte-for-byte what it
+                    was.
+                  */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+                    <div className="text-sm text-muted-foreground font-medium sm:w-16 sm:shrink-0">
+                      {isBye ? (
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                          BYE
+                        </Badge>
+                      ) : (
+                        `Game ${selectableGames.findIndex(g => g.id === game.id) + 1}`
+                      )}
+                    </div>
+
+                    <div
+                      role="radiogroup"
+                      aria-label={isBye ? 'Bye week' : `Pick the winner of game ${selectableGames.findIndex(g => g.id === game.id) + 1}`}
+                      className={`grid w-full min-w-0 items-stretch gap-2 sm:w-auto sm:gap-4 ${
+                        isBye
+                          ? 'grid-cols-1 sm:grid-cols-[15rem]'
+                          : 'grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:grid-cols-[15rem_2rem_15rem]'
+                      }`}
+                    >
+                      <PickOption
+                        team={game.team1}
+                        isSelected={picks[game.id]?.predictedWinnerTeamId === game.team1.id}
+                        isBye={isBye}
+                        disabled={isBye || !canPick}
+                        onSelect={() => canPick && handlePickChange(game.id, game.team1.id)}
+                        user={user}
+                        isAdmin={isAdmin}
+                        teamOwnerNames={teamOwnerNames}
+                      />
+
+                      {!isBye && (
+                        <>
+                          <div className="self-center text-center text-xs font-medium uppercase text-muted-foreground">
+                            vs
                           </div>
-                        </button>
 
-                        {!isBye && (
-                          <>
-                            <div className="text-muted-foreground font-medium text-center w-8">vs</div>
-
-                            {/* Team 2 */}
-                            <button
-                              onClick={() => user && (status.status === 'open' && (!hasSubmitted || isEditing)) && handlePickChange(game.id, game.team2.id)}
-                              disabled={!user || status.status !== 'open' || (hasSubmitted && !isEditing)}
-                              className={`
-                                flex items-center justify-center p-4 rounded-lg border-2 transition-all w-60
-                                ${picks[game.id]?.predictedWinnerTeamId === game.team2.id
-                                  ? 'border-blue-600 bg-blue-600 text-white font-semibold'
-                                  : 'border-muted hover:border-primary/50 hover:bg-muted/50'
-                                }
-                                ${(!user || status.status !== 'open' || (hasSubmitted && !isEditing)) ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}
-                              `}
-                            >
-                              <div className="text-center w-full">
-                                <div className="font-medium truncate px-2">{getMaskedTeamName(game.team2, user, isAdmin, teamOwnerNames)}</div>
-                                <div className="text-xs text-muted-foreground truncate px-2">{getMaskedOwnerName(game.team2, user, isAdmin, teamOwnerNames)}</div>
-                              </div>
-                            </button>
-                          </>
-                        )}
-                      </div>
+                          <PickOption
+                            team={game.team2}
+                            isSelected={picks[game.id]?.predictedWinnerTeamId === game.team2.id}
+                            disabled={!canPick}
+                            onSelect={() => canPick && handlePickChange(game.id, game.team2.id)}
+                            user={user}
+                            isAdmin={isAdmin}
+                            teamOwnerNames={teamOwnerNames}
+                          />
+                        </>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -449,115 +370,76 @@ const PickEmsSubmission = ({
         </div>
       )}
 
-      {/* Bottom Submit Button */}
       {status.status === 'open' && availableGames.length > 0 && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-yellow-600" />
-                  <span className="font-medium">
-                    {hasSubmitted && !isEditing ? 'Picks Submitted:' : 'Picks Made:'}
-                  </span>
-                  <span>{totalPicks}/{selectableGames.length}</span>
-                </div>
-
-                {hasSubmitted && !isEditing && (
-                  <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    All Submitted
-                  </Badge>
-                )}
-
-                {!hasSubmitted && totalPicks === selectableGames.length && (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    Ready to Submit
-                  </Badge>
-                )}
-
-                {isEditing && hasChanges && (
-                  <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                    Changes Made
-                  </Badge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {!user ? (
-                  <div className="text-sm text-muted-foreground px-4 py-2 bg-yellow-50 border border-yellow-200 rounded">
-                    Please log in to submit or edit picks
-                  </div>
-                ) : hasSubmitted && !isEditing ? (
-                  <Button
-                    onClick={() => setIsEditing(true)}
-                    variant="outline"
-                    size="lg"
-                    className="flex items-center gap-2 px-8"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                    Edit Picks
-                  </Button>
-                ) : (
-                  <>
-                    {isEditing && (
-                      <Button
-                        onClick={handleCancelEdit}
-                        variant="outline"
-                        size="lg"
-                        className="flex items-center gap-2 px-8"
-                      >
-                        <X className="h-4 w-4" />
-                        Cancel
-                      </Button>
-                    )}
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={submitting || totalPicks !== selectableGames.length}
-                      size="lg"
-                      className="flex items-center gap-2 px-8 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white"
-                    >
-                      {submitting ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Submitting...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="h-4 w-4" />
-                          Submit Picks
-                        </>
-                      )}
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Instructions */}
-      {status.status === 'open' && availableGames.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground space-y-2">
-              <h4 className="font-medium text-foreground">How to Play:</h4>
-              <ul className="space-y-1 pl-4">
-                <li>• Pick the winner for each matchup by clicking on a team</li>
-                <li>• Each correct pick earns 1 point</li>
-                <li>• You must make picks for all games before submitting</li>
-                {byeGames.length > 0 && (
-                  <li>• Teams on bye week are shown but cannot be selected</li>
-                )}
-                <li>• You can change your picks until the submission deadline</li>
-                <li>• Results will be revealed on {pickEmWeek && new Date(pickEmWeek.resultsRevealAt).toLocaleDateString()}</li>
-              </ul>
-            </div>
-          </CardContent>
-        </Card>
+        <PickEmsSubmitBar
+          totalPicks={totalPicks}
+          totalGames={selectableGames.length}
+          hasSubmitted={hasSubmitted}
+          isEditing={isEditing}
+          hasChanges={hasChanges}
+          submitting={submitting}
+          user={user}
+          onSubmit={handleSubmit}
+          onEdit={() => setIsEditing(true)}
+          onCancelEdit={handleCancelEdit}
+        />
       )}
     </div>
+  );
+};
+
+/**
+ * One team, as a choice.
+ *
+ * The two buttons this replaces were near-identical copies whose selected
+ * state was a solid blue fill and nothing else. That is a colour-only
+ * distinction — invisible to anyone who cannot separate the two hues, and
+ * invisible to assistive technology, because these were plain `<button>`s in a
+ * plain `<div>`: no radio role, no `aria-checked`, no group, so a screen
+ * reader was given two unrelated buttons with no indication that one of them
+ * was the answer.
+ *
+ * Selection now reads three ways at once: a check mark, the border, and a
+ * tint. The tint is the *team's* colour, so picking a team looks like picking
+ * that team rather than like filling in a form field.
+ */
+const PickOption = ({ team, isSelected, isBye, disabled, onSelect, user, isAdmin, teamOwnerNames }) => {
+  const color = getTeamColor(team);
+
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={isSelected}
+      disabled={disabled}
+      onClick={onSelect}
+      className={cn(
+        'relative flex min-h-16 min-w-0 items-center justify-center rounded-lg border-2 p-3 text-center transition-colors sm:p-4',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        isBye && 'cursor-not-allowed border-border bg-muted/50 opacity-60',
+        !isBye && isSelected && ['border-current bg-current/10', color.text],
+        !isBye && !isSelected && 'border-border hover:border-foreground/30 hover:bg-accent/50',
+        disabled && !isBye && 'cursor-not-allowed',
+        !disabled && 'cursor-pointer'
+      )}
+    >
+      {isSelected && (
+        <CheckCircle2
+          className="absolute right-2 top-2 h-4 w-4"
+          aria-hidden="true"
+        />
+      )}
+
+      <div className="w-full min-w-0">
+        <div className={cn('truncate text-sm font-semibold sm:text-base', !isSelected && 'text-foreground')}>
+          {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+        </div>
+        <div className="truncate text-xs text-muted-foreground">
+          {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
+        </div>
+        {isBye && <div className="mt-1 text-xs font-semibold text-warning">On bye</div>}
+      </div>
+    </button>
   );
 };
 

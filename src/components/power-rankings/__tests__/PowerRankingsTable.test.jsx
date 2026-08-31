@@ -9,10 +9,17 @@
  * data and a component that scored zero. The old breakdown coalesced both to
  * `0.00` with a full-width label, which is how a roster metric that had never
  * once been computed appeared as a confident number for every team.
+ *
+ * Cell assertions are scoped with `within(table())`. The table now renders
+ * through ResponsiveDataTable, which emits *both* a table and a card stack and
+ * lets CSS choose — in a browser exactly one of them is `display: none` and so
+ * out of the accessibility tree, but jsdom applies no CSS and sees both. An
+ * unscoped `getByText` therefore finds two of everything. Scoping says which
+ * layout the assertion is about, which is more precise than what it replaced.
  */
 
 import { describe, it, expect } from 'vitest';
-import { renderWithProviders, screen } from '../../../test/renderWithProviders.jsx';
+import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
 import PowerRankingsTable from '../PowerRankingsTable.jsx';
 import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../../types/index.js';
 
@@ -52,12 +59,29 @@ const team = (overrides = {}) => ({
 });
 
 describe('PowerRankingsTable', () => {
+  const table = () => screen.getByRole('table');
+
+  // One precision policy, from src/utils/format.js: points and ratings to one
+  // decimal, percentages to one, records with an en dash. The table used to
+  // print `87.50` and `+135.00`, two decimals of a quantity whose inputs are
+  // not that precise, and a different precision again in the standings drawer.
   it('renders a team with its record and rating', () => {
     renderWithProviders(<PowerRankingsTable rankings={[team()]} currentWeek={4} />);
 
-    expect(screen.getByText('3-0')).toBeInTheDocument();
-    expect(screen.getByText('87.50')).toBeInTheDocument();
-    expect(screen.getByText('+135.00')).toBeInTheDocument();
+    expect(within(table()).getByText('3–0')).toBeInTheDocument();
+    expect(within(table()).getByText('87.5')).toBeInTheDocument();
+    expect(within(table()).getByText('+135.0')).toBeInTheDocument();
+  });
+
+  it('renders the same row as a card, from the same column definitions', () => {
+    const { container } = renderWithProviders(
+      <PowerRankingsTable rankings={[team()]} currentWeek={4} />
+    );
+
+    const cardStack = container.querySelector('.md\\:hidden');
+    expect(cardStack.children).toHaveLength(1);
+    expect(within(cardStack).getByText('3–0')).toBeInTheDocument();
+    expect(within(cardStack).getByText('87.5')).toBeInTheDocument();
   });
 
   it('masks the team name for a signed-out viewer', () => {
@@ -69,7 +93,7 @@ describe('PowerRankingsTable', () => {
     expect(screen.queryByText('Lightskin Empire')).not.toBeInTheDocument();
     expect(screen.queryByText('Alice Example')).not.toBeInTheDocument();
     // Team name and owner name both mask to the same truncated id.
-    expect(screen.getAllByText('t1')).toHaveLength(2);
+    expect(within(table()).getAllByText('t1')).toHaveLength(2);
   });
 
   it('labels every component from the weights, in the advanced legend', () => {
@@ -102,18 +126,31 @@ describe('PowerRankingsTable', () => {
     expect(screen.getByText(/remaining\s+weights are rescaled/i)).toBeInTheDocument();
   });
 
-  it('shows the luck percentage the calculator reports', () => {
+  // Luck keeps both its sign and its unit. It is a deviation from an
+  // expectation, so "+8.0%" says which way and of what; rendering it as a bare
+  // signed number leaves the reader guessing at the scale.
+  it('shows the luck percentage the calculator reports, signed', () => {
     renderWithProviders(<PowerRankingsTable rankings={[team()]} currentWeek={4} />);
-    expect(screen.getByText('8.00%')).toBeInTheDocument();
+    expect(within(table()).getByText('+8.0%')).toBeInTheDocument();
   });
 
-  it('renders a loading state instead of an empty page', () => {
+  it('renders a loading skeleton instead of an empty page', () => {
     renderWithProviders(<PowerRankingsTable rankings={[]} currentWeek={4} loading />);
-    expect(screen.getByText(/Calculating week 4 rankings/)).toBeInTheDocument();
+    // A shape rather than a spinner: the page does not jump when data lands.
+    expect(screen.getAllByRole('status', { name: /loading/i }).length).toBeGreaterThan(0);
   });
 
   it('renders an empty state when there is nothing to rank', () => {
     renderWithProviders(<PowerRankingsTable rankings={[]} currentWeek={4} />);
-    expect(screen.getByText('No Rankings Available')).toBeInTheDocument();
+    expect(screen.getByText('No rankings yet')).toBeInTheDocument();
+    expect(screen.getByText(/week 4 needs teams/i)).toBeInTheDocument();
+  });
+
+  it('shows how far each team moved since last week', () => {
+    renderWithProviders(
+      <PowerRankingsTable rankings={[team({ rankChange: 2 })]} currentWeek={4} />
+    );
+    // Movement is stated in words for assistive tech, not just an arrow.
+    expect(within(table()).getByText(/2 places up from last week/i)).toBeInTheDocument();
   });
 });

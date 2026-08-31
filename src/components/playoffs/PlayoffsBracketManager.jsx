@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import RouteLoading from '../layout/RouteLoading';
+import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -95,8 +97,16 @@ const PlayoffsBracketManager = ({
         }
     }, [isAdmin,season, loadBracketData]);
 
+    // A quiet loader rather than a blank tab. Not a skeleton: the bracket
+    // is not a grid of cards, and a card skeleton standing in for it was
+    // part of the flash of odd boxes on every navigation.
     if (dataLoading && !bracketStatus) {
-        return null;
+        return (
+            <>
+                <PageHeader icon={Trophy} title="Playoffs" />
+                <RouteLoading />
+            </>
+        );
     }
 
     if (!season) {
@@ -118,7 +128,7 @@ const PlayoffsBracketManager = ({
             {/* Header */}
             <Card>
                 <CardHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <CardTitle className="flex items-center gap-2">
                                 <Trophy className="h-5 w-5 text-yellow-500" />
@@ -152,13 +162,18 @@ const PlayoffsBracketManager = ({
 
                 {/* Deadline Info */}
                 <CardContent>
-                    <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 text-orange-600" />
-                                <span className="font-medium">Deadline:</span>
-                                <span>{bracketStatus?.deadlineFormatted || 'Not set'}</span>
-                            </div>
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 p-4">
+                        {/* `min-w-0` and a shrinkable date. The row is
+                            `justify-between` with a long formatted deadline on
+                            one side and a button on the other; without this the
+                            date refuses to shrink and pushes the button past
+                            the right edge of a 375px screen. */}
+                        <div className="flex min-w-0 items-center gap-2">
+                            <Clock className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                            <span className="shrink-0 font-medium">Deadline:</span>
+                            <span className="min-w-0 text-sm">
+                                {bracketStatus?.deadlineFormatted || 'Not set'}
+                            </span>
                         </div>
 
                         {/* Admin controls */}
@@ -187,18 +202,15 @@ const PlayoffsBracketManager = ({
 
             {/* Main content */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                    <TabsTrigger value="bracket" className="flex items-center gap-2">
-                        <Target className="h-4 w-4" />
+                <TabsList className="w-full">
+                    <TabsTrigger value="bracket" icon={<Target className="h-4 w-4" />}>
                         Bracket
                     </TabsTrigger>
-                    <TabsTrigger value="standings" className="flex items-center gap-2">
-                        <Trophy className="h-4 w-4" />
+                    <TabsTrigger value="standings" icon={<Trophy className="h-4 w-4" />}>
                         Standings
                     </TabsTrigger>
                     {isAdmin && (
-                        <TabsTrigger value="admin" className="flex items-center gap-2">
-                            <Users className="h-4 w-4" />
+                        <TabsTrigger value="admin" icon={<Users className="h-4 w-4" />}>
                             Admin
                         </TabsTrigger>
                     )}

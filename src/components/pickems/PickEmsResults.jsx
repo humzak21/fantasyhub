@@ -44,7 +44,7 @@ const PickEmsResults = ({
 
   const getRankIcon = (rank) => {
     if (rank === 1) return <Trophy className="h-4 w-4 text-yellow-500" />;
-    if (rank === 2) return <Award className="h-4 w-4 text-gray-400" />;
+    if (rank === 2) return <Award className="h-4 w-4 text-muted-foreground" />;
     if (rank === 3) return <Award className="h-4 w-4 text-amber-600" />;
     return null;
   };
@@ -92,7 +92,7 @@ const PickEmsResults = ({
 
       {/* Results tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="w-full">
           <TabsTrigger value="weekly" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
             Weekly Results

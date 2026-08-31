@@ -52,8 +52,12 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       // Render fallback UI
+      // The wrapper used to be `bg-gradient-to-br from-slate-50 to-slate-100`
+      // — a near-white gradient behind the error card, on an app that is
+      // dark-only. It is why a crash looked like the page had been replaced
+      // by a different site.
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="flex min-h-dvh items-center justify-center bg-background p-4">
           <Card className="max-w-md w-full border-destructive/50 shadow-lg">
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center space-y-4">

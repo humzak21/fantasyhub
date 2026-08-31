@@ -2,11 +2,31 @@ import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 
 import { cn } from "../../lib/utils"
+import { useIsMobile } from "../../hooks/use-mobile"
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = {
   light: "",
   dark: ".dark"
+}
+
+/**
+ * The categorical series palette.
+ *
+ * Charts used to pick their own colours: ~200 hardcoded hexes across the
+ * chart components, including recharts' default `#8884d8` and — on a dark
+ * page — several dark-grey *text* colours (`#1f2937`, `#374151`) used as
+ * fills. Series colours come from the theme now.
+ *
+ * These read `var(--chart-N)` rather than the `--color-chart-N` theme
+ * entries: `@theme inline` inlines those into utilities without emitting a
+ * custom property, and recharts needs a value it can resolve at runtime.
+ */
+const CHART_COLORS = Array.from({ length: 10 }, (_, i) => `var(--chart-${i + 1})`)
+
+/** The colour for a series index, wrapping around the palette. */
+function chartColor(index) {
+  return CHART_COLORS[index % CHART_COLORS.length]
 }
 
 const ChartContext = React.createContext(null)
@@ -21,6 +41,18 @@ function useChart() {
   return context
 }
 
+/**
+ * `h-[260px] sm:h-[400px]`, not `aspect-video`.
+ *
+ * A 16:9 box is 211px tall inside a 375px screen, which is not a chart — the
+ * legend and the axis labels alone eat most of it. A fixed *height* that steps
+ * up at sm: gives a readable chart at both ends. Pass `className="h-[…]"` to
+ * override; the default is last in the cn() call so a caller's height wins.
+ *
+ * Do not hardcode a pixel height on the wrapper element instead (several
+ * charts in this app carried `style={{ height: 520 }}`, which is 139% of an
+ * iPhone SE's viewport) — that is the thing this default exists to replace.
+ */
 const ChartContainer = React.forwardRef(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
@@ -31,7 +63,7 @@ const ChartContainer = React.forwardRef(({ id, className, children, config, ...p
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
+          "flex h-[260px] w-full justify-center text-xs sm:h-[400px] [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
           className
         )}
         {...props}>
@@ -74,6 +106,52 @@ return color ? `  --color-${key}: ${color};` : null
           .join("\n"),
       }} />
   );
+}
+
+/**
+ * Small-screen *overrides* for a recharts axis. Empty on desktop.
+ *
+ * Spread these AFTER the chart's own axis props, so a chart keeps its desktop
+ * appearance untouched and only changes below the breakpoint:
+ *
+ *   const axis = useMobileAxis()
+ *   <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} {...axis.x} />
+ *   <YAxis width={30} {...axis.y} />
+ *   <BarChart margin={{ ... }} {...axis.chart}>
+ *
+ * The failure this exists to prevent is `interval={0}` with angled ticks,
+ * which is what every statistics chart here does. `interval={0}` forces every
+ * tick to render, so at 375px fourteen angled team names overlap into a grey
+ * smear that also overflows the plot area. `preserveStartEnd` lets recharts
+ * drop the ticks it cannot fit — correct at any width, and essential at this
+ * one.
+ *
+ * Returning overrides rather than a full axis config is deliberate: a hook
+ * that returned complete props would have to guess each chart's desktop
+ * styling, and would silently flatten it.
+ */
+function useMobileAxis() {
+  const isMobile = useIsMobile()
+
+  return React.useMemo(() => (isMobile
+    ? {
+        isMobile,
+        x: {
+          interval: "preserveStartEnd",
+          angle: 0,
+          textAnchor: "middle",
+          height: 28,
+          tick: { fontSize: 10 },
+          tickMargin: 4,
+          minTickGap: 8,
+        },
+        y: { width: 30, tick: { fontSize: 10 }, tickMargin: 2, label: undefined },
+        // Axis labels and wide gutters are desktop affordances; at 375px they
+        // are most of the plot area.
+        chart: { margin: { top: 8, right: 8, bottom: 4, left: 0 } },
+      }
+    : { isMobile, x: {}, y: {}, chart: {} }
+  ), [isMobile])
 }
 
 const ChartTooltip = RechartsPrimitive.Tooltip
@@ -199,7 +277,7 @@ const ChartTooltipContent = React.forwardRef((
                         </span>
                       </div>
                       {item.value && (
-                        <span className="font-mono font-medium tabular-nums text-foreground">
+                        <span className="tabular font-medium text-foreground">
                           {item.value.toLocaleString()}
                         </span>
                       )}
@@ -309,4 +387,11 @@ export {
   ChartLegend,
   ChartLegendContent,
   ChartStyle,
+  useMobileAxis,
+  CHART_COLORS,
+  chartColor,
 }
+// Re-exported so a chart has one import for "what colour is this team": the
+// team wheel and the categorical palette are different systems (identity vs.
+// series) and a chart usually wants the first.
+export { teamChartColor } from "../../utils/teamColors"
