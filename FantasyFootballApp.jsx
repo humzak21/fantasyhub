@@ -314,10 +314,19 @@ const FantasyFootballApp = () => {
 
 
           {/* Error Display */}
+          {/* `{error}` — not `{error.message}` — was rendering an Error object
+              as a React child, which is React error #31 and takes down the
+              whole tree. So the one branch that exists to *report* a failed
+              load was itself the thing that turned a failed load into
+              "Something went wrong", with the real message lost. Any data
+              error did this; it needed no exotic conditions, only a request
+              that did not succeed. */}
           {error && (
             <Card className="mb-6 border-destructive">
               <CardContent className="p-4">
-                <p className="text-destructive">{error}</p>
+                <p className="text-destructive">
+                  {error instanceof Error ? error.message : String(error)}
+                </p>
               </CardContent>
             </Card>
           )}
