@@ -82,18 +82,18 @@ const MarginOfVictoryChart = ({
             cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }}
           />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '2px' }} height={50} />
-          <ReferenceLine x={0} stroke="#666" strokeDasharray="3 3" />
+          <ReferenceLine x={0} stroke="hsl(var(--border))" strokeDasharray="3 3" />
 
           <Bar
             dataKey="marginOfVictory"
             name="Avg Margin"
-            fill="#3b82f6"
+            fill="hsl(var(--chart-2))"
             radius={[0, 8, 8, 0]}
           >
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={entry.marginOfVictory > 0 ? '#10b981' : '#ef4444'}
+                fill={entry.marginOfVictory > 0 ? 'hsl(var(--success))' : 'hsl(var(--destructive))'}
                 opacity={0.8}
               />
             ))}

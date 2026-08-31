@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
+import { ChartContainer, useMobileAxis, teamChartColor } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -19,25 +19,16 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-// Color palette for team lines (cycle through colors for up to 16 teams)
-const TEAM_COLORS = [
-  '#3b82f6', // blue
-  '#ef4444', // red
-  '#10b981', // green
-  '#f97316', // orange
-  '#8b5cf6', // purple
-  '#06b6d4', // cyan
-  '#ec4899', // pink
-  '#eab308', // yellow
-  '#14b8a6', // teal
-  '#f43f5e', // rose
-  '#6366f1', // indigo
-  '#14b8a6', // emerald
-  '#a855f7', // fuchsia
-  '#0ea5e9', // sky
-  '#f59e0b', // amber
-  '#6b7280'  // gray
-];
+/*
+ * The sixteen-hex palette that used to live here is gone. Lines were coloured
+ * by the team's *index in this chart's own array*, so a franchise was blue
+ * here, green on the next panel, and something else again after a filter
+ * changed the array's length — the reader could not follow one team across
+ * the page. `teamChartColor()` derives the colour from the franchise, so it
+ * matches the team's chip in every table and its slot in the bracket. (The
+ * list also contained #14b8a6 twice, labelled "teal" and "emerald", so two
+ * teams shared a colour outright.)
+ */
 
 /**
  * WeeklyScoringTrendsChart - Line chart showing team scores over time
@@ -116,12 +107,12 @@ const WeeklyScoringTrendsChart = ({
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'rgba(255, 255, 255, 0.3)' }} />
           <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '4px' }} height={50} />
 
-          {teamIds.map((teamId, index) => {
+          {teamIds.map((teamId) => {
             const team = rankings.find(r => r.id === teamId);
             if (!team) return null;
 
             const teamName = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
-            const color = TEAM_COLORS[index % TEAM_COLORS.length];
+            const color = teamChartColor(team);
 
             return (
               <Line

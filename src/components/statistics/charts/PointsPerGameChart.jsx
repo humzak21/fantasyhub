@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent, useMobileAxis } from '../../ui/chart';
+import { ChartContainer, ChartTooltip, useMobileAxis, teamChartColor } from '../../ui/chart';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 
 /**
@@ -66,7 +66,11 @@ const PointsPerGameChart = ({
         ppg: Math.round(team.ppg * 100) / 100,
         totalPoints: Math.round(team.totalPoints * 100) / 100,
         gamesPlayed: team.gamesPlayed,
-        teamId: team.teamId
+        teamId: team.teamId,
+        // Carried through so the bar can be coloured by franchise. The owner
+        // is what `teamColors` keys on when there is no franchise id.
+        franchiseId: team.franchiseId ?? team.franchise_id,
+        owner: team.owner
       }));
   }, [data, selectedTeams, user, isAdmin, teamOwnerNames]);
 
@@ -78,21 +82,12 @@ const PointsPerGameChart = ({
     );
   }
 
-  // Color gradient from highest to lowest
-  const getBarColor = (index, total) => {
-    const ratio = index / Math.max(total - 1, 1);
-
-    // Gradient from green (best) to orange (middle) to red (worst)
-    if (ratio < 0.5) {
-      // Green to orange
-      const localRatio = ratio * 2;
-      return `rgb(${Math.round(16 + (249 - 16) * localRatio)}, ${Math.round(185 - (185 - 115) * localRatio)}, ${Math.round(129 - 129 * localRatio)})`;
-    } else {
-      // Orange to red
-      const localRatio = (ratio - 0.5) * 2;
-      return `rgb(${Math.round(249 - (249 - 239) * localRatio)}, ${Math.round(115 - (115 - 68) * localRatio)}, ${Math.round(22 - 22 * localRatio)})`;
-    }
-  };
+  /*
+   * Bars carry the team's own colour, not a green-to-red ramp by position.
+   * The ramp encoded rank — which is already the sort order, stated twice —
+   * and it did so with interpolated rgb() values that owed nothing to the
+   * theme. Team colour lets a reader find their team in the chart instead.
+   */
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -121,7 +116,7 @@ const PointsPerGameChart = ({
             {chartData.map((entry, index) => (
               <Cell
                 key={`cell-${index}`}
-                fill={getBarColor(index, chartData.length)}
+                fill={teamChartColor({ franchiseId: entry.franchiseId, ownerName: entry.owner, name: entry.name })}
                 opacity={0.85}
               />
             ))}
