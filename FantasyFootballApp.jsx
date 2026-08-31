@@ -503,8 +503,8 @@ const FantasyFootballApp = () => {
           "Does not arrive" is not hypothetical. It is a dropped connection, an
           outage, a bad anon key — and in those cases the shell, the nav and
           every page's own empty state are exactly what the reader needs. Each
-          surface already owns its loading state (RouteLoading, SkeletonTable,
-          per-page empty states), so nothing here needs a modal on top of them.
+          surface already owns its loading state (RouteLoading, per-page empty
+          states), so nothing here needs a modal on top of them.
         */}
       </div>
     </ErrorBoundary>

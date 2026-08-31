@@ -134,10 +134,13 @@ describe('PowerRankingsTable', () => {
     expect(within(table()).getByText('+8.0%')).toBeInTheDocument();
   });
 
-  it('renders a loading skeleton instead of an empty page', () => {
+  it('renders a loading indicator instead of an empty page', () => {
     renderWithProviders(<PowerRankingsTable rankings={[]} currentWeek={4} loading />);
-    // A shape rather than a spinner: the page does not jump when data lands.
+    // The same spinner every other route shows. This was a table skeleton —
+    // the last one in the app — so a page load looked different depending on
+    // which tab you opened, and its uncoloured borders drew in white.
     expect(screen.getAllByRole('status', { name: /loading/i }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('renders an empty state when there is nothing to rank', () => {
