@@ -21,6 +21,10 @@ export function RouteLoading({ className }) {
     <div
       role="status"
       aria-live="polite"
+      // Named, not just live. A bare `role="status"` takes its accessible name
+      // from aria-label — not from its contents — so without this it is an
+      // anonymous region: announced on change, but impossible to refer to.
+      aria-label="Loading"
       className={cn('flex min-h-[45dvh] items-center justify-center', className)}
     >
       <span

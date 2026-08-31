@@ -233,6 +233,29 @@
 
 @layer base {
   /*
+   * An uncoloured border is a theme border, not a white one.
+   *
+   * Tailwind v3 gave a bare `border` utility a default colour; v4 does not, so
+   * it falls through to the CSS initial value — `currentColor` — which on a
+   * dark app with near-white text paints a *white* rule. Every `border`,
+   * `border-b` and `border-t` written without an explicit colour has been
+   * drawing one: the app header's underline, and the table skeleton whose
+   * "white outlines" is what sent us looking.
+   *
+   * The failure mode is what makes this worth a base rule rather than fixing
+   * each site: nothing errors, the class looks right in the markup, and the
+   * result is only wrong if someone happens to look at that edge. Restoring a
+   * sane default means a forgotten colour degrades to the theme's own hairline
+   * instead of to the loudest colour on the page. An explicit `border-*` still
+   * wins, and `border-current` still opts back in.
+   */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  /*
    * THE PALETTE
    *
    * Black first. The field is a true near-black at L 0.145 with almost no
