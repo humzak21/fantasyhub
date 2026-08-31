@@ -83,6 +83,21 @@ export function formatDelta(value, decimals = 1) {
 }
 
 /**
+ * A signed percentage — luck, or anything measured as a deviation from an
+ * expectation. Both halves matter: the sign says which way, and the unit says
+ * a percentage of what. Dropping either turns "+8.0%" into a bare number whose
+ * scale the reader has to guess.
+ *
+ * @param {number} value - already scaled 0-100
+ * @param {number} [decimals=1]
+ * @returns {string}
+ */
+export function formatSignedPct(value, decimals = 1) {
+  if (isMissing(value)) return EMPTY;
+  return `${formatDelta(value, decimals)}%`;
+}
+
+/**
  * Which way a signed value points. Callers use this to pick a colour without
  * re-deriving the comparison (and without disagreeing about what 0 means: it
  * is neutral, not a loss).
