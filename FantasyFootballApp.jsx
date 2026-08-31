@@ -149,7 +149,7 @@ const FantasyFootballApp = () => {
       { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
     ];
-  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner]);
+  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig]);
 
   // One definition of "may this viewer see this tab", shared by the nav and by
   // the route guard below — they must not be able to disagree.
