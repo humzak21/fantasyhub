@@ -108,6 +108,40 @@ were deleted on 2026-08-06. Nothing should reference them.
 `services/leagueHistoryManager.js` and `src/hooks/useLeagueHistory.js` were
 deleted on 2026-08-18; see "League History reads the live schema" below.
 
+### package-lock.json conflicts resolve themselves
+
+The lockfile is generated, not written, and git merges it line by line like
+prose. Any two branches that both touched dependencies conflict textually even
+when they do not disagree — which is how a 150-file PR merges clean everywhere
+except `package.json` and `package-lock.json`, repeatedly.
+
+`.gitattributes` routes the lockfile to `scripts/git-merge-lockfile.sh`, which
+discards both sides and regenerates from the merged `package.json`. That is the
+only resolution that yields a graph npm would actually produce: hand-stitching
+two resolved dependency trees can describe a tree npm would never generate, and
+it installs fine right up until it doesn't. If `package.json` is *also*
+conflicted the driver refuses and says so — the intent has to be settled by a
+person before any generated file can be right.
+
+The driver is defined in `.git/config`, which is not committed, so
+`scripts/setup-git-merge-driver.sh` registers it from npm's `prepare` hook —
+it runs on `npm install` and nobody has to know it exists. **Without that
+registration the attribute points at nothing and git silently line-merges
+anyway**, so if lockfile conflicts come back, check `git config --get
+merge.npm-lockfile.driver` first.
+
+`.github/dependabot.yml` is the other half: grouped, weekly updates so `main`'s
+lockfile moves a few times a month instead of daily. Majors are neither grouped
+nor ignored — they arrive as their own PR, which is what react-router 6→7
+needed and did not get.
+
+To resolve one by hand:
+
+```bash
+# settle package.json first, then
+npm install --package-lock-only && git add package-lock.json
+```
+
 ### Scripts write to production
 Every script in `scripts/` guards its entry point (`import.meta.url ===
 \`file://${process.argv[1]}\``), so importing one is safe — this was **not**

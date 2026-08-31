@@ -1,0 +1,48 @@
+# Dependabot, grouped.
+#
+# Ungrouped, Dependabot opens one PR per bump, and every one of them rewrites
+# package-lock.json on main. Each merge moves the lockfile out from under every
+# open branch, which is how a long-running PR ends up conflicting in exactly
+# two files and nowhere else. The merge driver in .gitattributes handles those
+# conflicts; grouping is the other half — it stops manufacturing them.
+#
+# Weekly rather than daily for the same reason: a branch that lives a fortnight
+# should meet two lockfile moves, not fourteen.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Production and development are split because they carry different
+      # risk: a bad runtime dependency ships to the league, a bad dev one
+      # breaks a build you are standing in front of.
+      production:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    # Majors are deliberately *not* grouped and deliberately *not* ignored.
+    # A group only claims updates matching its `update-types`, so a major
+    # arrives as its own PR and gets its own review — which is what React
+    # Router 6 to 7 needed and did not get. Ignoring them outright would be
+    # the wrong trade: this repo leans on Dependabot for security fixes, and
+    # some of those only exist in a new major.
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"
