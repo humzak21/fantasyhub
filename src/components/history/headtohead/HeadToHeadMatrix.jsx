@@ -47,20 +47,35 @@ const HeadToHeadMatrix = ({
     return data;
   }, [matrixData, sortBy]);
 
-  // Get cell color based on win percentage - more saturated for better contrast
-  // Using inline styles for reliable color rendering
+  /**
+   * The cell's fill, as a diverging scale around an even record.
+   *
+   * These were nine hardcoded hexes, three of them (#1f2937, #4b5563,
+   * #111827) dark-grey *text* colours from Tailwind's palette being used as
+   * fills on an already-dark page, and the whole scale unrelated to the
+   * theme's success/destructive pair — so a cell said "good" in a green the
+   * rest of the app never uses. Inline styles stay: recharts is not involved,
+   * but a table cell's background has to be a computed value here because the
+   * scale is continuous in intent and the class set would be a ladder of
+   * arbitrary opacities either way.
+   */
   const getCellStyle = (wins, losses, hasPlayed) => {
-    // Never played - show distinct gray
-    if (!hasPlayed) return { backgroundColor: '#1f2937', color: '#6b7280' }; // gray-800 bg, gray-500 text
+    // Never played: recedes rather than reading as a result.
+    if (!hasPlayed) {
+      return { backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' };
+    }
 
-    // 0-0 ties edge case
-    if (!wins && !losses) return { backgroundColor: '#4b5563', color: '#d1d5db' }; // gray-600
+    // 0-0, which is a meeting with no completed games rather than an even one.
+    if (!wins && !losses) {
+      return { backgroundColor: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))' };
+    }
 
     const winPct = wins / (wins + losses);
-    if (winPct >= 0.7) return { backgroundColor: '#059669', color: '#ffffff' }; // emerald-600
-    if (winPct >= 0.5) return { backgroundColor: '#34d399', color: '#000000' }; // emerald-400
-    if (winPct >= 0.3) return { backgroundColor: '#f87171', color: '#000000' }; // red-400
-    return { backgroundColor: '#dc2626', color: '#ffffff' }; // red-600
+    if (winPct >= 0.7) return { backgroundColor: 'hsl(var(--success) / 0.35)', color: 'hsl(var(--foreground))' };
+    if (winPct > 0.5) return { backgroundColor: 'hsl(var(--success) / 0.18)', color: 'hsl(var(--foreground))' };
+    if (winPct === 0.5) return { backgroundColor: 'hsl(var(--secondary))', color: 'hsl(var(--foreground))' };
+    if (winPct >= 0.3) return { backgroundColor: 'hsl(var(--destructive) / 0.18)', color: 'hsl(var(--foreground))' };
+    return { backgroundColor: 'hsl(var(--destructive) / 0.35)', color: 'hsl(var(--foreground))' };
   };
 
   // Get display name with masking
@@ -149,8 +164,8 @@ const HeadToHeadMatrix = ({
 
                       if (isSelf) {
                         return (
-                          <td key={col.franchiseId} className="p-1 text-center" style={{ backgroundColor: '#111827' }}>
-                            <span style={{ color: '#6b7280' }}>-</span>
+                          <td key={col.franchiseId} className="p-1 text-center" style={{ backgroundColor: 'hsl(var(--muted))' }}>
+                            <span className="text-muted-foreground">—</span>
                           </td>
                         );
                       }
@@ -175,7 +190,7 @@ const HeadToHeadMatrix = ({
                             <TooltipContent
                               side="top"
                               className="max-w-xs z-50"
-                              style={{ backgroundColor: '#1f2937', color: '#f9fafb', border: '1px solid #374151' }}
+                              className="rounded-md border border-border bg-popover text-popover-foreground shadow-lg" style={{}}
                             >
                               <div className="space-y-1 p-1">
                                 <p className="font-semibold">
@@ -187,16 +202,16 @@ const HeadToHeadMatrix = ({
                                       Record: <span className="font-mono">{wins}-{losses}</span>
                                       {opponent?.totalGames > 0 && ` (${opponent.winPct}%)`}
                                     </p>
-                                    <p className="text-xs" style={{ color: '#9ca3af' }}>
+                                    <p className="text-xs text-muted-foreground">
                                       Games: {opponent.totalGames} |
                                       PF: {opponent.pointsFor?.toFixed(0)} - PA: {opponent.pointsAgainst?.toFixed(0)}
                                     </p>
-                                    <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
+                                    <p className="mt-1 text-xs text-muted-foreground">
                                       Click for full history
                                     </p>
                                   </>
                                 ) : (
-                                  <p className="text-xs" style={{ color: '#9ca3af' }}>
+                                  <p className="text-xs text-muted-foreground">
                                     No matchup history yet
                                   </p>
                                 )}
@@ -213,27 +228,33 @@ const HeadToHeadMatrix = ({
           </div>
         </TooltipProvider>
 
-        {/* Legend */}
+        {/* Legend.
+            Each swatch is painted by `getCellStyle` rather than by its own
+            copy of the colour, so the key cannot drift from the grid it
+            explains — which it already had: the swatches were the pre-token
+            hexes while the cells had moved on. */}
         <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <span>Win rate:</span>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#059669' }}></div>
-            <span>&gt;70%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#34d399' }}></div>
-            <span>50-70%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#f87171' }}></div>
-            <span>30-50%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#dc2626' }}></div>
-            <span>&lt;30%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="w-4 h-4 rounded" style={{ backgroundColor: '#1f2937' }}></div>
+          {[
+            { label: 'Over 70%', wins: 8, losses: 2 },
+            { label: '50-70%', wins: 6, losses: 4 },
+            { label: 'Even', wins: 5, losses: 5 },
+            { label: '30-50%', wins: 4, losses: 6 },
+            { label: 'Under 30%', wins: 2, losses: 8 },
+          ].map((entry) => (
+            <div key={entry.label} className="flex items-center gap-1.5">
+              <div
+                className="h-4 w-4 rounded border border-border/50"
+                style={{ backgroundColor: getCellStyle(entry.wins, entry.losses, true).backgroundColor }}
+              />
+              <span>{entry.label}</span>
+            </div>
+          ))}
+          <div className="flex items-center gap-1.5">
+            <div
+              className="h-4 w-4 rounded border border-border/50"
+              style={{ backgroundColor: getCellStyle(0, 0, false).backgroundColor }}
+            />
             <span>Never played</span>
           </div>
         </div>

@@ -13,29 +13,17 @@ import {
   Legend
 } from 'recharts';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../ui/tabs';
-import { useMobileAxis } from '../../ui/chart';
+import { useMobileAxis, teamChartColor } from '../../ui/chart';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { AXIS_STYLE, GRID_STYLE } from '../utils/chartHelpers';
 import { TRANSACTION_COLORS } from '../../../../types/index.js';
 
-// Distinct color palette for pie chart - maximally different colors
-const DISTINCT_COLORS = [
-  '#ef4444', // red
-  '#3b82f6', // blue
-  '#22c55e', // green
-  '#f59e0b', // amber
-  '#8b5cf6', // violet
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
-  '#84cc16', // lime
-  '#6366f1', // indigo
-  '#14b8a6', // teal
-  '#a855f7', // purple
-  '#dc2626', // red-600
-  '#eab308', // yellow
-  '#64748b', // slate
-];
+/*
+ * Franchise colours come from the franchise, not from a local palette indexed
+ * by position in the query result. The list that was here assigned a colour by
+ * array index, so the same franchise changed colour between the wins tab and
+ * the points tab of this very component.
+ */
 
 const PointsWinsDistributionChart = ({
   careerStats = [],
@@ -67,19 +55,22 @@ const PointsWinsDistributionChart = ({
       return {
         name,
         franchiseId: stat.franchise_id,
+        // Carried so the colour can fall back to the owner when a row has no
+        // franchise id — owner names are the stable identity across seasons.
+        ownerName: stat.owner_name,
         totalPoints,
         ppg,
         totalWins
       };
     });
 
-    // Sort by total points for pie chart (descending) and assign colors by index
+    // Sorted for the bar chart; the colour is the franchise's, not the row's.
     const pointsData = [...data]
       .filter(d => d.totalPoints > 0)
       .sort((a, b) => b.totalPoints - a.totalPoints)
-      .map((d, index) => ({
+      .map((d) => ({
         ...d,
-        color: DISTINCT_COLORS[index % DISTINCT_COLORS.length]
+        color: teamChartColor({ franchiseId: d.franchiseId, ownerName: d.ownerName, name: d.name })
       }));
 
     // Create color map from points ranking for consistent colors
@@ -88,22 +79,22 @@ const PointsWinsDistributionChart = ({
       colorMap[d.franchiseId] = d.color;
     });
 
-    // Sort by PPG for pie chart (descending) and use same colors as points
+    // Sorted by PPG; same franchise colours as the points chart.
     const ppgData = [...data]
       .filter(d => d.ppg > 0)
       .sort((a, b) => b.ppg - a.ppg)
       .map(d => ({
         ...d,
-        color: colorMap[d.franchiseId] || DISTINCT_COLORS[0]
+        color: colorMap[d.franchiseId] || teamChartColor({ franchiseId: d.franchiseId, ownerName: d.ownerName, name: d.name })
       }));
 
-    // Sort by total wins for bar chart (descending) and assign colors by index
+    // Sorted for the bar chart; the colour is the franchise's, not the row's.
     const winsData = [...data]
       .filter(d => d.totalWins > 0)
       .sort((a, b) => b.totalWins - a.totalWins)
-      .map((d, index) => ({
+      .map((d) => ({
         ...d,
-        color: DISTINCT_COLORS[index % DISTINCT_COLORS.length]
+        color: teamChartColor({ franchiseId: d.franchiseId, ownerName: d.ownerName, name: d.name })
       }));
 
     // Process transaction data for stacked bar chart
@@ -258,67 +249,80 @@ const PointsWinsDistributionChart = ({
         </ResponsiveContainer>
       </TabsContent>
 
-      {/* Points Distribution - Two Pie Charts Side by Side */}
+      {/*
+        Sorted bars, not pie charts.
+        Two 14-slice pies compared quantities that differ by a few percent —
+        the one encoding people read worst — and needed a 14-item shared
+        legend underneath to say which slice was whose, which could not fit at
+        375px. A bar chart puts the names on the axis and makes "who is ahead
+        of whom" a matter of reading down the page.
+      */}
       <TabsContent value="points" className="mt-0">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Total Points Pie Chart */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
-            <h4 className="text-lg font-medium text-center mb-2 text-muted-foreground">Total Points</h4>
-            <ResponsiveContainer width="100%" height={axis.isMobile ? 220 : 280}>
-              <PieChart>
-                <Pie
-                  data={chartData.points}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={125}
-                  fill="#8884d8"
-                  dataKey="totalPoints"
-                  stroke="none"
-                >
+            <h4 className="mb-2 text-center text-sm font-medium text-muted-foreground">
+              Total points
+            </h4>
+            <ResponsiveContainer width="100%" height={axis.isMobile ? 320 : 380}>
+              <BarChart
+                data={[...chartData.points].sort((a, b) => b.totalPoints - a.totalPoints)}
+                layout="vertical"
+                margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
+              >
+                <XAxis type="number" tick={{ fontSize: 10 }} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={axis.isMobile ? 70 : 110}
+                  tick={{ fontSize: axis.isMobile ? 9 : 11 }}
+                />
+                <Tooltip content={<PointsTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                <Bar dataKey="totalPoints" radius={[0, 4, 4, 0]}>
                   {chartData.points.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
-                </Pie>
-                <Tooltip content={<PointsTooltip />} />
-              </PieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* PPG Pie Chart */}
           <div>
-            <h4 className="text-lg font-medium text-center mb-2 text-muted-foreground">Points Per Game</h4>
-            <ResponsiveContainer width="100%" height={axis.isMobile ? 220 : 280}>
-              <PieChart>
-                <Pie
-                  data={chartData.ppg}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={125}
-                  fill="#8884d8"
-                  dataKey="ppg"
-                  stroke="none"
-                >
+            <h4 className="mb-2 text-center text-sm font-medium text-muted-foreground">
+              Points per game
+            </h4>
+            <ResponsiveContainer width="100%" height={axis.isMobile ? 320 : 380}>
+              <BarChart
+                data={[...chartData.ppg].sort((a, b) => b.ppg - a.ppg)}
+                layout="vertical"
+                margin={{ top: 4, right: 16, bottom: 4, left: 8 }}
+              >
+                {/* The domain is rounded before it reaches the axis. Passing
+                    `dataMin - 5` lets recharts label the ticks with the raw
+                    float, so the axis read "108.803373493397591". */}
+                <XAxis
+                  type="number"
+                  domain={[
+                    (dataMin) => Math.floor((dataMin - 5) / 5) * 5,
+                    (dataMax) => Math.ceil((dataMax + 5) / 5) * 5,
+                  ]}
+                  tickFormatter={(v) => Math.round(v)}
+                  tick={{ fontSize: 10 }}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  width={axis.isMobile ? 70 : 110}
+                  tick={{ fontSize: axis.isMobile ? 9 : 11 }}
+                />
+                <Tooltip content={<PPGTooltip />} cursor={{ fill: 'hsl(var(--muted))' }} />
+                <Bar dataKey="ppg" radius={[0, 4, 4, 0]}>
                   {chartData.ppg.map((entry, index) => (
                     <Cell key={`cell-ppg-${index}`} fill={entry.color} />
                   ))}
-                </Pie>
-                <Tooltip content={<PPGTooltip />} />
-              </PieChart>
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-
-        {/* Shared Legend */}
-        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-6 px-4">
-          {chartData.points.map((entry) => (
-            <div key={entry.franchiseId} className="flex items-center gap-1.5">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: entry.color }}
-              />
-              <span className="text-sm" style={{ color: entry.color }}>{entry.name}</span>
-            </div>
-          ))}
         </div>
       </TabsContent>
 
