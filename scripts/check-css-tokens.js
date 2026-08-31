@@ -34,7 +34,7 @@ const PROBES = [
     // `.bg-card{background-color:var(--color-card)}` — the exact utility that
     // generated nothing before the @config bridge landed.
     pattern: /\.bg-card(?![\w-])/,
-    why: 'theme colours from tailwind.config.js are not reaching the bundle',
+    why: 'theme colours from the @theme block are not reaching the bundle',
   },
   {
     name: 'muted foreground',
@@ -89,9 +89,10 @@ function main() {
       console.error(`   • ${p.name} — ${p.why}`);
     }
     console.error(
-      '\n   Check that globals.css still has `@config "./tailwind.config.js"`\n' +
-        '   (or, once migrated, its `@theme` block) directly after\n' +
-        '   `@import "tailwindcss"`, and that the config file parses.'
+      '\n   Check that globals.css still has its `@theme` block directly after\n' +
+        '   `@import "tailwindcss"`, that the block parses, and that the\n' +
+        '   `@source` lines still cover the files using these utilities.\n' +
+        '   (There is no tailwind.config.js — v4 reads the theme from CSS.)'
     );
     process.exit(1);
   }

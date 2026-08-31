@@ -1,4 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+/* Fonts are linked from index.html, not imported here: a CSS @import is
+ * render-blocking and this file already loaded the identical Inter URL that
+ * index.html links, so every visitor paid for the same font twice. */
 @import "tailwindcss";
 
 /* The theme is defined here, in CSS, not in a tailwind.config.js.
@@ -28,6 +30,16 @@
  * one utility per theme facet (colour, breakpoint, brand ramp, animation)
  * here decouples the check from app source entirely. Costs ~5 rules. */
 @source inline("bg-card text-muted-foreground xs:block text-ff-rank-gold-500 animate-float-in");
+
+/* Team-identity utilities, emitted on purpose.
+ *
+ * `getTeamColor()` picks a slot at runtime, so the class name only ever exists
+ * as `bg-team-${slot}` — a string Tailwind's scanner cannot see. This is the
+ * same trap StatisticsPanel fell into with `bg-${color}-50`, where the classes
+ * were never generated and the cards only looked styled because an unrelated
+ * dark-mode remap happened to catch them. Naming the full set here is what
+ * makes the runtime lookup safe. */
+@source inline("{bg,text,border,ring}-team-{1,2,3,4,5,6,7,8,9,10,11,12,13,14}");
 
 /* Dark mode is a class on <html>, not a media query — the app owns the choice
  * (and currently forces dark). */
@@ -63,18 +75,55 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
-  --color-sidebar: hsl(var(--sidebar-background));
-  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
-  --color-sidebar-primary: hsl(var(--sidebar-primary));
-  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent: hsl(var(--sidebar-accent));
-  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-border: hsl(var(--sidebar-border));
-  --color-sidebar-ring: hsl(var(--sidebar-ring));
+  /* Status colours. Real utilities (`bg-success/15`, `text-warning`) so a
+     component can state what a value *means* instead of picking a hue. These
+     are the migration target for the `bg-green-50`-style light tints that the
+     `.dark` remap block further down has to compensate for. */
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-info: hsl(var(--info));
+  --color-info-foreground: hsl(var(--info-foreground));
 
-  /* Fantasy Football brand ramps. Gold/silver/bronze are the podium colours
-     and are deliberately *not* metallic hues — silver is orange and bronze is
-     green, because that is what the rank badges have always used. */
+  /* Categorical chart palette. Every chart used to invent its own hexes —
+     ~200 of them, including recharts' default #8884d8 and dark-grey *text*
+     colours used as fills on a dark page. Series colours come from here now,
+     and `teamChartColor()` keeps a given team the same colour everywhere. */
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --color-chart-6: hsl(var(--chart-6));
+  --color-chart-7: hsl(var(--chart-7));
+  --color-chart-8: hsl(var(--chart-8));
+  --color-chart-9: hsl(var(--chart-9));
+  --color-chart-10: hsl(var(--chart-10));
+
+  /* Team identity wheel. A franchise is assigned one of these deterministically
+     (src/utils/teamColors.js) and keeps it in every table, chart, avatar and
+     bracket slot — charts used to colour teams by array index, so the same
+     team was a different colour on every chart. 14 slots for a 14-team league,
+     spaced around the wheel so adjacent seeds stay distinguishable. */
+  --color-team-1: hsl(var(--team-1));
+  --color-team-2: hsl(var(--team-2));
+  --color-team-3: hsl(var(--team-3));
+  --color-team-4: hsl(var(--team-4));
+  --color-team-5: hsl(var(--team-5));
+  --color-team-6: hsl(var(--team-6));
+  --color-team-7: hsl(var(--team-7));
+  --color-team-8: hsl(var(--team-8));
+  --color-team-9: hsl(var(--team-9));
+  --color-team-10: hsl(var(--team-10));
+  --color-team-11: hsl(var(--team-11));
+  --color-team-12: hsl(var(--team-12));
+  --color-team-13: hsl(var(--team-13));
+  --color-team-14: hsl(var(--team-14));
+
+  /* Fantasy Football podium ramps. These are now actual podium metals: silver
+     used to be orange and bronze used to be green, which is why neither of the
+     two hand-rolled podium colour systems in the app ever used them. */
   --color-ff-rank-gold-50: #fefce8;
   --color-ff-rank-gold-100: #fef9c3;
   --color-ff-rank-gold-200: #fef08a;
@@ -86,33 +135,27 @@
   --color-ff-rank-gold-800: #854d0e;
   --color-ff-rank-gold-900: #713f12;
 
-  --color-ff-rank-silver-50: #fff7ed;
-  --color-ff-rank-silver-100: #ffedd5;
-  --color-ff-rank-silver-200: #fed7aa;
-  --color-ff-rank-silver-300: #fdba74;
-  --color-ff-rank-silver-400: #fb923c;
-  --color-ff-rank-silver-500: #f97316;
-  --color-ff-rank-silver-600: #ea580c;
-  --color-ff-rank-silver-700: #c2410c;
-  --color-ff-rank-silver-800: #9a3412;
-  --color-ff-rank-silver-900: #7c2d12;
+  --color-ff-rank-silver-50: #f8fafc;
+  --color-ff-rank-silver-100: #f1f5f9;
+  --color-ff-rank-silver-200: #e2e8f0;
+  --color-ff-rank-silver-300: #cbd5e1;
+  --color-ff-rank-silver-400: #b4c0d0;
+  --color-ff-rank-silver-500: #94a3b8;
+  --color-ff-rank-silver-600: #7c8ba1;
+  --color-ff-rank-silver-700: #64748b;
+  --color-ff-rank-silver-800: #475569;
+  --color-ff-rank-silver-900: #334155;
 
-  --color-ff-rank-bronze-50: #f0fdf4;
-  --color-ff-rank-bronze-100: #dcfce7;
-  --color-ff-rank-bronze-200: #bbf7d0;
-  --color-ff-rank-bronze-300: #86efac;
-  --color-ff-rank-bronze-400: #4ade80;
-  --color-ff-rank-bronze-500: #22c55e;
-  --color-ff-rank-bronze-600: #16a34a;
-  --color-ff-rank-bronze-700: #15803d;
-  --color-ff-rank-bronze-800: #166534;
-  --color-ff-rank-bronze-900: #14532d;
-
-  --color-ff-status-completed: #16a34a;
-  --color-ff-status-current: #2563eb;
-  --color-ff-status-future: #6b7280;
-  --color-ff-status-warning: #ea580c;
-  --color-ff-status-error: #dc2626;
+  --color-ff-rank-bronze-50: #fdf5ee;
+  --color-ff-rank-bronze-100: #f7e5d3;
+  --color-ff-rank-bronze-200: #eeccaa;
+  --color-ff-rank-bronze-300: #e0ac7c;
+  --color-ff-rank-bronze-400: #ce8b54;
+  --color-ff-rank-bronze-500: #b87333;
+  --color-ff-rank-bronze-600: #9c5f2a;
+  --color-ff-rank-bronze-700: #7d4b22;
+  --color-ff-rank-bronze-800: #5f391a;
+  --color-ff-rank-bronze-900: #452a13;
 
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
@@ -120,20 +163,27 @@
 
   --breakpoint-xs: 475px;
 
+  /* Inter carries the interface; Barlow Condensed is the scoreboard voice and
+     is used only for page titles, scores and hero numbers — never body text.
+     There is no mono face on purpose: `font-mono` was being used to line up
+     digits, which is what `tabular-nums` does without a second download and
+     without Inter's x-height mismatching a system mono at 14px. */
   --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'Inter Tight', Inter, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
 
+  /* Only animations something actually uses. `modal-in/out`, `backdrop-in/out`
+     and `shimmer` were each declared twice — here and again unlayered below
+     with different bodies, so the later definition silently won (the modal
+     ones lost their backdrop-filter, and shimmer changed from transform to
+     left). The legacy classes that use them read the definitions below; these
+     tokens generated utilities nobody referenced. */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
   --animate-fade-in: fade-in 0.5s ease-out;
   --animate-slide-in: slide-in 0.3s ease-out;
-  --animate-modal-in: modal-in 0.2s ease-out;
-  --animate-modal-out: modal-out 0.15s ease-in;
-  --animate-backdrop-in: backdrop-in 0.2s ease-out;
-  --animate-backdrop-out: backdrop-out 0.15s ease-in;
   --animate-float-in: float-in 0.3s ease-out;
-  --animate-pulse-glow: pulse-glow 2s infinite;
-  --animate-shimmer: shimmer 2s infinite;
+  --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-bounce-subtle: bounce-subtle 1s ease-in-out infinite;
 
   @keyframes accordion-down {
@@ -152,33 +202,16 @@
     0% { transform: translateX(-100%); }
     100% { transform: translateX(0); }
   }
-  @keyframes modal-in {
-    0% { opacity: 0; transform: scale(0.95) translateY(10px); backdrop-filter: blur(0px); }
-    100% { opacity: 1; transform: scale(1) translateY(0); backdrop-filter: blur(8px); }
-  }
-  @keyframes modal-out {
-    0% { opacity: 1; transform: scale(1) translateY(0); backdrop-filter: blur(8px); }
-    100% { opacity: 0; transform: scale(0.95) translateY(10px); backdrop-filter: blur(0px); }
-  }
-  @keyframes backdrop-in {
-    0% { opacity: 0; backdrop-filter: blur(0px); }
-    100% { opacity: 1; backdrop-filter: blur(8px); }
-  }
-  @keyframes backdrop-out {
-    0% { opacity: 1; backdrop-filter: blur(8px); }
-    100% { opacity: 0; backdrop-filter: blur(0px); }
-  }
   @keyframes float-in {
     0% { opacity: 0; transform: scale(0.8) translateY(20px); filter: blur(4px); }
     100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0px); }
   }
+  /* The awards tab's "something is waiting for you" glow. It used to be a
+     <style> element rendered from inside ResponsiveNavigation, re-injected on
+     every render of the component. */
   @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); transform: scale(1); }
-    50% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); transform: scale(1.02); }
-  }
-  @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+    0%, 100% { box-shadow: 0 0 0 0 hsl(var(--warning) / 0.5), 0 0 12px -2px hsl(var(--warning) / 0.4); }
+    50% { box-shadow: 0 0 0 4px hsl(var(--warning) / 0), 0 0 16px -2px hsl(var(--warning) / 0.7); }
   }
   @keyframes bounce-subtle {
     0%, 100% { transform: translateY(0); }
@@ -208,14 +241,53 @@
     --input: 240 5.9% 90%;
     --ring: 240 5.9% 10%;
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Defined here as well as under .dark so no token resolves to nothing if
+       the dark class is ever absent for a frame. The app is dark-only; this
+       block is the fallback, not a second design. */
+    --success: 142 71% 34%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 45%;
+    --warning-foreground: 0 0% 98%;
+    --info: 199 89% 44%;
+    --info-foreground: 0 0% 98%;
+
+    /* Chart and team hues live here as triplets, not in `@theme inline`.
+     *
+     * `inline` inlines a token's value into each utility and deliberately does
+     * *not* emit the custom property, which is right for `bg-card` but wrong
+     * for anything JavaScript has to read: recharts takes a colour string
+     * prop, so `teamChartColor()` needs a `var()` that actually resolves at
+     * runtime. Declaring them here and referencing them from `@theme` gives
+     * both — real utilities *and* a live custom property.
+     *
+     * These are identity colours, not theme colours: they do not change with
+     * the palette, so they are declared once rather than per theme. */
+    --chart-1: 24 95% 58%;
+    --chart-2: 199 89% 58%;
+    --chart-3: 142 69% 48%;
+    --chart-4: 280 65% 68%;
+    --chart-5: 47 96% 58%;
+    --chart-6: 340 75% 62%;
+    --chart-7: 172 66% 48%;
+    --chart-8: 221 83% 65%;
+    --chart-9: 15 80% 58%;
+    --chart-10: 258 70% 68%;
+
+    --team-1: 24 90% 58%;
+    --team-2: 199 85% 58%;
+    --team-3: 142 65% 48%;
+    --team-4: 280 62% 66%;
+    --team-5: 47 92% 56%;
+    --team-6: 340 72% 62%;
+    --team-7: 172 62% 46%;
+    --team-8: 221 80% 66%;
+    --team-9: 12 78% 58%;
+    --team-10: 258 66% 68%;
+    --team-11: 96 55% 50%;
+    --team-12: 310 60% 64%;
+    --team-13: 186 70% 50%;
+    --team-14: 64 70% 50%;
   }
 
   /*
@@ -231,49 +303,50 @@
    * Surfaces 1-3 are the elevation ramp the header, cards and popovers sit on.
    */
   .dark {
-    --background: 222 84% 4.9%;
+    /* The elevation ramp is the palette. `--card` used to be *the same colour*
+       as `--background`, so every card in the app was an invisible rectangle
+       distinguished only by its border, and the `--surface-1/2/3` tokens that
+       were supposed to fix that were never mapped into the theme and never
+       used. The ramp lives in the real tokens now: page → card → popover →
+       accent, each step a genuine lift. */
+    --background: 222 47% 5%;
     --foreground: 210 40% 98%;
-    --card: 222 84% 4.9%;
+    --card: 222 40% 8%;
     --card-foreground: 210 40% 98%;
-    --popover: 220 65% 7%;
+    --popover: 220 38% 11%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 32.6% 17.5%;
+
+    /* Orange is the brand. It was already the app's accent — hardcoded as a
+       `!important` hex on the standings button because there was no token to
+       reach for. Cool slate field, one warm accent. */
+    --primary: 24 94% 53%;
+    --primary-foreground: 222 47% 8%;
+
+    /* secondary / muted / accent were three names for one colour
+       (217 32.6% 17.5%), which left hover states with nowhere to go. */
+    --secondary: 217 33% 15%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217 32.6% 17.5%;
+    --muted: 217 33% 14%;
+    --muted-foreground: 215 20% 68%;
+    --accent: 215 30% 20%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+
+    /* Destructive was 30.6% lightness — too dark to read white text on and
+       too dark to register as an alarm colour next to the new field. */
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 32.6% 17.5%;
-    --input: 217 32.6% 17.5%;
-    --ring: 212 72% 59%;
 
-    /* Elevation ramp. Anything sitting above the page background — the sticky
-       header, a floating control, a drawer — uses one of these rather than a
-       one-off hex. */
-    --surface-1: 220 65% 7%;
-    --surface-2: 217 45% 12%;
-    --surface-3: 215 30% 18%;
+    --border: 217 30% 17%;
+    --input: 217 30% 17%;
+    --ring: 24 94% 53%;
 
-    /* Status colours, for badges and alerts that are not destructive. */
-    --success: 142 76% 36%;
-    --success-foreground: 210 40% 98%;
-    --warning: 47 96% 53%;
-    --warning-foreground: 222 47% 11%;
-    --info: 212 72% 59%;
-    --info-foreground: 210 40% 98%;
-
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Status colours, now mapped into @theme as real utilities. */
+    --success: 142 69% 45%;
+    --success-foreground: 222 47% 8%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 222 47% 8%;
+    --info: 199 89% 58%;
+    --info-foreground: 222 47% 8%;
   }
 }
 
@@ -417,6 +490,19 @@
 }
 
 @layer utilities {
+
+  /* Digits that line up in a column.
+   *
+   * The app had three numeric treatments — `font-mono` (31 sites),
+   * `tabular-nums` (3) and plain sans (everywhere else) — so the same power
+   * rating rendered in a different face depending on which viewport branch you
+   * were looking at. Inter already ships tabular figures, and `body` already
+   * enables its OpenType features; this is the whole fix. Use it through
+   * `NumberText` rather than by hand. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
 
   /* Radix enter/exit animations.
    *
