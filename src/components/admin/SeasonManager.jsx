@@ -440,7 +440,7 @@ const SeasonManager = ({
                   <tr key={row.team_id} className="border-b last:border-0">
                     <td className="py-1 pr-2 font-semibold">{row.final_rank}</td>
                     <td className="py-1 pr-2">{row.owner}</td>
-                    <td className="py-1 pr-2 font-mono text-xs">{row.record}</td>
+                    <td className="py-1 pr-2 tabular text-xs">{row.record}</td>
                     <td className="py-1 pr-2">{row.seed}</td>
                     <td className="py-1">{row.finish === 'none' ? '—' : row.finish}</td>
                   </tr>

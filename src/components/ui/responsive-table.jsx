@@ -16,12 +16,21 @@ import {
  *
  * A table with eleven columns does not become usable on a 375px screen by
  * scrolling — the reader loses the row they were on the moment the first
- * column leaves the viewport. The card stack below `sm` is a different *shape*
+ * column leaves the viewport. The card stack below `md` is a different *shape*
  * for the same data: the identifying columns become the card's header, the
  * numbers people actually scan become a small grid, and the long tail folds
  * away behind a disclosure.
  *
- * Both branches are rendered and CSS-switched (`sm:hidden` / `hidden sm:block`)
+ * The switch is at `md` (768px), not `sm`. Two "mobile" widths used to coexist
+ * in this codebase — `useIsMobile()` and `useMobileAxis()` break at 768 while
+ * every responsive class broke at 640 — so a landscape phone at 700px got the
+ * card-stack's sibling behaviour from one and the desktop's from the other.
+ * 768 is now the one structural boundary: table vs cards, drawer vs dialog,
+ * tab bar vs header nav. It also happens to be the better line for this
+ * component, since 640-767px is a phone in landscape, which reads a card
+ * stack far more comfortably than a nine-column table.
+ *
+ * Both branches are rendered and CSS-switched (`md:hidden` / `hidden md:block`)
  * rather than picked in JS. That is deliberate:
  *
  *   - one `columns` array drives both, so the two cannot drift — the failure
@@ -45,7 +54,7 @@ import {
  *   Defaults to `secondary`.
  * @property {string} [className]      applied to the <td>
  * @property {string} [headerClassName] applied to the <th>
- * @property {boolean} [sticky]       pin this column while scrolling (>= sm)
+ * @property {boolean} [sticky]       pin this column while scrolling (>= md)
  * @property {string} [cardLabel]     label on the card when `header` is an icon
  */
 
@@ -88,8 +97,8 @@ export function ResponsiveDataTable({
 
   return (
     <div className={cn('min-w-0', className)}>
-      {/* ---------- Card stack: below sm ---------- */}
-      <div className="space-y-2 sm:hidden">
+      {/* ---------- Card stack: below md ---------- */}
+      <div className="space-y-2 md:hidden">
         {data.map((row, i) => (
           <DataCard
             key={rowKey(row, i)}
@@ -104,8 +113,8 @@ export function ResponsiveDataTable({
         ))}
       </div>
 
-      {/* ---------- Real table: sm and up ---------- */}
-      <div className="hidden sm:block">
+      {/* ---------- Real table: md and up ---------- */}
+      <div className="hidden md:block">
         <Table className={tableClassName}>
           <TableHeader>
             <TableRow>
@@ -172,11 +181,16 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
       )}
 
       {secondary.length > 0 && (
-        <dl className={cn('grid grid-cols-2 gap-x-3 gap-y-1', primary.length > 0 && 'mt-2')}>
+        <dl
+          className={cn(
+            'grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3',
+            primary.length > 0 && 'mt-2'
+          )}
+        >
           {secondary.map((c) => (
             <div key={c.key} className="flex min-w-0 items-baseline justify-between gap-2">
               <dt className="truncate text-xs text-muted-foreground">{c.cardLabel ?? c.header}</dt>
-              <dd className="shrink-0 text-sm tabular-nums">{c.cell(row, index)}</dd>
+              <dd className="shrink-0 text-sm tabular">{c.cell(row, index)}</dd>
             </div>
           ))}
         </dl>
@@ -199,13 +213,13 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
           </button>
 
           {open && (
-            <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-border pt-2">
+            <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1 border-t border-border pt-2 sm:grid-cols-3">
               {detail.map((c) => (
                 <div key={c.key} className="flex min-w-0 items-baseline justify-between gap-2">
                   <dt className="truncate text-xs text-muted-foreground">
                     {c.cardLabel ?? c.header}
                   </dt>
-                  <dd className="shrink-0 text-sm tabular-nums">{c.cell(row, index)}</dd>
+                  <dd className="shrink-0 text-sm tabular">{c.cell(row, index)}</dd>
                 </div>
               ))}
             </dl>
