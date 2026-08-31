@@ -5,8 +5,11 @@
  *
  *   * The board groups by milestone in **resolve order**, so the next thing to
  *     be settled reads first regardless of when it was posted.
- *   * A signed-out visitor gets the board *and* is told what signing in buys
- *     them — the page is public by design, so "no takes to see" would be wrong.
+ *   * The signed-out render still works. The shell no longer routes a
+ *     signed-out viewer here — `/takes` is gated on `isAuthenticated` — but the
+ *     component must not assume that gate: it is what renders during the window
+ *     where the session has not resolved yet, and it would be quietly wrong if
+ *     the gate ever moved.
  *   * The +1 control is absent on your own take. RLS refuses a self co-sign, so
  *     a button offering one can only ever produce an error.
  */
@@ -83,6 +86,7 @@ beforeEach(() => {
 });
 
 describe('TakesManager, signed out', () => {
+  // Not reachable through the tab any more — see the file header.
   it('shows the board and says what signing in is for', async () => {
     renderTab();
 

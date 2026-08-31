@@ -79,8 +79,9 @@ export function TakeCard({ take, displayNames = {}, onOpen, onPlusOne, onWithdra
       </p>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        {/* The count is always visible; only the control is conditional. A
-            signed-out reader still needs to see that six people called this. */}
+        {/* The count is always visible; only the control is conditional. The
+            author cannot co-sign their own take, but they still need to see
+            that six other people did. */}
         <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Flame className="h-3.5 w-3.5" aria-hidden="true" />
           {count} {count === 1 ? 'co-sign' : 'co-signs'}
