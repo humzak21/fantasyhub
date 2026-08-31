@@ -182,7 +182,7 @@ const HeadToHeadMatrix = ({
                                 onClick={() => onMatchupClick(row.franchiseId, col.franchiseId)}
                                 disabled={!hasPlayed}
                               >
-                                <span className="font-mono text-xs font-medium">
+                                <span className="tabular text-xs font-medium">
                                   {hasPlayed ? `${wins}-${losses}` : '-'}
                                 </span>
                               </button>
@@ -199,7 +199,7 @@ const HeadToHeadMatrix = ({
                                 {hasPlayed ? (
                                   <>
                                     <p>
-                                      Record: <span className="font-mono">{wins}-{losses}</span>
+                                      Record: <span className="tabular">{wins}-{losses}</span>
                                       {opponent?.totalGames > 0 && ` (${opponent.winPct}%)`}
                                     </p>
                                     <p className="text-xs text-muted-foreground">

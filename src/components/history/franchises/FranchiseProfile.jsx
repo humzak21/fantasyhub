@@ -151,7 +151,7 @@ const FranchiseProfile = ({
     {
       key: 'record',
       header: 'Record',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (season) =>
         formatRecord(season.regular_season_wins || 0, season.regular_season_losses || 0),
@@ -177,7 +177,7 @@ const FranchiseProfile = ({
       key: 'pf',
       header: 'PF',
       cardLabel: 'Points for',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (season) => formatPoints(season.points_for || 0),
     },
@@ -185,14 +185,14 @@ const FranchiseProfile = ({
       key: 'pa',
       header: 'PA',
       cardLabel: 'Points against',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (season) => formatPoints(season.points_against || 0),
     },
     {
       key: 'diff',
       header: 'Diff',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (season) => {
         const diff = (season.points_for || 0) - (season.points_against || 0);
@@ -453,7 +453,7 @@ const FranchiseProfile = ({
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-mono font-semibold text-green-600">
+                          <p className="tabular font-semibold text-success">
                             {matchup.wins}-{matchup.losses}
                           </p>
                           <p className="text-xs text-muted-foreground">
@@ -487,7 +487,7 @@ const FranchiseProfile = ({
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-mono font-semibold text-red-600">
+                          <p className="tabular font-semibold text-destructive">
                             {matchup.wins}-{matchup.losses}
                           </p>
                           <p className="text-xs text-muted-foreground">

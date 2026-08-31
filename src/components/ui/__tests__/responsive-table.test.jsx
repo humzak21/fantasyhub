@@ -39,15 +39,15 @@ describe('ResponsiveDataTable', () => {
   it('renders one card per row from the same definition', () => {
     const { container } = render(<ResponsiveDataTable columns={columns} data={data} />);
 
-    // The card branch is the `sm:hidden` sibling of the table branch.
-    const cardStack = container.querySelector('.sm\\:hidden');
+    // The card branch is the `md:hidden` sibling of the table branch.
+    const cardStack = container.querySelector('.md\\:hidden');
     expect(cardStack.children).toHaveLength(data.length);
     expect(within(cardStack).getByText('Team Alpha')).toBeInTheDocument();
   });
 
   it('keeps detail columns behind a disclosure on the card', () => {
     const { container } = render(<ResponsiveDataTable columns={columns} data={data} />);
-    const card = container.querySelector('.sm\\:hidden').firstElementChild;
+    const card = container.querySelector('.md\\:hidden').firstElementChild;
 
     // `record` is secondary — visible. `SoS` is detail — not yet.
     expect(within(card).getByText('Record')).toBeInTheDocument();
@@ -62,7 +62,7 @@ describe('ResponsiveDataTable', () => {
     const { container } = render(
       <ResponsiveDataTable columns={columns} data={data} onRowClick={onRowClick} />
     );
-    const card = container.querySelector('.sm\\:hidden').firstElementChild;
+    const card = container.querySelector('.md\\:hidden').firstElementChild;
 
     fireEvent.click(within(card).getByRole('button', { name: /more/i }));
     expect(onRowClick).not.toHaveBeenCalled();

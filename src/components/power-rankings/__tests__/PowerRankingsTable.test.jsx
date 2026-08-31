@@ -78,7 +78,7 @@ describe('PowerRankingsTable', () => {
       <PowerRankingsTable rankings={[team()]} currentWeek={4} />
     );
 
-    const cardStack = container.querySelector('.sm\\:hidden');
+    const cardStack = container.querySelector('.md\\:hidden');
     expect(cardStack.children).toHaveLength(1);
     expect(within(cardStack).getByText('3–0')).toBeInTheDocument();
     expect(within(cardStack).getByText('87.5')).toBeInTheDocument();

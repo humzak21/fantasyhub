@@ -155,7 +155,7 @@ const SeasonDetail = ({
     {
       key: 'record',
       header: 'Record',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (team) => formatRecord(team.regular_season_wins, team.regular_season_losses),
     },
@@ -163,7 +163,7 @@ const SeasonDetail = ({
       key: 'pf',
       header: 'PF',
       cardLabel: 'Points for',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (team) => formatPoints(team.points_for),
     },
@@ -171,14 +171,14 @@ const SeasonDetail = ({
       key: 'pa',
       header: 'PA',
       cardLabel: 'Points against',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (team) => formatPoints(team.points_against),
     },
     {
       key: 'diff',
       header: 'Diff',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (team) => {
         const diff = (team.points_for || 0) - (team.points_against || 0);

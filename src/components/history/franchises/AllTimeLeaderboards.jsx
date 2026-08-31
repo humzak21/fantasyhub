@@ -163,7 +163,7 @@ const AllTimeLeaderboards = ({
     {
       key: 'record',
       header: 'Record',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (franchise) => formatRecord(franchise.total_wins || 0, franchise.total_losses || 0),
     },
@@ -181,7 +181,7 @@ const AllTimeLeaderboards = ({
     {
       key: 'avgPf',
       header: 'Avg PF',
-      className: 'text-center font-mono text-sm',
+      className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
       cell: (franchise) => (franchise.avg_points_for ? formatPoints(franchise.avg_points_for) : '-'),
     },
