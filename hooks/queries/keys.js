@@ -54,7 +54,13 @@ export const qk = {
 
   players: {
     all: ['players'],
-    forSeason: (seasonId) => ['players', seasonId]
+    forSeason: (seasonId) => ['players', seasonId],
+    /**
+     * The parlay autocomplete. Keyed on the *debounced* term, so the cache
+     * holds one entry per query the user actually paused on rather than one
+     * per keystroke.
+     */
+    search: (query) => ['players', 'search', query]
   },
 
   /**
@@ -68,7 +74,13 @@ export const qk = {
     ...scope('playerStats'),
     forSeason: (seasonId, throughWeek = null) =>
       ['playerStats', seasonId, 'season', throughWeek],
-    forTeam: (seasonId, teamId) => ['playerStats', seasonId, 'team', teamId]
+    forTeam: (seasonId, teamId) => ['playerStats', seasonId, 'team', teamId],
+    /**
+     * One week, inclusive — a different question from `forSeason`, whose
+     * `throughWeek` is exclusive. Separate keys because they are separate
+     * queries; sharing one would make "weeks 1-3" and "week 3" collide.
+     */
+    forWeek: (seasonId, week) => ['playerStats', seasonId, 'week', week]
   },
 
   rankings: {
@@ -95,6 +107,40 @@ export const qk = {
     userPicks: (pickEmWeekId, userId = null) => ['pickems', 'userPicks', pickEmWeekId, userId],
     allPicks: (pickEmWeekId) => ['pickems', 'allPicks', pickEmWeekId],
     scores: (pickEmWeekId) => ['pickems', 'scores', pickEmWeekId]
+  },
+
+  /**
+   * The weekly TD parlay. `season` is the dashboard's whole-season read;
+   * `weekPicks` is the league's picks for one week, which RLS empties before
+   * the deadline — so it is a genuinely different cache entry from `myPick`
+   * and cannot be derived from it.
+   */
+  parlay: {
+    ...scope('parlay'),
+    season: (seasonId) => ['parlay', seasonId, 'season'],
+    myPick: (pickEmWeekId, userId = null) => ['parlay', 'myPick', pickEmWeekId, userId],
+    weekPicks: (pickEmWeekId) => ['parlay', 'weekPicks', pickEmWeekId]
+  },
+
+  /**
+   * What the *viewer* is allowed to do, as opposed to what the league contains.
+   * Keyed by user id so signing in as somebody else cannot read a cached yes.
+   */
+  viewer: {
+    all: ['viewer'],
+    parlayCommissioner: (userId) => ['viewer', 'parlayCommissioner', userId]
+  },
+
+  /**
+   * Role administration. Separate from `viewer` on purpose: `viewer` answers
+   * "what may *I* do" and is cached per user, while these answer "who holds
+   * what" and are admin-only reads. Granting a role invalidates both, because
+   * the grantee's own answer has changed too.
+   */
+  roles: {
+    all: ['roles'],
+    members: () => ['roles', 'members'],
+    parlayCommissioners: () => ['roles', 'parlayCommissioners']
   },
 
   awards: {
