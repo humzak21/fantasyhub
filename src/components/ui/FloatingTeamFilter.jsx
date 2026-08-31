@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
-import { ChevronUp, GripHorizontal, GripVertical, ChevronDownCircle, Filter } from 'lucide-react';
-import { getMaskedTeamName } from '../../utils/displayNameUtils';
-import { useIsMobile } from '../../hooks/use-mobile';
+import React, { useState } from 'react';
+import { Filter } from 'lucide-react';
+
 import { Button } from './button';
+import { Checkbox } from './checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from './popover';
 import {
   Drawer,
   DrawerBody,
@@ -11,310 +12,94 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from './drawer';
+import { TeamAvatar } from './team-identity';
+import { useIsMobile } from '../../hooks/use-mobile';
+import { getMaskedTeamName } from '../../utils/displayNameUtils';
 
 /**
- * Pick which teams a chart shows.
+ * Which teams the charts show.
  *
- * Two presentations, one list.
+ * This used to be a floating control in the literal sense: a circular button
+ * the reader dragged around the page, opening a resizable panel positioned at
+ * a hardcoded `{x: 20, y: 450}` that could land on top of the chart it was
+ * filtering, over 150 lines of pointer-drag and resize bookkeeping, with an
+ * inline `scrollbarColor` of a light track on a dark page. It was also
+ * rendered last in the document, so on a phone the button controlling the
+ * charts sat four chart-heights below them.
  *
- * On a pointer device it is a floating panel you can drag around the chart and
- * resize — genuinely useful when you are comparing a filter against the plot
- * behind it. On a touch device that same panel is a 288px box permanently
- * covering most of a 375px screen, dragged with `mousedown`/`mousemove`
- * listeners that a finger never fires. It could be opened and then neither
- * moved nor, in practice, seen past. Below md: it is a bottom drawer instead.
- *
- * `useIsMobile` (matchMedia, 768px) rather than a CSS branch, because the two
- * presentations are structurally different components — a drawer with its own
- * focus trap versus a free-floating panel — not two skins of one tree.
+ * It sits in the chart toolbar now, next to the week range, and opens where
+ * it stands: a popover on a pointer device, a bottom sheet on touch. The
+ * `useIsMobile` fork stays — those two are structurally different components,
+ * which is exactly the case the hook exists for — but everything else went.
  */
 const FloatingTeamFilter = ({
   rankings = [],
   selectedTeams = [],
   onToggleTeam,
   onToggleAllTeams,
-  user = null,
-  isAdmin = false,
-  teamOwnerNames = []
+  user,
+  isAdmin,
+  teamOwnerNames,
 }) => {
   const isMobile = useIsMobile();
-
   const [isOpen, setIsOpen] = useState(false);
-  const [position, setPosition] = useState({ x: 20, y: 450 }); // Position at middle left
-  const [height, setHeight] = useState(400); // Initial height in pixels
-  const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [resizeStartHeight, setResizeStartHeight] = useState(0);
-  const [resizeStartY, setResizeStartY] = useState(0);
-  const [canScroll, setCanScroll] = useState(false);
-  const containerRef = useRef(null);
-  const handleRef = useRef(null);
-  const resizeHandleRef = useRef(null);
-  const scrollContainerRef = useRef(null);
 
-  // Calculate bottom position based on viewport
-  const getBottomPosition = () => {
-    if (position.y !== null) {
-      return null;
-    }
-    return 20; // Default bottom position
-  };
+  if (!rankings || rankings.length === 0) return null;
 
-  const getTopPosition = () => {
-    if (position.y === null) {
-      return null;
-    }
-    return position.y;
-  };
+  const allSelected = selectedTeams.length === rankings.length;
+  // No selection means no filter, which shows every team — saying "0 of 14"
+  // would describe an empty chart the reader is not looking at.
+  const isFiltered = selectedTeams.length > 0 && !allSelected;
 
-  /*
-   * Pointer events, not mouse events.
-   *
-   * `mousedown`/`mousemove` are only synthesised for touch in narrow cases and
-   * never during a drag, so the drag handles here did nothing at all on a
-   * touch screen — and a trackpad on a touch-capable laptop is inconsistent
-   * about them too. Pointer events cover mouse, touch and pen with one path.
-   */
-  const handlePointerDown = (e) => {
-    if (e.button !== 0) return; // primary button / first touch only
+  const trigger = (
+    <Button variant="outline" className="w-full gap-2 sm:w-auto">
+      <Filter className="h-4 w-4" aria-hidden="true" />
+      Teams
+      {isFiltered && (
+        <span className="rounded bg-primary/15 px-1.5 py-px text-xs font-medium tabular text-primary">
+          {selectedTeams.length}
+        </span>
+      )}
+    </Button>
+  );
 
-    const container = containerRef.current;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    setDragOffset({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    });
-    setIsDragging(true);
-  };
-
-  const handleResizePointerDown = (e) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-
-    setResizeStartHeight(height);
-    setResizeStartY(e.clientY);
-    setIsResizing(true);
-  };
-
-  // Drag
-  useEffect(() => {
-    if (!isDragging) return;
-
-    const handlePointerMove = (e) => {
-      const newX = e.clientX - dragOffset.x;
-      const newY = e.clientY - dragOffset.y;
-
-      // Keep within viewport bounds
-      const maxX = window.innerWidth - (containerRef.current?.offsetWidth || 0);
-      const maxY = window.innerHeight - (containerRef.current?.offsetHeight || 0);
-
-      setPosition({
-        x: Math.max(0, Math.min(newX, maxX)),
-        y: Math.max(0, Math.min(newY, maxY))
-      });
-    };
-
-    const handlePointerUp = () => setIsDragging(false);
-
-    document.addEventListener('pointermove', handlePointerMove);
-    document.addEventListener('pointerup', handlePointerUp);
-    document.addEventListener('pointercancel', handlePointerUp);
-
-    return () => {
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
-      document.removeEventListener('pointercancel', handlePointerUp);
-    };
-  }, [isDragging, dragOffset]);
-
-  // Resize
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const handlePointerMove = (e) => {
-      const delta = e.clientY - resizeStartY;
-      setHeight(Math.max(200, Math.min(800, resizeStartHeight + delta)));
-    };
-
-    const handlePointerUp = () => setIsResizing(false);
-
-    document.addEventListener('pointermove', handlePointerMove);
-    document.addEventListener('pointerup', handlePointerUp);
-    document.addEventListener('pointercancel', handlePointerUp);
-
-    return () => {
-      document.removeEventListener('pointermove', handlePointerMove);
-      document.removeEventListener('pointerup', handlePointerUp);
-      document.removeEventListener('pointercancel', handlePointerUp);
-    };
-  }, [isResizing, resizeStartHeight, resizeStartY]);
-
-  // Check if content is scrollable
-  useEffect(() => {
-    const checkScroll = () => {
-      if (scrollContainerRef.current) {
-        const hasScroll = scrollContainerRef.current.scrollHeight > scrollContainerRef.current.clientHeight;
-        setCanScroll(hasScroll);
-      }
-    };
-
-    checkScroll();
-    window.addEventListener('resize', checkScroll);
-
-    // Also check when content updates
-    const timer = setTimeout(checkScroll, 100);
-
-    return () => {
-      window.removeEventListener('resize', checkScroll);
-      clearTimeout(timer);
-    };
-  }, [rankings, isOpen]);
-
-  if (!rankings || rankings.length === 0) {
-    return null;
-  }
-
-  const selectionSummary =
-    selectedTeams.length > 0
-      ? `${selectedTeams.length} of ${rankings.length} teams selected`
-      : null;
-
-  const teamList = (
+  const list = (
     <TeamCheckboxList
       rankings={rankings}
       selectedTeams={selectedTeams}
       onToggleTeam={onToggleTeam}
       onToggleAllTeams={onToggleAllTeams}
+      allSelected={allSelected}
       user={user}
       isAdmin={isAdmin}
       teamOwnerNames={teamOwnerNames}
     />
   );
 
-  // ---------- Touch / small screens: a bottom drawer ----------
   if (isMobile) {
     return (
       <Drawer open={isOpen} onOpenChange={setIsOpen}>
-        <DrawerTrigger asChild>
-          <Button variant="outline" size="sm" className="w-full gap-2">
-            <Filter className="h-4 w-4" />
-            Filter teams
-            {selectedTeams.length > 0 && selectedTeams.length < rankings.length && (
-              <span className="text-xs text-muted-foreground">
-                ({selectedTeams.length}/{rankings.length})
-              </span>
-            )}
-          </Button>
-        </DrawerTrigger>
-
+        <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>Team Filter</DrawerTitle>
-            {selectionSummary && (
-              <p className="text-sm text-muted-foreground">{selectionSummary}</p>
-            )}
+            <DrawerTitle>Teams</DrawerTitle>
+            <p className="text-sm text-muted-foreground">
+              {isFiltered ? `Showing ${selectedTeams.length} of ${rankings.length}` : 'Showing all teams'}
+            </p>
           </DrawerHeader>
-          <DrawerBody className="px-4 pb-4">{teamList}</DrawerBody>
+          <DrawerBody className="px-4 pb-4">{list}</DrawerBody>
         </DrawerContent>
       </Drawer>
     );
   }
 
-  // ---------- Pointer devices: the draggable, resizable panel ----------
-  if (!isOpen) {
-    return (
-      <button
-        ref={containerRef}
-        onClick={() => setIsOpen(true)}
-        onPointerDown={handlePointerDown}
-        className="fixed z-50 w-12 h-12 rounded-full bg-blue-500 hover:bg-blue-600 dark:bg-blue-500 dark:hover:bg-blue-600 shadow-lg flex items-center justify-center cursor-grab active:cursor-grabbing transition-colors"
-        style={{
-          left: `${position.x}px`,
-          top: getTopPosition() !== null ? `${getTopPosition()}px` : 'auto',
-          bottom: getBottomPosition() !== null ? `${getBottomPosition()}px` : 'auto',
-          cursor: isDragging ? 'grabbing' : 'grab'
-        }}
-        title="Open Team Filter"
-      >
-        <Filter size={20} className="text-white" />
-      </button>
-    );
-  }
-
   return (
-    <div
-      ref={containerRef}
-      className="fixed z-50 w-72 bg-card rounded-lg border border-border shadow-lg flex flex-col"
-      style={{
-        left: `${position.x}px`,
-        top: getTopPosition() !== null ? `${getTopPosition()}px` : 'auto',
-        bottom: getBottomPosition() !== null ? `${getBottomPosition()}px` : 'auto',
-        height: `${height}px`,
-        cursor: isDragging ? 'grabbing' : 'default'
-      }}
-    >
-      {/* Draggable Header */}
-      <div
-        ref={handleRef}
-        onPointerDown={handlePointerDown}
-        className="flex items-center justify-between p-3 bg-muted rounded-t-lg cursor-grab active:cursor-grabbing border-b border-border flex-shrink-0"
-      >
-        <div className="flex items-center gap-2">
-          <GripHorizontal size={16} className="text-muted-foreground" />
-          <h4 className="font-semibold text-sm text-foreground">
-            Team Filter
-          </h4>
-        </div>
-        <button
-          onClick={() => setIsOpen(false)}
-          className="p-1 hover:bg-muted rounded transition-colors"
-          aria-label="Collapse"
-        >
-          <ChevronUp size={16} className="text-muted-foreground" />
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="flex flex-col overflow-hidden flex-1 min-w-0">
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto relative"
-          style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'rgb(107, 114, 128) rgb(243, 244, 246)'
-          }}
-        >
-          <div className="p-3">{teamList}</div>
-
-          {/* Scroll Indicator - Floating at bottom */}
-          {canScroll && (
-            <div className="sticky bottom-0 left-0 right-0 flex justify-center py-2 bg-gradient-to-t from-card to-transparent pointer-events-none">
-              <ChevronDownCircle size={16} className="text-muted-foreground animate-bounce" />
-            </div>
-          )}
-        </div>
-
-        {/* Selection Count */}
-        {selectionSummary && (
-          <div className="px-3 py-2 border-t border-border text-xs text-muted-foreground flex-shrink-0">
-            {selectionSummary}
-          </div>
-        )}
-
-        {/* Resize Handle */}
-        <div
-          ref={resizeHandleRef}
-          onPointerDown={handleResizePointerDown}
-          className="flex items-center justify-center h-1.5 bg-border cursor-ns-resize hover:bg-primary/40 transition-colors flex-shrink-0"
-          style={{ userSelect: 'none' }}
-        >
-          <GripVertical size={14} className="text-muted-foreground opacity-50" />
-        </div>
-      </div>
-    </div>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-2">
+        <div className="max-h-[22rem] overflow-y-auto overscroll-contain">{list}</div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -324,35 +109,41 @@ const TeamCheckboxList = ({
   selectedTeams,
   onToggleTeam,
   onToggleAllTeams,
+  allSelected,
   user,
   isAdmin,
   teamOwnerNames,
 }) => (
-  <div className="space-y-2">
+  <div>
     <button
+      type="button"
       onClick={onToggleAllTeams}
-      className="w-full rounded px-2 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-900/20"
+      className="mb-1 w-full rounded px-2 py-1.5 text-left text-xs font-medium text-primary transition-colors hover:bg-accent"
     >
-      {selectedTeams.length === rankings.length ? 'Deselect All' : 'Select All'}
+      {allSelected ? 'Clear all' : 'Select all'}
     </button>
 
-    {rankings.map(team => (
-      <label
-        key={team.id}
-        // `min-h-11` on touch only: a 32px checkbox row is a coin-flip tap.
-        className="flex w-full cursor-pointer items-center gap-2 rounded p-2 text-sm transition-colors hover:bg-muted pointer-coarse:min-h-11"
-      >
-        <input
-          type="checkbox"
-          checked={selectedTeams.includes(team.id)}
-          onChange={() => onToggleTeam(team.id)}
-          className="h-4 w-4 flex-shrink-0 cursor-pointer rounded"
-        />
-        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-          {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
-        </span>
-      </label>
-    ))}
+    {rankings.map((team) => {
+      const id = `team-filter-${team.id}`;
+      return (
+        <label
+          key={team.id}
+          htmlFor={id}
+          // `min-h-11` on touch only: a 32px checkbox row is a coin-flip tap.
+          className="flex w-full cursor-pointer items-center gap-2.5 rounded p-2 text-sm transition-colors hover:bg-accent pointer-coarse:min-h-11"
+        >
+          <Checkbox
+            id={id}
+            checked={selectedTeams.includes(team.id)}
+            onCheckedChange={() => onToggleTeam(team.id)}
+          />
+          <TeamAvatar team={team} size="xs" />
+          <span className="min-w-0 flex-1 truncate">
+            {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+          </span>
+        </label>
+      );
+    })}
   </div>
 );
 
