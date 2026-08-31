@@ -51,8 +51,8 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 - **Main App**: `FantasyFootballApp.jsx` - Primary application component with tab-based navigation
 - **Data Layer**: `services/db/` - one module per domain (`seasons`, `teams`,
   `divisions`, `rosters`, `players`, `playerWeekStats`, `games`, `rankings`,
-  `schedule`, `pickems`, `awards`, `playoffs`, `transactions`, `history`,
-  `users`, `espnMapping`). **Write new data access here.**
+  `schedule`, `pickems`, `parlay`, `awards`, `playoffs`, `transactions`,
+  `takes`, `history`, `users`, `espnMapping`). **Write new data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
   - `services/espnRosterUpdater.js` - ESPN integration for roster updates
@@ -218,6 +218,35 @@ no extra ESPN request: the sync's scores step already fetches
 Verified against the live league: this league starts QB/2RB/2WR/TE/FLEX/D/ST/K,
 which is what `OPTIMAL_LINEUP_TEMPLATE` encodes, and summing a team's starters
 reproduces ESPN's own matchup score exactly.
+
+### Takes are enforced by the database, not the UI
+
+`takes` + `take_participants` are the predictions board. Every rule about who
+may do what lives in RLS and two triggers, because the anon key reaches
+PostgREST directly and a rule that only exists in a component is not a rule:
+
+- **The author may edit the body and nothing else, for 72 hours, while
+  ungraded.** The window is the `takes author edit` policy; "body only" is
+  `takes_guard_author_update()`, which exists because a `WITH CHECK` clause
+  sees `NEW` and cannot compare it to `OLD`. It guards on
+  `can_write_league()`, not `is_admin()` — the service role bypasses RLS but
+  *not* triggers.
+- **`edited_at` is stamped by `set_take_edited_at()`**, not sent by the client.
+  `updated_at` cannot stand in: admin resolution touches it too.
+- **`takes_resolution_check` ties `status <> 'pending'` to a non-null
+  `resolved_at`**, so grading and reopening must move both columns in one
+  statement or be rejected.
+- **`removePlusOne` filters on `user_id` as well as `take_id`.** That is not a
+  duplicate of RLS: the admin holds a `FOR ALL` policy, so without the filter
+  their own withdrawal would delete every co-sign on the take.
+- `src/components/takes/milestones.js` mirrors those windows for the UI's
+  benefit — showing a button whose only outcome is an error is the bug it
+  prevents. Changing a policy means changing the mirror.
+
+**Sort order is app-side on purpose.** `milestoneSortKey` is a pure function
+over a league-sized board, so a future `nfl_game` take can sort by kickoff
+without a generated column to migrate — which is also why
+`takes_target_type_check` is named and DO-guarded.
 
 ### Seasons end explicitly
 `public.finalize_season(season_id, dry_run)` derives a season's final placements
