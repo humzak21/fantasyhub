@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import RouteLoading from '../layout/RouteLoading';
+import { EmptyState } from '../ui/empty-state';
+import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -183,9 +186,18 @@ const PickEmsManager = ({
     );
   };
 
-  // During initialization or while loading pick'em data, don't show placeholder states (full-screen overlay handles loading)
+  // A loader, not `null`. The comment this replaces said the full-screen
+  // overlay was covering the wait — that overlay was removed for blocking the
+  // whole page on every mutation, which left this branch rendering an entirely
+  // blank tab for as long as the fetch took. The header stays up so the page
+  // has an identity while its data arrives.
   if (initializing || dataLoading) {
-    return null;
+    return (
+      <>
+        <PageHeader icon={Target} title="Pick'ems" />
+        <RouteLoading />
+      </>
+    );
   }
 
   if (!season) {
@@ -279,14 +291,18 @@ const PickEmsManager = ({
       {/* Main content */}
       {!pickEmWeek ? (
         <Card>
-          <CardContent className="p-8 text-center">
-            <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Pick&apos;ems Not Available</h3>
-            <p className="text-muted-foreground">
-              Pick&apos;ems have not been set up for week {currentWeek} yet.
-              {isAdmin && ' Use the admin controls above to create a pick&apos;em week.'}
-            </p>
-          </CardContent>
+          {/* The admin sentence used to be an `&apos;` inside a JavaScript
+              string literal rather than JSX text, so it reached the page
+              undecoded and the reader saw "pick&apos;em week". */}
+          <EmptyState
+            icon={Target}
+            title="No pick'ems this week"
+            description={
+              isAdmin
+                ? `Week ${currentWeek} has no pick'em week yet. Create one with the admin controls above.`
+                : `Week ${currentWeek} has no pick'em week yet.`
+            }
+          />
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab}>

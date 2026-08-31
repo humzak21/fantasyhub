@@ -6,6 +6,10 @@ import { Badge } from '../../ui/badge';
 import { useMatchupHistory } from '../../../../hooks/queries/index.js';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 
+/** Shared by the header row and every game row, so the two cannot drift. */
+const MATCHUP_GRID =
+  'grid grid-cols-[2.5rem_minmax(0,1fr)_1.5rem_minmax(0,1fr)] gap-2 sm:grid-cols-[60px_1fr_80px_40px_80px_1fr]';
+
 const MatchupDetail = ({
   franchise1Id,
   franchise2Id,
@@ -240,14 +244,21 @@ const MatchupDetail = ({
                         </Badge>
                       </h3>
 
-                      {/* Column headers */}
-                      <div className="grid grid-cols-[60px_1fr_80px_40px_80px_1fr] gap-2 px-3 py-2 text-sm text-muted-foreground border-b border-gray-700 mb-2">
+                      {/*
+                        Six fixed tracks — 60+80+40+80px plus gaps — left about
+                        40px between two owner names at 375px. Below sm: the
+                        two running-record columns drop out (they are context,
+                        not the result) and the remaining four tracks are
+                        fluid; from sm: up the original template is restored
+                        exactly.
+                      */}
+                      <div className={`${MATCHUP_GRID} px-3 py-2 text-sm text-muted-foreground border-b border-border mb-2`}>
                         <div>Week</div>
-                        <div className="text-right">{getName(franchise1)}</div>
-                        <div className="text-right">Record</div>
+                        <div className="truncate text-right">{getName(franchise1)}</div>
+                        <div className="hidden text-right sm:block">Record</div>
                         <div className="text-center"></div>
-                        <div>Record</div>
-                        <div>{getName(franchise2)}</div>
+                        <div className="hidden sm:block">Record</div>
+                        <div className="truncate">{getName(franchise2)}</div>
                       </div>
 
                       <div className="space-y-1">
@@ -261,7 +272,7 @@ const MatchupDetail = ({
                           return (
                             <div
                               key={game.id}
-                              className="grid grid-cols-[60px_1fr_80px_40px_80px_1fr] gap-2 items-center p-3 rounded-lg"
+                              className={`${MATCHUP_GRID} items-center p-3 rounded-lg`}
                               style={{ backgroundColor: '#111827' }}
                             >
                               {/* Week */}
@@ -277,7 +288,7 @@ const MatchupDetail = ({
                               </div>
 
                               {/* Franchise 1 Record */}
-                              <div className="text-right text-sm text-muted-foreground">
+                              <div className="hidden text-right text-sm text-muted-foreground sm:block">
                                 {f1Record || '-'}
                               </div>
 
@@ -287,7 +298,7 @@ const MatchupDetail = ({
                               </div>
 
                               {/* Franchise 2 Record */}
-                              <div className="text-sm text-muted-foreground">
+                              <div className="hidden text-sm text-muted-foreground sm:block">
                                 {f2Record || '-'}
                               </div>
 

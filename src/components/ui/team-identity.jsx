@@ -1,0 +1,133 @@
+import * as React from 'react';
+import { cn } from '../../lib/utils';
+import { getTeamColor, getTeamInitials } from '../../utils/teamColors';
+import { RecordText } from './number-text';
+
+/**
+ * A team, shown the same way everywhere.
+ *
+ * Team identity used to be a string of text — masked team name over masked
+ * owner name — and nothing else. No colour, no mark, nothing to recognise at a
+ * glance, which is why a fourteen-row table reads as fourteen identical rows
+ * and why the same franchise was a different colour on every chart.
+ *
+ * The colour comes from `getTeamColor()`, keyed on the franchise, so the chip
+ * here matches the series in the chart below it and the slot in the bracket.
+ * The initials come from the *owner*, which is the identity that survives a
+ * team rename.
+ */
+const SIZES = {
+  xs: { avatar: 'h-6 w-6 text-[10px]', name: 'text-xs', sub: 'text-[10px]', gap: 'gap-2' },
+  sm: { avatar: 'h-7 w-7 text-[11px]', name: 'text-sm', sub: 'text-[11px]', gap: 'gap-2.5' },
+  md: { avatar: 'h-9 w-9 text-xs', name: 'text-[15px]', sub: 'text-xs', gap: 'gap-3' },
+  lg: { avatar: 'h-11 w-11 text-sm', name: 'text-lg', sub: 'text-[13px]', gap: 'gap-3.5' },
+};
+
+/**
+ * The mark on its own — for a chart legend, a bracket slot, anywhere the name
+ * is already present.
+ */
+const TeamAvatar = React.forwardRef(({ team, size = 'sm', className, ...props }, ref) => {
+  const color = getTeamColor(team);
+  const s = SIZES[size] ?? SIZES.sm;
+  return (
+    <span
+      ref={ref}
+      aria-hidden="true"
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-full font-semibold',
+        // The hue identifies the team; the initials stay neutral.
+        //
+        // Full-strength coloured initials in every row turned a fourteen-team
+        // table into fourteen competing accents. Carrying the identity in a
+        // low tint and a faint ring keeps a team findable at a glance without
+        // the page reading as a paint chart — colour at full strength is
+        // reserved for the charts, where hue *is* the data.
+        'bg-current/[0.18] ring-1 ring-inset ring-current/25',
+        color.text,
+        '[&>span]:text-foreground/75',
+        s.avatar,
+        className
+      )}
+      {...props}
+    >
+      <span className="font-semibold">{getTeamInitials(team)}</span>
+    </span>
+  );
+});
+TeamAvatar.displayName = 'TeamAvatar';
+
+/**
+ * @param {object} props
+ * @param {object} props.team - anything with a franchise id, owner or name
+ * @param {'xs'|'sm'|'md'|'lg'} [props.size]
+ * @param {boolean} [props.showOwner] - second line with the owner's name
+ * @param {boolean} [props.showRecord] - append the record to the second line
+ * @param {boolean} [props.showAvatar]
+ * @param {boolean} [props.isViewer] - the signed-in user's own team
+ * @param {React.ReactNode} [props.meta] - one more fact for the second line
+ */
+const TeamIdentity = React.forwardRef(
+  (
+    {
+      team,
+      size = 'sm',
+      showOwner = false,
+      showRecord = false,
+      showAvatar = true,
+      isViewer = false,
+      meta = null,
+      className,
+      ...props
+    },
+    ref
+  ) => {
+    if (!team) return null;
+    const s = SIZES[size] ?? SIZES.sm;
+    const name = team.name ?? team.teamName ?? team.team_name ?? 'Unknown team';
+    const owner = team.ownerName ?? team.owner_name ?? team.owner;
+    const hasSecondLine = (showOwner && owner) || showRecord || meta;
+
+    return (
+      <div ref={ref} className={cn('flex min-w-0 items-center', s.gap, className)} {...props}>
+        {showAvatar && <TeamAvatar team={team} size={size} />}
+        <div className="min-w-0">
+          <div className={cn('truncate font-medium leading-tight tracking-[-0.006em]', s.name)}>
+            {name}
+            {isViewer && (
+              <span className="ml-1.5 align-middle text-[10px] font-medium uppercase tracking-[0.08em] text-primary/80">
+                You
+              </span>
+            )}
+          </div>
+          {hasSecondLine && (
+            <div className={cn('flex items-center gap-1.5 truncate text-muted-foreground', s.sub)}>
+              {showOwner && owner && <span className="truncate">{owner}</span>}
+              {showOwner && owner && showRecord && <span aria-hidden="true">·</span>}
+              {showRecord && (
+                <RecordText
+                  wins={team.wins}
+                  losses={team.losses}
+                  ties={team.ties}
+                  className="shrink-0"
+                />
+              )}
+              {/* An extra fact — a seed, a rank — on the metadata line rather
+                  than beside the name, which is the line that has to survive
+                  a 375px card. */}
+              {meta && (
+                <>
+                  {(showRecord || (showOwner && owner)) && <span aria-hidden="true">·</span>}
+                  <span className="shrink-0 tabular">{meta}</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+);
+TeamIdentity.displayName = 'TeamIdentity';
+
+export { TeamIdentity, TeamAvatar };

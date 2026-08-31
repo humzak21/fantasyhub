@@ -18,7 +18,14 @@ import {
 } from '../ui/alert-dialog';
 import { moveUserTeamToFirst } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { getPositionColor } from '../../utils/positionColors';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { toast } from 'sonner';
+import PageHeader from '../layout/PageHeader';
+import { EmptyState } from '../ui/empty-state';
+import { TeamIdentity } from '../ui/team-identity';
+import { IndependentColumns } from '../ui/independent-columns';
+import { isUserTeam } from '../../utils/userTeamUtils';
 
 const TeamsAndRosters = ({
   teams = [],
@@ -42,7 +49,10 @@ const TeamsAndRosters = ({
     e.preventDefault();
     
     if (!formData.name.trim()) {
-      alert('Team name is required');
+      // sonner, not `alert()`: a modal browser dialog blocks the page, cannot
+      // be styled, and reads as a browser error rather than as this form
+      // telling the user what it needs.
+      toast.error('Enter a team name.');
       return;
     }
 
@@ -60,7 +70,7 @@ const TeamsAndRosters = ({
       
       setFormData({ name: '', owner: '' });
     } catch (error) {
-      alert('Error saving team: ' + error.message);
+      toast.error(`Could not save the team: ${error.message}`);
     }
   };
 
@@ -83,7 +93,7 @@ const TeamsAndRosters = ({
     try {
       await onRemoveTeam(team.id);
     } catch (error) {
-      alert('Error removing team: ' + error.message);
+      toast.error(`Could not remove the team: ${error.message}`);
     }
   };
 
@@ -113,19 +123,6 @@ const TeamsAndRosters = ({
     return <Trophy className="h-3 w-3" />;
   };
 
-  // Roster helper functions
-  const getPositionColor = (position) => {
-    const colors = {
-      QB: 'bg-red-100 text-red-700 border-red-200',
-      RB: 'bg-green-100 text-green-700 border-green-200',
-      WR: 'bg-blue-100 text-blue-700 border-blue-200',
-      TE: 'bg-orange-100 text-orange-700 border-orange-200',
-      K: 'bg-purple-100 text-purple-700 border-purple-200',
-      'D/ST': 'bg-gray-100 text-gray-700 border-gray-200'
-    };
-    return colors[position] || 'bg-gray-100 text-gray-700 border-gray-200';
-  };
-
   const getSlotBadgeColor = (slot) => {
     if (['QB', 'RB', 'WR', 'TE', 'FLEX', 'K', 'D/ST'].includes(slot)) {
       return 'default';
@@ -140,7 +137,7 @@ const TeamsAndRosters = ({
   const CompactTeamRoster = ({ team, roster }) => {
     if (!roster || roster.length === 0) {
       return (
-        <div className="mt-3 h-full flex items-center justify-center">
+        <div className="mt-3 flex items-center justify-center">
           <div className="p-3 border rounded-lg bg-muted/10">
             <div className="text-center text-xs text-muted-foreground">
               No roster data
@@ -160,12 +157,15 @@ const TeamsAndRosters = ({
       return acc;
     }, {});
 
+    // No `.slice()`. The card used to cap starters at 9 and bench at 6 with no
+    // "+N more" of any kind, so it presented a partial roster as a whole one —
+    // and it did that inside a fixed-height box that was already scrolling,
+    // which is where the rest of the list was assumed to be.
     const starters = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K']
       .map(slot => groupedRoster[slot] || [])
-      .flat()
-      .slice(0, 9); // Show max 9 starters
+      .flat();
 
-    const benchPlayers = (groupedRoster['BE'] || []).slice(0, 6); // Show max 6 bench players
+    const benchPlayers = groupedRoster['BE'] || [];
     const irPlayers = groupedRoster['IR'] || [];
 
     const CompactPlayerBadge = ({ player, slot }) => {
@@ -173,41 +173,51 @@ const TeamsAndRosters = ({
       const position = player.position || player.player?.position || '?';
       const isStarter = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'].includes(slot);
 
+      // A roster is a list. Boxing each of sixteen players in its own bordered,
+      // filled rectangle turned a card into a stack of tiles and made the
+      // position chip — the only thing that needs to be scannable — compete
+      // with a border for attention.
       return (
         <div
-          className={`flex items-center gap-1.5 p-1.5 rounded text-xs border ${
-            isStarter
-              ? 'bg-white border-gray-200 font-medium'
-              : slot === 'IR'
-              ? 'bg-red-50 border-red-200 text-red-700'
-              : 'bg-muted/50 border-muted text-muted-foreground'
+          className={`flex items-center gap-2.5 rounded px-1 py-[3px] text-xs ${
+            isStarter ? 'text-foreground' : 'text-muted-foreground'
           }`}
           title={`${playerName} (${position})${slot !== 'BE' && slot !== 'IR' ? ` - ${slot}` : ''}`}
         >
-          <Badge
-            variant="outline"
-            className={`text-xs h-4 px-1 w-10 justify-center ${getPositionColor(position)}`}
+          <span
+            className={`w-9 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold ${getPositionColor(position)}`}
           >
             {position}
-          </Badge>
-          <span className="truncate" style={{maxWidth: '200px'}}>{playerName}</span>
-          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
-            <div className="w-2 h-2 bg-red-500 rounded-full" title={player.injuryStatus} />
+          </span>
+          <span className="min-w-0 flex-1 truncate">{playerName}</span>
+          {slot === 'IR' && (
+            <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-destructive">
+              IR
+            </span>
+          )}
+          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && slot !== 'IR' && (
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive"
+              title={player.injuryStatus}
+            />
           )}
         </div>
       );
     };
 
+    // No inner scroller. With the card sized to its content there is nothing
+    // to scroll against, and a nested scroll region inside the page's own
+    // scroll is what made these cards awkward to read on a phone.
     return (
-      <div className="mt-3 h-full flex flex-col">
-        <div className="flex-1 overflow-y-auto space-y-3">
+      <div className="mt-3">
+        <div className="space-y-3">
           {/* Starting Lineup Grid */}
           {starters.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-white py-1">
+              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
                 Starters
               </h4>
-              <div className="grid grid-cols-1 gap-1">
+              <div className="grid grid-cols-1 gap-px">
                 {starters.map((player, idx) => (
                   <CompactPlayerBadge key={`starter-${idx}`} player={player} slot={player.rosterSlot} />
                 ))}
@@ -218,10 +228,10 @@ const TeamsAndRosters = ({
           {/* Bench Players */}
           {benchPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide sticky top-0 bg-white py-1">
+              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
                 Bench
               </h4>
-              <div className="grid grid-cols-1 gap-1">
+              <div className="grid grid-cols-1 gap-px">
                 {benchPlayers.map((player, idx) => (
                   <CompactPlayerBadge key={`bench-${idx}`} player={player} slot="BE" />
                 ))}
@@ -232,10 +242,10 @@ const TeamsAndRosters = ({
           {/* IR Players */}
           {irPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-red-600 uppercase tracking-wide sticky top-0 bg-white py-1">
-                Injured Reserve
+              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-destructive">
+                Injured reserve
               </h4>
-              <div className="grid grid-cols-1 gap-1">
+              <div className="grid grid-cols-1 gap-px">
                 {irPlayers.map((player, idx) => (
                   <CompactPlayerBadge key={`ir-${idx}`} player={player} slot="IR" />
                 ))}
@@ -249,25 +259,20 @@ const TeamsAndRosters = ({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-            <Users className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Teams & Rosters</h2>
-            <p className="text-muted-foreground">Manage teams and view player rosters</p>
-          </div>
-        </div>
-        
-        {isAuthenticated && (
-          <Button onClick={() => setShowAddForm(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Team
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        icon={Users}
+        title="Teams & Rosters"
+        description={`${teams.length} ${teams.length === 1 ? 'team' : 'teams'} in the league`}
+        className="mb-0"
+        actions={
+          isAuthenticated && (
+            <Button onClick={() => setShowAddForm(true)} className="gap-2">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Add team
+            </Button>
+          )
+        }
+      />
 
       {/* Add/Edit Team Form */}
       {showAddForm && (
@@ -327,47 +332,66 @@ const TeamsAndRosters = ({
 
       {/* Teams List */}
       {teams.length === 0 ? (
-        <Card className="p-8">
-          <CardContent className="text-center space-y-4">
-            <div className="w-16 h-16 mx-auto bg-muted rounded-full flex items-center justify-center">
-              <Users className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">No Teams Yet</h3>
-              <p className="text-muted-foreground">
-                Add your first team to get started with power rankings!
-              </p>
-            </div>
-          </CardContent>
+        <Card>
+          <EmptyState
+            icon={Users}
+            title="No teams yet"
+            description="Power rankings, the schedule and standings all build on the team list."
+            action={
+              isAuthenticated && (
+                <Button onClick={() => setShowAddForm(true)} className="gap-2">
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Add the first team
+                </Button>
+              )
+            }
+          />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {moveUserTeamToFirst(teams, user).map(team => {
+        // Same independent columns as the schedule: a roster is as tall as it
+        // is, and no card should be dragged down by the one beside it.
+        <IndependentColumns
+          items={moveUserTeamToFirst(teams, user)}
+          itemKey={(team) => team.id}
+          columns={3}
+        >
+          {(team) => {
             const rank = getTeamRanking(team.id);
             const stats = getTeamStats(team.id);
             const teamRoster = rosters[team.id]?.roster || [];
 
+            // No fixed height at all now. `sm:h-[750px]` forced every card to
+            // one size regardless of roster length — a short roster left a
+            // stretch of dead space, a long one hid its tail in an inner
+            // scroller, and on a phone `max-h-[70vh]` meant every card ended
+            // mid-list with a scroll region inside the page's own scroll.
+            // Cards are as tall as their content; the page scrolls.
             return (
-              <Card key={team.id} className="hover:shadow-lg transition-shadow h-[750px] flex flex-col">
-                <CardContent className="p-4 flex flex-col h-full">
-                  {/* Team Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-bold truncate">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</h3>
-                        {rank && (
-                          <Badge variant={getRankBadgeVariant(rank)} className="gap-1 shrink-0">
-                            {getRankIcon(rank)}
-                            #{rank}
-                          </Badge>
-                        )}
-                      </div>
+              <Card>
+                <CardContent>
+                  {/* Team Header. The identity chip, the name, the owner and
+                      the record read as one block — the version this replaces
+                      spelled out "Owner:" and "Record" as labels and stacked
+                      them, which spent four lines saying what the shape of the
+                      information already says. */}
+                  <div className="mb-4 flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <TeamIdentity
+                        team={{
+                          ...team,
+                          name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
+                          ownerName: getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
+                          wins: stats.wins,
+                          losses: stats.losses,
+                          ties: stats.ties,
+                        }}
+                        size="md"
+                        showOwner={Boolean(team.owner)}
+                        showRecord={stats.gamesPlayed > 0}
+                        isViewer={isUserTeam(team, user)}
+                        meta={rank ? `#${rank}` : null}
+                      />
 
-                      {team.owner && (
-                        <div className="text-sm text-muted-foreground truncate">
-                          <strong>Owner:</strong> {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
-                        </div>
-                      )}
                     </div>
 
                     {/* Actions */}
@@ -377,9 +401,10 @@ const TeamsAndRosters = ({
                           onClick={() => handleEdit(team)}
                           variant="ghost"
                           size="sm"
-                          className="h-7 w-7 p-0"
+                          className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground pointer-coarse:h-11 pointer-coarse:w-11"
+                          aria-label={`Edit ${team.name}`}
                         >
-                          <Edit3 className="h-3 w-3" />
+                          <Edit3 className="h-3.5 w-3.5" />
                         </Button>
 
                         <AlertDialog>
@@ -387,9 +412,10 @@ const TeamsAndRosters = ({
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive pointer-coarse:h-11 pointer-coarse:w-11"
+                              aria-label={`Remove ${team.name}`}
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -414,33 +440,13 @@ const TeamsAndRosters = ({
                     )}
                   </div>
 
-                  {/* Team Stats - Only Record */}
-                  {stats.gamesPlayed > 0 && (
-                    <div className="mb-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <span className="text-xs">Record</span>
-                        </div>
-                        <div className={`font-semibold ${
-                          (stats.wins || 0) > (stats.losses || 0) ? 'text-green-600' :
-                          (stats.wins || 0) < (stats.losses || 0) ? 'text-red-600' : 'text-gray-600'
-                        }`}>
-                          {stats.wins || 0}-{stats.losses || 0}
-                          {stats.ties > 0 && `-${stats.ties}`}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   {/* Compact Roster Section */}
-                  <div className="flex-1 overflow-hidden">
-                    <CompactTeamRoster team={team} roster={teamRoster} />
-                  </div>
+                  <CompactTeamRoster team={team} roster={teamRoster} />
                 </CardContent>
               </Card>
             );
-          })}
-        </div>
+          }}
+        </IndependentColumns>
       )}
 
       {/* Quick Stats */}

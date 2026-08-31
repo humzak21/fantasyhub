@@ -4,14 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { isCurrentSeason } from '../../../../utils/seasonConfig.js';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '../../ui/table';
+import { ResponsiveDataTable } from '../../ui/responsive-table';
 import { useSeasonDetail } from '../../../../hooks/queries/index.js';
 import { getMaskedHistoricalOwnerName, getMaskedHistoricalTeamName } from '../utils/privacyHelpers';
 import { formatRecord, formatPoints, formatPlayoffFinish } from '../utils/statFormatters';
@@ -92,7 +85,7 @@ const SeasonDetail = ({
 
   const getRankIcon = (index) => {
     if (index === 0) return <Crown className="h-4 w-4 text-amber-500" />;
-    if (index === 1) return <Medal className="h-4 w-4 text-gray-400" />;
+    if (index === 1) return <Medal className="h-4 w-4 text-muted-foreground" />;
     if (index === 2) return <Medal className="h-4 w-4 text-amber-700" />;
     return null;
   };
@@ -109,6 +102,94 @@ const SeasonDetail = ({
     if (finish === '2nd' || finish === '3rd') return 'secondary';
     return 'outline';
   };
+
+  // Seven columns of small numbers do not survive a 375px screen; below sm:
+  // this renders as a card per team. Rank, owner and final placement are the
+  // card header — they are what identifies the row — and the point totals
+  // become a labelled grid, which is more readable than the table even on
+  // desktop when the header has scrolled away.
+  const standingsColumns = [
+    {
+      key: 'rank',
+      header: 'Rank',
+      priority: 'primary',
+      headerClassName: 'w-12',
+      className: 'font-medium',
+      cell: (_team, index) => (
+        <div className="flex items-center gap-2 font-medium">
+          {getRankIcon(index)}
+          {index + 1}
+        </div>
+      ),
+    },
+    {
+      key: 'owner',
+      header: 'Owner',
+      priority: 'primary',
+      cell: (team) => (
+        <div className="min-w-0">
+          <p className="truncate font-semibold">
+            {getMaskedHistoricalOwnerName(team, user, isAdmin, teamOwnerNames)}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {getMaskedHistoricalTeamName(team, user, isAdmin, teamOwnerNames)}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: 'finish',
+      header: 'Finish',
+      priority: 'primary',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (team) =>
+        team.playoff_finish && team.playoff_finish !== 'missed' && team.playoff_finish !== 'none' ? (
+          <Badge variant={getPlayoffBadgeVariant(team.playoff_finish)}>
+            {formatPlayoffFinish(team.playoff_finish)}
+          </Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">-</span>
+        ),
+    },
+    {
+      key: 'record',
+      header: 'Record',
+      className: 'text-center tabular text-sm',
+      headerClassName: 'text-center',
+      cell: (team) => formatRecord(team.regular_season_wins, team.regular_season_losses),
+    },
+    {
+      key: 'pf',
+      header: 'PF',
+      cardLabel: 'Points for',
+      className: 'text-center tabular text-sm',
+      headerClassName: 'text-center',
+      cell: (team) => formatPoints(team.points_for),
+    },
+    {
+      key: 'pa',
+      header: 'PA',
+      cardLabel: 'Points against',
+      className: 'text-center tabular text-sm',
+      headerClassName: 'text-center',
+      cell: (team) => formatPoints(team.points_against),
+    },
+    {
+      key: 'diff',
+      header: 'Diff',
+      className: 'text-center tabular text-sm',
+      headerClassName: 'text-center',
+      cell: (team) => {
+        const diff = (team.points_for || 0) - (team.points_against || 0);
+        return (
+          <span className={diff >= 0 ? 'text-green-500' : 'text-red-500'}>
+            {diff >= 0 ? '+' : ''}{diff.toFixed(1)}
+          </span>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -148,68 +229,8 @@ const SeasonDetail = ({
           </div>
 
           {sortedTeams.length > 0 ? (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">Rank</TableHead>
-                    <TableHead>Owner</TableHead>
-                    <TableHead className="text-center">Record</TableHead>
-                    <TableHead className="text-center">PF</TableHead>
-                    <TableHead className="text-center">PA</TableHead>
-                    <TableHead className="text-center">Diff</TableHead>
-                    <TableHead className="text-center">Finish</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedTeams.map((team, index) => {
-                    const diff = (team.points_for || 0) - (team.points_against || 0);
-                    return (
-                      <TableRow key={team.id} className={getRankClass(index)}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {getRankIcon(index)}
-                            {index + 1}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-semibold">
-                              {getMaskedHistoricalOwnerName(team, user, isAdmin, teamOwnerNames)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {getMaskedHistoricalTeamName(team, user, isAdmin, teamOwnerNames)}
-                            </p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm">
-                          {formatRecord(team.regular_season_wins, team.regular_season_losses)}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm">
-                          {formatPoints(team.points_for)}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm">
-                          {formatPoints(team.points_against)}
-                        </TableCell>
-                        <TableCell className="text-center font-mono text-sm">
-                          <span className={diff >= 0 ? 'text-green-500' : 'text-red-500'}>
-                            {diff >= 0 ? '+' : ''}{diff.toFixed(1)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {team.playoff_finish && team.playoff_finish !== 'missed' && team.playoff_finish !== 'none' ? (
-                            <Badge variant={getPlayoffBadgeVariant(team.playoff_finish)}>
-                              {formatPlayoffFinish(team.playoff_finish)}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+            <div className="rounded-lg border p-2 sm:p-0 sm:overflow-hidden">
+              <ResponsiveDataTable columns={standingsColumns} data={sortedTeams} rowClassName={(_t, i) => getRankClass(i)} />
             </div>
           ) : (
             <p className="text-muted-foreground text-center py-8">No team data available</p>

@@ -125,22 +125,23 @@ const AwardsManager = ({
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="voting" className="flex items-center gap-2">
-            <Vote className="h-4 w-4" />
+        {/* `grid-cols-4` divided the width by the tab count regardless of
+            label length — ~70px a tab at 375px, so "Results (Locked)" ran into
+            "Gallery". TabsList scrolls by default now, and `icon` collapses
+            each label to its glyph below sm: while keeping it as the
+            accessible name. */}
+        <TabsList className="w-full">
+          <TabsTrigger value="voting" icon={<Vote className="h-4 w-4" />}>
             Ballot
           </TabsTrigger>
-          <TabsTrigger value="results" disabled={!isUnlocked && !isAdmin} className="flex items-center gap-2">
-            <PieChart className="h-4 w-4" />
+          <TabsTrigger value="results" disabled={!isUnlocked && !isAdmin} icon={<PieChart className="h-4 w-4" />}>
             Results {(!isUnlocked && !isAdmin) && '(Locked)'}
           </TabsTrigger>
-          <TabsTrigger value="gallery" disabled={!isUnlocked && !isAdmin} className="flex items-center gap-2">
-            <Trophy className="h-4 w-4" />
+          <TabsTrigger value="gallery" disabled={!isUnlocked && !isAdmin} icon={<Trophy className="h-4 w-4" />}>
             Gallery {(!isUnlocked && !isAdmin) && '(Locked)'}
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="admin" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
+            <TabsTrigger value="admin" icon={<Settings className="h-4 w-4" />}>
               Admin
             </TabsTrigger>
           )}

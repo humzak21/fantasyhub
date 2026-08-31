@@ -14,7 +14,7 @@ const SelectTrigger = React.forwardRef(({ className, children, ...props }, ref) 
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-base sm:text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
       className
     )}
     {...props}
@@ -61,7 +61,12 @@ const SelectContent = React.forwardRef(({ className, children, position = "poppe
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border shadow-md",
+        // Was `style={{ backgroundColor: '#1a1a1a', color: '#fff', border:
+        // '1px solid #333' }}` — a hand-mixed dark palette hardcoded inline
+        // because bg-popover generated no CSS at all before the theme layer
+        // was restored. Inline styles also outrank every className a caller
+        // could pass. Tokens now.
+        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -73,11 +78,6 @@ const SelectContent = React.forwardRef(({ className, children, position = "poppe
       )}
       position={position}
       sideOffset={5}
-      style={{
-        backgroundColor: '#1a1a1a',
-        color: '#ffffff',
-        border: '1px solid #333'
-      }}
       {...props}
     >
       <SelectScrollUpButton />

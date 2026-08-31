@@ -51,7 +51,7 @@ const AWARD_CATEGORIES = {
 // Award type icons and styling
 const AWARD_TYPE_CONFIG = {
   champion: { icon: Trophy, rank: 1, color: 'text-amber-500' },
-  runner_up: { icon: Medal, rank: 2, color: 'text-gray-400' },
+  runner_up: { icon: Medal, rank: 2, color: 'text-muted-foreground' },
   third_place: { icon: Medal, rank: 3, color: 'text-orange-600' },
   best_record: { icon: Target, rank: 1, color: 'text-green-600' },
   highest_points: { icon: TrendingUp, rank: 1, color: 'text-green-600' },

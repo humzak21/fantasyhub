@@ -1,74 +1,363 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+/* Fonts are linked from index.html, not imported here: a CSS @import is
+ * render-blocking and this file already loaded the identical Inter URL that
+ * index.html links, so every visitor paid for the same font twice. */
 @import "tailwindcss";
 
+/* The theme is defined here, in CSS, not in a tailwind.config.js.
+ *
+ * Phase 0 bridged to the old config with `@config` to get the theme layer
+ * generating at all; this is the finished form. One file now holds the
+ * palette, the breakpoints and the animations, instead of a JS config that
+ * Tailwind v4 only reads when explicitly pointed at it — which is exactly the
+ * failure mode that left every semantic token generating nothing.
+ *
+ * scripts/check-css-tokens.js asserts the result reaches the bundle. */
+
+/* Sources are named explicitly rather than left to auto-detection: this file
+ * sits at the repo root, so auto-detection would sweep dump/, examples/ and
+ * aug2026_refactor/ looking for class names. */
+@source "./index.html";
+@source "./src";
+@source "./hooks";
+@source "./utils";
+@source "./types";
+@source "./services";
+@source "./FantasyFootballApp.jsx";
+
+/* Probe utilities for scripts/check-css-tokens.js, emitted on purpose.
+ * The guard needs a fixed target: it must fail when the theme layer stops
+ * generating, not when some component happens to stop using a class. Pinning
+ * one utility per theme facet (colour, breakpoint, brand ramp, animation)
+ * here decouples the check from app source entirely. Costs ~5 rules. */
+@source inline("bg-card text-muted-foreground xs:block text-ff-rank-gold-500 animate-float-in");
+
+/* Team-identity utilities, emitted on purpose.
+ *
+ * `getTeamColor()` picks a slot at runtime, so the class name only ever exists
+ * as `bg-team-${slot}` — a string Tailwind's scanner cannot see. This is the
+ * same trap StatisticsPanel fell into with `bg-${color}-50`, where the classes
+ * were never generated and the cards only looked styled because an unrelated
+ * dark-mode remap happened to catch them. Naming the full set here is what
+ * makes the runtime lookup safe. */
+@source inline("{bg,text,border,ring}-team-{1,2,3,4,5,6,7,8,9,10,11,12,13,14}");
+
+/* Chart-palette utilities, for the same reason: `getPositionColor()` and the
+ * chart helpers look these up by key at runtime. */
+@source inline("{bg,text,border}-chart-{1,2,3,4,5,6,7,8,9,10}");
+@source inline("{bg,text}-chart-{1,2,3,4,5,6,7,8,9,10}/15");
+
+/* Dark mode is a class on <html>, not a media query — the app owns the choice
+ * (and currently forces dark). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * `@theme inline`, and the palette below is stored as *complete colours* in
+ * oklch — not as the bare HSL triplets this file used to hold.
+ *
+ * The triplet convention existed so opacity modifiers (`bg-card/50`) would
+ * resolve; Tailwind v4 does that for any colour format via color-mix, so the
+ * indirection bought nothing and cost the ability to reason about the palette.
+ *
+ * oklch is the point, not a flourish. Its L is perceptual lightness, so a set
+ * of accents declared at the same L and C genuinely *look* like one family
+ * whatever their hue — where HSL's "lightness" does not, and equal-L HSL
+ * yellows blaze while blues sink. Every accent here is L 0.72 / C 0.15-0.19,
+ * and the chart and team wheels are the same lightness swept around the hue
+ * circle. That is what makes the colour system cohere.
+ */
+@theme inline {
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  /* Status colours. Real utilities (`bg-success/15`, `text-warning`) so a
+     component can state what a value *means* instead of picking a hue. These
+     are the migration target for the `bg-green-50`-style light tints that the
+     `.dark` remap block further down has to compensate for. */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  /* Categorical chart palette. Every chart used to invent its own hexes —
+     ~200 of them, including recharts' default #8884d8 and dark-grey *text*
+     colours used as fills on a dark page. Series colours come from here now,
+     and `teamChartColor()` keeps a given team the same colour everywhere. */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-7: var(--chart-7);
+  --color-chart-8: var(--chart-8);
+  --color-chart-9: var(--chart-9);
+  --color-chart-10: var(--chart-10);
+
+  /* Team identity wheel. A franchise is assigned one of these deterministically
+     (src/utils/teamColors.js) and keeps it in every table, chart, avatar and
+     bracket slot — charts used to colour teams by array index, so the same
+     team was a different colour on every chart. 14 slots for a 14-team league,
+     spaced around the wheel so adjacent seeds stay distinguishable. */
+  --color-team-1: var(--team-1);
+  --color-team-2: var(--team-2);
+  --color-team-3: var(--team-3);
+  --color-team-4: var(--team-4);
+  --color-team-5: var(--team-5);
+  --color-team-6: var(--team-6);
+  --color-team-7: var(--team-7);
+  --color-team-8: var(--team-8);
+  --color-team-9: var(--team-9);
+  --color-team-10: var(--team-10);
+  --color-team-11: var(--team-11);
+  --color-team-12: var(--team-12);
+  --color-team-13: var(--team-13);
+  --color-team-14: var(--team-14);
+
+  /* Fantasy Football podium ramps. These are now actual podium metals: silver
+     used to be orange and bronze used to be green, which is why neither of the
+     two hand-rolled podium colour systems in the app ever used them. */
+  --color-ff-rank-gold-50: #fefce8;
+  --color-ff-rank-gold-100: #fef9c3;
+  --color-ff-rank-gold-200: #fef08a;
+  --color-ff-rank-gold-300: #fde047;
+  --color-ff-rank-gold-400: #facc15;
+  --color-ff-rank-gold-500: #eab308;
+  --color-ff-rank-gold-600: #ca8a04;
+  --color-ff-rank-gold-700: #a16207;
+  --color-ff-rank-gold-800: #854d0e;
+  --color-ff-rank-gold-900: #713f12;
+
+  --color-ff-rank-silver-50: #f8fafc;
+  --color-ff-rank-silver-100: #f1f5f9;
+  --color-ff-rank-silver-200: #e2e8f0;
+  --color-ff-rank-silver-300: #cbd5e1;
+  --color-ff-rank-silver-400: #b4c0d0;
+  --color-ff-rank-silver-500: #94a3b8;
+  --color-ff-rank-silver-600: #7c8ba1;
+  --color-ff-rank-silver-700: #64748b;
+  --color-ff-rank-silver-800: #475569;
+  --color-ff-rank-silver-900: #334155;
+
+  --color-ff-rank-bronze-50: #fdf5ee;
+  --color-ff-rank-bronze-100: #f7e5d3;
+  --color-ff-rank-bronze-200: #eeccaa;
+  --color-ff-rank-bronze-300: #e0ac7c;
+  --color-ff-rank-bronze-400: #ce8b54;
+  --color-ff-rank-bronze-500: #b87333;
+  --color-ff-rank-bronze-600: #9c5f2a;
+  --color-ff-rank-bronze-700: #7d4b22;
+  --color-ff-rank-bronze-800: #5f391a;
+  --color-ff-rank-bronze-900: #452a13;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --breakpoint-xs: 475px;
+
+  /* Inter carries the interface; Barlow Condensed is the scoreboard voice and
+     is used only for page titles, scores and hero numbers — never body text.
+     There is no mono face on purpose: `font-mono` was being used to line up
+     digits, which is what `tabular-nums` does without a second download and
+     without Inter's x-height mismatching a system mono at 14px. */
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'Inter Tight', Inter, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  /* Only animations something actually uses. `modal-in/out`, `backdrop-in/out`
+     and `shimmer` were each declared twice — here and again unlayered below
+     with different bodies, so the later definition silently won (the modal
+     ones lost their backdrop-filter, and shimmer changed from transform to
+     left). The legacy classes that use them read the definitions below; these
+     tokens generated utilities nobody referenced. */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-slide-in: slide-in 0.3s ease-out;
+  --animate-float-in: float-in 0.3s ease-out;
+  --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-bounce-subtle: bounce-subtle 1s ease-in-out infinite;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+  @keyframes fade-in {
+    0% { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slide-in {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(0); }
+  }
+  @keyframes float-in {
+    0% { opacity: 0; transform: scale(0.8) translateY(20px); filter: blur(4px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0px); }
+  }
+  /* The awards tab's "something is waiting for you" glow. It used to be a
+     <style> element rendered from inside ResponsiveNavigation, re-injected on
+     every render of the component. */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning) 50%, transparent), 0 0 12px -2px color-mix(in oklab, var(--warning) 40%, transparent); }
+    50% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--warning) 0%, transparent), 0 0 16px -2px color-mix(in oklab, var(--warning) 70%, transparent); }
+  }
+  @keyframes bounce-subtle {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
+  }
+}
+
 @layer base {
+  /*
+   * THE PALETTE
+   *
+   * Black first. The field is a true near-black at L 0.145 with almost no
+   * chroma, and every surface above it is a step of perceptual lightness, not
+   * a different hue. The app used to sit on a blue-slate (222 47% 5%) with
+   * slate cards, which is the default dashboard look and the reason the
+   * interface read as "a dashboard" rather than as this league's.
+   *
+   * The surface ramp is deliberately shallow — 0.145 → 0.185 → 0.215. On black,
+   * small steps read clearly, and large ones look like unrelated panels. Each
+   * step is roughly what a 3% white overlay would give, which is the same
+   * material logic as a translucent card over a dark ground.
+   *
+   * Colour cascades from one hue. The brand is orange at 45deg; the secondary
+   * pole is its complement at 240deg. Warm means *yours* and *act* — your team,
+   * the primary button, the live week. Cool means *told* — information,
+   * neutral emphasis. Everything else is that same pair extended: success and
+   * danger sit either side, and the categorical wheels are the identical
+   * lightness swept around the circle.
+   *
+   * Every accent is L 0.72. That is the whole trick behind a palette that
+   * looks designed: at equal perceptual lightness, six different hues carry
+   * equal weight, so no single colour shouts and the page reads as one
+   * surface with information on it.
+   */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* --- the field --------------------------------------------------- */
+    --background: oklch(0.145 0.004 265);
+    --foreground: oklch(0.975 0.002 265);
+
+    /* Raised surfaces. `card` is what content sits on; `popover` is what
+       floats above content. */
+    --card: oklch(0.185 0.005 265);
+    --card-foreground: oklch(0.975 0.002 265);
+    --popover: oklch(0.215 0.006 265);
+    --popover-foreground: oklch(0.975 0.002 265);
+
+    /* Recessed and quiet surfaces. `muted` is a well *below* the card —
+       a table header, an inset panel — and `accent` is the hover lift above
+       it. They used to be the same colour, which left hover with nowhere
+       to go. */
+    --muted: oklch(0.205 0.005 265);
+    --muted-foreground: oklch(0.705 0.012 265);
+    --accent: oklch(0.245 0.007 265);
+    --accent-foreground: oklch(0.975 0.002 265);
+    --secondary: oklch(0.225 0.006 265);
+    --secondary-foreground: oklch(0.975 0.002 265);
+
+    /* Hairlines. A border on black wants to be a *suggestion* — around a 7%
+       white overlay. The old `217 30% 17%` was a solid slate that drew as
+       hard as the text it was separating. */
+    --border: oklch(0.265 0.006 265);
+    --border-strong: oklch(0.34 0.008 265);
+    --input: oklch(0.285 0.007 265);
+
+    /* --- the accents, all at L 0.72 ---------------------------------- */
+    --primary: oklch(0.72 0.185 45);
+    --primary-foreground: oklch(0.145 0.004 265);
+    --ring: oklch(0.72 0.185 45);
+
+    --info: oklch(0.72 0.145 240);
+    --info-foreground: oklch(0.145 0.004 265);
+    --success: oklch(0.72 0.165 150);
+    --success-foreground: oklch(0.145 0.004 265);
+    --warning: oklch(0.78 0.155 85);
+    --warning-foreground: oklch(0.145 0.004 265);
+    --destructive: oklch(0.66 0.205 22);
+    --destructive-foreground: oklch(0.975 0.002 265);
+
+    --radius: 0.625rem;
+
+    /* --- categorical wheels ------------------------------------------- */
+    /*
+     * Chart series and team identity, both swept around the hue circle at the
+     * accent lightness. Declared as real custom properties because recharts
+     * takes a colour *string* prop — `@theme inline` inlines its tokens into
+     * utilities and emits no property, so a chart could not read one.
+     *
+     * The chart wheel starts on the brand hue and steps ~36deg; the team wheel
+     * steps 360/14 so fourteen franchises are as far apart as fourteen hues
+     * can be. Neither is a hand-picked list of hexes, which is what they
+     * replaced — those had two teams sharing a colour outright.
+     */
+    --chart-1: oklch(0.72 0.16 45);
+    --chart-2: oklch(0.72 0.16 240);
+    --chart-3: oklch(0.72 0.16 150);
+    --chart-4: oklch(0.72 0.16 305);
+    --chart-5: oklch(0.75 0.16 95);
+    --chart-6: oklch(0.72 0.16 195);
+    --chart-7: oklch(0.70 0.16 15);
+    --chart-8: oklch(0.72 0.16 275);
+    --chart-9: oklch(0.73 0.16 125);
+    --chart-10: oklch(0.71 0.16 340);
+
+    --team-1: oklch(0.72 0.15 45);
+    --team-2: oklch(0.72 0.15 71);
+    --team-3: oklch(0.74 0.15 97);
+    --team-4: oklch(0.73 0.15 123);
+    --team-5: oklch(0.72 0.15 148);
+    --team-6: oklch(0.72 0.15 174);
+    --team-7: oklch(0.72 0.15 200);
+    --team-8: oklch(0.72 0.15 226);
+    --team-9: oklch(0.72 0.15 251);
+    --team-10: oklch(0.72 0.15 277);
+    --team-11: oklch(0.72 0.15 303);
+    --team-12: oklch(0.71 0.15 329);
+    --team-13: oklch(0.70 0.15 355);
+    --team-14: oklch(0.71 0.15 19);
   }
 
+  /*
+   * The app is dark-only; the palette above is the design, not a light theme.
+   * `.dark` stays applied to <html> because the status-colour remap and any
+   * residual `dark:` utility compile against it — see DarkModeContext.
+   */
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 5.9% 15%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 25%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    color-scheme: dark;
   }
 }
 
 @layer base {
 
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: var(--background);
+    color: var(--foreground);
     font-family: 'Inter', sans-serif;
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
@@ -180,7 +469,183 @@
   }
 }
 
+/* Drive the .animate-in / .animate-out utilities above. Each modifier sets one
+ * custom property; anything left `initial` falls back to the identity value,
+ * so `animate-in fade-in-0` moves opacity only and `animate-in
+ * slide-in-from-top-2` moves position only, exactly as the shadcn classes
+ * behave. */
+@keyframes ff-enter {
+  from {
+    opacity: var(--ff-enter-opacity, 1);
+    transform:
+      translate3d(var(--ff-enter-translate-x, 0), var(--ff-enter-translate-y, 0), 0)
+      scale(var(--ff-enter-scale, 1));
+  }
+}
+
+@keyframes ff-exit {
+  to {
+    opacity: var(--ff-exit-opacity, 1);
+    transform:
+      translate3d(var(--ff-exit-translate-x, 0), var(--ff-exit-translate-y, 0), 0)
+      scale(var(--ff-exit-scale, 1));
+  }
+}
+
 @layer utilities {
+
+  /* Card sections stack without doubling their padding.
+   *
+   * A CardContent that follows a CardHeader does not want its own top padding
+   * — the header's bottom padding is already there. Expressed as an
+   * adjacent-sibling rule rather than baked into CardContent's classes,
+   * because only the DOM knows what is actually above it: the version that
+   * hardcoded `pt-0` broke every card used without a header, and the version
+   * that asked `:not(:first-child)` broke any card with a decorative element
+   * before its content. */
+  [data-slot='card-header'] + [data-slot='card-content'],
+  [data-slot='card-header'] + [data-slot='card-footer'],
+  [data-slot='card-content'] + [data-slot='card-footer'] {
+    padding-top: 0;
+  }
+
+  /* The signed-in viewer's own row, in a table or as a card.
+   *
+   * Split by element because the two layouts need different mechanics: a
+   * table row cannot reliably carry a border or a positioned pseudo-element
+   * under `border-collapse: collapse`, so its rail is an inset shadow on the
+   * first cell; a card is an ordinary block and takes a pseudo-element. */
+  .ff-viewer-row {
+    background-color: color-mix(in oklab, var(--primary) 7%, transparent);
+  }
+
+  tr.ff-viewer-row > td:first-child {
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  div.ff-viewer-row {
+    position: relative;
+    overflow: hidden;
+    border-color: color-mix(in oklab, var(--primary) 35%, transparent);
+  }
+
+  div.ff-viewer-row::before {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    width: 3px;
+    background: var(--primary);
+  }
+
+  /* Bracket connectors.
+   *
+   * A bracket's structure *is* the lines: which two slots feed which. The
+   * columns here were independent flex stacks with a gap between them and
+   * nothing drawn across it, so on a phone — where only one or two columns fit
+   * and the reader is scrolling sideways — the bracket lost the one thing that
+   * makes it a bracket.
+   *
+   * Drawn with pseudo-elements on the slots rather than an SVG overlay: the
+   * columns are already laid out by flexbox, an absolutely-positioned overlay
+   * would have to re-derive those positions in JS and would go wrong on every
+   * resize, and this costs no elements and no measurement.
+   *
+   * `.ff-feeds-forward` — a slot whose winner advances: a stub out of its
+   * right edge. `.ff-fed-from-left` — a slot receiving them: a stub into its
+   * left edge. Hidden below sm, where the columns stack and the lines would
+   * point at nothing. */
+  .ff-feeds-forward,
+  .ff-fed-from-left {
+    position: relative;
+  }
+
+  @media (min-width: 640px) {
+    .ff-feeds-forward::after,
+    .ff-fed-from-left::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 0.75rem;
+      border-top: 1px solid var(--border);
+      pointer-events: none;
+    }
+
+    .ff-feeds-forward::after {
+      left: 100%;
+    }
+
+    .ff-fed-from-left::before {
+      right: 100%;
+    }
+  }
+
+  /* Digits that line up in a column.
+   *
+   * The app had three numeric treatments — `font-mono` (31 sites),
+   * `tabular-nums` (3) and plain sans (everywhere else) — so the same power
+   * rating rendered in a different face depending on which viewport branch you
+   * were looking at. Inter already ships tabular figures, and `body` already
+   * enables its OpenType features; this is the whole fix. Use it through
+   * `NumberText` rather than by hand. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  /* Radix enter/exit animations.
+   *
+   * dropdown-menu, select, popover, tooltip and alert-dialog were all authored
+   * against `animate-in` / `fade-in-0` / `zoom-in-95` / `slide-in-from-*`.
+   * Those come from the tailwindcss-animate plugin, which this project has
+   * never installed — verified against the built CSS, where not one of them
+   * appears. Every one of those menus has been popping in with no transition
+   * at all since the day it was written.
+   *
+   * Rather than add a dependency for six keyframes, they are defined here, in
+   * the same names the components already use, so those components animate as
+   * written and the new dialog/sheet/drawer primitives can rely on them too.
+   * The set is deliberately only what the codebase references. */
+  .animate-in {
+    animation-name: ff-enter;
+    animation-duration: 150ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-fill-mode: both;
+    --ff-enter-opacity: initial;
+    --ff-enter-scale: initial;
+    --ff-enter-translate-x: initial;
+    --ff-enter-translate-y: initial;
+  }
+
+  .animate-out {
+    animation-name: ff-exit;
+    animation-duration: 120ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-fill-mode: both;
+    --ff-exit-opacity: initial;
+    --ff-exit-scale: initial;
+    --ff-exit-translate-x: initial;
+    --ff-exit-translate-y: initial;
+  }
+
+  .fade-in-0 { --ff-enter-opacity: 0; }
+  .fade-out-0 { --ff-exit-opacity: 0; }
+
+  .zoom-in-95 { --ff-enter-scale: 0.95; }
+  .zoom-out-95 { --ff-exit-scale: 0.95; }
+
+  .slide-in-from-top-2 { --ff-enter-translate-y: -0.5rem; }
+  .slide-in-from-bottom-2 { --ff-enter-translate-y: 0.5rem; }
+  .slide-in-from-left-2 { --ff-enter-translate-x: -0.5rem; }
+  .slide-in-from-right-2 { --ff-enter-translate-x: 0.5rem; }
+  .slide-in-from-left-1 { --ff-enter-translate-x: -0.25rem; }
+  .slide-out-to-left-1 { --ff-exit-translate-x: -0.25rem; }
+
+  .slide-in-from-bottom-full { --ff-enter-translate-y: 100%; }
+  .slide-out-to-bottom-full { --ff-exit-translate-y: 100%; }
+  .slide-in-from-right-full { --ff-enter-translate-x: 100%; }
+  .slide-out-to-right-full { --ff-exit-translate-x: 100%; }
+
 
   .gradient-bg {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -239,14 +704,20 @@
     animation: backdrop-out 0.15s ease-in;
   }
   
-  /* Enhanced modal content */
+  /* The panel for the two hand-rolled modals that predate ui/dialog.jsx.
+   *
+   * This was `background: rgba(255, 255, 255, 0.98)` — a near-white panel, on
+   * an app that has been dark-only for its entire life. Both call sites set no
+   * background class of their own, so both rendered white-on-dark. It reads
+   * from the popover token now, like every other overlay. */
   .modal-content {
-    background: rgba(255, 255, 255, 0.98);
+    background: var(--popover);
+    color: var(--popover-foreground);
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: 
-      0 25px 50px -12px rgba(0, 0, 0, 0.25),
-      0 0 0 1px rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    box-shadow:
+      0 25px 50px -12px rgb(0 0 0 / 0.5),
+      0 0 0 1px color-mix(in oklab, var(--border) 50%, transparent);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
@@ -335,6 +806,23 @@
       0 0 0 4px rgba(59, 130, 246, 0.2);
   }
   
+  /* Safe-area helpers, lifted from styles/mobile.css when the phone-only
+   * stylesheet was deleted. index.html sets `viewport-fit=cover`, so on a
+   * notched device env() is non-zero and anything pinned to an edge needs
+   * one of these or it sits under the home indicator / rounded corner.
+   * `max()` keeps a sensible floor on devices where env() is 0. */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pl-safe { padding-left: env(safe-area-inset-left); }
+  .pr-safe { padding-right: env(safe-area-inset-right); }
+
+  .px-safe {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .mb-safe { margin-bottom: env(safe-area-inset-bottom); }
+
   /* Mobile-optimized scrolling for week navigation */
   .mobile-scroll {
     -webkit-overflow-scrolling: touch;
@@ -541,61 +1029,38 @@
     }
   }
 
-  /* Mobile-specific foundation styles */
+  /* Mobile-specific foundation styles.
+   *
+   * Three things used to live here and all three were bugs:
+   *   - `transform: translateZ(0)` made whatever carried this class the
+   *     containing block for every `position: fixed` descendant, so overlays
+   *     and drawers sized/positioned against it instead of the viewport;
+   *   - blanket `user-select: none` made the whole app feel like a kiosk;
+   *   - a blanket 44px floor on every `button` and `[role=button]` inflated
+   *     icon buttons, table controls and chips — a big part of the
+   *     "everything is zoomed in" complaint. Touch sizing now lives on the
+   *     `ui/` primitives behind `pointer-coarse:`, where it can be opted out
+   *     of. Do not reintroduce any of them here. */
   .mobile-optimized {
-    /* Touch interaction optimizations */
     -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    
+
     /* Performance optimizations */
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    
+
     /* Text rendering optimizations */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
-  /* Re-enable text selection for inputs */
-  .mobile-optimized input,
-  .mobile-optimized textarea,
-  .mobile-optimized [contenteditable] {
-    -webkit-user-select: text;
-    -moz-user-select: text;
-    -ms-user-select: text;
-    user-select: text;
-  }
-
-  /* Touch-friendly button base styles */
   .mobile-optimized button,
   .mobile-optimized [role="button"] {
-    min-width: 44px;
-    min-height: 44px;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Mobile viewport optimizations */
-  .mobile-optimized {
-    /* Prevent horizontal scrolling */
-    overflow-x: hidden;
-    
-    /* Optimize for mobile performance */
-    transform: translateZ(0);
-    -webkit-transform: translateZ(0);
-  }
-
   /* Device-specific optimizations */
-  .ios-device {
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-  }
-
   .android-device {
     -webkit-tap-highlight-color: transparent;
   }
@@ -628,7 +1093,7 @@
 
   /* Mobile-specific focus styles */
   .mobile-optimized *:focus-visible {
-    outline: 2px solid hsl(var(--primary));
+    outline: 2px solid var(--primary);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -672,4 +1137,146 @@
     border-left: 4px solid #ef4444;
   }
 
+}
+
+/* ---------------------------------------------------------------------------
+ * Dark status colours.
+ *
+ * The app is dark-only, but its status chips are written in Tailwind's *light*
+ * tints — `bg-green-50 text-green-700` for a win streak, `bg-red-50
+ * text-red-700` for a bad loss, and so on for blue, orange, amber, purple and
+ * indigo. There are dozens of them and they are genuinely the right vocabulary
+ * at the call site: a component should say "this is a positive result", not
+ * "this is hsl(142 45% 12%)".
+ *
+ * So the mapping lives here, once, instead of being hand-written as a `dark:`
+ * variant at every use. The 50/100 tints become dark tints of the same hue and
+ * the 500/600/700 text becomes a light tint of it, which keeps contrast on a
+ * near-black page.
+ *
+ * These rules are deliberately outside `@layer`: an unlayered rule beats every
+ * layered one regardless of specificity, so Tailwind's own `.bg-green-50`
+ * cannot win and none of this needs `!important` — which is what the whole
+ * block used to be made of. A caller who genuinely wants a light chip on a
+ * dark page can still say so with an inline style or a `[&]:` escape.
+ *
+ * Lifted verbatim from styles/dark-mode.css when that file was deleted; the
+ * values are the ones the app has been rendering.
+ * ------------------------------------------------------------------------ */
+
+.dark .bg-blue-50,
+.dark .bg-blue-100 {
+  background-color: hsl(212 45% 12%);
+  border-color: hsl(212 35% 18%);
+}
+.dark .text-blue-500 { color: hsl(212 85% 70%); }
+.dark .text-blue-600,
+.dark .text-blue-700 { color: hsl(212 80% 75%); }
+
+.dark .bg-orange-50,
+.dark .bg-orange-100 {
+  background-color: hsl(24 45% 12%);
+  border-color: hsl(24 35% 18%);
+}
+.dark .text-orange-500 { color: hsl(24 95% 70%); }
+.dark .text-orange-600,
+.dark .text-orange-700 { color: hsl(24 90% 75%); }
+
+.dark .bg-purple-50,
+.dark .bg-purple-100,
+.dark .bg-violet-50,
+.dark .bg-violet-100 {
+  background-color: hsl(260 45% 12%);
+  border-color: hsl(260 35% 18%);
+}
+.dark .text-purple-500,
+.dark .text-violet-500 { color: hsl(260 85% 70%); }
+.dark .text-purple-600,
+.dark .text-purple-700,
+.dark .text-violet-600,
+.dark .text-violet-700 { color: hsl(260 80% 75%); }
+
+.dark .bg-green-50,
+.dark .bg-green-100,
+.dark .bg-emerald-50,
+.dark .bg-emerald-100 {
+  background-color: hsl(142 45% 12%);
+  border-color: hsl(142 35% 18%);
+}
+.dark .text-green-500,
+.dark .text-emerald-500 { color: hsl(142 85% 70%); }
+.dark .text-green-600,
+.dark .text-green-700,
+.dark .text-emerald-600,
+.dark .text-emerald-700 { color: hsl(142 80% 75%); }
+
+.dark .bg-red-50,
+.dark .bg-red-100 {
+  background-color: hsl(0 45% 12%);
+  border-color: hsl(0 35% 18%);
+}
+.dark .text-red-500 { color: hsl(0 85% 70%); }
+.dark .text-red-600,
+.dark .text-red-700 { color: hsl(0 80% 75%); }
+
+.dark .bg-yellow-50,
+.dark .bg-yellow-100,
+.dark .bg-amber-50,
+.dark .bg-amber-100 {
+  background-color: hsl(45 45% 12%);
+  border-color: hsl(45 35% 18%);
+}
+.dark .text-yellow-500,
+.dark .text-amber-500 { color: hsl(45 95% 70%); }
+.dark .text-yellow-600,
+.dark .text-yellow-700,
+.dark .text-amber-600,
+.dark .text-amber-700 { color: hsl(45 90% 75%); }
+
+.dark .text-indigo-600,
+.dark .text-indigo-700 { color: hsl(230 80% 75%); }
+
+/* The page's own texture, and the focus ring. Both were in dark-mode.css. */
+.dark body {
+  background-image:
+    radial-gradient(circle at 20% 80%, hsl(217 32.6% 17.5% / 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, hsl(215 30% 18% / 0.3) 0%, transparent 50%),
+    radial-gradient(circle at 40% 40%, hsl(212 72% 59% / 0.05) 0%, transparent 50%);
+}
+
+.dark *:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-contrast: high) {
+  .dark {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+    --border: 0 0% 50%;
+    --primary: 212 100% 70%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dark * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .dark {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+    --border: 0 0% 50%;
+  }
+
+  .dark * {
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+  }
 }

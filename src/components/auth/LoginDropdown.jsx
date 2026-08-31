@@ -1,19 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../../src/contexts/AuthContext.jsx'
-import { useDarkMode } from '../../contexts/DarkModeContext.jsx'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from '../ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Avatar, AvatarFallback } from '../ui/avatar'
-import { User, LogIn, LogOut, UserPlus, Mail, Lock, CheckCircle, Settings, Moon, Sun, Monitor, Check } from 'lucide-react'
+import { User, LogIn, LogOut, UserPlus, Mail, Lock, CheckCircle, Settings } from 'lucide-react'
 
 export const LoginDropdown = () => {
   const { user, signIn, signUp, signOut, resetPassword } = useAuth()
-  const { isDarkMode, isAutoDetect, getThemeName, setDarkMode, enableAutoDetect } = useDarkMode()
   const navigate = useNavigate()
   const [showLoginForm, setShowLoginForm] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
@@ -174,7 +172,7 @@ export const LoginDropdown = () => {
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-green-700">Account Created!</h3>
-                  <p className="text-sm text-gray-600 px-2">
+                  <p className="text-sm text-muted-foreground px-2">
                     {successMessage}
                   </p>
                 </div>
@@ -221,41 +219,11 @@ export const LoginDropdown = () => {
               </div>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                {isDarkMode ? (
-                  <Moon className="mr-2 h-4 w-4" />
-                ) : (
-                  <Sun className="mr-2 h-4 w-4" />
-                )}
-                <span>Theme</span>
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {getThemeName()}
-                </span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {/* DISABLED: Auto (System) option disabled - light mode is forcefully disabled */}
-                {/* <DropdownMenuItem onClick={() => enableAutoDetect()}>
-                  <Monitor className="mr-2 h-4 w-4" />
-                  <span>Auto (System)</span>
-                  {isAutoDetect && <Check className="ml-auto h-4 w-4" />}
-                </DropdownMenuItem> */}
-
-                {/* DISABLED: Light mode option disabled - light mode is forcefully disabled */}
-                {/* <DropdownMenuItem onClick={() => setDarkMode(false)}>
-                  <Sun className="mr-2 h-4 w-4" />
-                  <span>Light</span>
-                  {!isAutoDetect && !isDarkMode && <Check className="ml-auto h-4 w-4" />}
-                </DropdownMenuItem> */}
-
-                {/* Dark mode is the only available option */}
-                <DropdownMenuItem onClick={() => setDarkMode(true)}>
-                  <Moon className="mr-2 h-4 w-4" />
-                  <span>Dark</span>
-                  {!isAutoDetect && isDarkMode && <Check className="ml-auto h-4 w-4" />}
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            {/* The theme submenu is gone. It offered exactly one option —
+                "Dark", already selected, calling a function whose body was a
+                comment — beside two more that were commented out. A menu with
+                one inert choice is not a setting; the app is dark by design.
+                See src/contexts/DarkModeContext.jsx. */}
             <DropdownMenuItem onClick={() => navigate('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
@@ -302,7 +270,7 @@ export const LoginDropdown = () => {
                 <CheckCircle className="h-12 w-12 text-orange-500 mx-auto" />
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-orange-700">Email Sent!</h3>
-                  <p className="text-sm text-gray-600 px-2">
+                  <p className="text-sm text-muted-foreground px-2">
                     Check your email for a password reset link. You can now close this dialog.
                   </p>
                 </div>
@@ -323,7 +291,7 @@ export const LoginDropdown = () => {
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
                 <div className="space-y-2">
                   <h3 className="text-lg font-semibold text-green-700">Account Created!</h3>
-                  <p className="text-sm text-gray-600 px-2">
+                  <p className="text-sm text-muted-foreground px-2">
                     {successMessage}
                   </p>
                 </div>
