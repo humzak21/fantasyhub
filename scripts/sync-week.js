@@ -150,7 +150,8 @@ async function syncScores(seasonId, weekNumber, espnMatchups, currentScoringPeri
     created: result.inserted,
     updated: result.updated,
     unchanged: result.unchanged,
-    errors: result.unmatched
+    errors: result.unmatched,
+    conflicts: result.conflicts ?? []
   };
 }
 
@@ -369,6 +370,15 @@ export async function syncWeek(argv = []) {
       );
       for (const miss of steps.scores.errors) {
         console.error(`❌ week ${miss.week} matchup ${miss.matchupId}: ${miss.reason}`);
+      }
+      // ESPN disagrees with a row that already has a result. `upsertEspnGames`
+      // will not re-point those by itself; a person has to look.
+      for (const clash of steps.scores.conflicts) {
+        console.error(
+          `❌ game ${clash.id} (ESPN matchup ${clash.matchupId}): ${clash.reason} — ` +
+          `stored week ${clash.storedWeek} ${clash.storedTeams.join(' vs ')}, ` +
+          `ESPN week ${clash.espnWeek} ${clash.espnTeams.join(' vs ')}`
+        );
       }
     }
 

@@ -221,6 +221,135 @@ describe('planGameWrites', () => {
     });
   });
 
+  /**
+   * ESPN reuses matchup ids when it re-draws a schedule, so rung 1 of
+   * `findExistingGame` can match a row whose teams have nothing to do with the
+   * matchup any more. The patch used to carry only scores and ESPN ids, so such
+   * a row produced an empty patch and was counted as "unchanged" — which is how
+   * all seven 2026 week-1 games kept their pre-draft pairings through two full
+   * imports and a --dry-run that reported "0 would update, 98 unchanged".
+   */
+  describe('when ESPN re-draws a fixture', () => {
+    const scheduled = (overrides = {}) => ({
+      id: 'game-1',
+      week: 3,
+      team1_id: 'team-humza',
+      team2_id: 'team-rohit',
+      team1_score: null,
+      team2_score: null,
+      type: 'regular',
+      espn_matchup_id: 101,
+      espn_scoring_period_id: 3,
+      ...overrides
+    });
+
+    it('re-points a scoreless row whose teams ESPN has changed', () => {
+      // Same matchup id, but Arya has replaced Rohit.
+      const { updates, inserts, unchanged, conflicts } = plan({
+        matchups: [matchup({ awayTeam: { teamId: 12, ownerName: 'Arya Shah', score: 98.2 } })],
+        existingGames: [scheduled()]
+      });
+
+      expect(inserts).toEqual([]);
+      expect(unchanged).toBe(0);
+      expect(conflicts).toEqual([]);
+      expect(updates).toHaveLength(1);
+      expect(updates[0].patch).toMatchObject({
+        team1_id: 'team-humza',
+        team2_id: 'team-arya'
+      });
+    });
+
+    it('refuses to re-point a row that already has a result, and reports it', () => {
+      const { updates, inserts, unchanged, conflicts } = plan({
+        matchups: [matchup({ awayTeam: { teamId: 12, ownerName: 'Arya Shah', score: 98.2 } })],
+        existingGames: [scheduled({ team1_score: 120.5, team2_score: 98.2 })]
+      });
+
+      // Those scores belong to Humza vs Rohit. Moving the row would credit a
+      // game to a team that never played it.
+      expect(inserts).toEqual([]);
+      expect(updates).toEqual([]);
+      expect(unchanged).toBe(0);
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0]).toMatchObject({
+        id: 'game-1',
+        matchupId: 101,
+        storedTeams: ['team-humza', 'team-rohit'],
+        espnTeams: ['team-humza', 'team-arya']
+      });
+      expect(conflicts[0].reason).toMatch(/different teams/);
+    });
+
+    it('treats a completed row as having a result even with no scores selected', () => {
+      const { updates, conflicts } = plan({
+        matchups: [matchup({ awayTeam: { teamId: 12, ownerName: 'Arya Shah', score: 98.2 } })],
+        existingGames: [scheduled({ is_completed: true })]
+      });
+
+      expect(updates).toEqual([]);
+      expect(conflicts).toHaveLength(1);
+    });
+
+    it('moves a scoreless row that ESPN has rescheduled to another week', () => {
+      const { updates, inserts, conflicts } = plan({
+        matchups: [matchup({ week: 5, scoringPeriodId: 5 })],
+        existingGames: [scheduled()]
+      });
+
+      expect(inserts).toEqual([]);
+      expect(conflicts).toEqual([]);
+      expect(updates[0].patch).toMatchObject({ week: 5 });
+      // The teams still agree, so they are not rewritten.
+      expect(updates[0].patch.team1_id).toBeUndefined();
+    });
+
+    it('reports a week change on a row that already has a result', () => {
+      const { updates, conflicts } = plan({
+        matchups: [matchup({ week: 5, scoringPeriodId: 5 })],
+        existingGames: [scheduled({ team1_score: 120.5, team2_score: 98.2 })]
+      });
+
+      expect(updates).toEqual([]);
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0].reason).toMatch(/another week/);
+    });
+
+    it('does not mistake a reversed pair for a re-draw', () => {
+      // The row stores the same two teams the other way round, which is
+      // legitimate and already handled by the score assignment.
+      const { updates, conflicts, unchanged } = plan({
+        matchups: [matchup()],
+        existingGames: [scheduled({ team1_id: 'team-rohit', team2_id: 'team-humza' })]
+      });
+
+      expect(conflicts).toEqual([]);
+      expect(unchanged + updates.length).toBe(1);
+      if (updates.length) expect(updates[0].patch.team1_id).toBeUndefined();
+    });
+
+    it('gives a re-pointed row the scores in ESPN order', () => {
+      // A scoreless row being re-pointed takes ESPN's home/away, so the score
+      // assignment must not consult the pairing it is about to overwrite.
+      const { updates } = plan({
+        matchups: [
+          matchup({
+            awayTeam: { teamId: 12, ownerName: 'Arya Shah', score: 98.2 },
+            espnWinner: 'HOME'
+          })
+        ],
+        existingGames: [scheduled({ team1_id: 'team-rohit', team2_id: 'team-humza' })]
+      });
+
+      expect(updates[0].patch).toMatchObject({
+        team1_id: 'team-humza',
+        team2_id: 'team-arya',
+        team1_score: 120.5,
+        team2_score: 98.2
+      });
+    });
+  });
+
   describe('the type rule', () => {
     it('never writes type on an update', () => {
       // 2025's postseason types were corrected by hand (migration
