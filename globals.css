@@ -496,6 +496,48 @@
 
 @layer utilities {
 
+  /* Bracket connectors.
+   *
+   * A bracket's structure *is* the lines: which two slots feed which. The
+   * columns here were independent flex stacks with a gap between them and
+   * nothing drawn across it, so on a phone — where only one or two columns fit
+   * and the reader is scrolling sideways — the bracket lost the one thing that
+   * makes it a bracket.
+   *
+   * Drawn with pseudo-elements on the slots rather than an SVG overlay: the
+   * columns are already laid out by flexbox, an absolutely-positioned overlay
+   * would have to re-derive those positions in JS and would go wrong on every
+   * resize, and this costs no elements and no measurement.
+   *
+   * `.ff-feeds-forward` — a slot whose winner advances: a stub out of its
+   * right edge. `.ff-fed-from-left` — a slot receiving them: a stub into its
+   * left edge. Hidden below sm, where the columns stack and the lines would
+   * point at nothing. */
+  .ff-feeds-forward,
+  .ff-fed-from-left {
+    position: relative;
+  }
+
+  @media (min-width: 640px) {
+    .ff-feeds-forward::after,
+    .ff-fed-from-left::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 0.75rem;
+      border-top: 1px solid hsl(var(--border));
+      pointer-events: none;
+    }
+
+    .ff-feeds-forward::after {
+      left: 100%;
+    }
+
+    .ff-fed-from-left::before {
+      right: 100%;
+    }
+  }
+
   /* Digits that line up in a column.
    *
    * The app had three numeric treatments — `font-mono` (31 sites),
