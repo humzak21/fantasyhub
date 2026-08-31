@@ -149,6 +149,21 @@ export const qk = {
   },
 
   /**
+   * The predictions board. Every key starts `['takes', seasonId, …]` so a
+   * mutation can invalidate the whole domain with `qk.takes.season(seasonId)`
+   * and reach all of it — deliberately unlike `pickems.userPicks`, which is
+   * keyed `['pickems', 'userPicks', …]` and so is missed by exactly that
+   * prefix.
+   *
+   * There is no per-take key: the detail sheet reads its take out of the board
+   * entry by id rather than fetching it again.
+   */
+  takes: {
+    ...scope('takes'),
+    board: (seasonId) => ['takes', seasonId, 'board']
+  },
+
+  /**
    * League history. Every entry spans seasons rather than living under one, so
    * this domain is keyed by what is being asked rather than by `seasonId`, and
    * the whole of it is invalidated when a season is finalized.

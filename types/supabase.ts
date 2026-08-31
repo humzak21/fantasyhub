@@ -1959,6 +1959,112 @@ export type Database = {
           },
         ]
       }
+      take_participants: {
+        Row: {
+          created_at: string | null
+          id: string
+          season_id: string
+          take_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          season_id: string
+          take_id: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          season_id?: string
+          take_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "take_participants_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "take_participants_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_season"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "take_participants_take_id_fkey"
+            columns: ["take_id"]
+            isOneToOne: false
+            referencedRelation: "takes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      takes: {
+        Row: {
+          body: string
+          created_at: string | null
+          edited_at: string | null
+          id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          season_id: string
+          status: string
+          target_type: string
+          target_week: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string | null
+          edited_at?: string | null
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          season_id: string
+          status?: string
+          target_type: string
+          target_week?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string | null
+          edited_at?: string | null
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          season_id?: string
+          status?: string
+          target_type?: string
+          target_week?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "takes_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "takes_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_season"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       td_parlay_picks: {
         Row: {
           created_at: string | null
