@@ -252,10 +252,26 @@ happened. Make the component responsive.
 **Prefer CSS breakpoints to JS branching.** `useIsMobile()`
 (`src/hooks/use-mobile.jsx`, matchMedia at 768px) is the *only* sanctioned
 render-branching hook, and it is for cases where the two presentations are
-structurally different components — `FloatingTeamFilter`'s draggable panel
-versus its bottom drawer — not two skins of one tree. Anything that is one
-tree uses `sm:`/`md:`, which costs no render and cannot flash the wrong layout
-on first paint.
+structurally different components — a popover versus a bottom sheet — not two
+skins of one tree. Anything that is one tree uses `sm:`/`md:`, which costs no
+render and cannot flash the wrong layout on first paint.
+
+**768px (`md`) is the structural boundary, everywhere.** Table vs card stack,
+popover vs sheet, tab bar vs header nav. Two "mobile" widths used to coexist —
+`useIsMobile()`/`useMobileAxis()` at 768 and every responsive class at 640 — so
+a landscape phone at 700px got one component's mobile behaviour and another's
+desktop behaviour at the same time. `sm:` remains fine for cosmetic shifts:
+padding, wrapping, a grid gaining a column.
+
+**Navigation is a bottom tab bar below `lg`, labelled header items above it.**
+Every destination is in the bar; it scrolls horizontally and scrolls the active
+tab into view. There is no icon-only tier at any width — the one that covered
+640-1535px delivered labels through the `title` attribute, which is delayed on
+a desktop and does not exist on touch. **Render `MobileTabBar` at the app root,
+never inside the header:** the header has `backdrop-blur`, and `backdrop-filter`
+(like `transform`) makes an element the containing block for `position: fixed`
+descendants, which pins the bar directly under the header. Pages must keep the
+bottom padding that clears it.
 
 **Pages use `PageContainer`.** Not a hand-written `container mx-auto px-4
 sm:px-6 lg:px-8`; that string had already drifted across the four places it
@@ -263,7 +279,7 @@ was pasted.
 
 **Tables wider than about four columns use `ResponsiveDataTable`**
 (`ui/responsive-table.jsx`). Columns declare a `priority` and the component
-renders a real table at `sm:`+ and a card stack below it, from one set of
+renders a real table at `md:`+ and a card stack below it, from one set of
 column definitions. Do not solve a wide table by scrolling it sideways: the
 reader loses their row the moment the first column leaves the viewport.
 
@@ -301,10 +317,24 @@ CI, and each rule names the bug it prevents.
 
 ### Styling: one stylesheet, one theme
 
-`globals.css` holds the Tailwind v4 `@theme`, the palette, and the dark status
-colours. `styles/fantasy-utilities.css` holds the domain design language.
-There is nothing else, and there is **no `tailwind.config.js`** — Tailwind v4
-reads the theme from CSS.
+`globals.css` is the whole stylesheet: the Tailwind v4 `@theme`, the palette,
+the status-colour remap, and a shrinking set of legacy utilities. There is
+**no `tailwind.config.js`** — Tailwind v4 reads the theme from CSS — and there
+is no second stylesheet. `styles/fantasy-utilities.css` was deleted in the
+design overhaul: all 49 of its `.ff-*` classes were unreferenced, and its
+first 300 lines were unscoped element selectors (`button:active`,
+`button[class*="bg-blue"]`, `input[type=checkbox]`, and an `a:not(...)` rule
+that coloured every link `--primary`) fighting the `ui/` primitives. That link
+rule was overriding the nav's own colours, so every inactive tab in the bottom
+bar rendered as though it were active.
+
+**The app is dark-only, by design.** `src/contexts/DarkModeContext.jsx` states
+that in about forty lines; it used to be 251, most of them a light-mode
+implementation commented out behind `DISABLED_LIGHT_MODE` markers. The `dark`
+class stays on `<html>` because the status remap and any residual `dark:`
+variant compile against it. The `:root` palette is a fallback so tokens always
+resolve — not a designed second theme. Adding light mode is new work, not a
+flag to flip.
 
 This was four layers as recently as this refactor, and the reason is worth
 knowing: `globals.css` had a bare `@import "tailwindcss"` and no `@config`, so
@@ -320,12 +350,53 @@ Consequences for writing components:
 
 - **Use semantic tokens** — `bg-card`, `bg-muted`, `text-foreground`,
   `text-muted-foreground`, `border-border` — not `bg-white` or `text-gray-600`.
-- **Status colours are the exception.** `bg-green-50 text-green-700` for a
-  positive result is good vocabulary at the call site; globals.css maps those
-  tints to dark equivalents for every hue, once. Add to that map rather than
-  writing a `dark:` variant per use.
+- **Status is `success` / `warning` / `info` / `destructive`**, as real tokens:
+  `bg-success/15 text-success`, `<Badge variant="warning">`. Prefer these over
+  `bg-green-50 text-green-700`. The `.dark` remap block at the end of
+  globals.css still rewrites those light tints and is **still load-bearing** —
+  about 320 usages across ~30 feature components depend on it. Migrate a file's
+  tints to tokens when you touch it; the block can be deleted when that count
+  reaches zero, and not before.
 - **Never add a `!important` colour override.** If a colour is not applying,
   the token is missing or an inline style is winning; fix that.
+- **A team's colour comes from `src/utils/teamColors.js`**, keyed on
+  `franchise_id` (owner name as fallback — team names change between seasons,
+  owners do not). One franchise is one colour in every table, chart, avatar and
+  bracket slot. Never colour a team by its index in an array: that is why the
+  same team used to be a different colour on every chart.
+- **`@theme inline` does not emit custom properties.** It inlines a token's
+  value into each utility, which is right for `bg-card` and wrong for anything
+  JavaScript reads — recharts takes a colour string, so `var(--color-chart-1)`
+  would resolve to nothing. Chart and team hues are declared as HSL triplets in
+  `:root` and referenced from `@theme`, giving both a utility and a live
+  custom property.
+- **A class name built at runtime is a class that does not exist.** Tailwind
+  scans source text, so `bg-${color}-50` and `bg-team-${slot}` generate no CSS.
+  Either use literal class names, or name the full set in `@source inline(...)`
+  as the team and chart utilities do. StatisticsPanel shipped interpolated
+  cards for months that only looked styled because the dark remap happened to
+  catch the same selectors.
+
+### The shared vocabulary
+
+Before writing a header, a number, a stat tile or an empty state, use these —
+each replaced four or five hand-rolled variants:
+
+- `layout/PageHeader.jsx` — the one page header. Every tab uses it.
+- `utils/format.js` + `ui/number-text.jsx` — one precision policy (points and
+  percentages to one decimal, missing values as an em dash, never `0`) and one
+  numeric face. Use `.tabular`, never `font-mono`: Inter has tabular figures,
+  and a system mono at 14px mismatches its x-height.
+- `ui/team-identity.jsx` — a team's chip, name, owner, record.
+- `ui/rank-badge.jsx`, `ui/streak-chip.jsx`, `ui/stat-card.jsx`,
+  `ui/empty-state.jsx`.
+- `ui/skeleton.jsx` — `SkeletonTable` / `SkeletonCards`. **Loading is a
+  skeleton, never `return null`** (which renders a blank tab) and never a bare
+  spinner.
+- `utils/positionColors.js` — lineup-slot chips, shared by Schedule and Teams.
+
+Typography: `font-display` (Barlow Condensed) is the scoreboard voice — page
+titles, scores, hero numbers, nothing else. Inter carries the interface.
 
 ### Verifying a visual change
 
