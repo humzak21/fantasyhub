@@ -30,6 +30,7 @@ Card.displayName = "Card"
 const CardHeader = React.forwardRef(({ className, ...props }, ref) => (
   <div
     ref={ref}
+    data-slot="card-header"
     className={cn("flex flex-col space-y-1.5 p-4 sm:p-6", className)}
     {...props}
   />
@@ -61,31 +62,26 @@ const CardDescription = React.forwardRef(({ className, ...props }, ref) => (
 ))
 CardDescription.displayName = "CardDescription"
 
-// The top padding is dropped only when something is actually above it.
+// Full padding on all four sides. The top is removed only when a CardHeader
+// is *directly above* it, by a rule in globals.css keyed on these data-slots.
 //
-// This was a flat `p-4 pt-0`, which assumes every CardContent follows a
-// CardHeader. Plenty do not — the team cards, the rankings "league leaders"
-// boxes — and those rendered with their first line jammed against the card's
-// top edge. `:not(:first-child)` asks the DOM instead of assuming.
+// This was a flat `p-4 pt-0`, which assumed every CardContent follows a
+// header — plenty do not, and those rendered with their first line jammed
+// against the card's top edge. The first attempt at a fix asked
+// `:not(:first-child)`, which is the same assumption one step removed: it
+// treats *any* preceding sibling as a header, and the rankings "league
+// leaders" card puts an absolutely-positioned colour rail before its content,
+// so it stayed broken. An adjacent-sibling rule asks the actual question.
 const CardContent = React.forwardRef(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "p-4 sm:p-6 [&:not(:first-child)]:pt-0 sm:[&:not(:first-child)]:pt-0",
-      className
-    )}
-    {...props}
-  />
+  <div ref={ref} data-slot="card-content" className={cn("p-4 sm:p-6", className)} {...props} />
 ))
 CardContent.displayName = "CardContent"
 
 const CardFooter = React.forwardRef(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn(
-      "flex items-center p-4 sm:p-6 [&:not(:first-child)]:pt-0 sm:[&:not(:first-child)]:pt-0",
-      className
-    )}
+    data-slot="card-footer"
+    className={cn("flex items-center p-4 sm:p-6", className)}
     {...props}
   />
 ))

@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import PageHeader from '../layout/PageHeader';
 import { EmptyState } from '../ui/empty-state';
 import { TeamIdentity } from '../ui/team-identity';
+import { IndependentColumns } from '../ui/independent-columns';
 import { isUserTeam } from '../../utils/userTeamUtils';
 
 const TeamsAndRosters = ({
@@ -347,8 +348,14 @@ const TeamsAndRosters = ({
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {moveUserTeamToFirst(teams, user).map(team => {
+        // Same independent columns as the schedule: a roster is as tall as it
+        // is, and no card should be dragged down by the one beside it.
+        <IndependentColumns
+          items={moveUserTeamToFirst(teams, user)}
+          itemKey={(team) => team.id}
+          columns={3}
+        >
+          {(team) => {
             const rank = getTeamRanking(team.id);
             const stats = getTeamStats(team.id);
             const teamRoster = rosters[team.id]?.roster || [];
@@ -360,8 +367,8 @@ const TeamsAndRosters = ({
             // mid-list with a scroll region inside the page's own scroll.
             // Cards are as tall as their content; the page scrolls.
             return (
-              <Card key={team.id} className="flex flex-col transition-colors">
-                <CardContent className="p-4 flex flex-col h-full">
+              <Card>
+                <CardContent>
                   {/* Team Header. The identity chip, the name, the owner and
                       the record read as one block — the version this replaces
                       spelled out "Owner:" and "Record" as labels and stacked
@@ -434,14 +441,12 @@ const TeamsAndRosters = ({
                   </div>
 
                   {/* Compact Roster Section */}
-                  <div className="flex-1 overflow-hidden">
-                    <CompactTeamRoster team={team} roster={teamRoster} />
-                  </div>
+                  <CompactTeamRoster team={team} roster={teamRoster} />
                 </CardContent>
               </Card>
             );
-          })}
-        </div>
+          }}
+        </IndependentColumns>
       )}
 
       {/* Quick Stats */}
