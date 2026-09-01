@@ -7,7 +7,7 @@ import { NumberText } from '../ui/number-text';
 import RouteLoading from '../layout/RouteLoading';
 import { cn } from '../../lib/utils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
-import { useWeekPlayerStats } from '../../../hooks/queries/index.js';
+import { useCurrentLineups } from '../../../hooks/queries/index.js';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
 
@@ -24,17 +24,26 @@ import { getPositionColor } from '../../utils/positionColors';
  * time. `hasExpanded` latches rather than tracking `expanded`, so collapsing
  * does not throw the rows away and re-fetch them on the next open.
  *
- * The numbers are `player_week_stats` for the *viewed* week, which exists
- * before the games do: the weekly sync writes the coming week's projections on
- * Tuesday at 04:00 ET, and its actual points a week later. So a card shows
- * projections during the pick'ems window and fills in with actuals afterwards.
+ * The lineups come from the live `rosters` snapshot, not from
+ * `player_week_stats`. That distinction is the whole point: this panel asks a
+ * present-tense question, and `player_week_stats` is a historical fact table
+ * the cron writes once a week, so it answers with a roster that has since
+ * taken waivers and changed its lineup. Reading it here meant that on
+ * 2026-08-31 the panel named 122 of its 125 starters wrongly — its newest rows
+ * predated the draft.
+ *
+ * Points are layered onto that roster in order of how much they know: this
+ * week's actual points once the sync has them, then this week's projection,
+ * then the rolling projection the roster sync refreshes. A starter with no
+ * figure at all still appears, with a dash — see
+ * `services/db/rosters.js::getCurrentLineupsForWeek`.
  */
 const MatchupResearchSection = ({ seasonId, week, games = [] }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const [expanded, setExpanded] = useState(false);
   const [hasExpanded, setHasExpanded] = useState(false);
 
-  const { data: statsByTeam = {}, isLoading } = useWeekPlayerStats(seasonId, week, {
+  const { data: statsByTeam = {}, isLoading } = useCurrentLineups(seasonId, week, {
     enabled: hasExpanded
   });
 
@@ -173,7 +182,7 @@ const MatchupCard = ({ game, statsByTeam, viewer }) => {
         <div className="border-t border-border p-3">
           {!hasRows ? (
             <p className="text-sm text-muted-foreground">
-              Projections have not been synced for this week yet.
+              No roster has been synced for this team yet.
             </p>
           ) : (
             <div className={cn('grid gap-4', !isBye && 'grid-cols-1 sm:grid-cols-2')}>
