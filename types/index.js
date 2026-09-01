@@ -200,9 +200,9 @@ export const createSeason = (year, name = '', leagueSize = 14, regularSeasonWeek
  */
 export const POWER_RANKING_WEIGHTS = {
   // Team level: available from `games` alone, so always present.
-  record: 0.22,
+  record: 0.21,
   allPlay: 0.15,
-  scoring: 0.13,
+  scoring: 0.12,
   recentForm: 0.10,
   consistency: 0.05,
 
@@ -210,9 +210,14 @@ export const POWER_RANKING_WEIGHTS = {
   rosterStrength: 0.13,
   lineupEfficiency: 0.05,
 
-  // Forward looking.
-  futureStrength: 0.09,
-  leagueSos: 0.08
+  // Forward looking. The schedule components stay individually small on
+  // purpose — the remaining schedule is not evidence of quality, it only stops
+  // an easy or hard path from flattering or excusing a team.
+  futureStrength: 0.07,
+  leagueSos: 0.06,
+  // Needs `nfl_schedule` + `nfl_team_ratings`; live-view-only, so historical
+  // seasons and views renormalize over the rest.
+  nflSos: 0.06
 };
 
 /**
@@ -273,6 +278,12 @@ export const POWER_RANKING_COMPONENT_META = {
     group: 'future',
     color: 'text-orange-600',
     description: 'How strong the remaining regular-season fantasy opponents are. Higher means a tougher run-in, scored the same direction as the opponent adjustment inside Record — a hard schedule is never treated as a credential and an easy one never flatters.'
+  },
+  nflSos: {
+    label: 'NFL Schedule',
+    group: 'future',
+    color: 'text-amber-600',
+    description: 'How tough the current starters’ remaining real-NFL opponents are, from ESPN’s Football Power Index, weighted by each starter’s projected remaining output. Higher means a harder pro run-in — the same direction as Remaining Schedule.'
   }
 };
 
