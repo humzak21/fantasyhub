@@ -82,9 +82,7 @@ const DesktopNav = ({ tabs, activeTab }) => (
             isActive
               ? 'bg-accent text-accent-foreground'
               : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-            tab.isDisabled && 'pointer-events-none opacity-50',
-            // The awards tab pulses while there is something new to see.
-            tab.id === 'awards' && !isActive && 'animate-pulse-glow rounded-md'
+            tab.isDisabled && 'pointer-events-none opacity-50'
           )}
         >
           <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />

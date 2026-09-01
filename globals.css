@@ -195,7 +195,6 @@
   --animate-fade-in: fade-in 0.5s ease-out;
   --animate-slide-in: slide-in 0.3s ease-out;
   --animate-float-in: float-in 0.3s ease-out;
-  --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-bounce-subtle: bounce-subtle 1s ease-in-out infinite;
 
   @keyframes accordion-down {
@@ -217,13 +216,6 @@
   @keyframes float-in {
     0% { opacity: 0; transform: scale(0.8) translateY(20px); filter: blur(4px); }
     100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0px); }
-  }
-  /* The awards tab's "something is waiting for you" glow. It used to be a
-     <style> element rendered from inside ResponsiveNavigation, re-injected on
-     every render of the component. */
-  @keyframes pulse-glow {
-    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--warning) 50%, transparent), 0 0 12px -2px color-mix(in oklab, var(--warning) 40%, transparent); }
-    50% { box-shadow: 0 0 0 4px color-mix(in oklab, var(--warning) 0%, transparent), 0 0 16px -2px color-mix(in oklab, var(--warning) 70%, transparent); }
   }
   @keyframes bounce-subtle {
     0%, 100% { transform: translateY(0); }
