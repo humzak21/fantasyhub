@@ -162,6 +162,66 @@ describe('PowerRankingsTable', () => {
     expect(screen.getByText(/week 4 needs teams/i)).toBeInTheDocument();
   });
 
+  describe('the Byes and Next columns', () => {
+    const opponent = (overrides = {}) =>
+      team({
+        teamId: 't2',
+        id: 't2',
+        name: 'Second Team',
+        owner: 'Bob Example',
+        rank: 2,
+        ...overrides,
+      });
+
+    it('renders a warning badge when starters are on a bye', () => {
+      const withByes = team({
+        powerRatingComponents: { ...team().powerRatingComponents, byeExposure: 4 },
+      });
+      renderWithProviders(
+        <PowerRankingsTable rankings={[withByes]} currentWeek={4} showAdvanced />
+      );
+      expect(within(table()).getByText('4')).toBeInTheDocument();
+    });
+
+    it('renders a muted 0 — we looked, nobody is off — distinct from the dash', () => {
+      // badLosses bumped to 1 so the QW/BL cell no longer contains a 0 of its
+      // own and the assertion targets the Byes cell alone.
+      const noByes = team({
+        badLosses: 1,
+        powerRatingComponents: { ...team().powerRatingComponents, byeExposure: 0 },
+      });
+      renderWithProviders(
+        <PowerRankingsTable rankings={[noByes]} currentWeek={4} showAdvanced />
+      );
+      expect(within(table()).getByText('0')).toBeInTheDocument();
+    });
+
+    it('renders an em dash when the bye count could not be computed', () => {
+      // The fixture has no byeExposure at all — a historical view, or a season
+      // with no NFL calendar.
+      renderWithProviders(
+        <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />
+      );
+      expect(within(table()).getAllByText('—').length).toBeGreaterThan(0);
+    });
+
+    it('resolves the next opponent from the rankings and shows their projection', () => {
+      const viewer = team({
+        powerRatingComponents: {
+          ...team().powerRatingComponents,
+          nextOpponentTeamId: 't2',
+          nextOpponentProjected: 118.42,
+        },
+      });
+      renderWithProviders(
+        <PowerRankingsTable rankings={[viewer, opponent()]} currentWeek={4} showAdvanced />
+      );
+      // Signed out, so the opponent's name masks to its truncated id; the
+      // projection keeps the one-decimal policy.
+      expect(within(table()).getByText('118.4')).toBeInTheDocument();
+    });
+  });
+
   it('shows how far each team moved since last week', () => {
     renderWithProviders(
       <PowerRankingsTable rankings={[team({ rankChange: 2 })]} currentWeek={4} />

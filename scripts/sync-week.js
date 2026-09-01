@@ -22,7 +22,7 @@
  *   node scripts/sync-week.js 5 <season-id>   # target a season explicitly
  *
  * Options: --skip-rosters --skip-scores --skip-transactions --skip-player-stats
- *          --skip-nfl-schedule --skip-snapshot
+ *          --skip-nfl-schedule --skip-nfl-ratings --skip-snapshot
  *          --dry-run   resolve and report the target, write nothing
  *          --force     sync anyway when the season window says not to
  */
@@ -34,6 +34,7 @@ import { buildTeamIndex } from '../services/espnGameMapper.js';
 import { mapMatchupRosterEntries } from '../services/espnPlayerStatsMapper.js';
 import { fetchProTeamSchedules } from '../services/espnNflScheduleFetcher.js';
 import { mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
+import { syncNflRatings } from './sync-nfl-ratings.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
@@ -477,6 +478,28 @@ export async function syncWeek(argv = []) {
       } catch (error) {
         steps.nflSchedule = { failed: error.message };
         console.warn(`⚠️  nfl schedule: ${error.message}`);
+      }
+    }
+
+    // Non-fatal, same reasoning as the calendar above: without a fresh FPI
+    // snapshot the ranking's NFL Schedule component reads last week's ratings
+    // — or drops entirely for a first-ever run — which is a thinner ranking,
+    // not a broken one. It runs before the snapshot step on purpose, so the
+    // week's snapshot ranks on fresh FPI. Another public endpoint reached
+    // without credentials, so it fails on its own schedule too.
+    if (options['skip-nfl-ratings']) {
+      steps.nflRatings = { skipped: 'flag' };
+    } else {
+      try {
+        const ratings = await syncNflRatings(espn.seasonYear, weekNumber);
+        steps.nflRatings = {
+          upserted: ratings.upserted,
+          errors: (ratings.warnings ?? []).map((warning) => ({ error: warning }))
+        };
+        console.log(`📈 nfl ratings: ${ratings.upserted} teams`);
+      } catch (error) {
+        steps.nflRatings = { failed: error.message };
+        console.warn(`⚠️  nfl ratings: ${error.message}`);
       }
     }
 
