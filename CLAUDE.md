@@ -444,12 +444,16 @@ No pick'em week, no parlay — the section renders `null`.
 
 Three rules are the database's, not the UI's, and that is what makes them true:
 
-- **Privacy is RLS.** `td_parlay_picks` is readable as: your own row always,
-  everyone's once `submission_closes_at` passes (or `is_closed`), everything for
-  the admin and the parlay commissioner. Hiding picks in the component would
-  hide nothing — the anon key reaches PostgREST directly. So the reads in
-  `services/db/parlay.js` carry no privacy filter and return fewer rows before
-  the deadline; that empty result is the feature.
+- **Visibility is RLS, and as of `20260901120000_parlay_picks_visible_as_
+  submitted` it is `USING (true)`.** The board shows a pick the moment it is
+  submitted; it used to withhold the week until `submission_closes_at`, and
+  that policy is gone. The change had to happen there and only there —
+  "show them in the component" would have shown an empty list, exactly as
+  "hide them in the component" would have hidden nothing, because the anon key
+  reaches PostgREST directly. The own-row and privileged policies are left in
+  place, subsumed but standing, so a future narrowing has something to fall
+  back to. Shape matches `pick_em_submissions`, which has been public-read
+  since the baseline: one form, one window, one visibility rule.
 - **The deadline is `submit_td_parlay_pick`.** It raises outside
   `[submission_opens_at, submission_closes_at)`. There is **no user INSERT or
   UPDATE policy** on the table, so the RPC is the only write path.
@@ -465,6 +469,23 @@ Three rules are the database's, not the UI's, and that is what makes them true:
 A free-text pick is not a fallback for bad input. `players` only holds people
 ESPN has rostered in this league, so the fringe goal-line back this parlay
 invites may genuinely not be there.
+
+**The board is one column per division, and the column is derived.** The league
+runs a parlay per division, so `ParlayPickSection` splits the week's picks with
+`utils/parlayDivisions.js` — a pure function over the league's existing identity
+join, display name → `teams.owner` → `teams.division_id`. Nothing on
+`td_parlay_picks` records a division and nothing should: the pick belongs to a
+person, and which parlay that person is in is a fact about the season's teams.
+The name comparison goes through `normalizeOwnerName`, shared with
+`matchesTeamOwner`, because two spellings of "trim and lowercase" would seat
+somebody in the wrong division rather than fail. A pick that matches no owner
+lands in `unassigned` and renders under its own heading — a member's display
+name is theirs to type, and filing them under a guessed division would
+misreport who is competing with whom. Empty divisions still render, so the
+board's shape does not change as picks arrive. Display names come attached to
+the rows: `getParlayPicksForWeek` resolves them through `getUserDisplayNames`,
+the way `getTakes` and the pick'ems submissions do, because a component
+fetching them separately would paint once with every pick in the wrong column.
 
 `scored_td` is nullable and **NULL means ungraded, not "no touchdown"** —
 re-picking resets it to NULL, and the weekly sync's grader deliberately leaves

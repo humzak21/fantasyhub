@@ -7,9 +7,10 @@
  *
  *   * `useMyParlayPick` is keyed on the viewer, so signing out does not leave
  *     somebody else's pick in the cache under the same key.
- *   * `useParlayWeekPicks` is disabled while the week is open and the viewer is
- *     nobody special. RLS would answer `[]` correctly, but issuing a request
- *     whose answer is known is still a request.
+ *   * `useParlayWeekPicks` used to be disabled while the week was open, back
+ *     when RLS withheld the league's picks until the deadline. Picks are
+ *     visible as they are submitted now, so the answer is never known in
+ *     advance and the query always runs.
  *   * `usePlayerSearch` takes an already-debounced term. Debouncing inside the
  *     hook would key the cache on a value that changes every keystroke.
  */
@@ -34,12 +35,10 @@ export function useMyParlayPick(pickEmWeekId, { enabled = true } = {}) {
 }
 
 /**
- * Everyone's picks for a week.
+ * Everyone's picks for a week, open or closed.
  *
- * `enabled` is the caller's judgement about whether the answer can be anything
- * but empty — the closed/completed states, or a privileged viewer. It is a
- * politeness, not the privacy rule: passing `true` on an open week returns `[]`
- * from the database, not the league's picks.
+ * `enabled` survives as the caller's "is there anything to ask about" switch —
+ * it was never the privacy rule, and there is no privacy rule here any more.
  */
 export function useParlayWeekPicks(pickEmWeekId, { enabled = true } = {}) {
   return useQuery({
