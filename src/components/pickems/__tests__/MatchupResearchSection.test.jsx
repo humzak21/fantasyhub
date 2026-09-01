@@ -292,3 +292,57 @@ describe('MatchupResearchSection · opponent chips', () => {
     expect(nflSchedule.getNflScheduleForSeason).not.toHaveBeenCalled();
   });
 });
+
+describe('MatchupResearchSection · team totals', () => {
+  const open = async () => {
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /research matchups/i }));
+  };
+
+  it('labels the header total while any starter is still projected', async () => {
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([
+      { ...ROWS[0], projectedPoints: 21.4 },
+      { ...ROWS[1], id: 'r4', rosterSlot: 'RB', started: true, projectedPoints: 11.1 }
+    ]);
+
+    renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
+    await open();
+
+    // The header is collapsed by default, so for most readers this total is
+    // the only number on screen — an unlabelled 32.5 would read as a score.
+    expect(await screen.findByText('32.5')).toBeInTheDocument();
+    expect(screen.getAllByText('proj').length).toBeGreaterThan(0);
+  });
+
+  it('stops labelling it once every starter has a result', async () => {
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([
+      { ...ROWS[0], actualPoints: 18.2, projectedPoints: 21.4 },
+      {
+        ...ROWS[0],
+        id: 'r5',
+        rosterSlot: 'RB',
+        actualPoints: 4,
+        projectedPoints: 11
+      }
+    ]);
+
+    renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
+    await open();
+
+    expect(await screen.findByText('22.2')).toBeInTheDocument();
+    expect(screen.queryByText('proj')).not.toBeInTheDocument();
+  });
+
+  it('leaves the bench out of the total', async () => {
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([
+      { ...ROWS[0], projectedPoints: 21.4 },
+      { ...ROWS[1], projectedPoints: 99 }
+    ]);
+
+    renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
+    await open();
+
+    expect(await screen.findByText('21.4')).toBeInTheDocument();
+    expect(screen.queryByText('120.4')).not.toBeInTheDocument();
+  });
+});
