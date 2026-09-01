@@ -58,7 +58,8 @@ export {
 export {
   useSeasonPlayerStats,
   useTeamPlayerStats,
-  useWeekPlayerStats
+  useWeekPlayerStats,
+  useCurrentLineups
 } from './usePlayerStats.js';
 
 export {

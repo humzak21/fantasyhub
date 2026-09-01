@@ -215,6 +215,32 @@ pure `services/espnPlayerStatsMapper.js`, and the unique key
 no extra ESPN request: the sync's scores step already fetches
 `rosterForCurrentScoringPeriod` and used to discard it.
 
+**`player_week_stats` answers past-tense questions only.** It is a historical
+fact table the weekly cron writes once, so between two syncs it describes a
+roster that has since taken waivers, made trades and changed its lineup. "Who
+started in week 6" is its question; "who is starting this week" is not. The
+pick'ems research panel asked it the second one and, measured on 2026-08-31,
+named 122 of its 125 starters wrongly — its newest rows were from 2026-08-18,
+before the draft, while `rosters` had been rewritten that same day.
+
+Anything present-tense reads `rosters`, which is deleted and reinserted per
+team on every sync and so is a true snapshot of now.
+`services/db/rosters.js::getCurrentLineupsForWeek` is that read: roster
+membership and lineup slot from `rosters`, then points layered on in order of
+what they know — this week's actual, this week's projection, then
+`players.projected_points`, which the same roster sync refreshes and is what a
+player added since the last week-stats write has instead of nothing. A starter
+with no figure still renders, with a dash; hiding them is how the stale view
+managed to look complete while being wrong.
+
+`.github/workflows/refresh-rosters.yml` is the other half. The weekly sync
+writes `rosters` once, Tuesday 04:00 ET, and waivers clear on Wednesday — in
+the middle of the pick'ems window — so a roster-only run goes out Wednesday and
+Thursday morning. It passes `--skip-scores --skip-player-stats
+--skip-transactions --skip-snapshot`, which skips the matchup fetch entirely,
+and shares the `espn-write` concurrency group because the weekly sync's own
+roster step writes exactly what it writes.
+
 Verified against the live league: this league starts QB/2RB/2WR/TE/FLEX/D/ST/K,
 which is what `OPTIMAL_LINEUP_TEMPLATE` encodes, and summing a team's starters
 reproduces ESPN's own matchup score exactly.
