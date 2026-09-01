@@ -212,6 +212,28 @@ enforces, both load-bearing:
   Sending `completed_at: null` would make the trigger re-stamp it with the
   import time.
 
+**`teams.owner` follows the same insert-only rule**, in
+`services/db/teams.js::upsertTeamsFromESPN`. ESPN owns a team's *name* and
+abbreviation, which change most years and mean nothing to anything else here;
+it does not own the owner past the insert. `teams.owner` is this league's
+cross-season identity key — `getTeamOwnerNames` / `isUserATeamOwner` decide from
+it whether to unmask the league for a viewer, and `utils/parlayDivisions.js`
+seats a member's TD parlay pick by it — so an overwrite is not a cosmetic
+respelling, it drops that member out of both. ESPN's copy is a display name its
+manager types however they like: on 2026-09-01 it carried "Aashish Gatmaneni"
+against the league's corrected "Aashish Gatamaneni", and the annual run would
+have put the misspelling back with nothing in the log to say so.
+
+A *blank* stored owner is still filled — a gap, not a disagreement, the same
+rule as the `espn_team_id` backfill beside it. A real divergence comes back as
+`ownerConflicts` and `sync-schedule` prints both spellings, exactly as it does
+`gameResult.conflicts`: a manager who respelled themselves needs nothing done, a
+franchise that genuinely changed hands needs `teams.owner` edited, and only a
+person can tell those apart. Note the interaction with the matcher below — the
+owner fallback compares against the *league's* spelling, so a diverged team with
+no `espn_team_id` would be inserted twice rather than found. Every team carries
+an ESPN id today and the backfill keeps it that way.
+
 Rows are matched to ESPN by `espn_matchup_id`, falling back to the same week
 plus the same pair of teams in either order — that fallback is what adopts rows
 created before ESPN ids were stored instead of duplicating them. The ESPN
