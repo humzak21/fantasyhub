@@ -91,22 +91,60 @@ export async function addTeamToSeason(ctx, seasonId, name, owner = '') {
 }
 
 /**
+ * Are these two spellings of an owner the same name?
+ *
+ * Trim-and-case-fold, matching `buildTeamIndex`'s own key exactly — a
+ * disagreement it would not notice is not one worth reporting, and reporting it
+ * would put "  Humza Khalil" against "Humza Khalil" in front of a person every
+ * September.
+ */
+const sameOwner = (a, b) =>
+  String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+/**
  * Refresh team identity from ESPN.
  *
  * Replaces `schedule.importTeamsFromESPNImport`, which read the `espn_teams`
  * staging table. It now takes the live ESPN payload, so there is nothing to
  * stage and nothing to approve.
  *
- * Only what ESPN owns is written: name, owner, ESPN id and abbreviation.
+ * ESPN owns the team name and abbreviation, which change most years and mean
+ * nothing to anything else here. It does **not** own `owner` past the insert.
  * `franchise_id`, `division_id` and every stat column belong to the league —
  * the season carry-forward sets them — and are never touched here.
  *
+ * **`owner` is written on insert and never on update**, the same rule
+ * `upsertEspnGames` applies to `games.type`, and for the same reason: it is a
+ * league-owned value that a yearly import would otherwise silently revert.
+ * `teams.owner` is this league's cross-season identity key — `getTeamOwnerNames`
+ * / `isUserATeamOwner` decide from it whether to unmask the league for a
+ * viewer, and `utils/parlayDivisions.js` seats a member's TD parlay pick by it
+ * — so an overwrite does not read as a cosmetic respelling, it drops that
+ * member out of both. ESPN's own copy is a display name its manager can type
+ * however they like: on 2026-09-01 it carried "Aashish Gatmaneni" against the
+ * league's corrected "Aashish Gatamaneni", and the next annual run would have
+ * put the misspelling back.
+ *
+ * A *blank* stored owner is still filled from ESPN — that is a gap, not a
+ * disagreement, and the same rule the `espn_team_id` backfill below follows.
+ *
+ * A real disagreement is reported, not resolved: `ownerConflicts` carries both
+ * spellings out to `sync-schedule`, which prints them. That is the
+ * `gameResult.conflicts` pattern — when a team genuinely changes hands, the
+ * import says so and a person makes the call, because "the manager renamed
+ * themselves" and "the franchise was sold" look identical from here.
+ *
  * Teams are matched by ESPN id first, then owner name, and only inserted when
  * neither matches. A season whose teams were carried forward therefore gets its
- * names refreshed rather than a second set of teams.
+ * names refreshed rather than a second set of teams. Note the interaction: the
+ * owner fallback compares against the *league's* spelling, so a team that has
+ * diverged AND has no `espn_team_id` would not be found and would be inserted
+ * twice. Every team in every season carries an ESPN id today, and the backfill
+ * below keeps it that way; the fallback exists for rows that predate it.
  *
  * @param {Array} espnTeams from `getFullSeasonSchedule().teams`
- * @returns {Promise<{inserted: number, updated: number, unchanged: number, errors: Array}>}
+ * @returns {Promise<{inserted: number, updated: number, unchanged: number,
+ *   errors: Array, ownerConflicts: Array}>}
  */
 export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
   try {
@@ -117,6 +155,7 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
     let updated = 0;
     let unchanged = 0;
     const errors = [];
+    const ownerConflicts = [];
 
     for (const espnTeam of espnTeams) {
       // `teamName` is ESPN's `name` — the abbreviation lives in its own field.
@@ -152,9 +191,22 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
 
       const patch = {};
       if (name !== match.name) patch.name = name;
-      if (owner && owner !== match.owner) patch.owner = owner;
       if (abbreviation !== (match.abbreviation ?? null)) patch.abbreviation = abbreviation;
       if (match.espn_team_id == null) patch.espn_team_id = espnTeam.teamId;
+
+      // Filling a blank is not overwriting a value.
+      if (owner && !match.owner?.trim()) {
+        patch.owner = owner;
+      } else if (owner && !sameOwner(owner, match.owner)) {
+        // Reported, never written. See the note above the function.
+        ownerConflicts.push({
+          teamId: match.id,
+          team: match.name,
+          espnTeamId: espnTeam.teamId,
+          stored: match.owner,
+          espn: owner
+        });
+      }
 
       if (Object.keys(patch).length === 0) {
         unchanged += 1;
@@ -175,7 +227,7 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
 
     ctx.seasonsCache.delete(seasonId);
 
-    return { inserted, updated, unchanged, errors };
+    return { inserted, updated, unchanged, errors, ownerConflicts };
   } catch (error) {
     throwDbError(error, 'Upsert teams from ESPN');
   }

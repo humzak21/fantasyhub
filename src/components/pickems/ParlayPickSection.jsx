@@ -11,13 +11,16 @@ import { cn } from '../../lib/utils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { useDebouncedValue } from '../../hooks/use-debounced-value.js';
 import {
+  useDivisions,
   useMyParlayPick,
   useNflOpponentMap,
   useParlayWeekPicks,
   usePlayerSearch,
+  useSeasonTeams,
   useSubmitParlayPick
 } from '../../../hooks/queries/index.js';
-import { getMaskedUserName } from '../../utils/displayNameUtils';
+import { getMaskedDivisionName, getMaskedUserName } from '../../utils/displayNameUtils';
+import { groupPicksByDivision } from '../../utils/parlayDivisions';
 import { getPositionColor } from '../../utils/positionColors';
 import { OpponentChip } from '../ui/opponent-chip';
 
@@ -32,24 +35,49 @@ import { OpponentChip } from '../ui/opponent-chip';
  *
  * Three things are the database's job, not this component's:
  *   - the deadline (`submit_td_parlay_pick` raises outside the window),
- *   - who may see whose pick (RLS on `td_parlay_picks`),
+ *   - who may see whose pick (RLS on `td_parlay_picks` — everyone, always,
+ *     since `20260902150000_parlay_picks_visible_as_submitted`),
  *   - the canonical player name on a matched pick.
  * So the UI here can be naive about all three, and a bug in it leaks nothing.
+ *
+ * The board below the picker shows the league's picks as they are submitted
+ * rather than holding them to the deadline, in two columns — one per division,
+ * because the league runs one parlay per division. The column a pick belongs in
+ * is derived, not stored; see `utils/parlayDivisions.js`.
  */
+/**
+ * One shared empty array for the `data = []` defaults below.
+ *
+ * A fresh `[]` per render is a new identity every render, which re-runs the
+ * grouping memo on every keystroke in the picker above it.
+ */
+const EMPTY = [];
+
 const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }) => {
-  const { user, isAuthenticated, isAdmin, isParlayCommissioner, teamOwnerNames } = useViewer();
+  const { user, isAuthenticated, isAdmin, teamOwnerNames } = useViewer();
 
   const isOpen = status?.status === 'open';
   const isRevealed = status?.status === 'closed' || status?.status === 'completed';
 
   const { data: myPick, isLoading: myPickLoading } = useMyParlayPick(pickEmWeek?.id);
 
-  // Before the deadline this query returns [] for everyone but the admin and
-  // the commissioner — by row filter, not by this flag. The flag only spares
-  // the round trip whose answer is already known.
-  const { data: leaguePicks = [] } = useParlayWeekPicks(pickEmWeek?.id, {
-    enabled: Boolean(pickEmWeek?.id) && (isRevealed || isAdmin || isParlayCommissioner)
-  });
+  // Everyone's picks, whatever the week's state. There is nothing to gate on:
+  // the picks are public from the moment they are submitted, and the row filter
+  // that used to withhold them is gone.
+  const { data: leaguePicks = EMPTY } = useParlayWeekPicks(pickEmWeek?.id);
+
+  // The division a pick sits in is derived from the member's name matching a
+  // `teams.owner`, so the board needs both halves of the league's identity.
+  // Both hooks share the cache entries `useLeagueData` has already filled at
+  // the app root, so this costs no request of its own.
+  const seasonId = pickEmWeek?.seasonId ?? null;
+  const { data: teams = EMPTY } = useSeasonTeams(seasonId);
+  const { data: divisions = EMPTY } = useDivisions(seasonId);
+
+  const { groups, unassigned } = useMemo(
+    () => groupPicksByDivision(leaguePicks, { teams, divisions }),
+    [leaguePicks, teams, divisions]
+  );
 
   // Who each NFL team plays this week, for the "vs BUF" / "@ KC" / "BYE" chips
   // on the current pick and on every autocomplete row. One fetch for the whole
@@ -90,6 +118,9 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
               Pick one player on your opponents team this week that you think will
               score a TD. Proceeds go to the league fund for anything and
               everything og jits.
+            </CardDescription>
+            <CardDescription className="mt-1.5">
+              Parlays are separated into divisions, 7 picks per each parlay.
             </CardDescription>
           </div>
 
@@ -149,19 +180,13 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
           />
         )}
 
-        {(isRevealed || isAdmin || isParlayCommissioner) && (
-          <LeaguePicks
-            picks={leaguePicks}
-            isRevealed={isRevealed}
-            viewer={{ user, isAdmin, teamOwnerNames }}
-          />
-        )}
-
-        {isOpen && !isAdmin && !isParlayCommissioner && (
-          <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-            Everyone&rsquo;s picks appear here once submissions close.
-          </p>
-        )}
+        <LeaguePicks
+          groups={groups}
+          unassigned={unassigned}
+          total={leaguePicks.length}
+          showGrades={isRevealed}
+          viewer={{ user, isAdmin, teamOwnerNames }}
+        />
       </CardContent>
     </Card>
   );
@@ -399,54 +424,131 @@ const PlayerPicker = ({ initialQuery, opponents = {}, submitting, onSubmit, onCa
   );
 };
 
-/** Everyone's picks. Empty before the deadline, by row filter. */
-const LeaguePicks = ({ picks, isRevealed, viewer }) => {
-  if (!isRevealed && picks.length === 0) return null;
+/**
+ * The league's picks, in a column per division.
+ *
+ * Live, not revealed: a pick appears here the moment it is submitted, which is
+ * what `20260902150000_parlay_picks_visible_as_submitted` made true in the only
+ * place it could be true — the row filter. This component holds nothing back.
+ *
+ * Every division gets a column even before anybody has entered it, so the board
+ * has the same shape on Tuesday morning as it does on Sunday, and a reader can
+ * see at a glance who in *their* parlay is still missing.
+ *
+ * `unassigned` is rendered rather than dropped. It is a member whose display
+ * name matches no `teams.owner` — a real state, since the name is theirs to
+ * type — and putting them in a division we guessed at would misreport who is
+ * competing with whom.
+ */
+const LeaguePicks = ({ groups, unassigned, total, showGrades, viewer }) => {
+  const hasDivisions = groups.length > 0;
 
   return (
     <div className="border-t border-border pt-4">
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        The league&rsquo;s picks
-      </h4>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          The league&rsquo;s picks
+        </h4>
+        <span className="text-xs text-muted-foreground">
+          {total} {total === 1 ? 'pick' : 'picks'} in
+        </span>
+      </div>
 
-      {picks.length === 0 ? (
+      {total === 0 && !hasDivisions ? (
         <EmptyState
           icon={Crosshair}
-          title="No picks this week"
-          description="Nobody entered the parlay."
+          title="No picks yet"
+          description="Picks show up here as they are submitted."
         />
       ) : (
-        <ul className="divide-y divide-border">
-          {picks.map((pick) => (
-            <li key={pick.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {getMaskedUserName(
-                  null,
-                  pick.userId,
-                  viewer.user,
-                  viewer.isAdmin,
-                  viewer.teamOwnerNames
-                )}
-              </span>
-              <span className="truncate font-medium">{pick.playerNameRaw}</span>
-              {pick.player?.position && (
-                <span
-                  className={cn(
-                    'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
-                    getPositionColor(pick.player.position)
-                  )}
-                >
-                  {pick.player.position}
-                </span>
+        <div className="grid gap-4 md:grid-cols-2">
+          {groups.map((group, index) => (
+            <DivisionColumn
+              key={group.division?.id ?? index}
+              title={getMaskedDivisionName(
+                group.division,
+                index,
+                viewer.user,
+                viewer.isAdmin,
+                viewer.teamOwnerNames
               )}
-              <GradeIcon scoredTd={pick.scoredTd} />
-            </li>
+              picks={group.picks}
+              showGrades={showGrades}
+              viewer={viewer}
+              emptyText="Nobody in this division has picked yet."
+            />
           ))}
-        </ul>
+
+          {unassigned.length > 0 && (
+            <DivisionColumn
+              // Full width under the two columns: it is a footnote about names
+              // that did not match, not a third parlay.
+              className="md:col-span-2"
+              title="Not matched to a division"
+              picks={unassigned}
+              showGrades={showGrades}
+              viewer={viewer}
+            />
+          )}
+        </div>
       )}
     </div>
   );
 };
+
+/**
+ * One division's parlay: its name, and the picks entered against it.
+ *
+ * A labelled `<section>` rather than a `<div>`, so each column is a named
+ * region — a screen reader reaching "Bijan Robinson" can be told which parlay
+ * it belongs to, which is the only thing the two-column layout conveys and the
+ * one thing a linear read of a flat list would lose.
+ */
+const DivisionColumn = ({ className, title, picks, showGrades, viewer, emptyText }) => (
+  <section
+    aria-label={title}
+    className={cn('rounded-lg border border-border bg-muted/20 p-3', className)}
+  >
+    <div className="mb-1 flex items-baseline justify-between gap-2">
+      <h5 className="truncate text-xs font-semibold uppercase tracking-[0.06em]">{title}</h5>
+      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{picks.length}</span>
+    </div>
+
+    {picks.length === 0 ? (
+      <p className="py-2 text-sm text-muted-foreground">{emptyText}</p>
+    ) : (
+      <ul className="divide-y divide-border">
+        {picks.map((pick) => (
+          <li key={pick.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+              {getMaskedUserName(
+                pick.displayName,
+                pick.userId,
+                viewer.user,
+                viewer.isAdmin,
+                viewer.teamOwnerNames
+              )}
+            </span>
+            <span className="truncate font-medium">{pick.playerNameRaw}</span>
+            {pick.player?.position && (
+              <span
+                className={cn(
+                  'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
+                  getPositionColor(pick.player.position)
+                )}
+              >
+                {pick.player.position}
+              </span>
+            )}
+            {/* A grade before the week has played would be a claim about a game
+                nobody has watched; ungraded renders as the em dash either way. */}
+            {showGrades && <GradeIcon scoredTd={pick.scoredTd} />}
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+);
 
 /** The compact grade, for a list where a full badge per row would be noise. */
 const GradeIcon = ({ scoredTd }) => {
