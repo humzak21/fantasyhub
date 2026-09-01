@@ -860,4 +860,39 @@ describe('ExpandedWeekModal', () => {
       expect(currentWeekButton.className).toMatch(/sm:ring-offset-2/);
     });
   });
+  describe('timer cleanup', () => {
+    /*
+     * Unmounting has to cancel the timers this modal schedules. Four
+     * `setTimeout`s here call `setState` after a delay; uncancelled, one that
+     * lands after the test environment is torn down takes the whole vitest run
+     * down with `ReferenceError: window is not defined` — after every test has
+     * already passed. It is timing-dependent, so it went green locally and red
+     * on CI. Counting pending timers is the deterministic version of that.
+     */
+    it('leaves no pending timers behind when it unmounts', () => {
+      vi.useFakeTimers();
+      try {
+        const { unmount } = render(<ExpandedWeekModal {...defaultProps} />);
+        expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+        unmount();
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('leaves no pending timers behind after a week is picked', () => {
+      vi.useFakeTimers();
+      try {
+        const { unmount } = render(<ExpandedWeekModal {...defaultProps} />);
+        fireEvent.click(screen.getByRole('option', { name: /Week 5/i }));
+
+        unmount();
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
 });

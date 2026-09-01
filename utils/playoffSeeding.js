@@ -19,7 +19,7 @@
  *
  * Everything here is pure: no I/O, no dates, no database. `services/db` and the
  * SQL RPC agree with it by construction, not by coincidence — see the
- * `20260901120000_seeded_playoff_standings.sql` migration, which implements the
+ * `20260901150000_seeded_playoff_standings.sql` migration, which implements the
  * same comparator in SQL.
  */
 
