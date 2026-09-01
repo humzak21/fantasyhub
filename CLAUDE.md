@@ -159,15 +159,30 @@ season row supplies the season, week, playoff boundary and ESPN league. Every
 step is an idempotent upsert against ESPN, so re-running a failed sync is the
 fix. Each run writes a `sync_runs` row.
 
-Its steps are rosters → scores → playerStats → nflSchedule → transactions →
-snapshot. Scores and playerStats read **one** ESPN fetch between them, so do
-not re-fetch inside a step. The nflSchedule step fetches separately and needs
-no cookies. playerStats, nflSchedule and transactions are non-fatal: a failure
-is recorded in `sync_runs.steps` and the run continues, because losing the
-week's snapshot to a player-data hiccup costs more than the missing rows.
-Skip flags:
-`--skip-rosters --skip-scores --skip-player-stats --skip-nfl-schedule
---skip-transactions --skip-snapshot`, plus `--dry-run`.
+Its steps are rosters → scores → playerStats → **finalizePrev** →
+nflSchedule → **parlayGrades** → transactions → snapshot. Scores and
+playerStats read **one** ESPN fetch between them, so do not re-fetch inside a
+step. The nflSchedule step fetches separately and needs no cookies.
+playerStats, finalizePrev, nflSchedule, parlayGrades and transactions are
+non-fatal: a failure is recorded in `sync_runs.steps` and the run continues,
+because losing the week's snapshot to a player-data hiccup costs more than the
+missing rows. Skip flags:
+`--skip-rosters --skip-scores --skip-player-stats --skip-finalize-prev
+--skip-nfl-schedule --skip-parlay-grades --skip-transactions --skip-snapshot`,
+plus `--dry-run`.
+
+**`finalizePrev` is why the week's real numbers exist at all.** The cron runs
+Tuesday 04:00 ET and `deriveCurrentWeek` rolls over at Tuesday 00:00 ET, so
+every scheduled run targets the week that has just *begun* — and `getSingleWeek`
+filters ESPN's matchups strictly to that scoring period. Week N-1's actual
+points, stat breakdowns and final scores were therefore never fetched by any
+scheduled run: the lineups would have gone on showing seven-day-old projections
+all season, and the parlay grader would have had nothing to grade. This step
+re-fetches week N-1 and re-runs scores + playerStats over it, one extra ESPN
+call on Tuesdays, through the same idempotent upserts. It sits *before* the
+snapshot, because the ranking snapshot must see the finished week. It runs only
+when the week was derived — an explicit `node sync-week.js 5` means week 5, and
+quietly rewriting week 4 too would be a surprise.
 
 `reasonToSkip` reports; it does not decide. **`--force` proceeds past a
 returned reason** and logs it — for the days before week 1 when ESPN already
@@ -424,9 +439,11 @@ Three rules are the database's, not the UI's, and that is what makes them true:
   the deadline; that empty result is the feature.
 - **The deadline is `submit_td_parlay_pick`.** It raises outside
   `[submission_opens_at, submission_closes_at)`. There is **no user INSERT or
-  UPDATE policy** on the table, so the RPC is the only write path. (This is
-  deliberately stricter than `submit_pick_em_picks`, which checks no deadline
-  at all — a pre-existing gap, still open.)
+  UPDATE policy** on the table, so the RPC is the only write path.
+  `submit_pick_em_picks` now carries the same guard, word for word
+  (`20260902130000_pick_em_deadline_guard.sql`) — the two forms submit
+  together, and a window meaning one thing for the parlay and another for the
+  picks would be its own bug. Change one and change the other.
 - **The canonical name comes from `players`.** Pass `p_player_id` and the
   function looks the name up itself; pass only `p_player_name` and it stores the
   trimmed text. `player_name_raw` is NOT NULL either way, because the FK is
@@ -437,9 +454,9 @@ ESPN has rostered in this league, so the fringe goal-line back this parlay
 invites may genuinely not be there.
 
 `scored_td` is nullable and **NULL means ungraded, not "no touchdown"** —
-nothing ingests TD stats yet, and re-picking resets it to NULL. Grading happens
-in SQL for now; `GradeCell` in the dashboard is its own component so the future
-toggle has one place to land.
+re-picking resets it to NULL, and the weekly sync's grader deliberately leaves
+it NULL for every case it is not certain of. See "`scored_td` is written by the
+sync's `parlayGrades` step" under the NFL-data notes below.
 
 **The commissioner is a role, not an admin.** `league_roles` +
 `is_parlay_commissioner()` exist because `is_admin()` is a single hardcoded
@@ -511,6 +528,24 @@ no cookies, unlike every other ESPN call here) through the pure
   flexes late-season kickoffs, so a calendar imported once in September would
   have the wrong times by December.
 
+**Three surfaces render the chips**, all through `ui/opponent-chip.jsx`: the
+pick'ems research lineups and parlay picker, the Schedule tab's lineup
+disclosure, and the Teams tab. Each reads `useNflOpponentMap(nflSeasonYear,
+week)` — note the *year*, derived as
+`season.espnSeasonYear ?? season.espn_season_year ?? season.year`, never the
+season id.
+
+**Which lineup table a surface reads is decided by the week, not by
+convenience.** Schedule's `LineupPanel` reads `useWeekPlayerStats` for a week
+that is over (who actually started, with what they actually scored) and
+`useCurrentLineups` for the week in progress. That comparison is against
+`useActualWeek()`, never the viewed week: navigating to week 3 in November must
+still read week 3 as history. Teams has no week navigation at all — it is
+present-tense, keys on the actual week, and every figure on it is a projection
+and is labelled as one. Getting this backwards is invisible on screen, because
+the wrong table's names are all plausible; it is the mistake that had the
+research panel naming 122 of 125 starters wrongly.
+
 **`player_week_stats.stat_breakdown` is the single copy of the category data.**
 The sync has always downloaded ESPN's raw per-category stat map alongside the
 fantasy total and thrown it away; it is now stored as jsonb at the grain that
@@ -534,9 +569,41 @@ second copy to fall out of step.
   rewritten in transit. ESPN's numeric-string ids round-trip untouched, which
   is why the raw map can be stored verbatim.
 
-Nothing yet writes `scored_td`: grading stays manual. The data, the
-`stats_official` gate and the derivation helpers are in place, so it is a small
-follow-up rather than a subsystem.
+**`scored_td` is written by the sync's `parlayGrades` step,** through the pure
+`services/parlayGrader.js` — the same decide/execute split as
+`espnGameMapper.js`. It is JavaScript rather than a SQL RPC so that
+`getScoredTouchdownCount` stays the single definition of "scored": a PL/pgSQL
+grader would have to restate `ESPN_STAT_IDS` and the thrown-versus-scored rule,
+and two definitions of a touchdown is how a quarterback ends up credited with
+four. No migration was needed — the cron holds the service-role key, which
+bypasses RLS exactly as every other step does, and the `is_admin()` policy
+stays as the browser's manual-override path.
+
+**Every uncertain case skips; only an explicit bye grades false without a stat
+line.** A skipped pick stays NULL, reads as "Pending", and is retried on the
+next run. That asymmetry is the whole design: a wrong `false` is invisible
+(nobody audits "no TD" — it is the common outcome), while a pending pick is
+conspicuous. So a *missing* `nfl_schedule` row skips where an explicit bye row
+grades false, `stats_official <> true` skips, and a null `stat_breakdown`
+skips. A quarterback who threw four grades **false**.
+
+- **It grades every elapsed ungraded week, not just N-1.**
+  `getUngradedMatchedPicks` selects `scored_td IS NULL` only, so re-runs are
+  idempotent, a week that failed to grade catches up on its own, and a grade a
+  human set by hand is never overwritten. `applyParlayGrades` repeats the
+  `IS NULL` filter on the write so a second writer cannot win silently.
+- **A dropped player is recovered, not guessed at.** `player_week_stats` only
+  holds players who were rostered when the sync ran, and the fringe goal-line
+  backs this parlay invites are exactly who gets dropped. A targeted
+  `kona_player_info` fetch (`services/espnPlayerInfoFetcher.js`) asks ESPN
+  about just those ids, reusing `findStatBreakdown`'s predicates rather than
+  restating them. It is league-scoped and therefore cookied — the opposite of
+  `espnNflScheduleFetcher.js`. If it fails, those picks stay pending.
+- **A free-text pick stays manual by construction** — there is no id to look a
+  stat line up by. `getUngradedMatchedPicks` filters them out at the query.
+- The dashboard is unchanged: `GradeCell`/`GradeMark`/`GradeBadge` already
+  render true/false/ungraded, and an auto-versus-manual provenance marker would
+  need a column nobody asked for.
 
 ### No analytics subsystem
 The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,
@@ -751,6 +818,15 @@ each replaced four or five hand-rolled variants:
   skeleton, never `return null`** (which renders a blank tab) and never a bare
   spinner.
 - `utils/positionColors.js` — lineup-slot chips, shared by Schedule and Teams.
+- `ui/opponent-chip.jsx` — a player's NFL opponent ("vs BUF" / "@ KC" / "BYE"),
+  over `utils/nflOpponent.js`. **It renders nothing when the calendar has no
+  entry**, and callers give the column a fixed-width wrapper rather than asking
+  for a placeholder — see the bye-versus-unknown rule under "The NFL schedule
+  is team-perspective".
+- `ui/player-points.jsx` — a player's points for a week. An actual is bare; a
+  projection is **labelled "proj"**, not merely dimmed, because a guess and a
+  result are different claims and a shade cannot carry that. Missing is the em
+  dash, unlabelled.
 
 Typography: `font-display` (Barlow Condensed) is the scoreboard voice — page
 titles, scores, hero numbers, nothing else. Inter carries the interface.
