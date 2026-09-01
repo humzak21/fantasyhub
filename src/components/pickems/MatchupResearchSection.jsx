@@ -3,7 +3,6 @@ import { ChevronDown, Search } from 'lucide-react';
 
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { NumberText } from '../ui/number-text';
 import { OpponentChip } from '../ui/opponent-chip';
 import { PlayerPoints } from '../ui/player-points';
 import RouteLoading from '../layout/RouteLoading';
@@ -12,6 +11,7 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { useCurrentLineups, useNflOpponentMap } from '../../../hooks/queries/index.js';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
+import { isScoringStarter, starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
 
 /**
  * Who is actually starting this week, so a parlay pick is a decision rather
@@ -122,25 +122,17 @@ const MatchupResearchSection = ({ seasonId, seasonYear = null, week, games = [] 
   );
 };
 
-/** Bench and IR do not score, so they are not research. */
-const isStarter = (row) => row.started && row.rosterSlot !== 'BE' && row.rosterSlot !== 'IR';
-
 /** The order the lineup is set in, so two columns read as the same lineup. */
 const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
 
 const startersFor = (statsByTeam, teamId) =>
   (statsByTeam[teamId] ?? [])
-    .filter(isStarter)
+    .filter(isScoringStarter)
     .sort((a, b) => {
       const bySlot = SLOT_ORDER.indexOf(a.rosterSlot) - SLOT_ORDER.indexOf(b.rosterSlot);
       if (bySlot !== 0) return bySlot;
       return (b.projectedPoints ?? 0) - (a.projectedPoints ?? 0);
     });
-
-/** A starter's points: the actual once it exists, the projection until then. */
-const pointsFor = (row) => (row.actualPoints != null ? row.actualPoints : row.projectedPoints);
-
-const totalFor = (rows) => rows.reduce((sum, row) => sum + Number(pointsFor(row) ?? 0), 0);
 
 const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
   const [open, setOpen] = useState(false);
@@ -162,7 +154,7 @@ const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
       >
         <TeamSide
           team={game.team1}
-          total={totalFor(team1Starters)}
+          total={starterTotal(team1Starters)}
           hasRows={team1Starters.length > 0}
           viewer={viewer}
         />
@@ -180,7 +172,7 @@ const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
         ) : (
           <TeamSide
             team={game.team2}
-            total={totalFor(team2Starters)}
+            total={starterTotal(team2Starters)}
             hasRows={team2Starters.length > 0}
             align="right"
             viewer={viewer}
@@ -214,6 +206,15 @@ const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
   );
 };
 
+/**
+ * `total` is a `{ total, isProjected }` pair from `starterTotal`.
+ *
+ * This number used to be printed bare, on the reasoning that the per-row "proj"
+ * markers below carried the information. They do not: the header is collapsed
+ * by default, so for most readers the total is the *only* number they see, and
+ * an unlabelled 118.4 beside a team name reads as a score. It is labelled until
+ * every starter in it is a result.
+ */
 const TeamSide = ({ team, total, hasRows, align = 'left', viewer }) => (
   <span className={cn('min-w-0 flex-1', align === 'right' && 'text-right')}>
     <span className="block truncate text-sm font-semibold">
@@ -224,7 +225,7 @@ const TeamSide = ({ team, total, hasRows, align = 'left', viewer }) => (
       {hasRows && (
         <>
           {' · '}
-          <NumberText value={total} />
+          <PlayerPoints {...totalAsPoints(total)} />
         </>
       )}
     </span>
