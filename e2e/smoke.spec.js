@@ -3,10 +3,16 @@ import { test, expect } from '@playwright/test'
 /**
  * Every tab is a route now, so every tab is reachable from here.
  *
- * `/history`, `/awards` and `/takes` are access-gated and redirect a signed-out
- * viewer to `/rankings`; that is correct behaviour, not a failure, so the
- * assertions below are about layout and about the page not being broken —
- * never about which URL you ended up on.
+ * `/history` and `/takes` are access-gated and redirect a signed-out viewer to
+ * `/rankings`; that is correct behaviour, not a failure, so the assertions
+ * below are about layout and about the page not being broken — never about
+ * which URL you ended up on.
+ *
+ * `/awards` used to be in that group and no longer is: a season that has been
+ * voted on stays readable after it ends, so a signed-out viewer lands on the
+ * real page with its pie charts. It is listed here because it is now the only
+ * way this suite sees that content at 375px — while the tab was gated, the
+ * charts were measured at no width at all.
  */
 const ROUTES = [
   '/',
@@ -17,6 +23,7 @@ const ROUTES = [
   '/pickems',
   '/takes',
   '/playoffs',
+  '/awards',
   '/settings',
 ]
 
