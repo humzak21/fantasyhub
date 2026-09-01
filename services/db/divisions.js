@@ -55,10 +55,22 @@ export async function createDivision(ctx, seasonId, name, displayOrder = 1) {
   }
 
   try {
+    // A brand-new division is a brand-new lineage. Minting the identity first
+    // is what lets next season's carry-forward adopt this row rather than
+    // guessing from its display order — see `league_divisions`.
+    const { data: identity, error: identityError } = await ctx.client
+      .from('league_divisions')
+      .insert({ label: division.name })
+      .select('id')
+      .single();
+
+    if (identityError) throw identityError;
+
     const divisionData = formatForDatabase({
       seasonId: division.seasonId,
       name: division.name,
-      displayOrder: division.displayOrder
+      displayOrder: division.displayOrder,
+      divisionIdentityId: identity?.id ?? null
     });
 
     const { data, error } = await ctx.client
@@ -92,13 +104,17 @@ export async function createDivision(ctx, seasonId, name, displayOrder = 1) {
  * insert collides. Matching on `display_order` renames those placeholders in
  * place, which is also what makes the id map unambiguous.
  *
+ * `division_identity_id` crosses over with the name. That is the whole reason
+ * `league_divisions` exists: a rename no longer breaks the lineage, because the
+ * lineage was never the name.
+ *
  * @returns {Promise<Map<number, number>>} source division id → new division id.
  */
 export async function copyDivisionsToSeason(ctx, sourceSeasonId, targetSeasonId) {
   try {
     const { data: source, error } = await ctx.client
       .from('divisions')
-      .select('id, name, display_order')
+      .select('id, name, display_order, division_identity_id')
       .eq('season_id', sourceSeasonId)
       .order('display_order', { ascending: true });
 
@@ -111,7 +127,10 @@ export async function copyDivisionsToSeason(ctx, sourceSeasonId, targetSeasonId)
         source.map((division) => ({
           season_id: targetSeasonId,
           name: division.name,
-          display_order: division.display_order
+          display_order: division.display_order,
+          // The placeholder rows the trigger seeded get renamed *and* adopted
+          // into their lineage — the same upsert, one more column.
+          division_identity_id: division.division_identity_id ?? null
         })),
         { onConflict: 'season_id,display_order' }
       )
@@ -261,7 +280,12 @@ export async function getStandingsByDivision(ctx, seasonId) {
             length: team.streak_length || 0
           },
           divisionRank: team.division_rank,
-          isPlayoffSpot: team.playoff_position
+          isPlayoffSpot: team.playoff_position,
+          // 2026+ only: the RPC returns NULL/false for earlier seasons, whose
+          // rule was top three per division and had no seeds at all.
+          playoffSeed: team.playoff_seed ?? null,
+          isBye: Boolean(team.is_bye),
+          isWildcard: Boolean(team.is_wildcard)
         });
       } else {
         unassigned.push({
@@ -280,7 +304,13 @@ export async function getStandingsByDivision(ctx, seasonId) {
           currentStreak: {
             type: team.streak_type || 'none',
             length: team.streak_length || 0
-          }
+          },
+          // A team with no division cannot win one, but from 2026 a wildcard
+          // is awarded league-wide, so it can still hold a seed.
+          playoffSeed: team.playoff_seed ?? null,
+          isBye: Boolean(team.is_bye),
+          isWildcard: Boolean(team.is_wildcard),
+          isPlayoffSpot: Boolean(team.playoff_position)
         });
       }
     });

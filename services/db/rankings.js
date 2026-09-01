@@ -158,7 +158,9 @@ export async function calculateLivePowerRankings(ctx, seasonId, weekNumber = nul
       null, // viewingWeek (use current)
       divisions || [],
       regularSeasonWeeks,
-      playerWeekStats
+      playerWeekStats,
+      // Which playoff rule applies. 2026 changed how the six spots are earned.
+      season.year
     );
 
     // Calculate all team stats with power rankings
@@ -479,7 +481,10 @@ export async function calculateRankingsForViewedWeek(ctx, seasonId, { week, view
       effectiveViewingWeek, // viewing week drives historical calculations
       divisions,
       regularSeasonWeeks,
-      playerWeekStats
+      playerWeekStats,
+      // Which playoff rule applies. 2026 changed how the six spots are earned;
+      // a 2025 view must keep the odds it had.
+      seasonRow.data?.year ?? null
     );
 
     return await calculator.getRankings(previousRankings);

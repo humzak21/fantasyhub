@@ -108,6 +108,19 @@ describe('PowerRankingsTable', () => {
     }
   });
 
+  it('describes playoff odds by the field, not by a division place', () => {
+    renderWithProviders(
+      <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />
+    );
+
+    // The legend said "finishing top 3 in the division", which stopped being
+    // what the column measures when 2026 moved to league-wide wildcards.
+    expect(
+      screen.getByText('Probability of making the six-team playoff field')
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/top 3 in the division/i)).not.toBeInTheDocument();
+  });
+
   it('names no component the calculator no longer produces', () => {
     renderWithProviders(
       <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />

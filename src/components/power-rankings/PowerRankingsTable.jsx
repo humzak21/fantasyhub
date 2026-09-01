@@ -300,7 +300,7 @@ const PowerRankingsTable = ({
                 <dl className="space-y-1.5 text-sm">
                   {[
                     ['Luck', 'Wins above or below what all-play analysis expects'],
-                    ['Playoff odds', 'Probability of finishing top 3 in the division'],
+                    ['Playoff odds', 'Probability of making the six-team playoff field'],
                     ['Form', 'Direction over the last four weeks'],
                     ['QW / BL', 'Quality wins and bad losses'],
                   ].map(([term, definition]) => (

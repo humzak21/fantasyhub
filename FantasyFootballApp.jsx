@@ -91,6 +91,7 @@ const FantasyFootballApp = () => {
     addGame,
     createDivision,
     renameDivision,
+    deleteDivision,
     assignTeamToDivision
   } = useLeagueMutations(seasonId);
 
@@ -229,6 +230,7 @@ const FantasyFootballApp = () => {
     createDivision.mutateAsync({ name, displayOrder });
   const handleRenameDivision = (divisionId, name) =>
     renameDivision.mutateAsync({ divisionId, name });
+  const handleDeleteDivision = (divisionId) => deleteDivision.mutateAsync(divisionId);
   const handleTeamDivisionChange = (teamId, divisionId) =>
     assignTeamToDivision.mutateAsync({ teamId, divisionId });
 
@@ -546,11 +548,13 @@ const FantasyFootballApp = () => {
             divisions={divisions}
             standings={standings}
             currentWeek={viewedWeek}
+            seasonYear={activeSeason.year}
             loading={isLoading}
             isAuthenticated={isAdmin}
             onDivisionRename={handleRenameDivision}
             onTeamDivisionChange={handleTeamDivisionChange}
             onCreateDivision={handleCreateDivision}
+            onDivisionDelete={handleDeleteDivision}
             games={activeSeason.schedule || []}
           />
         )}

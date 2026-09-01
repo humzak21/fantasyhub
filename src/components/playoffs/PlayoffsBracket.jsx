@@ -7,6 +7,26 @@ import { Trophy, Target, Clock, CheckCircle2, AlertCircle, Save, Edit3, X, Check
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getDb } from '../../../services/db/index.js';
 import { ScrollHint } from '../ui/scroll-hint';
+import {
+    organizeSeededBracket,
+    reseedSemis,
+    usesSeededPlayoffs
+} from '../../../utils/playoffSeeding.js';
+import { toSeasonConfig } from '../../../utils/seasonConfig.js';
+
+/**
+ * A seed, next to the team it belongs to.
+ *
+ * Only the 2026+ bracket has these. Before that a slot's meaning came from
+ * which division column it sat in, which is exactly the thing league-wide
+ * wildcards took away — a 5 seed and a 6 seed can now come from the same side.
+ */
+const SeedChip = ({ seed }) =>
+    seed == null ? null : (
+        <span className="mr-1 inline-block rounded bg-primary/15 px-1 font-display text-[11px] font-semibold leading-4 text-primary align-middle">
+            {seed}
+        </span>
+    );
 
 /**
  * Bracket matchup slot component
@@ -15,6 +35,8 @@ const BracketSlot = ({
     matchupId,
     team1,
     team2,
+    team1Seed = null,
+    team2Seed = null,
     selectedTeam,
     actualWinner,
     onSelect,
@@ -71,6 +93,7 @@ const BracketSlot = ({
             >
                 <div className="text-center w-full">
                     <div className="font-medium text-sm truncate">
+                        <SeedChip seed={team1 ? team1Seed : null} />
                         {team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : 'TBD'}
                     </div>
                     {team1 && (
@@ -98,6 +121,7 @@ const BracketSlot = ({
             >
                 <div className="text-center w-full">
                     <div className="font-medium text-sm truncate">
+                        <SeedChip seed={team2 ? team2Seed : null} />
                         {team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : 'TBD'}
                     </div>
                     {team2 && (
@@ -130,12 +154,13 @@ const BracketSlot = ({
 /**
  * Bye slot component - shows team with a bye (no opponent)
  */
-const ByeSlot = ({ team, user, isAdmin, teamOwnerNames, className }) => {
+const ByeSlot = ({ team, seed = null, user, isAdmin, teamOwnerNames, className }) => {
     return (
         <div className={`flex min-w-[180px] flex-col gap-1 rounded-lg border bg-card p-2 ${className || ''}`}>
             <div className="flex items-center justify-center rounded-md border-2 border-success/50 bg-success/10 p-3">
                 <div className="w-full text-center">
                     <div className="truncate text-sm font-medium text-success">
+                        <SeedChip seed={team ? seed : null} />
                         {team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'TBD'}
                     </div>
                     {team && (
@@ -151,19 +176,30 @@ const ByeSlot = ({ team, user, isAdmin, teamOwnerNames, className }) => {
 };
 
 
+// Stable defaults. `userPicks = []` as an inline default is a fresh array on
+// every render, and the effect below has it as its only dependency — so a
+// caller that omits the prop re-runs the effect, which calls `setPicks({})`
+// with a fresh object, which renders again, forever. Callers in the app always
+// pass one, which is why this never showed up.
+const NO_PICKS = Object.freeze([]);
+const NO_GAMES = Object.freeze([]);
+
 /**
  * Main bracket visualization component
  */
 const PlayoffsBracket = ({
     season,
-    playoffGames = [],
-    userPicks = [],
+    playoffGames = NO_GAMES,
+    userPicks = NO_PICKS,
     bracketStatus,
     onSubmitPicks,
     loading = false,
     user = null,
     isAdmin = false,
     teamOwnerNames = [],
+    // 2026+ only: the projected seeds, from the standings RPC. Empty is fine —
+    // the bracket then falls back to arrival order and shows no seed chips.
+    seedByTeamId = null,
 }) => {
     const [picks, setPicks] = useState({});
     const [hasChanges, setHasChanges] = useState(false);
@@ -174,6 +210,9 @@ const PlayoffsBracket = ({
     const [isEditing, setIsEditing] = useState(false);
     const [divisions, setDivisions] = useState([]);
     const [championshipPointTotal, setChampionshipPointTotal] = useState('');
+    // Named when a re-seed invalidates picks further down the bracket. Silently
+    // dropping them would leave the counter short with nothing to point at.
+    const [clearedByReseed, setClearedByReseed] = useState([]);
 
     // Load divisions
     useEffect(() => {
@@ -207,6 +246,7 @@ const PlayoffsBracket = ({
             });
             setPicks(existingPicks);
             setChampionshipPointTotal(championshipTotal);
+            setClearedByReseed([]);
             setHasSubmitted(true);
             setIsEditing(false);
             setHasChanges(false);
@@ -299,6 +339,7 @@ const PlayoffsBracket = ({
         setIsEditing(false);
         setHasChanges(false);
         setError(null);
+        setClearedByReseed([]);
     };
 
     const handleStartEdit = () => {
@@ -383,6 +424,163 @@ const PlayoffsBracket = ({
     const { playoffs, consolation } = organizeGames();
     const canEdit = bracketStatus?.canSubmit && user;
     const showResult = bracketStatus?.resultsReleased;
+
+    // ---------------------------------------------------------------------
+    // 2026+ : one six-team bracket, seeded league-wide and re-seeded at the
+    // semis. Everything below is inert for 2025 and earlier, whose bracket is
+    // two division halves and whose submitted picks must keep rendering.
+    // ---------------------------------------------------------------------
+    const seededSeason = usesSeededPlayoffs(season?.year);
+    const seasonConfig = toSeasonConfig(season);
+    // Week 15 is 2025's first playoff week, not a law. A season with a
+    // different regular season starts its bracket somewhere else.
+    const r1Week = seasonConfig?.playoffStartWeek ?? 15;
+    const semiWeek = r1Week + 1;
+    const finalWeek = r1Week + 2;
+    const labelSemiWeek = seededSeason ? semiWeek : 16;
+    const labelFinalWeek = seededSeason ? finalWeek : 17;
+
+    const seededBracket = organizeSeededBracket(playoffGames, seedByTeamId);
+    const seedOf = (team) =>
+        team?.id == null ? null : (seedByTeamId?.get?.(team.id) ?? null);
+
+    // Byes and round 1 come from real rows only. A projected pairing drawn from
+    // week-1 standings would be a fabrication dressed as a bracket, so an
+    // unsynced season shows TBD — the same thing the 2025 bracket does.
+    const byeTeam1 = seededBracket.byes[1]?.team1 ?? null;
+    const byeTeam2 = seededBracket.byes[2]?.team1 ?? null;
+    const r1TopGame = seededBracket.r1['3v6'];
+    const r1LowerGame = seededBracket.r1['4v5'];
+
+    const loserOfGame = (game, winner) => {
+        if (!game || !winner) return null;
+        return game.team1?.id === winner.id ? game.team2 : game.team1;
+    };
+
+    const r1TopWinner = picks['r1_3v6']?.predictedWinner ?? null;
+    const r1LowerWinner = picks['r1_4v5']?.predictedWinner ?? null;
+    const r1TopLoser = loserOfGame(r1TopGame, r1TopWinner);
+    const r1LowerLoser = loserOfGame(r1LowerGame, r1LowerWinner);
+
+    // The whole point of the new format: seed 1 draws the lowest survivor, so
+    // neither semifinal is knowable until both round-1 games are decided.
+    const { semi1: semi1Pairing, semi2: semi2Pairing } = reseedSemis(
+        seedOf(r1TopWinner),
+        seedOf(r1LowerWinner)
+    );
+
+    const survivorWithSeed = (seed) => {
+        if (seed == null) return null;
+        if (seedOf(r1TopWinner) === seed) return r1TopWinner;
+        if (seedOf(r1LowerWinner) === seed) return r1LowerWinner;
+        return null;
+    };
+
+    const semi1Team2 = survivorWithSeed(semi1Pairing[1]);
+    const semi2Team2 = survivorWithSeed(semi2Pairing[1]);
+
+    const semi1Winner = picks['semi_1']?.predictedWinner ?? null;
+    const semi2Winner = picks['semi_2']?.predictedWinner ?? null;
+    const semiLoser = (team1, team2, winner) => {
+        if (!winner || !team1 || !team2) return null;
+        return team1.id === winner.id ? team2 : team1;
+    };
+    const semi1Loser = semiLoser(byeTeam1, semi1Team2, semi1Winner);
+    const semi2Loser = semiLoser(byeTeam2, semi2Team2, semi2Winner);
+
+    /**
+     * Drop the picks a re-seed has made impossible.
+     *
+     * Changing a round-1 winner can swap who seed 1 plays, which invalidates
+     * everything downstream of that semifinal. Leaving a stale pick in place
+     * would submit a winner who is not in the matchup; dropping it silently
+     * would leave the "n/20 selected" counter short with nothing to point at.
+     */
+    const pruneSeededPicks = (draft) => {
+        const next = { ...draft };
+        const cleared = [];
+
+        const seedOfPick = (slot) => {
+            const id = next[slot]?.predictedWinnerTeamId;
+            return id == null ? null : (seedByTeamId?.get?.(id) ?? null);
+        };
+
+        const pairing = reseedSemis(seedOfPick('r1_3v6'), seedOfPick('r1_4v5'));
+        const survivorIdWithSeed = (seed) => {
+            if (seed == null) return null;
+            for (const slot of ['r1_3v6', 'r1_4v5']) {
+                const id = next[slot]?.predictedWinnerTeamId;
+                if (id != null && seedByTeamId?.get?.(id) === seed) return id;
+            }
+            return null;
+        };
+
+        const keepOnlyAmong = (slot, allowed) => {
+            const picked = next[slot]?.predictedWinnerTeamId;
+            if (picked == null) return;
+            if (!allowed.filter(Boolean).includes(picked)) {
+                delete next[slot];
+                cleared.push(slot);
+            }
+        };
+
+        const otherOf = (ids, slot) => {
+            const winner = next[slot]?.predictedWinnerTeamId;
+            if (winner == null) return null;
+            return ids.filter(Boolean).find((id) => id !== winner) ?? null;
+        };
+
+        const semi1Ids = [byeTeam1?.id, survivorIdWithSeed(pairing.semi1[1])];
+        const semi2Ids = [byeTeam2?.id, survivorIdWithSeed(pairing.semi2[1])];
+        keepOnlyAmong('semi_1', semi1Ids);
+        keepOnlyAmong('semi_2', semi2Ids);
+
+        keepOnlyAmong('championship', [
+            next['semi_1']?.predictedWinnerTeamId,
+            next['semi_2']?.predictedWinnerTeamId
+        ]);
+        keepOnlyAmong('third_place', [
+            otherOf(semi1Ids, 'semi_1'),
+            otherOf(semi2Ids, 'semi_2')
+        ]);
+
+        const fifthIds = [
+            otherOf([r1TopGame?.team1?.id, r1TopGame?.team2?.id], 'r1_3v6'),
+            otherOf([r1LowerGame?.team1?.id, r1LowerGame?.team2?.id], 'r1_4v5')
+        ];
+        keepOnlyAmong('fifth_place_wk16', fifthIds);
+        keepOnlyAmong('fifth_place_wk17', fifthIds);
+
+        return { next, cleared };
+    };
+
+    const handleSeededPick = (matchupId, team, gameId = null) => {
+        const { next, cleared } = pruneSeededPicks({
+            ...picks,
+            [matchupId]: {
+                predictedWinnerTeamId: team.id,
+                predictedWinner: team,
+                gameId
+            }
+        });
+
+        setPicks(next);
+        setClearedByReseed(cleared);
+        setHasChanges(true);
+        setError(null);
+        setShowConfirmation(false);
+    };
+
+    const pickHandler = seededSeason ? handleSeededPick : handlePickChange;
+
+    const SEEDED_SLOT_LABELS = {
+        semi_1: 'Semifinal 1',
+        semi_2: 'Semifinal 2',
+        championship: 'Championship',
+        third_place: '3rd place',
+        fifth_place_wk16: `5th place (week ${semiWeek})`,
+        fifth_place_wk17: `5th place (week ${finalWeek})`
+    };
 
     // Calculate derived teams based on picks (March Madness style + losers)
 
@@ -497,6 +695,26 @@ const PlayoffsBracket = ({
     const picksCount = Object.keys(picks).length;
     const hasChampionshipTotal = championshipPointTotal !== '' && !isNaN(parseFloat(championshipPointTotal)) && parseFloat(championshipPointTotal) > 0;
     const allPicksMade = picksCount >= totalMatchups && hasChampionshipTotal;
+
+    // The consolation games are the same two slots in both formats; only who
+    // reaches them differs. One JSX block, two sets of participants.
+    const thirdPlaceSlot = seededSeason
+        ? { team1: semi1Loser, team2: semi2Loser }
+        : {
+              team1: div1SemiWinner ? thirdPlaceTeam1 : null,
+              team2: div2SemiWinner ? thirdPlaceTeam2 : null
+          };
+
+    const fifthPlaceSlot = seededSeason
+        ? { team1: r1TopLoser, team2: r1LowerLoser }
+        : {
+              team1: div1R1Winner ? fifthPlaceTeam1 : null,
+              team2: div2R1Winner ? fifthPlaceTeam2 : null
+          };
+
+    const consolationGames = seededSeason
+        ? { thirdPlace: seededBracket.thirdPlace, fifthPlace: seededBracket.fifthPlace }
+        : { thirdPlace: playoffs.thirdPlace, fifthPlace: playoffs.fifthPlace };
 
     // Get pick for a matchup
     const getPick = (matchupId) => {
@@ -629,6 +847,22 @@ const PlayoffsBracket = ({
                 </Alert>
             )}
 
+            {/* A re-seed moved a matchup out from under a later pick. Say so:
+                the counter above is about to read short and the reader is
+                entitled to know which slots emptied. */}
+            {clearedByReseed.length > 0 && (
+                <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                        Re-seeding changed the bracket, so{' '}
+                        {clearedByReseed
+                            .map((slot) => SEEDED_SLOT_LABELS[slot] || slot)
+                            .join(', ')}{' '}
+                        {clearedByReseed.length === 1 ? 'was' : 'were'} cleared. Pick again.
+                    </AlertDescription>
+                </Alert>
+            )}
+
             {/* Playoff Bracket */}
             <Card>
                 <CardHeader>
@@ -636,7 +870,11 @@ const PlayoffsBracket = ({
                         <Trophy className="h-5 w-5 text-yellow-500" />
                         Playoff Bracket
                     </CardTitle>
-                    <CardDescription>The top 3 seeds from each division!</CardDescription>
+                    <CardDescription>
+                        {seededSeason
+                            ? 'Each division winner takes a bye; the next four teams league-wide take the wildcards, and the semifinals re-seed.'
+                            : 'The top 3 seeds from each division!'}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-8">
@@ -650,6 +888,166 @@ const PlayoffsBracket = ({
                             the bracket when it fits and left-aligns it when it
                             does not, which is what centring was meant to do.
                         */}
+                        {seededSeason ? (
+                          /*
+                            One bracket, not two division halves: round 1 and
+                            the byes on the left, the re-seeded semifinals in
+                            the middle, the title game on the right. Which
+                            semifinal a round-1 winner walks into depends on
+                            *both* results, which is why both semi slots stay
+                            TBD until both round-1 picks exist.
+                          */
+                          <ScrollHint className="pb-4">
+                            <div className="mx-auto flex w-max items-start gap-6">
+                              {/* Round 1 + byes */}
+                              <div className="flex flex-col gap-4">
+                                  <div className="text-center text-sm font-semibold text-muted-foreground mb-2">
+                                      Round 1
+                                  </div>
+                                  <div className="text-xs text-muted-foreground text-center">Week {r1Week}</div>
+                                  <ByeSlot
+                                      team={byeTeam1}
+                                      seed={seedOf(byeTeam1) ?? 1}
+                                      user={user}
+                                      isAdmin={isAdmin}
+                                      teamOwnerNames={teamOwnerNames}
+                                  />
+                                  <ByeSlot
+                                      team={byeTeam2}
+                                      seed={seedOf(byeTeam2) ?? 2}
+                                      user={user}
+                                      isAdmin={isAdmin}
+                                      teamOwnerNames={teamOwnerNames}
+                                  />
+                                  <BracketSlot
+                                      matchupId="r1_3v6"
+                                      className="ff-feeds-forward"
+                                      team1={r1TopGame?.team1}
+                                      team2={r1TopGame?.team2}
+                                      team1Seed={seedOf(r1TopGame?.team1)}
+                                      team2Seed={seedOf(r1TopGame?.team2)}
+                                      selectedTeam={getPick('r1_3v6')}
+                                      actualWinner={getActualWinner(r1TopGame)}
+                                      onSelect={(id, team) => pickHandler(id, team, r1TopGame?.id)}
+                                      disabled={!canEdit || (hasSubmitted && !isEditing)}
+                                      showResult={showResult}
+                                      user={user}
+                                      isAdmin={isAdmin}
+                                      teamOwnerNames={teamOwnerNames}
+                                  />
+                                  <BracketSlot
+                                      matchupId="r1_4v5"
+                                      className="ff-feeds-forward"
+                                      team1={r1LowerGame?.team1}
+                                      team2={r1LowerGame?.team2}
+                                      team1Seed={seedOf(r1LowerGame?.team1)}
+                                      team2Seed={seedOf(r1LowerGame?.team2)}
+                                      selectedTeam={getPick('r1_4v5')}
+                                      actualWinner={getActualWinner(r1LowerGame)}
+                                      onSelect={(id, team) => pickHandler(id, team, r1LowerGame?.id)}
+                                      disabled={!canEdit || (hasSubmitted && !isEditing)}
+                                      showResult={showResult}
+                                      user={user}
+                                      isAdmin={isAdmin}
+                                      teamOwnerNames={teamOwnerNames}
+                                  />
+                              </div>
+
+                              {/* Semifinals */}
+                              <div className="flex flex-col gap-4">
+                                  <div className="text-center text-sm font-semibold text-muted-foreground mb-2">
+                                      Semifinals
+                                  </div>
+                                  <div className="text-xs text-muted-foreground text-center">Week {semiWeek}</div>
+                                  <BracketSlot
+                                      matchupId="semi_1"
+                                      className="ff-fed-from-left ff-feeds-forward"
+                                      team1={byeTeam1}
+                                      team2={semi1Team2}
+                                      team1Seed={seedOf(byeTeam1) ?? 1}
+                                      team2Seed={semi1Pairing[1]}
+                                      selectedTeam={getPick('semi_1')}
+                                      actualWinner={getActualWinner(seededBracket.semis.semi1)}
+                                      onSelect={(id, team) => pickHandler(id, team, seededBracket.semis.semi1?.id)}
+                                      disabled={!canEdit || (hasSubmitted && !isEditing)}
+                                      showResult={showResult}
+                                      user={user}
+                                      isAdmin={isAdmin}
+                                      teamOwnerNames={teamOwnerNames}
+                                  />
+                                  <BracketSlot
+                                      matchupId="semi_2"
+                                      className="ff-fed-from-left ff-feeds-forward"
+                                      team1={byeTeam2}
+                                      team2={semi2Team2}
+                                      team1Seed={seedOf(byeTeam2) ?? 2}
+                                      team2Seed={semi2Pairing[1]}
+                                      selectedTeam={getPick('semi_2')}
+                                      actualWinner={getActualWinner(seededBracket.semis.semi2)}
+                                      onSelect={(id, team) => pickHandler(id, team, seededBracket.semis.semi2?.id)}
+                                      disabled={!canEdit || (hasSubmitted && !isEditing)}
+                                      showResult={showResult}
+                                      user={user}
+                                      isAdmin={isAdmin}
+                                      teamOwnerNames={teamOwnerNames}
+                                  />
+                              </div>
+
+                              {/* Championship */}
+                              <div className="flex flex-col gap-4">
+                                  <div className="text-center font-semibold text-sm mb-2">
+                                      <Trophy className="h-4 w-4 inline mr-1 text-yellow-500" />
+                                      Week {finalWeek}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground text-center">Championship</div>
+                                  <BracketSlot
+                                      matchupId="championship"
+                                      className="ff-fed-from-left"
+                                      team1={semi1Winner}
+                                      team2={semi2Winner}
+                                      team1Seed={seedOf(semi1Winner)}
+                                      team2Seed={seedOf(semi2Winner)}
+                                      selectedTeam={getPick('championship')}
+                                      actualWinner={getActualWinner(seededBracket.championship)}
+                                      onSelect={(id, team) => pickHandler(id, team, seededBracket.championship?.id)}
+                                      disabled={!canEdit || (hasSubmitted && !isEditing)}
+                                      showResult={showResult}
+                                      user={user}
+                                      isAdmin={isAdmin}
+                                      teamOwnerNames={teamOwnerNames}
+                                  />
+
+                                  <div className="flex flex-col gap-2 p-3 bg-card rounded-lg border shadow-sm min-w-[180px]">
+                                      <div className="text-xs font-semibold text-center text-muted-foreground">
+                                          Championship Combined Point Total
+                                      </div>
+                                      <input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={championshipPointTotal}
+                                          onChange={(e) => {
+                                              setChampionshipPointTotal(e.target.value);
+                                              setHasChanges(true);
+                                              setError(null);
+                                          }}
+                                          disabled={!canEdit || (hasSubmitted && !isEditing)}
+                                          placeholder="Enter total points (e.g., 124.34)"
+                                          className={`
+                                              w-full px-3 py-2 text-center font-medium rounded-md border-2 transition-all
+                                              ${championshipPointTotal ? 'border-primary bg-primary/10 text-foreground' : 'border-muted'}
+                                              ${!canEdit || (hasSubmitted && !isEditing) ? 'cursor-not-allowed bg-muted/20' : 'focus:outline-none focus:ring-2 focus:ring-ring'}
+                                              disabled:opacity-50
+                                          `}
+                                      />
+                                      <div className="text-xs text-center text-muted-foreground">
+                                          3 bonus points for closest prediction
+                                      </div>
+                                  </div>
+                              </div>
+                            </div>
+                          </ScrollHint>
+                        ) : (
                         <ScrollHint className="pb-4">
                           <div className="mx-auto flex w-max items-start gap-6">
                             {/* Division 2 (Left Side) */}
@@ -811,6 +1209,7 @@ const PlayoffsBracket = ({
                             </div>
                         </div>
                         </ScrollHint>
+                        )}
 
                         {/* Consolation Games - 3rd and 5th Place */}
                         <div className="border-t pt-6">
@@ -832,16 +1231,15 @@ const PlayoffsBracket = ({
                                         5th Place (Losers of R1)
                                     </div>
                                     <div className="flex gap-4">
-                                        {/* Week 16 */}
                                         <div>
-                                            <div className="text-xs text-muted-foreground text-center mb-2">Week 16</div>
+                                            <div className="text-xs text-muted-foreground text-center mb-2">Week {labelSemiWeek}</div>
                                             <BracketSlot
                                                 matchupId="fifth_place_wk16"
-                                                team1={div1R1Winner ? fifthPlaceTeam1 : null}
-                                                team2={div2R1Winner ? fifthPlaceTeam2 : null}
+                                                team1={fifthPlaceSlot.team1}
+                                                team2={fifthPlaceSlot.team2}
                                                 selectedTeam={getPick('fifth_place_wk16')}
-                                                actualWinner={getActualWinner(playoffs.fifthPlace[0])}
-                                                onSelect={(id, team) => handlePickChange(id, team, playoffs.fifthPlace[0]?.id)}
+                                                actualWinner={getActualWinner(consolationGames.fifthPlace[0])}
+                                                onSelect={(id, team) => pickHandler(id, team, consolationGames.fifthPlace[0]?.id)}
                                                 disabled={!canEdit || (hasSubmitted && !isEditing)}
                                                 showResult={showResult}
                                                 user={user}
@@ -849,16 +1247,15 @@ const PlayoffsBracket = ({
                                                 teamOwnerNames={teamOwnerNames}
                                             />
                                         </div>
-                                        {/* Week 17 */}
                                         <div>
-                                            <div className="text-xs text-muted-foreground text-center mb-2">Week 17</div>
+                                            <div className="text-xs text-muted-foreground text-center mb-2">Week {labelFinalWeek}</div>
                                             <BracketSlot
                                                 matchupId="fifth_place_wk17"
-                                                team1={div1R1Winner ? fifthPlaceTeam1 : null}
-                                                team2={div2R1Winner ? fifthPlaceTeam2 : null}
+                                                team1={fifthPlaceSlot.team1}
+                                                team2={fifthPlaceSlot.team2}
                                                 selectedTeam={getPick('fifth_place_wk17')}
-                                                actualWinner={getActualWinner(playoffs.fifthPlace[1])}
-                                                onSelect={(id, team) => handlePickChange(id, team, playoffs.fifthPlace[1]?.id)}
+                                                actualWinner={getActualWinner(consolationGames.fifthPlace[1])}
+                                                onSelect={(id, team) => pickHandler(id, team, consolationGames.fifthPlace[1]?.id)}
                                                 disabled={!canEdit || (hasSubmitted && !isEditing)}
                                                 showResult={showResult}
                                                 user={user}
@@ -875,14 +1272,14 @@ const PlayoffsBracket = ({
                                         3rd Place (Losers of Semifinals)
                                     </div>
                                     <div>
-                                        <div className="text-xs text-muted-foreground text-center mb-2">Week 17</div>
+                                        <div className="text-xs text-muted-foreground text-center mb-2">Week {labelFinalWeek}</div>
                                         <BracketSlot
                                             matchupId="third_place"
-                                            team1={div1SemiWinner ? thirdPlaceTeam1 : null}
-                                            team2={div2SemiWinner ? thirdPlaceTeam2 : null}
+                                            team1={thirdPlaceSlot.team1}
+                                            team2={thirdPlaceSlot.team2}
                                             selectedTeam={getPick('third_place')}
-                                            actualWinner={getActualWinner(playoffs.thirdPlace)}
-                                            onSelect={(id, team) => handlePickChange(id, team, playoffs.thirdPlace?.id)}
+                                            actualWinner={getActualWinner(consolationGames.thirdPlace)}
+                                            onSelect={(id, team) => pickHandler(id, team, consolationGames.thirdPlace?.id)}
                                             disabled={!canEdit || (hasSubmitted && !isEditing)}
                                             showResult={showResult}
                                             user={user}

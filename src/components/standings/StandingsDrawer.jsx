@@ -39,11 +39,13 @@ const StandingsDrawer = ({
   divisions,
   standings,
   currentWeek,
+  seasonYear = null,
   loading,
   isAuthenticated,
   onDivisionRename,
   onTeamDivisionChange,
   onCreateDivision,
+  onDivisionDelete,
   games = [],
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
@@ -68,11 +70,13 @@ const StandingsDrawer = ({
           divisions={divisions}
           standings={standings}
           currentWeek={currentWeek}
+          seasonYear={seasonYear}
           loading={loading}
           isAuthenticated={isAuthenticated}
           onDivisionRename={onDivisionRename}
           onTeamDivisionChange={onTeamDivisionChange}
           onCreateDivision={onCreateDivision}
+          onDivisionDelete={onDivisionDelete}
           onClose={() => onOpenChange(false)}
           games={games}
           user={user}
