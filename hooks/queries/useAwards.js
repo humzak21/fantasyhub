@@ -37,6 +37,34 @@ export function useAwards(seasonId) {
   });
 }
 
+/**
+ * The vote tallies for one season, `{ [awardId]: { [voteValue]: count } }`.
+ *
+ * Season-parametric because the Results tab browses past seasons — the
+ * component used to fetch this in a `useEffect` keyed on the active season and
+ * so could only ever show the current year.
+ */
+export function useAwardResults(seasonId) {
+  return useQuery({
+    queryKey: qk.awards.results(seasonId),
+    queryFn: () => db().awards.getAwardResults(seasonId),
+    enabled: Boolean(seasonId)
+  });
+}
+
+/**
+ * Every season that has a ballot, newest first. The list changes once a year,
+ * so it is cached hard — the shell reads it on every render to decide whether
+ * the Awards tab is reachable at all.
+ */
+export function useAwardBallotSeasons() {
+  return useQuery({
+    queryKey: qk.awards.ballotSeasons(),
+    queryFn: () => db().awards.getBallotSeasons(),
+    staleTime: 5 * 60_000
+  });
+}
+
 export function useAwardsMutations(seasonId) {
   const queryClient = useQueryClient();
   const invalidate = () => queryClient.invalidateQueries({ queryKey: qk.awards.season(seasonId) });

@@ -8,10 +8,12 @@ import {
   useViewedWeekRankings,
   useHasSubmittedPicks,
   useAwardsUnlockStatus,
+  useAwardBallotSeasons,
   useSeasonConfig
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
+import { viewableResultSeasons } from './src/components/awards/resultsAccess.js';
 import { Card, CardContent } from './src/components/ui/card';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
 import ErrorBoundary from './utils/errorBoundary.jsx';
@@ -103,6 +105,19 @@ const FantasyFootballApp = () => {
 
   const { status: awardsUnlockStatus } = useAwardsUnlockStatus(seasonId);
 
+  // Awards outlive the season that produced them. The tab used to be gated
+  // solely on the *active* season's release date and voting flag — both off for
+  // a season that has not run its ballot yet — which sealed the tab over every
+  // past season's results, for everyone but the admin.
+  const { data: ballotSeasons, isPending: ballotSeasonsLoading } = useAwardBallotSeasons();
+  const hasViewableAwardResults = useMemo(
+    () =>
+      viewableResultSeasons(ballotSeasons, {
+        isAdmin,
+        activeSeasonResultsReleased: Boolean(awardsUnlockStatus?.resultsReleased)
+      }).length > 0,
+    [ballotSeasons, isAdmin, awardsUnlockStatus]
+  );
 
   // The tab is the URL, not component state. It used to be `useState`, which
   // meant the phone's back button left the site instead of walking back a tab,
@@ -123,6 +138,11 @@ const FantasyFootballApp = () => {
 
     // Check if voting is open to all authenticated users
     if (isAuthenticated && awardsUnlockStatus?.votingOpenToAll) return true;
+
+    // A past season that was voted on is reachable on its own account — see
+    // `src/components/awards/resultsAccess.js`, which the Results tab's picker
+    // reads too so the two cannot disagree about what is in there.
+    if (hasViewableAwardResults) return true;
 
     // Otherwise the season's own release date decides.
     return areAwardsReleased(seasonConfig);
@@ -162,7 +182,7 @@ const FantasyFootballApp = () => {
       // grounds for a nav item every other layout has to make room for.
       { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
     ];
-  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig]);
+  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults]);
 
   // One definition of "may this viewer see this tab", shared by the nav and by
   // the route guard below — they must not be able to disagree.
@@ -227,8 +247,13 @@ const FantasyFootballApp = () => {
   // `isAuthLoading` is what lets a member's bookmarked /takes survive a cold
   // load — and it fixes the same latent bounce on /history, whose access runs
   // through `isTeamOwner` and so was already exposed to it.
+  //
+  // The ballot-season list is the third such input, and for the same reason:
+  // while it is in flight `hasViewableAwardResults` is false, which is
+  // indistinguishable from "no past season has results" — so a bookmarked
+  // /awards would bounce on every cold load without this.
   if (!activeTabDef) return <Navigate to={`/${DEFAULT_TAB}`} replace />;
-  if (!isLoading && !isAuthLoading && !shouldShowTab(activeTabDef)) {
+  if (!isLoading && !isAuthLoading && !ballotSeasonsLoading && !shouldShowTab(activeTabDef)) {
     return <Navigate to={`/${DEFAULT_TAB}`} replace />;
   }
 

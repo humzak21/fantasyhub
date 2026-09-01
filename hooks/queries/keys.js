@@ -143,9 +143,17 @@ export const qk = {
     parlayCommissioners: () => ['roles', 'parlayCommissioners']
   },
 
+  /**
+   * `results` sits under `awards.season(seasonId)`, so the invalidations in
+   * `useAwardsMutations` reach it and a submitted vote refreshes the charts.
+   * `ballotSeasons` deliberately does not: the set of seasons that have a
+   * ballot changes once a year, not once a vote.
+   */
   awards: {
     ...scope('awards'),
-    unlockStatus: (seasonId) => ['awards', seasonId, 'unlockStatus']
+    unlockStatus: (seasonId) => ['awards', seasonId, 'unlockStatus'],
+    results: (seasonId) => ['awards', seasonId, 'results'],
+    ballotSeasons: () => ['awards', 'ballotSeasons']
   },
 
   /**

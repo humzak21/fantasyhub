@@ -237,3 +237,28 @@ export async function getAwardResults(ctx, seasonId) {
     throwDbError(error, 'Get award results');
   }
 }
+
+/**
+ * The seasons that were actually voted on, newest first.
+ *
+ * The Results tab's season picker needs to know which years have a ballot, and
+ * that is a question about the *set* of votes, not about any one season — so it
+ * reads `v_award_ballot_seasons` rather than counting rows in the browser.
+ * Seasons with only computed awards (2020-24) never appear: the view's joins
+ * require at least one vote, so the picker cannot offer a year whose every card
+ * would read "No votes yet".
+ */
+export async function getBallotSeasons(ctx) {
+  try {
+    const { data, error } = await ctx.client
+      .from('v_award_ballot_seasons')
+      .select('*')
+      .order('year', { ascending: false });
+
+    if (error) throw error;
+
+    return formatFromDatabase(data || []);
+  } catch (error) {
+    throwDbError(error, 'Get ballot seasons');
+  }
+}
