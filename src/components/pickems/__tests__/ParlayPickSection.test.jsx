@@ -20,12 +20,14 @@ const parlay = {
 };
 
 const players = { searchPlayers: vi.fn(async () => []) };
+const nflSchedule = { getNflScheduleForSeason: vi.fn(async () => []) };
 
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
     parlay,
     players,
+    nflSchedule,
     users: { isParlayCommissioner: async () => false },
     seasons: { getActiveSeason: async () => null }
   })
@@ -74,6 +76,7 @@ beforeEach(() => {
   parlay.getMyParlayPick.mockResolvedValue(null);
   parlay.getParlayPicksForWeek.mockResolvedValue([]);
   players.searchPlayers.mockResolvedValue([]);
+  nflSchedule.getNflScheduleForSeason.mockResolvedValue([]);
   Object.assign(auth, { isAuthenticated: true, isAdmin: false, user: { id: 'u1', user_metadata: { name: 'Arya Shah' } } });
 });
 
@@ -199,5 +202,107 @@ describe('ParlayPickSection', () => {
 
     await screen.findByRole('combobox');
     expect(parlay.getParlayPicksForWeek).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The NFL opponent chips, on the committed pick and on every suggestion.
+ *
+ * A bye is the single most decision-relevant thing this section can say about
+ * a touchdown pick, and an unknown must not be dressed up as one — a free-text
+ * pick has no `player` at all, and printing "BYE" beside it would be inventing
+ * a fact about somebody who is playing.
+ */
+describe('ParlayPickSection · opponent chips', () => {
+  const SEASON_YEAR = 2026;
+
+  /** BUF(2) away at KC(12) in week 3; DET(8) is off. */
+  const NFL_ROWS = [
+    { seasonYear: SEASON_YEAR, week: 3, proTeamId: 2, opponentProTeamId: 12, isHome: false },
+    { seasonYear: SEASON_YEAR, week: 3, proTeamId: 12, opponentProTeamId: 2, isHome: true },
+    { seasonYear: SEASON_YEAR, week: 3, proTeamId: 8, opponentProTeamId: null, isHome: null }
+  ];
+
+  const pickOn = (proTeamId) => ({
+    id: 'pick-1',
+    playerId: 'p1',
+    playerNameRaw: 'Josh Allen',
+    scoredTd: null,
+    player: { id: 'p1', name: 'Josh Allen', position: 'QB', teamAbbreviation: 'BUF', proTeamId }
+  });
+
+  const render = () =>
+    renderWithProviders(
+      <ParlayPickSection
+        pickEmWeek={WEEK}
+        seasonYear={SEASON_YEAR}
+        status={OPEN}
+        weekNumber={3}
+      />
+    );
+
+  beforeEach(() => {
+    nflSchedule.getNflScheduleForSeason.mockResolvedValue(NFL_ROWS);
+  });
+
+  it('shows the opponent beside the committed pick', async () => {
+    parlay.getMyParlayPick.mockResolvedValue(pickOn(2));
+
+    render();
+
+    expect(await screen.findByText('@ KC')).toBeInTheDocument();
+  });
+
+  it('shows BYE when the picked player’s team is off', async () => {
+    parlay.getMyParlayPick.mockResolvedValue(pickOn(8));
+
+    render();
+
+    expect(await screen.findByText('BYE')).toBeInTheDocument();
+  });
+
+  it('shows nothing for a free-text pick, which has no player to look up', async () => {
+    parlay.getMyParlayPick.mockResolvedValue({
+      id: 'pick-2',
+      playerId: null,
+      playerNameRaw: 'Some Goal Line Back',
+      scoredTd: null,
+      player: null
+    });
+
+    render();
+
+    expect(await screen.findByText('Some Goal Line Back')).toBeInTheDocument();
+    expect(screen.queryByText('BYE')).not.toBeInTheDocument();
+    expect(screen.queryByText(/^(vs|@) /)).not.toBeInTheDocument();
+  });
+
+  it('shows the opponent on autocomplete suggestions', async () => {
+    const user = userEvent.setup();
+    players.searchPlayers.mockResolvedValue([
+      { id: 'p1', name: 'Josh Allen', position: 'QB', teamAbbreviation: 'BUF', proTeamId: 2 },
+      { id: 'p2', name: 'Jahmyr Gibbs', position: 'RB', teamAbbreviation: 'DET', proTeamId: 8 }
+    ]);
+
+    render();
+
+    // The list needs two characters — see `showList` in the component.
+    await user.type(await screen.findByLabelText(/your player/i), 'ja');
+    await waitFor(() => expect(screen.getByRole('listbox')).toBeInTheDocument());
+
+    expect(await screen.findByText('@ KC')).toBeInTheDocument();
+    expect(await screen.findByText('BYE')).toBeInTheDocument();
+  });
+
+  it('asks the calendar for the season year, once, for both chip sites', async () => {
+    parlay.getMyParlayPick.mockResolvedValue(pickOn(2));
+
+    render();
+
+    await screen.findByText('@ KC');
+    // The current pick and the picker share one cache entry; a second key
+    // would let the two disagree about the same week.
+    expect(nflSchedule.getNflScheduleForSeason).toHaveBeenCalledWith(SEASON_YEAR);
+    expect(nflSchedule.getNflScheduleForSeason).toHaveBeenCalledTimes(1);
   });
 });

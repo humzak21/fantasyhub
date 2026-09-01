@@ -11,10 +11,10 @@ name: Refresh rosters
 # lineup the manager had already changed.
 #
 # This runs only the roster step. It is not a second sync: scores, player
-# stats, transactions and the ranking snapshot are all skipped, so it writes
-# `rosters` and `players` and touches nothing the weekly job owns. The
-# underlying write is delete-then-insert per team, so re-running is how you fix
-# a failed run, same as everywhere else here.
+# stats, transactions, the NFL calendar and the ranking snapshot are all
+# skipped, so it writes `rosters` and `players` and touches nothing the weekly
+# job owns. The underlying write is delete-then-insert per team, so re-running
+# is how you fix a failed run, same as everywhere else here.
 
 on:
   schedule:
@@ -61,5 +61,6 @@ jobs:
             --skip-scores \
             --skip-player-stats \
             --skip-transactions \
+            --skip-nfl-schedule \
             --skip-snapshot \
             --manual

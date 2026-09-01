@@ -87,3 +87,76 @@ export function mapESPNRosterSlot(espnSlot) {
 export function isStarterSlot(espnSlot) {
   return espnSlot != null && espnSlot !== 20 && espnSlot !== 21;
 }
+
+/**
+ * The ESPN stat ids this app derives figures from.
+ *
+ * ESPN keys a player's per-category stat map by a numeric id as a *string*, so
+ * these are strings: `statBreakdown['25']`, never `statBreakdown[25]`.
+ *
+ * Verified arithmetically on 2026-09-01 against completed 2025 season totals
+ * rather than taken from a community id list. Jahmyr Gibbs' stored line —
+ * 1223 rushing yards, 13 of id 25, 616 receiving yards, 5 of id 43, 77
+ * receptions, 1 fumble lost — reproduces his 366.9 `appliedTotal` exactly under
+ * PPR scoring, and Jalen Hurts' 25 of id 4 reproduces his 299.06. A mislabelled
+ * id would not reconcile.
+ *
+ * This is a deliberately short list. `stat_breakdown` stores ESPN's whole map,
+ * so naming an id here is about what the app *derives*, not about what it
+ * keeps — the rest stays in the column awaiting a reader.
+ */
+export const ESPN_STAT_IDS = {
+  PASSING_TD: '4',
+  RUSHING_TD: '25',
+  RECEIVING_TD: '43'
+};
+
+/** The ids that mean the player carried the ball into the end zone themselves. */
+const SCORED_TD_IDS = [ESPN_STAT_IDS.RUSHING_TD, ESPN_STAT_IDS.RECEIVING_TD];
+
+/** Sum a set of stat ids out of a breakdown, or null when there is no breakdown. */
+function sumStats(statBreakdown, ids) {
+  // Null is "we do not know", and it has to survive: `player_week_stats` rows
+  // written before 2026-09 have no breakdown at all, and returning 0 for those
+  // would report every player in league history as having scored nothing. The
+  // power ranking learned this the expensive way — see the "a component that
+  // cannot be computed is null, never 0" rule in CLAUDE.md.
+  if (!statBreakdown || typeof statBreakdown !== 'object') return null;
+
+  let total = 0;
+  for (const id of ids) {
+    const value = Number(statBreakdown[id]);
+    if (Number.isFinite(value)) total += value;
+  }
+
+  return total;
+}
+
+/**
+ * Touchdowns this player was involved in: thrown, run and caught.
+ *
+ * The broad count, and rarely the one a question wants. A quarterback who threw
+ * four is credited with four here, which is right for "who produced the most
+ * touchdowns" and wrong for "did this player score one" — for that, use
+ * `getScoredTouchdownCount`.
+ *
+ * @returns {number|null} null when the row has no breakdown stored
+ */
+export function getTouchdownCount(statBreakdown) {
+  return sumStats(statBreakdown, Object.values(ESPN_STAT_IDS));
+}
+
+/**
+ * Touchdowns this player *scored* — rushing and receiving only.
+ *
+ * The question the weekly TD parlay actually asks. A passing touchdown is
+ * thrown, not scored: the quarterback who throws for four has scored none, and
+ * grading his pick as a hit on that basis would be wrong in the one direction
+ * nobody would check. The two counts are separate functions rather than a flag
+ * so that a future auto-grader has to say which one it means.
+ *
+ * @returns {number|null} null when the row has no breakdown stored
+ */
+export function getScoredTouchdownCount(statBreakdown) {
+  return sumStats(statBreakdown, SCORED_TD_IDS);
+}
