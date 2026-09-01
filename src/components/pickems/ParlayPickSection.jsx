@@ -80,7 +80,9 @@ const ParlayPickSection = ({ pickEmWeek, status, weekNumber }) => {
               Weekly TD Parlay
             </CardTitle>
             <CardDescription>
-              One NFL player you think scores a touchdown in week {weekNumber}.
+              Pick one player on your opponents team this week that you think will
+              score a TD. Proceeds go to the league fund for anything and
+              everything og jits.
             </CardDescription>
           </div>
 
