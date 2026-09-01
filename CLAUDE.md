@@ -466,16 +466,17 @@ No pick'em week, no parlay — the section renders `null`.
 
 Three rules are the database's, not the UI's, and that is what makes them true:
 
-- **Visibility is RLS, and as of `20260901120000_parlay_picks_visible_as_
-  submitted` it is `USING (true)`.** The board shows a pick the moment it is
-  submitted; it used to withhold the week until `submission_closes_at`, and
-  that policy is gone. The change had to happen there and only there —
-  "show them in the component" would have shown an empty list, exactly as
-  "hide them in the component" would have hidden nothing, because the anon key
-  reaches PostgREST directly. The own-row and privileged policies are left in
-  place, subsumed but standing, so a future narrowing has something to fall
-  back to. Shape matches `pick_em_submissions`, which has been public-read
-  since the baseline: one form, one window, one visibility rule.
+- **Visibility is RLS, and as of
+  `20260902150000_parlay_picks_visible_as_submitted` it is `USING (true)`.**
+  The board shows a pick the moment it is submitted; it used to withhold the
+  week until `submission_closes_at`, and that policy is gone. The change had to
+  happen there and only there — "show them in the component" would have shown
+  an empty list, exactly as "hide them in the component" would have hidden
+  nothing, because the anon key reaches PostgREST directly. The own-row and
+  privileged policies are left in place, subsumed but standing, so a future
+  narrowing has something to fall back to. Shape matches
+  `pick_em_submissions`, which has been public-read since the baseline: one
+  form, one window, one visibility rule.
 - **The deadline is `submit_td_parlay_pick`.** It raises outside
   `[submission_opens_at, submission_closes_at)`. There is **no user INSERT or
   UPDATE policy** on the table, so the RPC is the only write path.

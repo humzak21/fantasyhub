@@ -3,7 +3,7 @@
  *
  * The interesting part of this module is what it does *not* contain: no
  * "should this viewer see other people's picks" check. That rule is RLS on
- * `td_parlay_picks`, and as of `20260901120000_parlay_picks_visible_as_submitted`
+ * `td_parlay_picks`, and as of `20260902150000_parlay_picks_visible_as_submitted`
  * the answer is "everyone, always" — the board shows a pick the moment it is
  * submitted rather than holding the week back until the deadline. A UI-side
  * filter would be decoration either way: the anon key reaches PostgREST
