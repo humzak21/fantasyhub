@@ -22,12 +22,34 @@ const parlay = {
 const players = { searchPlayers: vi.fn(async () => []) };
 const nflSchedule = { getNflScheduleForSeason: vi.fn(async () => []) };
 
+/**
+ * The league's two halves, for the division columns. Teams come back in
+ * database shape (`division_id`) because `getTeamsForSeason` deliberately does
+ * not `formatFromDatabase` them; divisions come back camelCased because
+ * `getDivisionsForSeason` does.
+ */
+const teams = {
+  getTeamsForSeason: vi.fn(async () => [
+    { id: 't1', name: 'Team Arya', owner: 'Arya Shah', division_id: 'd1' },
+    { id: 't2', name: 'Team Rohit', owner: 'Rohit Ramki', division_id: 'd2' }
+  ])
+};
+
+const divisions = {
+  getDivisionsForSeason: vi.fn(async () => [
+    { id: 'd1', name: 'The Dawg Pound', displayOrder: 1 },
+    { id: 'd2', name: 'The Kennel', displayOrder: 2 }
+  ])
+};
+
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
     parlay,
     players,
     nflSchedule,
+    teams,
+    divisions,
     users: { isParlayCommissioner: async () => false },
     seasons: { getActiveSeason: async () => null }
   })
@@ -77,6 +99,14 @@ beforeEach(() => {
   parlay.getParlayPicksForWeek.mockResolvedValue([]);
   players.searchPlayers.mockResolvedValue([]);
   nflSchedule.getNflScheduleForSeason.mockResolvedValue([]);
+  teams.getTeamsForSeason.mockResolvedValue([
+    { id: 't1', name: 'Team Arya', owner: 'Arya Shah', division_id: 'd1' },
+    { id: 't2', name: 'Team Rohit', owner: 'Rohit Ramki', division_id: 'd2' }
+  ]);
+  divisions.getDivisionsForSeason.mockResolvedValue([
+    { id: 'd1', name: 'The Dawg Pound', displayOrder: 1 },
+    { id: 'd2', name: 'The Kennel', displayOrder: 2 }
+  ]);
   Object.assign(auth, { isAuthenticated: true, isAdmin: false, user: { id: 'u1', user_metadata: { name: 'Arya Shah' } } });
 });
 
@@ -181,27 +211,163 @@ describe('ParlayPickSection', () => {
     expect(screen.queryByRole('button', { name: /change/i })).not.toBeInTheDocument();
   });
 
-  it('lists the league\'s picks once the week is revealed', async () => {
+  it('lists the league\'s picks while the week is still open', async () => {
     parlay.getParlayPicksForWeek.mockResolvedValue([
-      { id: 'a', userId: 'u1', playerNameRaw: 'Justin Jefferson', scoredTd: true, player: {} },
-      { id: 'b', userId: 'u2', playerNameRaw: 'Bijan Robinson', scoredTd: null, player: {} }
+      {
+        id: 'a',
+        userId: 'u1',
+        displayName: 'Arya Shah',
+        playerNameRaw: 'Justin Jefferson',
+        scoredTd: null,
+        player: {}
+      }
     ]);
 
     renderWithProviders(
-      <ParlayPickSection pickEmWeek={WEEK} status={CLOSED} weekNumber={3} />
+      <ParlayPickSection pickEmWeek={WEEK} status={OPEN} weekNumber={3} />
     );
 
-    expect(await screen.findByText('Bijan Robinson')).toBeInTheDocument();
+    // The whole point of the change: no waiting for the deadline.
+    expect(await screen.findByText('Justin Jefferson')).toBeInTheDocument();
     expect(screen.getByText(/the league.s picks/i)).toBeInTheDocument();
   });
 
-  it('does not ask for the league\'s picks while the week is open', async () => {
+  it('asks for the league\'s picks even on an open week', async () => {
     renderWithProviders(
       <ParlayPickSection pickEmWeek={WEEK} status={OPEN} weekNumber={3} />
     );
 
     await screen.findByRole('combobox');
-    expect(parlay.getParlayPicksForWeek).not.toHaveBeenCalled();
+    await waitFor(() => expect(parlay.getParlayPicksForWeek).toHaveBeenCalledWith('pew-1'));
+  });
+
+  it('says the parlay runs by division', async () => {
+    renderWithProviders(
+      <ParlayPickSection pickEmWeek={WEEK} status={OPEN} weekNumber={3} />
+    );
+
+    expect(
+      await screen.findByText(/separated into divisions, 7 picks per each parlay/i)
+    ).toBeInTheDocument();
+  });
+});
+
+/**
+ * The board is two parlays, not one list.
+ *
+ * Nothing on a pick says which division it belongs to — the column is derived
+ * from the member's display name matching a `teams.owner`. The cases worth
+ * pinning are the ones that would seat somebody wrongly rather than fail: a
+ * name that matches nobody, and a division nobody has entered yet.
+ */
+describe('ParlayPickSection · division columns', () => {
+  // Each column is a labelled region, so the assertions can name a division
+  // instead of reaching for a DOM ancestor.
+  const column = (name) => screen.getByRole('region', { name });
+
+  // Division names go through the same masking as everywhere else, and this
+  // test's viewer owns no team (the active season is null here, so
+  // `teamOwnerNames` is empty). Admin is how these assertions get to see the
+  // real names; the last test in this block is the other half of that rule.
+  beforeEach(() => {
+    Object.assign(auth, { isAdmin: true });
+  });
+
+  it('splits the picks into a column per division, under the real names', async () => {
+    parlay.getParlayPicksForWeek.mockResolvedValue([
+      {
+        id: 'a',
+        userId: 'u1',
+        displayName: 'Arya Shah',
+        playerNameRaw: 'Justin Jefferson',
+        scoredTd: null,
+        player: {}
+      },
+      {
+        id: 'b',
+        userId: 'u2',
+        displayName: 'Rohit Ramki',
+        playerNameRaw: 'Bijan Robinson',
+        scoredTd: null,
+        player: {}
+      }
+    ]);
+
+    renderWithProviders(
+      <ParlayPickSection pickEmWeek={WEEK} status={OPEN} weekNumber={3} />
+    );
+
+    await screen.findByText('Justin Jefferson');
+
+    expect(column('The Dawg Pound')).toHaveTextContent('Justin Jefferson');
+    expect(column('The Dawg Pound')).not.toHaveTextContent('Bijan Robinson');
+    expect(column('The Kennel')).toHaveTextContent('Bijan Robinson');
+  });
+
+  it('renders an empty division rather than hiding it', async () => {
+    parlay.getParlayPicksForWeek.mockResolvedValue([
+      {
+        id: 'a',
+        userId: 'u1',
+        displayName: 'Arya Shah',
+        playerNameRaw: 'Justin Jefferson',
+        scoredTd: null,
+        player: {}
+      }
+    ]);
+
+    renderWithProviders(
+      <ParlayPickSection pickEmWeek={WEEK} status={OPEN} weekNumber={3} />
+    );
+
+    await screen.findByText('Justin Jefferson');
+
+    expect(column('The Kennel')).toHaveTextContent(/nobody in this division has picked yet/i);
+  });
+
+  it('keeps a pick whose name matches no owner out of both divisions', async () => {
+    parlay.getParlayPicksForWeek.mockResolvedValue([
+      {
+        id: 'c',
+        userId: 'u9',
+        displayName: 'Somebody Else',
+        playerNameRaw: 'Some Goal Line Back',
+        scoredTd: null,
+        player: {}
+      }
+    ]);
+
+    renderWithProviders(
+      <ParlayPickSection pickEmWeek={WEEK} status={OPEN} weekNumber={3} />
+    );
+
+    await screen.findByText('Some Goal Line Back');
+
+    expect(column('Not matched to a division')).toHaveTextContent('Some Goal Line Back');
+    expect(column('The Dawg Pound')).not.toHaveTextContent('Some Goal Line Back');
+  });
+
+  it('gives a signed-out viewer the generic division labels', async () => {
+    Object.assign(auth, { isAdmin: false, isAuthenticated: false, user: null });
+    parlay.getParlayPicksForWeek.mockResolvedValue([
+      {
+        id: 'a',
+        userId: 'u1',
+        displayName: 'Arya Shah',
+        playerNameRaw: 'Justin Jefferson',
+        scoredTd: null,
+        player: {}
+      }
+    ]);
+
+    renderWithProviders(
+      <ParlayPickSection pickEmWeek={WEEK} status={OPEN} weekNumber={3} />
+    );
+
+    // The board is public; the league's names are not.
+    expect(await screen.findByText('Justin Jefferson')).toBeInTheDocument();
+    expect(column('Division 1')).toBeInTheDocument();
+    expect(screen.queryByText('The Dawg Pound')).not.toBeInTheDocument();
   });
 });
 

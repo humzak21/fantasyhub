@@ -2,11 +2,12 @@
  * The weekly TD parlay: one NFL player per member per week.
  *
  * The interesting part of this module is what it does *not* contain: no
- * "should this viewer see other people's picks" check. That rule is RLS on `td_parlay_picks` — own row always, everyone's
- * once the week's `submission_closes_at` passes, everything for the admin and
- * the parlay commissioner. So `getParlayPicksForWeek` can be asked at any time
- * and simply returns fewer rows before the deadline. A UI-side filter would be
- * decoration: the anon key reaches PostgREST directly.
+ * "should this viewer see other people's picks" check. That rule is RLS on
+ * `td_parlay_picks`, and as of `20260902150000_parlay_picks_visible_as_submitted`
+ * the answer is "everyone, always" — the board shows a pick the moment it is
+ * submitted rather than holding the week back until the deadline. A UI-side
+ * filter would be decoration either way: the anon key reaches PostgREST
+ * directly.
  *
  * Member writes go through `submit_td_parlay_pick`, which is where the
  * deadline is enforced; the table has no user INSERT or UPDATE policy at all.
@@ -22,6 +23,7 @@
 import { formatFromDatabase } from './caseMap.js';
 import { throwDbError } from './errors.js';
 import { createLogger } from './logger.js';
+import { getUserDisplayNames } from './users.js';
 
 const log = createLogger('db:parlay');
 
@@ -116,11 +118,17 @@ export async function getMyParlayPick(ctx, pickEmWeekId) {
 }
 
 /**
- * Every pick for a week that this viewer may see.
+ * Every pick for a week — the whole league's, as they arrive.
  *
- * Before the deadline that is their own row (or none); after it, the league's.
- * The empty result is the feature, not a failure — callers render "picks are
- * hidden until the deadline" from the week's own status, not from this length.
+ * `displayName` is resolved here rather than left to the caller, the way
+ * `getTakes` and the pick'ems submissions do it. Names are not on the pick
+ * rows (`user_id` is a uuid and `auth.users` is not readable from the client),
+ * and the board needs them for more than a label now: the division a pick
+ * belongs in is derived from the member's name matching a `teams.owner`. A
+ * component fetching those separately would render one paint with every pick
+ * in the wrong column.
+ *
+ * An empty result is a week nobody has entered yet, not a week being withheld.
  */
 export async function getParlayPicksForWeek(ctx, pickEmWeekId) {
   try {
@@ -132,7 +140,14 @@ export async function getParlayPicksForWeek(ctx, pickEmWeekId) {
 
     if (error) throw error;
 
-    return (data || []).map(formatFromDatabase);
+    const rows = data || [];
+    const userIds = [...new Set(rows.map((row) => row.user_id).filter(Boolean))];
+    const displayNames = await getUserDisplayNames(ctx, userIds);
+
+    return rows.map((row) => ({
+      ...formatFromDatabase(row),
+      displayName: displayNames[row.user_id] || null
+    }));
   } catch (error) {
     throwDbError(error, 'Get parlay picks for week');
   }

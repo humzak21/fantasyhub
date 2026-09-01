@@ -140,9 +140,9 @@ export async function syncSchedule(argv = []) {
   const dryRun = Boolean(options['dry-run']);
 
   const teamResult = options['skip-teams']
-    ? { inserted: 0, updated: 0, unchanged: 0, errors: [], skipped: true }
+    ? { inserted: 0, updated: 0, unchanged: 0, errors: [], ownerConflicts: [], skipped: true }
     : dryRun
-      ? { inserted: 0, updated: 0, unchanged: 0, errors: [], skipped: 'dry-run' }
+      ? { inserted: 0, updated: 0, unchanged: 0, errors: [], ownerConflicts: [], skipped: 'dry-run' }
       : await db.teams.upsertTeamsFromESPN(seasonId, scheduleData.teams);
 
   if (teamResult.errors?.length) {
@@ -154,6 +154,20 @@ export async function syncSchedule(argv = []) {
     `👥 teams: ${teamResult.inserted} added, ${teamResult.updated} updated, ` +
     `${teamResult.unchanged} unchanged${teamResult.skipped ? ` (skipped: ${teamResult.skipped})` : ''}`
   );
+
+  // An owner name ESPN disagrees with. The import never overwrites one -- it is
+  // the league's cross-season identity key, and a yearly job quietly reverting
+  // a correction is what this reporting exists to prevent. A manager who
+  // respelled themselves on ESPN needs nothing done; a franchise that genuinely
+  // changed hands needs `teams.owner` edited. Only a person can tell those
+  // apart, so say it and leave it.
+  for (const clash of teamResult.ownerConflicts ?? []) {
+    console.warn(
+      `⚠️  team ${clash.team} (ESPN team ${clash.espnTeamId}): owner not updated — ` +
+      `we have "${clash.stored}", ESPN says "${clash.espn}". ` +
+      `Edit teams.owner if the franchise actually changed hands.`
+    );
+  }
 
   const gameResult = await db.games.upsertEspnGames(seasonId, matchups, {
     currentScoringPeriod: scheduleData.currentScoringPeriod,

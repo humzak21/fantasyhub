@@ -75,6 +75,21 @@ export const getTeamOwnerNames = (teamsOrSeason) => {
 };
 
 /**
+ * The comparison form of a person's name: trimmed and case-folded.
+ *
+ * Exported because the owner-name join is not confined to this file any more —
+ * the parlay board groups a member's pick into their division by matching their
+ * display name against `teams.owner`, and a second, subtly different
+ * normalization there would put somebody in the wrong column rather than fail
+ * loudly. One definition, as `matchesTeamOwner` below already claimed.
+ *
+ * @param {string} name
+ * @returns {string} the normalized name, or '' for anything unusable
+ */
+export const normalizeOwnerName = (name) =>
+  typeof name === 'string' ? name.trim().toLowerCase() : '';
+
+/**
  * Does a name match one of the league's team owners?
  *
  * The one place the owner-name comparison rule lives, so `isUserATeamOwner`
@@ -88,18 +103,15 @@ export const getTeamOwnerNames = (teamsOrSeason) => {
  * @returns {boolean} - Whether the name matches an owner
  */
 export const matchesTeamOwner = (name, teamOwnerNames = []) => {
-  if (!name || !Array.isArray(teamOwnerNames) || teamOwnerNames.length === 0) {
+  const normalizedName = normalizeOwnerName(name);
+  if (!normalizedName || !Array.isArray(teamOwnerNames) || teamOwnerNames.length === 0) {
     return false;
   }
-
-  // Case-insensitive comparison
-  const normalizedName = name.trim().toLowerCase();
-  if (!normalizedName) return false;
 
   return teamOwnerNames.some(item => {
     // Handle both string array and object array formats
     const ownerName = typeof item === 'string' ? item : item?.ownerName;
-    return ownerName && ownerName.trim().toLowerCase() === normalizedName;
+    return normalizeOwnerName(ownerName) === normalizedName;
   });
 };
 

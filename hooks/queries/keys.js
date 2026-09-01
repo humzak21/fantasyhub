@@ -118,9 +118,9 @@ export const qk = {
 
   /**
    * The weekly TD parlay. `season` is the dashboard's whole-season read;
-   * `weekPicks` is the league's picks for one week, which RLS empties before
-   * the deadline — so it is a genuinely different cache entry from `myPick`
-   * and cannot be derived from it.
+   * `weekPicks` is the league's picks for one week — a genuinely different
+   * cache entry from `myPick`, which is one row and is keyed on the viewer, so
+   * neither can be derived from the other.
    */
   parlay: {
     ...scope('parlay'),
