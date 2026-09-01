@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ListOrdered } from 'lucide-react';
 
 import {
@@ -9,8 +9,24 @@ import {
   SheetTitle,
 } from '../ui/sheet';
 import { Button } from '../ui/button';
+import { Label } from '../ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import { cn } from '../../lib/utils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import {
+  useSeasons,
+  useSeasonTeams,
+  useSeasonGames,
+  useDivisions,
+  useStandings,
+  useLeagueMutations,
+} from '../../../hooks/queries/index.js';
 import DrawerStandingsTable from './DrawerStandingsTable';
 
 /**
@@ -31,10 +47,23 @@ import DrawerStandingsTable from './DrawerStandingsTable';
  * corner, which is the one spot a thumb reaches easily, spent on a secondary
  * view while primary navigation sat in the opposite corner behind a hamburger.
  * Navigation has that corner now; standings is a button in the header.
+ *
+ * **The admin can point it at another season.** Divisions are per-season rows
+ * (`divisions.season_id`, `teams.season_id`), and Manage mode is the only
+ * place in the app that moves a team between them — but the drawer was wired
+ * to the active season alone, so fixing 2024's divisions meant SQL. The
+ * picker in the header is admin-only, and choosing a season other than the
+ * active one hands the table that season's teams, divisions and standings,
+ * with mutations scoped to that season's id so the writes and the cache
+ * invalidations both land on the year being edited. The active season keeps
+ * its prop-fed path: it is what everybody sees, and it should not gain a
+ * second set of queries for the sake of a control only one person has.
  */
 const StandingsDrawer = ({
   open,
   onOpenChange,
+  /** The active season's id — what the props below describe. */
+  seasonId = null,
   teams,
   divisions,
   standings,
@@ -50,6 +79,29 @@ const StandingsDrawer = ({
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
 
+  // `null` means "the active season", which is what the drawer opens on. Kept
+  // across open/close so the admin does not lose their place mid-edit.
+  const [pickedSeasonId, setPickedSeasonId] = useState(null);
+  const { data: seasons = [] } = useSeasons({ enabled: Boolean(isAdmin && open) });
+
+  const editingSeasonId =
+    isAdmin && pickedSeasonId != null && pickedSeasonId !== seasonId ? pickedSeasonId : null;
+  const editingSeason = editingSeasonId
+    ? seasons.find((season) => String(season.id) === String(editingSeasonId)) ?? null
+    : null;
+
+  const showSeasonPicker = isAdmin && seasons.length > 1;
+  const pickerValue = String(editingSeasonId ?? seasonId ?? '');
+
+  let description;
+  if (editingSeason) {
+    description = editingSeason.isCompleted
+      ? `${editingSeason.year} season · final`
+      : `${editingSeason.year} season`;
+  } else {
+    description = currentWeek ? `Through week ${currentWeek}` : 'Current league standings';
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -60,33 +112,109 @@ const StandingsDrawer = ({
       >
         <SheetHeader>
           <SheetTitle className="font-display text-xl tracking-tight">Standings</SheetTitle>
-          <SheetDescription>
-            {currentWeek ? `Through week ${currentWeek}` : 'Current league standings'}
-          </SheetDescription>
+          <SheetDescription>{description}</SheetDescription>
+          {showSeasonPicker && (
+            <div className="flex items-center gap-2 pt-1">
+              <Label htmlFor="standings-season" className="text-xs uppercase tracking-[0.06em] text-muted-foreground">
+                Season
+              </Label>
+              <Select
+                value={pickerValue}
+                onValueChange={(value) => {
+                  const season = seasons.find((s) => String(s.id) === value);
+                  setPickedSeasonId(season ? season.id : null);
+                }}
+              >
+                <SelectTrigger id="standings-season" className="h-8 w-auto min-w-[9rem] text-sm">
+                  <SelectValue placeholder="Season" />
+                </SelectTrigger>
+                <SelectContent>
+                  {seasons.map((season) => (
+                    <SelectItem key={season.id} value={String(season.id)}>
+                      {season.year}
+                      {String(season.id) === String(seasonId) ? ' (active)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </SheetHeader>
 
-        <DrawerStandingsTable
-          teams={teams}
-          divisions={divisions}
-          standings={standings}
-          currentWeek={currentWeek}
-          seasonYear={seasonYear}
-          loading={loading}
-          isAuthenticated={isAuthenticated}
-          onDivisionRename={onDivisionRename}
-          onTeamDivisionChange={onTeamDivisionChange}
-          onCreateDivision={onCreateDivision}
-          onDivisionDelete={onDivisionDelete}
-          onClose={() => onOpenChange(false)}
-          games={games}
-          user={user}
-          isAdmin={isAdmin}
-          teamOwnerNames={teamOwnerNames}
-        />
+        {editingSeasonId ? (
+          <SeasonStandings
+            seasonId={editingSeasonId}
+            season={editingSeason}
+            onClose={() => onOpenChange(false)}
+            user={user}
+            isAdmin={isAdmin}
+            teamOwnerNames={teamOwnerNames}
+          />
+        ) : (
+          <DrawerStandingsTable
+            teams={teams}
+            divisions={divisions}
+            standings={standings}
+            currentWeek={currentWeek}
+            seasonYear={seasonYear}
+            loading={loading}
+            isAuthenticated={isAuthenticated}
+            onDivisionRename={onDivisionRename}
+            onTeamDivisionChange={onTeamDivisionChange}
+            onCreateDivision={onCreateDivision}
+            onDivisionDelete={onDivisionDelete}
+            onClose={() => onOpenChange(false)}
+            games={games}
+            user={user}
+            isAdmin={isAdmin}
+            teamOwnerNames={teamOwnerNames}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );
 };
+
+/**
+ * One season's standings, read and written by that season's id.
+ *
+ * Every query key and every mutation here carries `seasonId`, so moving a
+ * 2024 team invalidates 2024's standings and not the active season's — and
+ * `assignTeamToDivision` in the data layer refuses a division from any other
+ * season, so the picker cannot be used to cross the years even by accident.
+ */
+function SeasonStandings({ seasonId, season, onClose, user, isAdmin, teamOwnerNames }) {
+  const teamsQuery = useSeasonTeams(seasonId);
+  const divisionsQuery = useDivisions(seasonId);
+  const standingsQuery = useStandings(seasonId);
+  const gamesQuery = useSeasonGames(seasonId);
+  const { createDivision, renameDivision, deleteDivision, assignTeamToDivision } =
+    useLeagueMutations(seasonId);
+
+  return (
+    <DrawerStandingsTable
+      teams={teamsQuery.data ?? []}
+      divisions={divisionsQuery.data ?? []}
+      standings={standingsQuery.data ?? { divisions: [], unassigned: [] }}
+      // No week badge: a past season's standings are the whole season's.
+      currentWeek={null}
+      seasonYear={season?.year ?? null}
+      loading={teamsQuery.isPending || divisionsQuery.isPending || standingsQuery.isPending}
+      isAuthenticated={isAdmin}
+      onDivisionRename={(divisionId, name) => renameDivision.mutateAsync({ divisionId, name })}
+      onTeamDivisionChange={(teamId, divisionId) =>
+        assignTeamToDivision.mutateAsync({ teamId, divisionId })
+      }
+      onCreateDivision={(name, displayOrder) => createDivision.mutateAsync({ name, displayOrder })}
+      onDivisionDelete={(divisionId) => deleteDivision.mutateAsync(divisionId)}
+      onClose={onClose}
+      games={gamesQuery.data ?? []}
+      user={user}
+      isAdmin={isAdmin}
+      teamOwnerNames={teamOwnerNames}
+    />
+  );
+}
 
 /**
  * The header button that opens the standings.

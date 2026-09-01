@@ -983,6 +983,17 @@ This fantasy football module integrates with:
   deliberately non-fatal — `seasons.year` is unique, so a season that exists
   without teams could not be recreated — and reports itself on the returned
   season via `teamsCopiedFrom` / `teamCopyError`.
+- **Division membership is edited per season, in the standings drawer.**
+  The header's list icon opens it; the admin sees a **Manage** button and,
+  above the table, a **Season** picker. Picking a season other than the active
+  one hands the table that season's teams, divisions and standings, with
+  `useLeagueMutations(thatSeasonId)` behind the move/rename/create/delete
+  controls — so both the writes and the cache invalidations land on the year
+  being edited. `services/db/divisions.js::assignTeamToDivision` refuses a
+  division from any season but the team's own and filters the update on the
+  team's `season_id`: the FK only says the division exists, and a team pointed
+  at another year's division vanishes from both years' standings without an
+  error. There is no `/standings` route; the drawer is the standings surface.
 - The `trigger_create_default_divisions` trigger seeds every new season with
   'Division 1' and 'Division 2'. Anything writing divisions for a fresh season
   must upsert on `(season_id, display_order)`; a plain insert hits the unique

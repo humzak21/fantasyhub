@@ -545,6 +545,7 @@ const FantasyFootballApp = () => {
           <StandingsDrawer
             open={standingsOpen}
             onOpenChange={setStandingsOpen}
+            seasonId={activeSeason.id}
             teams={activeSeason.teams || []}
             divisions={divisions}
             standings={standings}
