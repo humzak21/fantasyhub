@@ -257,6 +257,7 @@ export type Database = {
         Row: {
           created_at: string | null
           display_order: number
+          division_identity_id: string | null
           id: number
           name: string
           season_id: string | null
@@ -265,6 +266,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           display_order?: number
+          division_identity_id?: string | null
           id?: number
           name?: string
           season_id?: string | null
@@ -273,12 +275,20 @@ export type Database = {
         Update: {
           created_at?: string | null
           display_order?: number
+          division_identity_id?: string | null
           id?: number
           name?: string
           season_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "divisions_division_identity_id_fkey"
+            columns: ["division_identity_id"]
+            isOneToOne: false
+            referencedRelation: "league_divisions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "divisions_season_id_fkey"
             columns: ["season_id"]
@@ -735,6 +745,27 @@ export type Database = {
             referencedColumns: ["team_id"]
           },
         ]
+      }
+      league_divisions: {
+        Row: {
+          created_at: string | null
+          id: string
+          label: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          label: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          label?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       league_franchises: {
         Row: {
@@ -3766,9 +3797,12 @@ export type Database = {
           division_id: number
           division_name: string
           division_rank: number
+          is_bye: boolean
+          is_wildcard: boolean
           losses: number
           owner: string
           playoff_position: boolean
+          playoff_seed: number
           point_differential: number
           points_against: number
           points_for: number

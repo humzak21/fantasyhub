@@ -1,19 +1,43 @@
 /**
  * Playoff Odds Calculator
- * 
- * Calculates playoff odds for teams in a 2-division fantasy football league
- * where top 3 teams from each division make the playoffs.
- * 
+ *
+ * Two models, chosen by season year, because the league changed how playoff
+ * spots are earned:
+ *
+ * - **Through 2025**, the top three of each division qualified. That model is
+ *   below, byte for byte: a past season's odds must not move because the rule
+ *   changed afterwards.
+ * - **From 2026**, each division winner takes a bye and the next four teams
+ *   league-wide take the wildcards. A team's odds are then two questions at
+ *   once — can it win its division, and can it hold a wildcard — so the seeded
+ *   model runs both tracks and combines them.
+ *
+ * Both are heuristics, not simulations: a ladder of base odds by current
+ * position, adjusted for games from the cutoff, recent form and the remaining
+ * schedule. The extremes are what the tests pin — a clinched team reads 100, an
+ * eliminated one reads 0, and a finished season reads exactly the six teams
+ * `computeSeeds` names.
+ *
  * Tiebreaker: Points For (higher points for wins the tiebreaker)
  */
 
+import {
+  computeSeeds,
+  sortByStandings,
+  teamIdOf,
+  usesSeededPlayoffs
+} from '../utils/playoffSeeding.js';
+
 export class PlayoffOddsCalculator {
-  constructor(teams, games, divisions, currentWeek, regularSeasonWeeks) {
+  constructor(teams, games, divisions, currentWeek, regularSeasonWeeks, seasonYear = null) {
     this.teams = Array.isArray(teams) ? teams : [];
     this.games = Array.isArray(games) ? games : [];
     this.divisions = Array.isArray(divisions) ? divisions : [];
     this.currentWeek = currentWeek;
     this.regularSeasonWeeks = regularSeasonWeeks;
+    // Optional sixth argument: a caller that does not know the year gets the
+    // pre-2026 model, which is what every historical caller wants.
+    this.seasonYear = seasonYear;
   }
 
   /**
@@ -21,6 +45,10 @@ export class PlayoffOddsCalculator {
    * @returns {Map} Map of teamId -> playoff odds percentage (0-100)
    */
   calculateAllPlayoffOdds() {
+    if (usesSeededPlayoffs(this.seasonYear)) {
+      return this.calculateSeededPlayoffOdds();
+    }
+
     const playoffOdds = new Map();
 
 
@@ -43,6 +71,173 @@ export class PlayoffOddsCalculator {
 
 
     return playoffOdds;
+  }
+
+  // -------------------------------------------------------------------------
+  // 2026+: division winners on byes, four league-wide wildcards
+  // -------------------------------------------------------------------------
+
+  /**
+   * Playoff odds under the seeded rule.
+   *
+   * @returns {Map} teamId -> percentage (0-100)
+   */
+  calculateSeededPlayoffOdds() {
+    const odds = new Map();
+    if (this.teams.length === 0) return odds;
+
+    const gamesRemaining = this.regularSeasonWeeks - (this.currentWeek - 1);
+
+    // Nothing left to play: the field is a fact, not a forecast.
+    if (gamesRemaining <= 0) {
+      const seeds = computeSeeds(this.teams);
+      for (const team of this.teams) {
+        odds.set(team.id, seeds.get(teamIdOf(team))?.seed != null ? 100 : 0);
+      }
+      return odds;
+    }
+
+    const leagueOrder = sortByStandings(this.teams);
+    const seeds = computeSeeds(this.teams);
+
+    // The two ladders' reference points. `leaders` is one team per division;
+    // `pool` is everyone else, which is the field the four wildcards come from.
+    const leaders = new Map();
+    for (const [divisionId, divisionTeams] of this.groupTeamsByDivision().entries()) {
+      if (divisionId === 'unassigned') continue;
+      const best = sortByStandings(divisionTeams)[0];
+      if (best) leaders.set(divisionId, best);
+    }
+
+    const leaderIds = new Set([...leaders.values()].map(teamIdOf));
+    const pool = leagueOrder.filter((team) => !leaderIds.has(teamIdOf(team)));
+
+    // The 6th projected seed is the last team in; the 7th is the first team
+    // out, and the one a qualifier has to put out of reach to clinch.
+    const wildcardSpots = Math.max(0, 6 - leaders.size);
+    const lastIn = pool[wildcardSpots - 1] ?? null;
+    const firstOut = pool[wildcardSpots] ?? null;
+
+    for (const team of this.teams) {
+      const teamId = teamIdOf(team);
+      // The same key `groupTeamsByDivision` builds, so the leader lookup hits.
+      const divisionId = team.divisionId || team.division_id || 'unassigned';
+      const leader = leaders.get(divisionId) ?? null;
+      const divisionTeams = sortByStandings(
+        this.teams.filter(
+          (other) => (other.divisionId || other.division_id || 'unassigned') === divisionId
+        )
+      );
+
+      const divisionRank = divisionTeams.findIndex((other) => teamIdOf(other) === teamId);
+      const poolRank = pool.findIndex((other) => teamIdOf(other) === teamId);
+
+      // Track one: win the division outright. Only one team can, so the ladder
+      // drops away fast behind the leader.
+      const divisionTrack = this.trackOdds({
+        team,
+        rank: divisionRank < 0 ? divisionTeams.length : divisionRank,
+        ladder: [70, 25, 12, 6],
+        tail: 3,
+        cutoff: leader,
+        gamesRemaining
+      });
+
+      // Track two: hold a wildcard. The cutoff is the last team currently in.
+      const wildcardTrack =
+        poolRank < 0
+          ? 0
+          : this.trackOdds({
+              team,
+              rank: poolRank,
+              ladder: [85, 78, 70, 58, 32, 18, 9],
+              tail: 4,
+              cutoff: lastIn,
+              gamesRemaining
+            });
+
+      // Noisy-OR: either route in is enough. The two are not independent, which
+      // is why this is a heuristic and not a probability.
+      let combined =
+        100 * (1 - (1 - divisionTrack / 100) * (1 - wildcardTrack / 100));
+
+      const maxWins = (this.winsOf(team) || 0) + gamesRemaining;
+
+      // Clinched: already past anything the first team out can reach.
+      if (
+        seeds.get(teamId)?.seed != null &&
+        firstOut &&
+        this.winsOf(team) > this.winsOf(firstOut) + gamesRemaining
+      ) {
+        combined = 100;
+      }
+
+      // Eliminated: cannot reach the last team in, and cannot reach its own
+      // division's leader either. Both doors have to be shut.
+      const cannotCatchField = lastIn ? maxWins < this.winsOf(lastIn) : false;
+      const cannotWinDivision = leader ? maxWins < this.winsOf(leader) : true;
+      if (seeds.get(teamId)?.seed == null && cannotCatchField && cannotWinDivision) {
+        combined = 0;
+      }
+
+      odds.set(team.id, Math.max(0, Math.min(100, Math.round(combined))));
+    }
+
+    return odds;
+  }
+
+  /** Wins as a number, whatever shape the row arrived in. */
+  winsOf(team) {
+    return Number(team?.wins) || 0;
+  }
+
+  /**
+   * One track of the seeded model: a base ladder by current position, moved by
+   * how far the team is from that track's cutoff, its recent form and its
+   * remaining schedule. The three adjustments are the pre-2026 model's, kept
+   * deliberately — only the ladder and the cutoff differ between tracks.
+   *
+   * @returns {number} 0-100
+   */
+  trackOdds({ team, rank, ladder, tail, cutoff, gamesRemaining }) {
+    const base = rank < ladder.length ? ladder[rank] : tail;
+
+    const teamWins = this.winsOf(team);
+    const teamPointsFor = parseFloat(team.pointsFor || team.points_for || 0);
+    const cutoffWins = cutoff ? this.winsOf(cutoff) : 0;
+    const cutoffPointsFor = cutoff
+      ? parseFloat(cutoff.pointsFor || cutoff.points_for || 0)
+      : 0;
+
+    const gamesFromCutoff = teamWins - cutoffWins;
+    let gamesBehindFactor;
+
+    if (gamesFromCutoff > 0) {
+      gamesBehindFactor = Math.min(30, gamesFromCutoff * 10);
+    } else if (gamesFromCutoff < 0) {
+      if (gamesRemaining + gamesFromCutoff < 0) return 0; // out of reach
+      gamesBehindFactor = Math.max(-40, gamesFromCutoff * 12);
+    } else if (teamPointsFor > cutoffPointsFor) {
+      gamesBehindFactor = 5;
+    } else if (teamPointsFor < cutoffPointsFor) {
+      gamesBehindFactor = -5;
+    } else {
+      gamesBehindFactor = 0;
+    }
+
+    const played = teamWins + (Number(team.losses) || 0);
+    const winPercentage = played > 0 ? teamWins / played : 0;
+    const momentumFactor = (winPercentage - 0.5) * 20;
+
+    const scheduleAdjustment = this.calculateScheduleDifficulty(
+      team.id,
+      gamesRemaining
+    );
+
+    return Math.max(
+      0,
+      Math.min(100, base + gamesBehindFactor + momentumFactor + scheduleAdjustment)
+    );
   }
 
   /**

@@ -94,9 +94,15 @@ export function buildTeamIndex(teams = []) {
  *
  * The tier says which bracket; the round comes from how far into the postseason
  * the week is. Both are needed. Derived against the 2025 rows, which this
- * reproduces exactly: week 15 winners → first round (with the top two seeds on
- * byes), consolation → quarterfinals; week 16 → semifinals; week 17 →
- * championship.
+ * reproduces exactly: week 15 winners → first round, consolation →
+ * quarterfinals; week 16 → semifinals; week 17 → championship.
+ *
+ * Rounds, not pairings: ESPN decides who plays whom and this classifies what it
+ * sends. That is why the 2026 change — division winners on byes, four
+ * league-wide wildcards, semifinals re-seeded NFL-style — needs nothing here.
+ * It does mean ESPN's own bracket settings have to implement the re-seed; if
+ * they do not, the games still import and render correctly under the seeds they
+ * actually contain, but a predicted semifinal will not match the real one.
  */
 export function resolveGameType(matchup, { isBye, playoffIndex }) {
   if (isBye) return 'bye';

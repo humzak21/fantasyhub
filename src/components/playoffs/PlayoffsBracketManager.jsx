@@ -27,6 +27,9 @@ const PlayoffsBracketManager = ({
     const [allPicks, setAllPicks] = useState([]);
     const [standings, setStandings] = useState([]);
     const [playoffGames, setPlayoffGames] = useState([]);
+    // teamId -> playoff seed, for the 2026+ bracket. Projected while the
+    // regular season runs and settled once it ends; the two agree by then.
+    const [seedByTeamId, setSeedByTeamId] = useState(() => new Map());
     const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -38,13 +41,29 @@ const PlayoffsBracketManager = ({
         setError(null);
 
         try {
-            const [statusData, gamesData] = await Promise.all([
+            const [statusData, gamesData, divisionStandings] = await Promise.all([
                 getDb().playoffs.getPlayoffBracketStatus(season.id),
-                getDb().playoffs.getPlayoffGames(season.id)
+                getDb().playoffs.getPlayoffGames(season.id),
+                // Seeds are what the 2026+ bracket labels its slots with, not
+                // what it needs to render one — so losing them must not blank
+                // the page. Pre-2026 the RPC returns nulls here anyway.
+                getDb().divisions.getStandingsByDivision(season.id).catch(() => null)
             ]);
 
             setBracketStatus(statusData);
             setPlayoffGames(gamesData || []);
+
+            const standingsRows = [
+                ...(divisionStandings?.divisions || []).flatMap((division) => division.teams || []),
+                ...(divisionStandings?.unassigned || [])
+            ];
+            setSeedByTeamId(
+                new Map(
+                    standingsRows
+                        .filter((row) => row.playoffSeed != null)
+                        .map((row) => [row.id, row.playoffSeed])
+                )
+            );
 
             // Load user picks if authenticated
             if (user) {
@@ -227,6 +246,7 @@ const PlayoffsBracketManager = ({
                         user={user}
                         isAdmin={isAdmin}
                         teamOwnerNames={teamOwnerNames}
+                        seedByTeamId={seedByTeamId}
                     />
                 </TabsContent>
 

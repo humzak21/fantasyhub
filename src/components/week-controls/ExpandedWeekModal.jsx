@@ -17,6 +17,36 @@ const ExpandedWeekModal = ({
   const modalRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const closeButtonRef = useRef(null);
+
+  /*
+   * Every timer this component schedules, so that unmounting cancels them.
+   *
+   * Four `setTimeout`s here call `setState` (or focus a ref) after a delay and
+   * none of them were cancelled, so a modal unmounted inside that window
+   * updated a component that no longer exists. In a browser that is a warning;
+   * under vitest the environment is torn down first, so React reaches for
+   * `window` and the whole run dies with `ReferenceError: window is not
+   * defined` — after every test has already passed. It is timing-dependent,
+   * which is why it surfaced on CI rather than locally.
+   */
+  const timers = useRef(new Set());
+
+  const schedule = useCallback((fn, ms) => {
+    const id = setTimeout(() => {
+      timers.current.delete(id);
+      fn();
+    }, ms);
+    timers.current.add(id);
+    return id;
+  }, []);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const id of pending) clearTimeout(id);
+      pending.clear();
+    };
+  }, []);
   const [focusedWeek, setFocusedWeek] = useState(null);
   const [showLeftFade, setShowLeftFade] = useState(false);
   const [showRightFade, setShowRightFade] = useState(false);
@@ -41,9 +71,9 @@ const ExpandedWeekModal = ({
       });
       
       // Reset scrolling state after animation
-      setTimeout(() => setIsScrolling(false), behavior === 'smooth' ? 500 : 0);
+      schedule(() => setIsScrolling(false), behavior === 'smooth' ? 500 : 0);
     }
-  }, []);
+  }, [schedule]);
 
   // Check scroll position and update fade indicators
   const updateScrollIndicators = useCallback(() => {
@@ -136,7 +166,7 @@ const ExpandedWeekModal = ({
       document.body.style.overflow = 'hidden';
       
       // Focus management: focus the close button when modal opens
-      setTimeout(() => {
+      schedule(() => {
         if (closeButtonRef.current) {
           closeButtonRef.current.focus();
         }
@@ -147,7 +177,7 @@ const ExpandedWeekModal = ({
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, onClose, focusedWeek, totalWeeks, scrollToWeek]);
+  }, [isOpen, onClose, focusedWeek, totalWeeks, scrollToWeek, schedule]);
 
   // Auto-scroll to current week when modal opens and set initial focus
   useEffect(() => {
@@ -155,12 +185,12 @@ const ExpandedWeekModal = ({
       setFocusedWeek(validCurrentWeek);
       
       // Small delay to ensure DOM is ready
-      setTimeout(() => {
+      schedule(() => {
         scrollToWeek(validCurrentWeek, 'smooth');
         updateScrollIndicators();
       }, 100);
     }
-  }, [isOpen, validCurrentWeek, scrollToWeek, updateScrollIndicators]);
+  }, [isOpen, validCurrentWeek, scrollToWeek, updateScrollIndicators, schedule]);
 
   // Update scroll indicators when scrolling
   useEffect(() => {
@@ -209,7 +239,7 @@ const ExpandedWeekModal = ({
     scrollToWeek(week, 'smooth');
     
     // Simulate brief loading for smooth transition
-    setTimeout(() => {
+    schedule(() => {
       if (onWeekChange) {
         onWeekChange(week);
       }
