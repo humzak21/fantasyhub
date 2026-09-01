@@ -1,16 +1,19 @@
 /**
  * The weekly TD parlay: one NFL player per member per week.
  *
- * The whole module is four reads and one write, and the interesting part is
- * what it does *not* contain: no "should this viewer see other people's picks"
- * check. That rule is RLS on `td_parlay_picks` — own row always, everyone's
+ * The interesting part of this module is what it does *not* contain: no
+ * "should this viewer see other people's picks" check. That rule is RLS on `td_parlay_picks` — own row always, everyone's
  * once the week's `submission_closes_at` passes, everything for the admin and
  * the parlay commissioner. So `getParlayPicksForWeek` can be asked at any time
  * and simply returns fewer rows before the deadline. A UI-side filter would be
  * decoration: the anon key reaches PostgREST directly.
  *
- * Writes go through `submit_td_parlay_pick`, which is where the deadline is
- * enforced; the table has no user INSERT or UPDATE policy at all.
+ * Member writes go through `submit_td_parlay_pick`, which is where the
+ * deadline is enforced; the table has no user INSERT or UPDATE policy at all.
+ * `applyParlayGrades` at the foot of this file is the one exception, and it is
+ * not a member write: the weekly cron holds the service-role key, which
+ * bypasses RLS the same way every other sync step does. The `is_admin()`
+ * policy on the table stays as the browser's manual-override path.
  *
  * Every function takes the shared `ctx` ({ client, seasonsCache, activeSeasonId })
  * as its first argument; see `./context.js`.
@@ -155,4 +158,102 @@ export async function getSeasonParlayPicks(ctx, seasonId) {
   } catch (error) {
     throwDbError(error, 'Get season parlay picks');
   }
+}
+
+/**
+ * The picks an automated grader can act on: ungraded, matched to a player, and
+ * in a week that is over.
+ *
+ * A projection of its own rather than a widening of `PICK_WITH_PLAYER`. That
+ * one deliberately carries no `espn_player_id` — it feeds the board and the
+ * dashboard, where a player's ESPN id is not information anybody reads — and
+ * adding a column to it to serve one caller is how a "player columns worth
+ * carrying alongside a pick" list stops meaning anything.
+ *
+ * `scored_td IS NULL` is what makes a re-run idempotent and a manual override
+ * permanent: a pick a human has graded is no longer selected, so the grader
+ * cannot overwrite it, and a week that failed to grade is simply picked up on
+ * the next run. `beforeWeek` is exclusive — grading the week in progress would
+ * grade Sunday's picks on Sunday morning.
+ *
+ * A free-text pick has no `player_id` and is filtered out here rather than
+ * skipped downstream: there is nothing to look up, and it stays manual by
+ * construction.
+ *
+ * @param {object} ctx
+ * @param {string} seasonId
+ * @param {number} beforeWeek exclusive upper bound — the week in progress
+ * @returns {Promise<object[]>}
+ */
+export async function getUngradedMatchedPicks(ctx, seasonId, beforeWeek) {
+  try {
+    const { data, error } = await ctx.client
+      .from('td_parlay_picks')
+      .select(`
+        id,
+        season_id,
+        week,
+        user_id,
+        player_id,
+        player_name_raw,
+        scored_td,
+        player:players (
+          id,
+          espn_player_id,
+          pro_team_id
+        )
+      `)
+      .eq('season_id', seasonId)
+      .is('scored_td', null)
+      .not('player_id', 'is', null)
+      .lt('week', beforeWeek)
+      .order('week', { ascending: true });
+
+    if (error) throw error;
+
+    return (data || []).map(formatFromDatabase);
+  } catch (error) {
+    throwDbError(error, 'Get ungraded matched parlay picks');
+  }
+}
+
+/**
+ * Write a batch of grades.
+ *
+ * Row by row rather than an upsert: an upsert would need every NOT NULL column
+ * of a row we are only amending, and `player_name_raw` in particular is one a
+ * grader has no business restating. Fourteen picks a week makes the round
+ * trips a non-question.
+ *
+ * Failures are collected, not thrown — one unwritable row must not cost the
+ * other thirteen, and the sync step that calls this records what did not land.
+ *
+ * @param {object} ctx
+ * @param {Array<{ pickId: string, scoredTd: boolean }>} grades
+ * @returns {Promise<{ updated: number, errors: object[] }>}
+ */
+export async function applyParlayGrades(ctx, grades = []) {
+  const errors = [];
+  let updated = 0;
+
+  for (const grade of grades) {
+    const { error } = await ctx.client
+      .from('td_parlay_picks')
+      .update({ scored_td: grade.scoredTd })
+      .eq('id', grade.pickId)
+      // Only ever an ungraded row. Two runs racing, or a human grading between
+      // the read and the write, must not have the second writer win silently.
+      .is('scored_td', null);
+
+    if (error) {
+      errors.push({ pickId: grade.pickId, error: error.message });
+      continue;
+    }
+
+    updated += 1;
+  }
+
+  if (updated > 0) log.info(`graded ${updated} parlay pick(s)`);
+
+  return { updated, errors };
 }

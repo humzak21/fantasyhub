@@ -22,7 +22,8 @@
  *   node scripts/sync-week.js 5 <season-id>   # target a season explicitly
  *
  * Options: --skip-rosters --skip-scores --skip-transactions --skip-player-stats
- *          --skip-nfl-schedule --skip-nfl-ratings --skip-snapshot
+ *          --skip-nfl-schedule --skip-nfl-ratings --skip-finalize-prev
+ *          --skip-parlay-grades --skip-snapshot
  *          --dry-run   resolve and report the target, write nothing
  *          --force     sync anyway when the season window says not to
  */
@@ -31,8 +32,15 @@ import '../services/db/client.server.js';
 
 import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
 import { buildTeamIndex } from '../services/espnGameMapper.js';
-import { mapMatchupRosterEntries } from '../services/espnPlayerStatsMapper.js';
+import { findStatBreakdown, mapMatchupRosterEntries } from '../services/espnPlayerStatsMapper.js';
 import { fetchProTeamSchedules } from '../services/espnNflScheduleFetcher.js';
+import { fetchPlayerWeekInfo } from '../services/espnPlayerInfoFetcher.js';
+import {
+  findMissingStatLines,
+  gradeParlayPicks,
+  scheduleKey,
+  statKey
+} from '../services/parlayGrader.js';
 import { mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
 import { syncNflRatings } from './sync-nfl-ratings.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
@@ -197,6 +205,155 @@ async function syncPlayerStats(seasonId, weekNumber, espnMatchups) {
     upserted: result.upserted,
     playersCreated: result.playersCreated,
     errors: result.skipped
+  };
+}
+
+/**
+ * Write the finished week's real results.
+ *
+ * **This step exists because nothing else in the schedule ever writes them.**
+ * The cron runs Tuesday 04:00 ET, and `deriveCurrentWeek` rolls over at
+ * Tuesday 00:00 ET — so the run always targets the week that has just *begun*,
+ * and `getSingleWeek` filters ESPN's matchups strictly to that scoring period.
+ * Week N-1's actual points, stat breakdowns and final scores were therefore
+ * never fetched by any scheduled run: they existed only as the projections
+ * written seven days earlier, which is what the lineups would have gone on
+ * showing all season, and what would have left the parlay grader with nothing
+ * to grade.
+ *
+ * One extra ESPN fetch, on Tuesdays only, and both writes are the same
+ * idempotent upserts the current week uses — so a re-run replaces rather than
+ * duplicates, and the projections are overwritten by the results they were
+ * guesses at.
+ *
+ * Only when the week was derived: an explicit `node sync-week.js 5` means week
+ * 5, and quietly rewriting week 4 as well would be a surprise.
+ */
+async function finalizePreviousWeek(seasonId, weekNumber, espn) {
+  const previous = weekNumber - 1;
+
+  const fetcher = await createScheduleFetcher(
+    espn.leagueId, espn.seasonYear, espn.espnS2, espn.swid
+  );
+  const weekData = await fetcher.getSingleWeek(previous);
+
+  if (!weekData?.matchups?.length) {
+    throw new Error(`ESPN returned no matchups for week ${previous}`);
+  }
+
+  const scores = await syncScores(
+    seasonId, previous, weekData.matchups, weekData.currentScoringPeriod
+  );
+  const playerStats = await syncPlayerStats(seasonId, previous, weekData.matchups);
+
+  return { week: previous, scores, playerStats };
+}
+
+/**
+ * Grade the TD parlay for every elapsed week nobody has graded yet.
+ *
+ * The decision is `services/parlayGrader.js`, which is pure; this assembles
+ * what it reads and writes what it returns. Three sources, and the order they
+ * are gathered in matters: the NFL calendar supplies `stats_official` (so this
+ * runs after the calendar refresh), and `player_week_stats` supplies the
+ * category breakdown (so it runs after `finalizePreviousWeek`, which is what
+ * writes the finished week's).
+ *
+ * Grades *all* ungraded elapsed weeks rather than only week N-1. Only NULL
+ * rows are selected, so a re-run is idempotent, a week that failed to grade is
+ * caught up automatically, and a grade a human has already set by hand is
+ * never overwritten.
+ *
+ * The write bypasses RLS through the service-role key, exactly as every other
+ * step here does — no policy change was needed, and the browser's admin
+ * override path is untouched.
+ */
+async function syncParlayGrades(seasonId, weekNumber, espn) {
+  const db = getDb();
+
+  const picks = await db.parlay.getUngradedMatchedPicks(seasonId, weekNumber);
+  if (picks.length === 0) {
+    return { graded: 0, tds: 0, noTds: 0, skipped: {}, konaRecovered: 0 };
+  }
+
+  const weeks = [...new Set(picks.map((pick) => pick.week))];
+
+  // The calendar is season-wide and already cached by the step before this;
+  // one read covers every week in the batch.
+  const scheduleRows = await db.nflSchedule.getNflScheduleForSeason(espn.seasonYear);
+  const scheduleByTeam = {};
+  for (const row of scheduleRows) {
+    scheduleByTeam[scheduleKey(row.week, row.proTeamId)] = row;
+  }
+
+  const statsByEspnPlayerId = {};
+  for (const week of weeks) {
+    const rows = await db.playerWeekStats.getPlayerWeekStatsForWeek(seasonId, week);
+    for (const row of rows) {
+      if (row.espnPlayerId == null) continue;
+      statsByEspnPlayerId[statKey(week, row.espnPlayerId)] = row;
+    }
+  }
+
+  // A player dropped before the sync ran has no row for the week he played,
+  // and fringe goal-line backs — the players this parlay invites — are exactly
+  // who gets dropped. Ask ESPN about those ids directly. A failure here is
+  // absorbed: the picks it would have rescued simply stay pending, which is
+  // the same outcome as before the fallback existed.
+  let konaRecovered = 0;
+  const missing = findMissingStatLines({ picks, statsByEspnPlayerId, scheduleByTeam });
+
+  for (const week of [...new Set(missing.map((gap) => gap.week))]) {
+    const ids = missing.filter((gap) => gap.week === week).map((gap) => gap.espnPlayerId);
+
+    try {
+      const entries = await fetchPlayerWeekInfo({
+        leagueId: espn.leagueId,
+        seasonYear: espn.seasonYear,
+        week,
+        espnPlayerIds: ids,
+        espnS2: espn.espnS2,
+        swid: espn.swid
+      });
+
+      for (const entry of entries) {
+        const player = entry?.player ?? entry;
+        const espnPlayerId = player?.id ?? null;
+        if (espnPlayerId == null) continue;
+
+        // The same predicates the matchup path uses — shared, not restated, so
+        // a season total can never be read as one week's production.
+        const statBreakdown = findStatBreakdown(player, week);
+        if (!statBreakdown) continue;
+
+        statsByEspnPlayerId[statKey(week, espnPlayerId)] = {
+          espnPlayerId,
+          proTeamId: player?.proTeamId ?? null,
+          statBreakdown
+        };
+        konaRecovered += 1;
+      }
+    } catch (error) {
+      console.warn(`⚠️  parlay grades: kona lookup for week ${week} failed: ${error.message}`);
+    }
+  }
+
+  const { grades, skipped } = gradeParlayPicks({ picks, statsByEspnPlayerId, scheduleByTeam });
+
+  const { updated, errors } = await db.parlay.applyParlayGrades(grades);
+
+  const skipCounts = {};
+  for (const miss of skipped) {
+    skipCounts[miss.reason] = (skipCounts[miss.reason] ?? 0) + 1;
+  }
+
+  return {
+    graded: updated,
+    tds: grades.filter((grade) => grade.scoredTd).length,
+    noTds: grades.filter((grade) => !grade.scoredTd).length,
+    konaRecovered,
+    skipped: skipCounts,
+    errors
   };
 }
 
@@ -461,6 +618,32 @@ export async function syncWeek(argv = []) {
       }
     }
 
+    // The finished week. Non-fatal like the steps around it: losing week N-1's
+    // results costs the lineups their actuals and stalls the parlay grader,
+    // both of which self-heal on the next run, whereas failing here would cost
+    // this week's snapshot outright.
+    //
+    // Only on a derived run, and never for week 1 — there is no week 0.
+    if (options['skip-finalize-prev']) {
+      steps.finalizePrev = { skipped: 'flag' };
+    } else if (!weekWasDerived) {
+      steps.finalizePrev = { skipped: 'explicit week' };
+    } else if (weekNumber <= 1) {
+      steps.finalizePrev = { skipped: 'no previous week' };
+    } else {
+      try {
+        steps.finalizePrev = await finalizePreviousWeek(seasonId, weekNumber, espn);
+        console.log(
+          `⏪ week ${steps.finalizePrev.week}: ` +
+          `${steps.finalizePrev.scores.updated} scores updated, ` +
+          `${steps.finalizePrev.playerStats.upserted} player rows`
+        );
+      } catch (error) {
+        steps.finalizePrev = { failed: error.message };
+        console.warn(`⚠️  finalize previous week: ${error.message}`);
+      }
+    }
+
     // Non-fatal, for the same reason as player stats: the opponent chips fall
     // back to showing nothing, which is a thinner page rather than a broken
     // one, and failing the run over it would cost the week's snapshot. It is
@@ -500,6 +683,30 @@ export async function syncWeek(argv = []) {
       } catch (error) {
         steps.nflRatings = { failed: error.message };
         console.warn(`⚠️  nfl ratings: ${error.message}`);
+      }
+    }
+
+    // Grading reads what the calendar and finalizePrev just wrote —
+    // `stats_official` from the one, the category breakdowns from the other —
+    // so it has to come after both. It does not depend on the ratings step
+    // and could sit either side of it; here, so the three NFL fetches stay
+    // together. Non-fatal: an ungraded pick reads as "Pending", which is
+    // exactly what it was before this step existed.
+    if (options['skip-parlay-grades']) {
+      steps.parlayGrades = { skipped: 'flag' };
+    } else {
+      try {
+        steps.parlayGrades = await syncParlayGrades(seasonId, weekNumber, espn);
+        console.log(
+          `🎯 parlay grades: ${steps.parlayGrades.graded} graded ` +
+          `(${steps.parlayGrades.tds} TD, ${steps.parlayGrades.noTds} no TD)`
+        );
+        for (const [reason, count] of Object.entries(steps.parlayGrades.skipped)) {
+          console.warn(`⚠️  parlay grades: ${count} skipped — ${reason}`);
+        }
+      } catch (error) {
+        steps.parlayGrades = { failed: error.message };
+        console.warn(`⚠️  parlay grades: ${error.message}`);
       }
     }
 

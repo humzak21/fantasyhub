@@ -23,11 +23,24 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { toast } from 'sonner';
 import PageHeader from '../layout/PageHeader';
 import { EmptyState } from '../ui/empty-state';
+import { OpponentChip } from '../ui/opponent-chip';
+import { PlayerPoints } from '../ui/player-points';
 import { TeamIdentity } from '../ui/team-identity';
 import { IndependentColumns } from '../ui/independent-columns';
 import { isUserTeam } from '../../utils/userTeamUtils';
+import { useActualWeek, useNflOpponentMap } from '../../../hooks/queries/index.js';
 
+/**
+ * The Teams tab: every roster in the league, as it stands right now.
+ *
+ * A present-tense view with no week navigation, so it keys on the week the
+ * league is actually in rather than on a viewed one. That is also why every
+ * figure here is a projection and is labelled as such: `players.projected_points`
+ * is the rolling number the roster sync refreshes, not a result, and the tab
+ * has no week to show a result for.
+ */
 const TeamsAndRosters = ({
+  season = null,
   teams = [],
   rosters = {},
   onAddTeam,
@@ -38,6 +51,18 @@ const TeamsAndRosters = ({
   isAuthenticated = false, // This now represents isAdmin from parent
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
+
+  // The NFL season the opponent chips are keyed on. `espn_season_year` is the
+  // year ESPN's calendar endpoint is keyed by; `year` is the same value today
+  // and is the fallback for a season row created before that column existed.
+  const nflSeasonYear =
+    season?.espnSeasonYear ?? season?.espn_season_year ?? season?.year ?? null;
+  const actualWeek = useActualWeek();
+  // One cache entry per NFL season, shared with every other chip in the app,
+  // and deliberately not awaited: a roster renders without its opponents
+  // rather than the whole tab waiting on a second query.
+  const { data: opponents = {} } = useNflOpponentMap(nflSeasonYear, actualWeek);
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
   const [formData, setFormData] = useState({
@@ -177,6 +202,10 @@ const TeamsAndRosters = ({
       // filled rectangle turned a card into a stack of tiles and made the
       // position chip — the only thing that needs to be scannable — compete
       // with a border for attention.
+      // `injury_status` lives on `players`, not on `rosters` — reading it off
+      // the roster row, as this did, meant the dot below could never fire.
+      const injuryStatus = player.player?.injuryStatus ?? player.injuryStatus ?? null;
+
       return (
         <div
           className={`flex items-center gap-2.5 rounded px-1 py-[3px] text-xs ${
@@ -195,12 +224,24 @@ const TeamsAndRosters = ({
               IR
             </span>
           )}
-          {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && slot !== 'IR' && (
+          {injuryStatus && injuryStatus !== 'ACTIVE' && slot !== 'IR' && (
             <span
               className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive"
-              title={player.injuryStatus}
+              title={injuryStatus}
+              aria-label={injuryStatus}
             />
           )}
+          {/* Fixed width whether or not the chip renders — an unknown opponent
+              is nothing at all, and the projections must still line up. */}
+          <span className="w-12 shrink-0 text-right">
+            <OpponentChip entry={opponents[player.player?.proTeamId]} warnOnBye />
+          </span>
+          {/* Always a projection here: this tab has no week to have a result
+              for. `PlayerPoints` labels it, so nobody reads it as one. */}
+          <PlayerPoints
+            projectedPoints={player.player?.projectedPoints ?? null}
+            className="w-[4.25rem] shrink-0 text-right"
+          />
         </div>
       );
     };

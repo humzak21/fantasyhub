@@ -243,6 +243,16 @@ export async function getTeamRoster(ctx, teamId) {
   }
 }
 
+/**
+ * Every team's roster for a season, `{ [teamId]: { team, roster } }`.
+ *
+ * The player projection, NFL team and injury status ride along because the
+ * Teams tab renders all three. `projected_points` is the rolling figure the
+ * roster sync refreshes — a present-tense view with no week navigation, which
+ * is why the tab labels it "proj" rather than presenting it as a result — and
+ * `injury_status` lives on `players`, not on `rosters`, which is why the
+ * injury dot on that card never fired: the row it read had no such column.
+ */
 export async function getAllRosters(ctx, seasonId) {
 
   try {
@@ -270,7 +280,10 @@ export async function getAllRosters(ctx, seasonId) {
           position,
           team_abbreviation,
           jersey_number,
-          is_active
+          is_active,
+          pro_team_id,
+          projected_points,
+          injury_status
         )
       `)
       .eq('team.season_id', seasonId)

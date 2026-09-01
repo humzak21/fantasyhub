@@ -4,13 +4,14 @@ import { ChevronDown, Search } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { NumberText } from '../ui/number-text';
+import { OpponentChip } from '../ui/opponent-chip';
+import { PlayerPoints } from '../ui/player-points';
 import RouteLoading from '../layout/RouteLoading';
 import { cn } from '../../lib/utils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { useCurrentLineups, useNflOpponentMap } from '../../../hooks/queries/index.js';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
-import { formatOpponent } from '../../../utils/nflOpponent.js';
 
 /**
  * Who is actually starting this week, so a parlay pick is a decision rather
@@ -37,7 +38,10 @@ import { formatOpponent } from '../../../utils/nflOpponent.js';
  * week's actual points once the sync has them, then this week's projection,
  * then the rolling projection the roster sync refreshes. A starter with no
  * figure at all still appears, with a dash — see
- * `services/db/rosters.js::getCurrentLineupsForWeek`.
+ * `services/db/rosters.js::getCurrentLineupsForWeek`. A figure that is still a
+ * projection is labelled "proj" rather than merely dimmed — see
+ * `ui/player-points.jsx` — because a guess and a result are two different
+ * claims and a shade cannot carry that difference.
  *
  * Each starter also carries their NFL opponent, joined from `nfl_schedule` on
  * `proTeamId`. A starter on a bye is the most actionable thing this panel can
@@ -229,41 +233,32 @@ const TeamSide = ({ team, total, hasRows, align = 'left', viewer }) => (
 
 const StarterList = ({ rows, opponents = {} }) => (
   <ul className="space-y-1">
-    {rows.map((row) => {
-      const opponent = opponents[row.proTeamId];
-      const label = formatOpponent(opponent);
-
-      return (
-        <li key={row.id} className="flex items-center gap-2 text-sm">
-          <span
-            className={cn(
-              'w-11 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.06em]',
-              getPositionColor(row.rosterSlot)
-            )}
-          >
-            {row.rosterSlot}
-          </span>
-          <span className="min-w-0 flex-1 truncate">{row.player?.name ?? '—'}</span>
-          {/* A starter on a bye is the single most useful thing this panel can
-              say, so it is the one variant that gets colour. An unknown
-              opponent renders nothing at all rather than a placeholder — see
-              `formatOpponent`. The column keeps its width either way so the
-              points stay in a straight line. */}
-          <span
-            className={cn(
-              'w-14 shrink-0 text-right text-[10px] font-semibold uppercase tracking-[0.06em]',
-              opponent?.bye ? 'text-warning' : 'text-muted-foreground'
-            )}
-          >
-            {label}
-          </span>
-          <NumberText
-            value={pointsFor(row)}
-            className={cn('w-12 shrink-0 text-right', row.actualPoints == null && 'text-muted-foreground')}
-          />
-        </li>
-      );
-    })}
+    {rows.map((row) => (
+      <li key={row.id} className="flex items-center gap-2 text-sm">
+        <span
+          className={cn(
+            'w-11 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.06em]',
+            getPositionColor(row.rosterSlot)
+          )}
+        >
+          {row.rosterSlot}
+        </span>
+        <span className="min-w-0 flex-1 truncate">{row.player?.name ?? '—'}</span>
+        {/* A starter on a bye is the single most useful thing this panel can
+            say, so it is the one variant that gets colour. An unknown opponent
+            renders nothing at all rather than a placeholder — see
+            `OpponentChip`. The wrapper keeps the column's width either way so
+            the points stay in a straight line. */}
+        <span className="w-14 shrink-0 text-right">
+          <OpponentChip entry={opponents[row.proTeamId]} warnOnBye />
+        </span>
+        <PlayerPoints
+          actualPoints={row.actualPoints}
+          projectedPoints={row.projectedPoints}
+          className="w-[4.25rem] shrink-0 text-right"
+        />
+      </li>
+    ))}
   </ul>
 );
 

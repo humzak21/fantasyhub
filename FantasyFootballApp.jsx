@@ -449,6 +449,7 @@ const FantasyFootballApp = () => {
               <ErrorBoundary key="teams-error-boundary">
                 <div className="space-y-6">
                   <TeamsAndRosters
+                    season={activeSeason}
                     teams={activeSeason?.teams || []}
                     rosters={rosters}
                     onAddTeam={isAdmin ? handleAddTeam : null}
