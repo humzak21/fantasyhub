@@ -20,7 +20,7 @@ export function TakesBoard({
   displayNames = {},
   seasonConfig,
   onOpen,
-  onPlusOne,
+  onFade,
   onWithdraw,
   pendingTakeId,
   emptyAction
@@ -58,7 +58,7 @@ export function TakesBoard({
                 take={take}
                 displayNames={displayNames}
                 onOpen={onOpen}
-                onPlusOne={onPlusOne}
+                onFade={onFade}
                 onWithdraw={onWithdraw}
                 pending={pendingTakeId === take.id}
               />

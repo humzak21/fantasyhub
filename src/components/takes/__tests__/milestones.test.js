@@ -14,12 +14,13 @@ import {
   STATUS_BADGE,
   canDeleteTake,
   canEditTake,
-  canPlusOne,
+  canFade,
+  fadeCount,
   groupByMilestone,
-  hasPlusOned,
+  hasFaded,
+  hasWager,
   milestoneLabel,
-  milestoneSortKey,
-  plusOneCount
+  milestoneSortKey
 } from '../milestones.js';
 
 const USER = { id: 'user-1' };
@@ -158,41 +159,65 @@ describe('canDeleteTake', () => {
   });
 });
 
-describe('canPlusOne', () => {
-  it('refuses the author their own take', () => {
-    expect(canPlusOne(take(), USER)).toBe(false);
+describe('hasWager', () => {
+  it('is false for a take nobody staked anything on', () => {
+    expect(hasWager(take())).toBe(false);
+    expect(hasWager(take({ wager: null }))).toBe(false);
+    // takes_wager_check forbids this spelling, but a stale row or a bad client
+    // must not read as a live bet.
+    expect(hasWager(take({ wager: '' }))).toBe(false);
   });
 
-  it('allows another signed-in member', () => {
-    expect(canPlusOne(take(), OTHER)).toBe(true);
-  });
-
-  it('refuses a signed-out viewer', () => {
-    expect(canPlusOne(take(), null)).toBe(false);
-  });
-
-  it('refuses once the take is graded', () => {
-    expect(canPlusOne(take({ status: 'correct' }), OTHER)).toBe(false);
+  it('is true once something is on the line', () => {
+    expect(hasWager(take({ wager: '$20' }))).toBe(true);
   });
 });
 
-describe('co-sign counting', () => {
-  const joined = take({
+describe('canFade', () => {
+  const staked = (overrides = {}) => take({ wager: '$20', ...overrides });
+
+  it('refuses the author their own take', () => {
+    expect(canFade(staked(), USER)).toBe(false);
+  });
+
+  it('allows another signed-in member', () => {
+    expect(canFade(staked(), OTHER)).toBe(true);
+  });
+
+  it('refuses a signed-out viewer', () => {
+    expect(canFade(staked(), null)).toBe(false);
+  });
+
+  it('refuses once the take is graded', () => {
+    expect(canFade(staked({ status: 'correct' }), OTHER)).toBe(false);
+  });
+
+  it('refuses a take with nothing staked on it', () => {
+    // The clause added to `take_participants insert own`: with no wager there
+    // is no side to take, so the button must not exist. Without this the UI
+    // would offer a click the database now refuses.
+    expect(canFade(take(), OTHER)).toBe(false);
+  });
+});
+
+describe('hell nah counting', () => {
+  const faded = take({
+    wager: '$20',
     takeParticipants: [
       { id: 'p1', userId: OTHER.id, createdAt: '2026-09-02T12:00:00Z' },
       { id: 'p2', userId: 'user-3', createdAt: '2026-09-02T13:00:00Z' }
     ]
   });
 
-  it('counts the co-signs', () => {
-    expect(plusOneCount(joined)).toBe(2);
-    expect(plusOneCount(take())).toBe(0);
+  it('counts the fades', () => {
+    expect(fadeCount(faded)).toBe(2);
+    expect(fadeCount(take())).toBe(0);
   });
 
   it('knows whether this viewer is among them', () => {
-    expect(hasPlusOned(joined, OTHER)).toBe(true);
-    expect(hasPlusOned(joined, USER)).toBe(false);
-    expect(hasPlusOned(joined, null)).toBe(false);
+    expect(hasFaded(faded, OTHER)).toBe(true);
+    expect(hasFaded(faded, USER)).toBe(false);
+    expect(hasFaded(faded, null)).toBe(false);
   });
 });
 

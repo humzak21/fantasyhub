@@ -2019,6 +2019,7 @@ export type Database = {
           target_week: number | null
           updated_at: string | null
           user_id: string
+          wager: string | null
         }
         Insert: {
           body: string
@@ -2033,6 +2034,7 @@ export type Database = {
           target_week?: number | null
           updated_at?: string | null
           user_id?: string
+          wager?: string | null
         }
         Update: {
           body?: string
@@ -2047,6 +2049,7 @@ export type Database = {
           target_week?: number | null
           updated_at?: string | null
           user_id?: string
+          wager?: string | null
         }
         Relationships: [
           {

@@ -25,6 +25,18 @@ const log = createLogger('db:takes');
  *  from `auth.uid()` so a client cannot post as somebody else. */
 const TARGET_TYPES = ['week', 'end_of_regular_season', 'end_of_season'];
 
+/**
+ * A stake is optional, and "not set" has exactly one spelling: NULL.
+ *
+ * An empty box and no box are the same fact, so an empty string never reaches
+ * the database — `takes_wager_check` would reject it anyway, but a caller
+ * should not have to learn that from a constraint violation.
+ */
+function normalizeWager(wager) {
+  const trimmed = typeof wager === 'string' ? wager.trim() : '';
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 /** The grades the admin may apply. `pending` is not one: that is `reopenTake`,
  *  which has to null the resolution columns in the same statement to satisfy
  *  `takes_resolution_check`. */
@@ -33,7 +45,7 @@ const RESOLUTION_STATUSES = ['correct', 'incorrect', 'push'];
 /**
  * The whole board for one season, with the display name of everyone on it.
  *
- * One query rather than one per take: the co-signs arrive embedded, so the
+ * One query rather than one per take: the fades arrive embedded, so the
  * detail sheet reads its take straight out of this cache by id and needs no
  * fetch of its own. Names come back in the same call because a board of takes
  * whose authors all read "User 4f2a1b03" is not a board anybody can use, and
@@ -78,7 +90,13 @@ export async function getTakesForSeason(ctx, seasonId) {
  * biconditional CHECK reads the same either way, but an explicit null says the
  * absence is meant.
  */
-export async function createTake(ctx, { seasonId, body, targetType, targetWeek = null }) {
+export async function createTake(ctx, {
+  seasonId,
+  body,
+  targetType,
+  targetWeek = null,
+  wager = null
+}) {
   try {
     if (!seasonId) throw new Error('A take needs a season');
     if (!body?.trim()) throw new Error('A take needs something to say');
@@ -90,7 +108,8 @@ export async function createTake(ctx, { seasonId, body, targetType, targetWeek =
       seasonId,
       body: body.trim(),
       targetType,
-      targetWeek: targetType === 'week' ? targetWeek : null
+      targetWeek: targetType === 'week' ? targetWeek : null,
+      wager: normalizeWager(wager)
     });
 
     const { data, error } = await ctx.client.from('takes').insert(payload).select().single();
@@ -106,22 +125,27 @@ export async function createTake(ctx, { seasonId, body, targetType, targetWeek =
 }
 
 /**
- * Reword a take.
+ * Reword a take, and restate what is riding on it.
  *
- * Body only, and only that — not because this function is careful, but because
- * `takes_guard_author_update` rejects an UPDATE that changes anything else and
- * the `takes author edit` policy will not match a row outside the 72-hour
- * window. Sending more columns here would fail at the database, which is the
- * behaviour wanted.
+ * Those two columns and no others — not because this function is careful, but
+ * because `takes_guard_author_update` rejects an UPDATE that changes anything
+ * else and the `takes author edit` policy will not match a row outside the
+ * 72-hour window. Sending more columns here would fail at the database, which
+ * is the behaviour wanted.
+ *
+ * `wager` is written on every call, not only when it is present: the caller is
+ * the composer, which seeds the field from the row it is editing, so an absent
+ * value means the author cleared the box. Treating it as "leave it alone"
+ * would make removing a stake impossible.
  */
-export async function updateTakeBody(ctx, { takeId, body }) {
+export async function updateTake(ctx, { takeId, body, wager = null }) {
   try {
     if (!takeId) throw new Error('A take id is required');
     if (!body?.trim()) throw new Error('A take needs something to say');
 
     const { data, error } = await ctx.client
       .from('takes')
-      .update({ body: body.trim() })
+      .update({ body: body.trim(), wager: normalizeWager(wager) })
       .eq('id', takeId)
       .select()
       .single();
@@ -146,17 +170,21 @@ export async function deleteTake(ctx, takeId) {
 }
 
 /**
- * Co-sign somebody else's take.
+ * Say Hell Nah to somebody else's take — fade it, and take on their wager.
  *
  * `season_id` is sent because the table denormalizes it; the INSERT policy
  * checks it against the parent take, so a wrong value is rejected rather than
- * stored. A repeat +1 hits `take_participants_take_user_key` and comes back as
- * a duplicate — which is the correct answer to "join a take you have already
- * joined", so it is surfaced rather than swallowed.
+ * stored. A repeat hits `take_participants_take_user_key` and comes back as a
+ * duplicate — which is the correct answer to "fade a take you have already
+ * faded", so it is surfaced rather than swallowed.
+ *
+ * Nothing here checks that the take carries a wager. That clause lives in the
+ * `take_participants insert own` policy, where a hand-rolled POST meets it too;
+ * `canFade` in the component mirrors it so the button is simply absent.
  */
-export async function addPlusOne(ctx, { takeId, seasonId }) {
+export async function addFade(ctx, { takeId, seasonId }) {
   try {
-    if (!takeId || !seasonId) throw new Error('A +1 needs a take and a season');
+    if (!takeId || !seasonId) throw new Error('A Hell Nah needs a take and a season');
 
     const payload = formatForDatabase({ takeId, seasonId });
 
@@ -170,20 +198,20 @@ export async function addPlusOne(ctx, { takeId, seasonId }) {
 
     return formatFromDatabase(data);
   } catch (error) {
-    throwDbError(error, 'Join take');
+    throwDbError(error, 'Hell Nah');
   }
 }
 
 /**
- * Withdraw your own +1.
+ * Take back your own Hell Nah.
  *
  * The `user_id` filter is load-bearing and is *not* a duplicate of RLS. For an
  * ordinary member the `take_participants withdraw own` policy already narrows
  * the delete to their own row — but the admin also holds a `FOR ALL` policy, so
- * for them an unfiltered delete on `take_id` would wipe every co-sign on that
+ * for them an unfiltered delete on `take_id` would wipe every fade on that
  * take. The filter is what makes this function mean "mine" for everybody.
  */
-export async function removePlusOne(ctx, takeId) {
+export async function removeFade(ctx, takeId) {
   try {
     if (!takeId) throw new Error('A take id is required');
 
@@ -199,7 +227,7 @@ export async function removePlusOne(ctx, takeId) {
     if (error) throw error;
     return true;
   } catch (error) {
-    throwDbError(error, 'Withdraw from take');
+    throwDbError(error, 'Take back Hell Nah');
   }
 }
 

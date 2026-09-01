@@ -19,12 +19,32 @@ import { TakeDetailSheet } from './TakeDetailSheet.jsx';
 import { TakesBoard } from './TakesBoard.jsx';
 
 /**
+ * What the page says the game is.
+ *
+ * The reward tiers and the payout warning are league rules, not UI copy, and
+ * nothing in this system enforces them — no column holds a FAAB balance and
+ * grading a take moves no money. They live here, above the board, because the
+ * board is where somebody decides how far out to call something, and a rule
+ * nobody reads before posting is a rule that gets argued about after.
+ *
+ * A plain string rather than JSX so the apostrophes need no escaping and the
+ * whole of it is one thing to edit.
+ */
+const TAKES_DESCRIPTION =
+  'Call it before it happens. Rewards vary based on length of take. A take for the ' +
+  'upcoming week is $5 FAAB, 3+ weeks out is $10, and anything higher is 15 FAAB, ' +
+  'potentially coming for the next season, with cash rewards also in play. You can also ' +
+  "bet FAAB, pubes, actual dollars (make sure to specify) in your take if you'd like to " +
+  "win money from those who think your take won't hit. Be warned though, you have to pay " +
+  'out everyone who wins off your take if you lose.';
+
+/**
  * The Takes tab.
  *
  * Predictions the league posts against a milestone — a week, the end of the
- * regular season, the end of the season — that anyone can read and any member
- * can co-sign. The board sorts by when a take comes due, not by when it was
- * written.
+ * regular season, the end of the season — that members read, and that any
+ * other member can fade with a Hell Nah when the author has staked something on
+ * it. The board sorts by when a take comes due, not by when it was written.
  *
  * Identity comes from `useViewer()`, never from props, and all data goes
  * through the query hooks. This deliberately does not follow `PickEmsManager`'s
@@ -61,8 +81,8 @@ export function TakesManager({ season, loading }) {
     createTake,
     updateTake,
     deleteTake,
-    plusOne,
-    withdrawPlusOne,
+    fade,
+    withdrawFade,
     resolveTake,
     reopenTake
   } = mutations;
@@ -70,8 +90,8 @@ export function TakesManager({ season, loading }) {
   /** Which take is mid-write, so its control can disable rather than flicker.
    *  There is no optimistic update — see the note in useTakes.js. */
   const pendingTakeId =
-    (plusOne.isPending && plusOne.variables?.takeId) ||
-    (withdrawPlusOne.isPending && withdrawPlusOne.variables?.takeId) ||
+    (fade.isPending && fade.variables?.takeId) ||
+    (withdrawFade.isPending && withdrawFade.variables?.takeId) ||
     (resolveTake.isPending && resolveTake.variables?.takeId) ||
     (reopenTake.isPending && reopenTake.variables?.takeId) ||
     null;
@@ -94,13 +114,15 @@ export function TakesManager({ season, loading }) {
     setComposerOpen(true);
   };
 
-  const handleSubmit = async ({ body, targetType, targetWeek }) => {
+  const handleSubmit = async ({ body, targetType, targetWeek, wager }) => {
     if (editingTake) {
-      await updateTake.mutateAsync({ takeId: editingTake.id, body });
+      // The milestone is deliberately not sent: `takes_guard_author_update`
+      // rejects a move, and the composer disables the control to match.
+      await updateTake.mutateAsync({ takeId: editingTake.id, body, wager });
       setEditingId(null);
       return;
     }
-    await createTake.mutateAsync({ body, targetType, targetWeek });
+    await createTake.mutateAsync({ body, targetType, targetWeek, wager });
   };
 
   const handleDelete = async (take) => {
@@ -120,7 +142,7 @@ export function TakesManager({ season, loading }) {
     <PageHeader
       icon={Flame}
       title="Takes"
-      description="Call it before it happens. The admin grades every take once its milestone passes."
+      description={TAKES_DESCRIPTION}
       badge={takes.length > 0 ? <Badge variant="secondary">{takes.length}</Badge> : null}
       actions={
         isAuthenticated ? (
@@ -165,8 +187,8 @@ export function TakesManager({ season, loading }) {
         displayNames={displayNames}
         seasonConfig={seasonConfig}
         onOpen={(take) => setSelectedId(take.id)}
-        onPlusOne={(take) => run(plusOne, { takeId: take.id }, 'Could not join that take')}
-        onWithdraw={(take) => run(withdrawPlusOne, { takeId: take.id }, 'Could not withdraw')}
+        onFade={(take) => run(fade, { takeId: take.id }, 'Could not fade that take')}
+        onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
         pendingTakeId={pendingTakeId}
         emptyAction={isAuthenticated ? addTakeButton : null}
       />
@@ -192,8 +214,8 @@ export function TakesManager({ season, loading }) {
         onOpenChange={(open) => {
           if (!open) setSelectedId(null);
         }}
-        onPlusOne={(take) => run(plusOne, { takeId: take.id }, 'Could not join that take')}
-        onWithdraw={(take) => run(withdrawPlusOne, { takeId: take.id }, 'Could not withdraw')}
+        onFade={(take) => run(fade, { takeId: take.id }, 'Could not fade that take')}
+        onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
         onEdit={(take) => {
           setEditingId(take.id);
           setComposerOpen(true);

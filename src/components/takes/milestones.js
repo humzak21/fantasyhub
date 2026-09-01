@@ -7,9 +7,10 @@
  * league-sized dataset, and keeping it in JavaScript is what lets a future
  * `nfl_game` take sort by kickoff without a schema migration.
  *
- * `canEditTake` and `canDeleteTake` are **mirrors** of the RLS policies, not
- * the rules themselves. The database is what actually refuses a late edit; these
- * exist so the UI does not offer a button that is going to fail.
+ * `canEditTake`, `canDeleteTake` and `canFade` are **mirrors** of the RLS
+ * policies, not the rules themselves. The database is what actually refuses a
+ * late edit or a fade on an unstaked take; these exist so the UI does not offer
+ * a button that is going to fail.
  */
 
 import { getWeekLabel } from '../../../utils/weekLabelUtils.js';
@@ -118,23 +119,42 @@ export function canDeleteTake(take, user) {
   return isAuthor(take, user) && isPending(take);
 }
 
-/**
- * May the viewer co-sign it? Signed in, not their own, still ungraded — the
- * `take_participants insert own` policy, restated for the button's benefit.
- */
-export function canPlusOne(take, user) {
-  return Boolean(user?.id) && !isAuthor(take, user) && isPending(take);
+/** Did the author put anything on the line? A stake is optional, and NULL is
+ *  its only "no" — `takes_wager_check` forbids the empty-string spelling. */
+export function hasWager(take) {
+  return Boolean(take?.wager);
 }
 
-/** Has this viewer already co-signed? */
-export function hasPlusOned(take, user) {
+/**
+ * May the viewer say Hell Nah to it? Signed in, not their own, still ungraded,
+ * and there is a wager to fade — the four clauses of the
+ * `take_participants insert own` policy, restated for the button's benefit.
+ *
+ * The wager clause is the one that matters most here. Nothing is staked on a
+ * bare take, so there is no side to take and no payout to owe; offering the
+ * button anyway would produce a row the database now refuses.
+ */
+export function canFade(take, user) {
+  return Boolean(user?.id) && !isAuthor(take, user) && isPending(take) && hasWager(take);
+}
+
+/** Is this viewer already on the other side of it? */
+export function hasFaded(take, user) {
   if (!user?.id) return false;
   return (take?.takeParticipants || []).some((participant) => participant.userId === user.id);
 }
 
-/** How many people co-signed. */
-export function plusOneCount(take) {
+/** How many people are fading it — and so how many the author owes if it misses. */
+export function fadeCount(take) {
   return (take?.takeParticipants || []).length;
+}
+
+/**
+ * What the fade costs, said once so the card, the sheet and the composer
+ * cannot drift into three different promises about the same click.
+ */
+export function fadeTerms(take) {
+  return `Say Hell Nah and you're taking the other side: if this take hits, you owe ${take?.wager}. If it misses, the author owes you.`;
 }
 
 /**

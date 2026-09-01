@@ -4,9 +4,9 @@
  * What is worth asserting here is the *shape of the request*, because the
  * database's guarantees hang off it. Two in particular:
  *
- *   * `removePlusOne` must filter on `user_id`. RLS narrows a member's delete
- *     to their own row, but the admin holds a `FOR ALL` policy — so without the
- *     filter, the admin withdrawing their own +1 deletes everybody's.
+ *   * `removeFade` must filter on `user_id`. RLS narrows a member's delete to
+ *     their own row, but the admin holds a `FOR ALL` policy — so without the
+ *     filter, the admin taking back their own Hell Nah deletes everybody's.
  *   * `resolveTake` must move all three resolution columns together, or
  *     `takes_resolution_check` rejects the write.
  *
@@ -18,14 +18,14 @@ import { describe, it, expect } from 'vitest';
 
 import { makeCtx } from './fakeClient.js';
 import {
-  addPlusOne,
+  addFade,
   createTake,
   deleteTake,
   getTakesForSeason,
-  removePlusOne,
+  removeFade,
   reopenTake,
   resolveTake,
-  updateTakeBody
+  updateTake
 } from '../takes.js';
 
 const SEASON_ID = '11111111-1111-4111-8111-111111111111';
@@ -46,6 +46,7 @@ const takeRow = {
   resolved_at: null,
   resolved_by: null,
   edited_at: null,
+  wager: null,
   created_at: '2026-09-01T12:00:00Z',
   updated_at: '2026-09-01T12:00:00Z',
   take_participants: [
@@ -54,7 +55,7 @@ const takeRow = {
 };
 
 describe('getTakesForSeason', () => {
-  it('embeds the co-signs and resolves every name in one pass', async () => {
+  it('embeds the fades and resolves every name in one pass', async () => {
     const ctx = makeCtx(
       {
         'takes.select': () => [takeRow],
@@ -72,7 +73,7 @@ describe('getTakesForSeason', () => {
     expect(takes[0].takeParticipants).toHaveLength(1);
     expect(takes[0].takeParticipants[0].userId).toBe(OTHER_ID);
 
-    // Authors *and* co-signers, deduped, in one RPC.
+    // Authors *and* faders, deduped, in one RPC.
     const [call] = ctx.client.callsFor('rpc', 'get_user_display_names');
     expect(call.payload.user_ids.sort()).toEqual([USER_ID, OTHER_ID].sort());
     expect(displayNames[USER_ID]).toBe('Humza Khalil');
@@ -114,7 +115,10 @@ describe('createTake', () => {
       season_id: SEASON_ID,
       body: 'Nobody goes 14-0',
       target_type: 'week',
-      target_week: 3
+      target_week: 3,
+      // Optional, and "none" has one spelling. An empty string would be a
+      // second way to say the same thing, and takes_wager_check refuses it.
+      wager: null
     });
     // The column defaults to auth.uid() and set_takes_user_id backs that up, so
     // there is no value here for a client to get wrong or to forge.
@@ -137,6 +141,29 @@ describe('createTake', () => {
     expect(call.payload.target_week).toBeNull();
   });
 
+  it('trims the stake, and stores a blank one as null', async () => {
+    const ctx = makeCtx({ 'takes.insert': () => [takeRow] }, { session });
+
+    await createTake(ctx, {
+      seasonId: SEASON_ID,
+      body: 'Nobody goes 14-0',
+      targetType: 'week',
+      targetWeek: 3,
+      wager: '  40 FAAB  '
+    });
+    await createTake(ctx, {
+      seasonId: SEASON_ID,
+      body: 'Nobody goes 14-0',
+      targetType: 'week',
+      targetWeek: 3,
+      wager: '   '
+    });
+
+    const [staked, blank] = ctx.client.callsFor('takes', 'insert');
+    expect(staked.payload.wager).toBe('40 FAAB');
+    expect(blank.payload.wager).toBeNull();
+  });
+
   it('refuses an unknown milestone without a round trip', async () => {
     const ctx = makeCtx({}, { session });
 
@@ -156,17 +183,29 @@ describe('createTake', () => {
   });
 });
 
-describe('updateTakeBody', () => {
-  it('sends the body and nothing else', async () => {
+describe('updateTake', () => {
+  it('sends the body and the wager, and nothing else', async () => {
     const ctx = makeCtx({ 'takes.update': () => [takeRow] }, { session });
 
-    await updateTakeBody(ctx, { takeId: TAKE_ID, body: '  Reworded  ' });
+    await updateTake(ctx, { takeId: TAKE_ID, body: '  Reworded  ', wager: '  $20  ' });
 
     const [call] = ctx.client.callsFor('takes', 'update');
     // takes_guard_author_update rejects an UPDATE touching anything else, so
     // sending more here would fail at the database rather than silently apply.
-    expect(call.payload).toEqual({ body: 'Reworded' });
+    expect(call.payload).toEqual({ body: 'Reworded', wager: '$20' });
     expect(call.filters.id).toBe(TAKE_ID);
+  });
+
+  it('clears the stake when the author empties the box', async () => {
+    const ctx = makeCtx({ 'takes.update': () => [takeRow] }, { session });
+
+    // Not "leave it alone": the composer seeds the field from the row, so an
+    // absent value is the author having removed the bet. Skipping the column
+    // would make that impossible to express.
+    await updateTake(ctx, { takeId: TAKE_ID, body: 'Reworded' });
+
+    const [call] = ctx.client.callsFor('takes', 'update');
+    expect(call.payload).toEqual({ body: 'Reworded', wager: null });
   });
 });
 
@@ -181,14 +220,14 @@ describe('deleteTake', () => {
   });
 });
 
-describe('addPlusOne', () => {
+describe('addFade', () => {
   it('sends the denormalized season, which the INSERT policy checks', async () => {
     const ctx = makeCtx(
       { 'take_participants.insert': () => [{ id: 'p2', take_id: TAKE_ID, user_id: USER_ID }] },
       { session }
     );
 
-    await addPlusOne(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID });
+    await addFade(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID });
 
     const [call] = ctx.client.callsFor('take_participants', 'insert');
     expect(call.payload).toEqual({ take_id: TAKE_ID, season_id: SEASON_ID });
@@ -196,22 +235,22 @@ describe('addPlusOne', () => {
   });
 });
 
-describe('removePlusOne', () => {
+describe('removeFade', () => {
   it('filters on the caller as well as the take', async () => {
     const ctx = makeCtx({ 'take_participants.delete': () => [] }, { session });
 
-    await removePlusOne(ctx, TAKE_ID);
+    await removeFade(ctx, TAKE_ID);
 
     const [call] = ctx.client.callsFor('take_participants', 'delete');
     // Not redundant with RLS. The admin's `FOR ALL` policy matches every row on
     // the take, so without this filter their own withdrawal would delete
-    // everybody else's co-sign too.
+    // everybody else's Hell Nah too.
     expect(call.filters).toEqual({ take_id: TAKE_ID, user_id: USER_ID });
   });
 
   it('refuses a signed-out caller without a round trip', async () => {
     const ctx = makeCtx({});
-    await expect(removePlusOne(ctx, TAKE_ID)).rejects.toThrow();
+    await expect(removeFade(ctx, TAKE_ID)).rejects.toThrow();
     expect(ctx.client.callsFor('take_participants', 'delete')).toHaveLength(0);
   });
 });

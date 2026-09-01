@@ -17,6 +17,7 @@ import {
   SelectValue
 } from '../ui/select';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { listWeeks } from '../../../utils/seasonConfig.js';
 import { getWeekLabel } from '../../../utils/weekLabelUtils.js';
@@ -27,6 +28,10 @@ import {
 } from './milestones.js';
 
 const MAX_BODY = 500;
+
+/** Mirrors `takes_wager_check`. The stake is a phrase — "$20", "40 FAAB" — not
+ *  an essay, and a length the database will refuse should not be typeable. */
+const MAX_WAGER = 200;
 
 /** The two terminal milestones, as `Select` values. Weeks are `week:N`, so one
  *  string carries both the type and the week and the Select stays flat. */
@@ -64,6 +69,7 @@ export function AddTakeDialog({
   const isEdit = Boolean(take);
 
   const [body, setBody] = useState('');
+  const [wager, setWager] = useState('');
   const [milestone, setMilestone] = useState(END_OF_SEASON);
   const [error, setError] = useState(null);
 
@@ -74,6 +80,11 @@ export function AddTakeDialog({
 
     setError(null);
     setBody(take?.body ?? '');
+    // '' rather than null: this is a controlled input, and seeding it from the
+    // row is also what lets an author clear a stake — `updateTake` writes the
+    // column on every edit, so an empty box means "no bet" rather than
+    // "unchanged".
+    setWager(take?.wager ?? '');
 
     if (take) {
       setMilestone(
@@ -100,10 +111,20 @@ export function AddTakeDialog({
       return;
     }
 
+    const trimmedWager = wager.trim();
+    if (trimmedWager.length > MAX_WAGER) {
+      setError(`Keep the stake under ${MAX_WAGER} characters.`);
+      return;
+    }
+
     setError(null);
 
     try {
-      await onSubmit({ body: trimmed, ...parseMilestone(milestone) });
+      await onSubmit({
+        body: trimmed,
+        wager: trimmedWager || null,
+        ...parseMilestone(milestone)
+      });
       onOpenChange(false);
     } catch (submitError) {
       setError(submitError?.message ?? 'Could not save that take.');
@@ -139,6 +160,25 @@ export function AddTakeDialog({
               />
               <p className="mt-1 text-right text-xs tabular-nums text-muted-foreground">
                 {remaining} left
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="take-wager" className="mb-1 block text-sm font-medium">
+                What You&apos;ll Bet{' '}
+                <span className="font-normal text-muted-foreground">(optional)</span>
+              </label>
+              <Input
+                id="take-wager"
+                value={wager}
+                onChange={(event) => setWager(event.target.value)}
+                maxLength={MAX_WAGER}
+                placeholder="e.g. $20, or 40 FAAB"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                What you&apos;re risking against anyone who says Hell Nah. Free text — say the
+                currency. If the take misses, you pay out everyone who faded it. Leave this
+                blank and nobody can bet against the take at all.
               </p>
             </div>
 
