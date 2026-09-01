@@ -11,6 +11,7 @@ import { throwDbError } from './errors.js';
 import { createLogger } from './logger.js';
 import { getNFLTeamAbbreviation, mapESPNRosterSlot } from './espnMapping.js';
 import { syncPlayerFromESPN } from './players.js';
+import { getPlayerWeekStatsForWeek } from './playerWeekStats.js';
 
 const log = createLogger('db:rosters');
 
@@ -371,5 +372,110 @@ export async function getRosterStats(ctx, seasonId) {
     return stats;
   } catch (error) {
     throwDbError(error, 'Get roster stats');
+  }
+}
+
+/**
+ * The current starting lineups, with the best points available for a week.
+ *
+ * This exists because the pick'ems research panel asks a *present-tense*
+ * question — "who is starting this week" — and the table it used to read,
+ * `player_week_stats`, cannot answer one. That table is a historical fact
+ * table written once a week by the cron, so between two syncs it describes a
+ * roster that has since taken waivers, made trades and changed its lineup.
+ * Measured against the live league on 2026-08-31, 122 of the 125 starters it
+ * reported were no longer the starters: its newest rows were from 2026-08-18,
+ * three weeks before the season and before the draft, while `rosters` had been
+ * rewritten the same day.
+ *
+ * So membership and lineup slot come from `rosters`, which is deleted and
+ * reinserted per team on every sync and is therefore a true snapshot of now.
+ * Points are layered on in order of how much they know:
+ *
+ *   1. `player_week_stats.actual_points` for this week, once the games are
+ *      played and the sync has written them.
+ *   2. `player_week_stats.projected_points` for this week, which is
+ *      week-specific and so beats a rolling figure.
+ *   3. `players.projected_points`, refreshed by the same roster sync, which is
+ *      what a player added since the last week-stats write has instead of
+ *      nothing.
+ *
+ * A player with no points at all still appears, with a dash. Showing a real
+ * starter without a projection is honest; hiding them because a stats row is
+ * missing is how the stale view looked complete while being wrong.
+ *
+ * Falls back to `player_week_stats` wholesale when a season has no roster rows
+ * at all, so a season that predates roster syncing renders what it always did
+ * rather than rendering empty.
+ *
+ * @returns {Promise<object[]>} rows shaped like `getPlayerWeekStatsForWeek`'s
+ */
+export async function getCurrentLineupsForWeek(ctx, seasonId, week) {
+  try {
+    const [{ data: rosterRows, error: rosterError }, weekStats] = await Promise.all([
+      ctx.client
+        .from('rosters')
+        .select(`
+          id,
+          team_id,
+          roster_slot,
+          player:players (
+            id,
+            espn_player_id,
+            name,
+            position,
+            team_abbreviation,
+            pro_team_id,
+            projected_points,
+            injury_status
+          ),
+          team:teams!inner ( id, season_id )
+        `)
+        .eq('team.season_id', seasonId),
+      getPlayerWeekStatsForWeek(ctx, seasonId, week)
+    ]);
+
+    if (rosterError) throw rosterError;
+
+    // No roster snapshot for this season: the stored week is all there is.
+    if (!rosterRows || rosterRows.length === 0) return weekStats;
+
+    const statsByPlayerId = new Map(
+      (weekStats || []).map((row) => [row.playerId, row])
+    );
+
+    return rosterRows.map((row) => {
+      const stat = statsByPlayerId.get(row.player?.id);
+      const slot = row.roster_slot;
+
+      return {
+        id: row.id,
+        seasonId,
+        week,
+        teamId: row.team_id,
+        playerId: row.player?.id ?? null,
+        espnPlayerId: row.player?.espn_player_id ?? null,
+        proTeamId: row.player?.pro_team_id ?? null,
+        rosterSlot: slot,
+        // `rosters` has no `started` column; the slot is the fact. Bench and IR
+        // are the only slots that do not score, matching `isStarterSlot`.
+        started: slot !== 'BE' && slot !== 'IR',
+        position: row.player?.position ?? null,
+        actualPoints: stat?.actualPoints ?? null,
+        projectedPoints: stat?.projectedPoints ?? row.player?.projected_points ?? null,
+        injuryStatus: stat?.injuryStatus ?? row.player?.injury_status ?? null,
+        player: row.player
+          ? {
+              id: row.player.id,
+              name: row.player.name,
+              position: row.player.position,
+              teamAbbreviation: row.player.team_abbreviation,
+              proTeamId: row.player.pro_team_id
+            }
+          : null
+      };
+    });
+  } catch (error) {
+    throwDbError(error, 'Get current lineups for week');
   }
 }

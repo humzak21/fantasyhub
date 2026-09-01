@@ -49,7 +49,14 @@ export const qk = {
     ...scope('rosters'),
     forSeason: (seasonId) => ['rosters', seasonId, 'all'],
     forTeam: (teamId) => ['rosters', 'team', teamId],
-    stats: (seasonId) => ['rosters', seasonId, 'stats']
+    stats: (seasonId) => ['rosters', seasonId, 'stats'],
+    /**
+     * Current lineups, with a week's points layered on. Under `rosters` rather
+     * than `playerStats` because the roster snapshot is what makes it stale or
+     * fresh — a roster sync must invalidate this, and a prefix invalidation of
+     * `rosters` is how that happens.
+     */
+    lineupsForWeek: (seasonId, week) => ['rosters', seasonId, 'lineups', week]
   },
 
   players: {
