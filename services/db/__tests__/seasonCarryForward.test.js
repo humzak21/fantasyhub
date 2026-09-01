@@ -51,8 +51,8 @@ function defaultHandlers(overrides = {}) {
       // `lt:year` is the previous-season lookup; `id` is an explicit source.
       filters.id ? SOURCE_SEASON : [SOURCE_SEASON],
     'divisions.select': () => [
-      { id: 3, name: 'Assholes', display_order: 1 },
-      { id: 4, name: 'Ninjas', display_order: 2 }
+      { id: 3, name: 'Assholes', display_order: 1, division_identity_id: 'identity-1' },
+      { id: 4, name: 'Ninjas', display_order: 2, division_identity_id: 'identity-2' }
     ],
     'divisions.upsert': () => [
       { id: 41, display_order: 1 },
@@ -111,8 +111,18 @@ describe('createSeason carrying teams forward', () => {
       (call) => call.table === 'divisions' && call.op === 'upsert'
     );
     expect(divisionWrite.payload).toEqual([
-      { season_id: 'season-2026', name: 'Assholes', display_order: 1 },
-      { season_id: 'season-2026', name: 'Ninjas', display_order: 2 }
+      {
+        season_id: 'season-2026',
+        name: 'Assholes',
+        display_order: 1,
+        division_identity_id: 'identity-1'
+      },
+      {
+        season_id: 'season-2026',
+        name: 'Ninjas',
+        display_order: 2,
+        division_identity_id: 'identity-2'
+      }
     ]);
 
     // `trigger_create_default_divisions` has already seeded 'Division 1' and
@@ -124,10 +134,28 @@ describe('createSeason carrying teams forward', () => {
     expect(insertedTeams(ctx).map((team) => team.division_id)).toEqual([41, 42]);
   });
 
+  it('carries the division lineage across, so a rename does not orphan it', async () => {
+    await createSeason(ctx, 2026);
+
+    const divisionWrite = ctx.client.calls.find(
+      (call) => call.table === 'divisions' && call.op === 'upsert'
+    );
+
+    // `league_divisions` is what makes 2026's 'Assholes' and 2020's 'East' the
+    // same division. The upsert has to thread it through, or every new season
+    // starts a fresh lineage and the continuity is lost for good.
+    expect(divisionWrite.payload.map((row) => row.division_identity_id)).toEqual([
+      'identity-1',
+      'identity-2'
+    ]);
+  });
+
   it('prunes placeholder divisions the source season has no counterpart for', async () => {
     ctx = makeCtx(
       defaultHandlers({
-        'divisions.select': () => [{ id: 3, name: 'Assholes', display_order: 1 }],
+        'divisions.select': () => [
+          { id: 3, name: 'Assholes', display_order: 1, division_identity_id: 'identity-1' }
+        ],
         'divisions.upsert': () => [{ id: 41, display_order: 1 }]
       })
     );

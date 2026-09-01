@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { Edit2, Settings, Plus, X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Edit2, Settings, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ResponsiveDataTable } from '../ui/responsive-table';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { getMaskedTeamName, getMaskedOwnerName, getMaskedDivisionName } from '../../utils/displayNameUtils';
+import { computeSeeds, teamIdOf, usesSeededPlayoffs } from '../../../utils/playoffSeeding.js';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,11 +24,15 @@ const DrawerStandingsTable = ({
   divisions = [],
   standings = { divisions: [], unassigned: [] },
   currentWeek,
+  // The season's year, passed down rather than read from `getSeasonConfig()`:
+  // qualification changed in 2026 and this table renders past seasons too.
+  seasonYear = null,
   loading = false,
   isAuthenticated = false,
   onDivisionRename,
   onTeamDivisionChange,
   onCreateDivision,
+  onDivisionDelete,
   onClose,
   games = [], // Add games data for streak calculation fallback
   user = null,
@@ -36,36 +41,36 @@ const DrawerStandingsTable = ({
 }) => {
   const [isManaging, setIsManaging] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState('');
-  
-  // Debug: Log props in development
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[DrawerStandingsTable] Props:', {
-      teamsCount: teams?.length || 0,
-      divisionsCount: divisions?.length || 0,
-      gamesCount: games?.length || 0,
-      standingsStructure: standings,
-      sampleTeam: teams?.[0],
-      sampleGame: games?.[0]
-    });
-    
-    // Log detailed game structure
-    if (games?.[0]) {
-      const game = games[0];
-      console.log('[DrawerStandingsTable] Sample game fields:', {
-        id: game.id,
-        week: game.week,
-        team1_id: game.team1_id,
-        team2_id: game.team2_id,
-        team1_score: game.team1_score,
-        team2_score: game.team2_score,
-        team1Score: game.team1Score,
-        team2Score: game.team2Score,
-        isCompleted: game.isCompleted,
-        is_completed: game.is_completed,
-        allFields: Object.keys(game)
-      });
+  // One draft per division. This used to share `newDivisionName` with the
+  // create dialog and with every other division's rename dialog, so opening a
+  // rename prefilled the create box — and the last dialog opened decided what
+  // any of them submitted.
+  const [renameDrafts, setRenameDrafts] = useState({});
+
+  const seeded = usesSeededPlayoffs(seasonYear);
+
+  // The client-side half of the qualification rule, for the fallback path
+  // below. The RPC already returns seeds; this covers the case where it has
+  // not answered yet and the table is rendering from `teams` alone.
+  const fallbackSeeds = useMemo(
+    () => (seeded ? computeSeeds(teams) : null),
+    [seeded, teams]
+  );
+
+  const seedFieldsFor = (team, indexInDivision) => {
+    if (!seeded) {
+      // Through 2025: top three of each division, no seeds.
+      return { playoffSeed: null, isBye: false, isWildcard: false, isPlayoffSpot: indexInDivision < 3 };
     }
-  }
+
+    const info = fallbackSeeds?.get(teamIdOf(team));
+    return {
+      playoffSeed: info?.seed ?? null,
+      isBye: Boolean(info?.isBye),
+      isWildcard: Boolean(info?.isWildcard),
+      isPlayoffSpot: info?.seed != null
+    };
+  };
 
   // Calculate standings data
   const calculateStandings = () => {
@@ -137,7 +142,7 @@ const DrawerStandingsTable = ({
           ? team.wins / (team.wins + team.losses + team.ties)
           : 0,
         divisionRank: index + 1,
-        isPlayoffSpot: index < 3, // Top 3 teams per division make playoffs
+        ...seedFieldsFor(team, index),
         currentStreak: (() => {
           const dbStreak = team.currentStreak || team.current_streak;
           const teamId = team.id || team.teamId;
@@ -186,7 +191,9 @@ const DrawerStandingsTable = ({
         ? team.wins / (team.wins + team.losses + team.ties)
         : 0,
       divisionRank: index + 1,
-      isPlayoffSpot: false,
+      // An unassigned team has no division place to earn, but from 2026 a
+      // wildcard is league-wide — so it can still hold a seed.
+      ...seedFieldsFor(team, Number.POSITIVE_INFINITY),
       currentStreak: (() => {
         const dbStreak = team.currentStreak || team.current_streak;
         const teamId = team.id || team.teamId;
@@ -217,6 +224,19 @@ const DrawerStandingsTable = ({
       divisions: divisionStandings,
       unassigned: unassignedTeams
     };
+  };
+
+  /*
+   * The qualifier tint. `bg-green-50 dark:bg-green-900/20` only rendered here
+   * because the remap block at the end of globals.css catches those exact
+   * selectors; `bg-success` is the token that actually means this.
+   *
+   * A bye is a stronger fact than a berth, so it reads a step brighter — but
+   * only from 2026, where byes are a thing the standings can tell you about.
+   */
+  const qualifierTint = (team) => {
+    if (seeded && team.isBye) return 'bg-success/15';
+    return team.isPlayoffSpot ? 'bg-success/10' : '';
   };
 
   const getStreakDisplay = (streak) => {
@@ -364,11 +384,30 @@ const DrawerStandingsTable = ({
     return finalStreak;
   };
 
+  const renameDraftFor = (division) => renameDrafts[division.id] ?? division.name ?? '';
+
+  const setRenameDraft = (divisionId, value) =>
+    setRenameDrafts((drafts) => ({ ...drafts, [divisionId]: value }));
+
+  const clearRenameDraft = (divisionId) =>
+    setRenameDrafts((drafts) => {
+      const rest = { ...drafts };
+      delete rest[divisionId];
+      return rest;
+    });
+
   const handleDivisionRename = async (divisionId, newName) => {
     if (onDivisionRename) {
       await onDivisionRename(divisionId, newName);
     }
-    setNewDivisionName('');
+    clearRenameDraft(divisionId);
+  };
+
+  const handleDivisionDelete = async (divisionId) => {
+    if (onDivisionDelete) {
+      await onDivisionDelete(divisionId);
+    }
+    clearRenameDraft(divisionId);
   };
 
   const handleTeamMove = async (teamId, newDivisionId) => {
@@ -471,8 +510,31 @@ const DrawerStandingsTable = ({
       className: 'px-3 py-2 font-medium',
       cell: (team) => (
         <div className="min-w-0">
-          <div className="truncate font-medium">
-            {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-medium">
+              {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+            </span>
+            {/* The seed is the number that decides who plays whom, so it reads
+                as a number rather than as another badge. Only 2026+ rows carry
+                one; before that a division place was the whole story. */}
+            {team.playoffSeed != null && (
+              <span
+                className="shrink-0 rounded bg-primary/15 px-1.5 font-display text-[11px] font-semibold leading-5 text-primary"
+                title={`Playoff seed ${team.playoffSeed}`}
+              >
+                {team.playoffSeed}
+              </span>
+            )}
+            {team.isBye && (
+              <Badge variant="success" className="shrink-0 px-1.5" title="First-round bye">
+                Bye
+              </Badge>
+            )}
+            {team.isWildcard && (
+              <Badge variant="outline" className="shrink-0 px-1.5" title="Wildcard">
+                WC
+              </Badge>
+            )}
           </div>
           {/* The owner is its own column at sm:+; on a card it belongs under
               the team name rather than in the stats grid. */}
@@ -648,9 +710,7 @@ const DrawerStandingsTable = ({
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0"
-                      onClick={() => {
-                        setNewDivisionName(division.name);
-                      }}
+                      aria-label={`Rename ${division.name}`}
                     >
                       <Edit2 className="h-3 w-3" />
                     </Button>
@@ -663,23 +723,59 @@ const DrawerStandingsTable = ({
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="py-4">
-                      <Label htmlFor="division-name">Division Name</Label>
+                      <Label htmlFor={`division-name-${division.id}`}>Division Name</Label>
                       <Input
-                        id="division-name"
-                        value={newDivisionName}
-                        onChange={(e) => setNewDivisionName(e.target.value)}
+                        id={`division-name-${division.id}`}
+                        value={renameDraftFor(division)}
+                        onChange={(e) => setRenameDraft(division.id, e.target.value)}
                         placeholder="Enter division name"
                       />
                     </div>
                     <AlertDialogFooter>
-                      <AlertDialogCancel onClick={() => setNewDivisionName('')}>
+                      <AlertDialogCancel onClick={() => clearRenameDraft(division.id)}>
                         Cancel
                       </AlertDialogCancel>
                       <AlertDialogAction
-                        onClick={() => handleDivisionRename(division.id, newDivisionName)}
-                        disabled={!newDivisionName.trim()}
+                        onClick={() => handleDivisionRename(division.id, renameDraftFor(division).trim())}
+                        disabled={!renameDraftFor(division).trim()}
                       >
                         Save
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+
+              {isManaging && onDivisionDelete && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                      aria-label={`Delete ${division.name}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Delete {getMaskedDivisionName(division, divisionIndex, user, isAdmin, teamOwnerNames)}?
+                      </AlertDialogTitle>
+                      {/* `teams.division_id` is ON DELETE SET NULL, so its
+                          members are not deleted — they land in Unassigned and
+                          have to be moved somewhere by hand. */}
+                      <AlertDialogDescription>
+                        {division.teams.length > 0
+                          ? `Its ${division.teams.length} team${division.teams.length === 1 ? '' : 's'} will become unassigned until you move them to another division.`
+                          : 'This division has no teams.'}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => handleDivisionDelete(division.id)}>
+                        Delete
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -698,9 +794,7 @@ const DrawerStandingsTable = ({
                   })}
                   data={division.teams}
                   rowClassName={(team) =>
-                    `text-sm transition-all duration-200 hover:bg-muted/50 ${
-                      team.isPlayoffSpot ? 'bg-green-50 dark:bg-green-900/20' : ''
-                    }`
+                    `text-sm transition-all duration-200 hover:bg-muted/50 ${qualifierTint(team)}`
                   }
                 />
               </div>

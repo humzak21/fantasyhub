@@ -165,7 +165,8 @@ export class PowerRankingCalculator {
     viewingWeek = null,
     divisions = [],
     regularSeasonWeeks = 14,
-    playerWeekStats = null
+    playerWeekStats = null,
+    seasonYear = null
   ) {
     this.teams = Array.isArray(teams) ? teams : [];
     this.games = Array.isArray(games) ? games : [];
@@ -177,6 +178,10 @@ export class PowerRankingCalculator {
 
     this.divisions = Array.isArray(divisions) ? divisions : [];
     this.regularSeasonWeeks = regularSeasonWeeks;
+    // Which playoff rule this season is under. Ninth argument and optional:
+    // without it the odds calculator uses the pre-2026 top-3-per-division
+    // model, which is right for every season it was written for.
+    this.seasonYear = seasonYear;
 
     this.playerWeekStats =
       playerWeekStats && typeof playerWeekStats === 'object' ? playerWeekStats : null;
@@ -926,7 +931,8 @@ export class PowerRankingCalculator {
       this.games,
       this.divisions,
       this.currentWeek,
-      this.regularSeasonWeeks
+      this.regularSeasonWeeks,
+      this.seasonYear
     );
 
     return playoffCalculator.calculateAllPlayoffOdds();
