@@ -22,6 +22,7 @@ import { qk } from './keys.js';
 const db = () => getDb();
 
 const EMPTY_BOARD = { takes: [], displayNames: {} };
+const EMPTY_ACTIVITY = { events: [], displayNames: {} };
 
 export function useTakesBoard(seasonId) {
   const query = useQuery({
@@ -31,6 +32,27 @@ export function useTakesBoard(seasonId) {
   });
 
   return { ...query, board: query.data ?? EMPTY_BOARD };
+}
+
+/**
+ * One take's activity log — the exception to "a take is never fetched on its
+ * own", and for a specific reason: the log appears nowhere but the open detail
+ * sheet, so `enabled` defers it until there is a reader. Passing `takeId` as
+ * null while the sheet is shut is the normal state, not a missing argument.
+ *
+ * Its key lives under `['takes', seasonId, …]`, so the shared `invalidate()`
+ * below reaches it: a Hell Nah changes both the board and the log of the take
+ * it landed on, and refreshing one without the other would leave the sheet
+ * showing a fade with no matching entry beneath it.
+ */
+export function useTakeActivity(seasonId, takeId) {
+  const query = useQuery({
+    queryKey: qk.takes.activity(seasonId, takeId),
+    queryFn: async () => (await db().takes.getTakeActivity(takeId)) ?? EMPTY_ACTIVITY,
+    enabled: Boolean(seasonId && takeId)
+  });
+
+  return { ...query, activity: query.data ?? EMPTY_ACTIVITY };
 }
 
 /**

@@ -289,3 +289,47 @@ export async function reopenTake(ctx, takeId) {
     throwDbError(error, 'Reopen take');
   }
 }
+
+/**
+ * Everything that has happened to one take, newest first.
+ *
+ * Its own request rather than an embed on `getTakesForSeason`. The board is
+ * read on every visit to the tab and the log only when somebody opens a take,
+ * so embedding it would make every reader pay for the history of takes they
+ * never looked at — and unlike the fades, which are a number the card shows,
+ * the log has no presence anywhere but the sheet.
+ *
+ * `(created_at DESC, seq DESC)` and not `created_at` alone: `now()` is
+ * transaction time, so an edit that also graded the take stamps both events
+ * identically. `seq` is the identity column that breaks that tie in write
+ * order; the ids are random uuids and order nothing.
+ *
+ * Names arrive with it for the same reason they do on the board — an actor
+ * column reading "User 4f2a1b03" is not a log anybody can use.
+ */
+export async function getTakeActivity(ctx, takeId) {
+  try {
+    if (!takeId) throw new Error('A take id is required');
+
+    const { data, error } = await ctx.client
+      .from('take_events')
+      .select('*')
+      .eq('take_id', takeId)
+      .order('created_at', { ascending: false })
+      .order('seq', { ascending: false });
+
+    if (error) throw error;
+
+    const events = formatFromDatabase(data || []);
+
+    const userIds = [
+      ...new Set(events.flatMap((event) => [event.actorId, event.subjectId]))
+    ].filter(Boolean);
+
+    const displayNames = await getUserDisplayNames(ctx, userIds);
+
+    return { events, displayNames };
+  } catch (error) {
+    throwDbError(error, 'Get take activity');
+  }
+}

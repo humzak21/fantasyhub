@@ -75,7 +75,7 @@ export {
 
 export { useAwardsUnlockStatus, useAwards, useAwardsMutations } from './useAwards.js';
 
-export { useTakesBoard, useTakesMutations } from './useTakes.js';
+export { useTakesBoard, useTakeActivity, useTakesMutations } from './useTakes.js';
 
 export {
   useHistoryTimeline,

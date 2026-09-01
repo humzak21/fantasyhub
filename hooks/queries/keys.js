@@ -155,12 +155,15 @@ export const qk = {
    * keyed `['pickems', 'userPicks', …]` and so is missed by exactly that
    * prefix.
    *
-   * There is no per-take key: the detail sheet reads its take out of the board
-   * entry by id rather than fetching it again.
+   * The detail sheet reads its *take* out of the board entry by id rather than
+   * fetching it again — but its activity log is keyed per take, because that is
+   * the one part of a take nothing else on the page displays and so the one
+   * part worth deferring until somebody opens it.
    */
   takes: {
     ...scope('takes'),
-    board: (seasonId) => ['takes', seasonId, 'board']
+    board: (seasonId) => ['takes', seasonId, 'board'],
+    activity: (seasonId, takeId) => ['takes', seasonId, 'activity', takeId]
   },
 
   /**
