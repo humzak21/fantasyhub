@@ -260,6 +260,51 @@ const PowerRankingsTable = ({
           </span>
         ),
       },
+      {
+        key: 'byes',
+        header: 'Byes',
+        cardLabel: 'Starters on bye',
+        priority: 'detail',
+        className: 'text-center',
+        headerClassName: 'text-center',
+        // Zero and null are different facts and render differently: a muted 0
+        // is "we looked, nobody is off"; the em dash is "we could not look" —
+        // a historical view, or a season with no NFL calendar.
+        cell: (team) => {
+          const byes = team.powerRatingComponents?.byeExposure;
+          if (byes === null || byes === undefined) {
+            return <span className="text-muted-foreground">—</span>;
+          }
+          if (byes === 0) return <span className="tabular text-muted-foreground">0</span>;
+          return <Badge variant={byes >= 3 ? 'destructive' : 'warning'}>{byes}</Badge>;
+        },
+      },
+      {
+        key: 'nextMatchup',
+        header: 'Next',
+        cardLabel: 'Next matchup',
+        priority: 'detail',
+        className: 'text-right',
+        headerClassName: 'text-right',
+        cell: (team) => {
+          const opponentId = team.powerRatingComponents?.nextOpponentTeamId ?? null;
+          const opponent = opponentId != null
+            ? rankings.find((r) => (r.teamId ?? r.id) === opponentId)
+            : null;
+          if (!opponent) return <span className="text-muted-foreground">—</span>;
+
+          return (
+            <span className="whitespace-nowrap text-sm">
+              {getMaskedTeamName(opponent, user, isAdmin, teamOwnerNames)}
+              <span className="text-muted-foreground"> · </span>
+              <NumberText
+                value={team.powerRatingComponents?.nextOpponentProjected}
+                className="text-muted-foreground"
+              />
+            </span>
+          );
+        },
+      },
     ] : []),
     ...(onEditTeam ? [
       {
@@ -303,6 +348,8 @@ const PowerRankingsTable = ({
                     ['Playoff odds', 'Probability of making the six-team playoff field'],
                     ['Form', 'Direction over the last four weeks'],
                     ['QW / BL', 'Quality wins and bad losses'],
+                    ['Byes', 'Current starters whose NFL team is off this week — a dash means it could not be checked'],
+                    ['Next', 'This week’s opponent and their projected starter total'],
                   ].map(([term, definition]) => (
                     <div key={term} className="flex gap-2">
                       <dt className="w-28 shrink-0 font-medium">{term}</dt>
@@ -328,7 +375,8 @@ const PowerRankingsTable = ({
                     Components are each scaled 0–100 across the league, then weighted. A
                     component with no data for the week shown — roster figures before the
                     2026 season, or any component in week 1 — is dropped and the remaining
-                    weights are rescaled, rather than being counted as a zero.
+                    weights are rescaled, rather than being counted as a zero. NFL Schedule
+                    also drops on historical views and on seasons without FPI data.
                   </div>
                 </div>
               </div>

@@ -13,6 +13,8 @@ import { throwDbError } from './errors.js';
 import { createLogger } from './logger.js';
 import { getDivisionsForSeason } from './divisions.js';
 import { getCurrentWeek, getSeasonGames, toUiGame } from './games.js';
+import { getNflScheduleForSeason } from './nflSchedule.js';
+import { getLatestNflTeamRatings } from './nflTeamRatings.js';
 import { getAllPlayers } from './players.js';
 import { getPlayerWeekStats } from './playerWeekStats.js';
 import { getAllRosters } from './rosters.js';
@@ -45,6 +47,37 @@ function legacyColumnsToComponents(row) {
     legacy: true
   };
 }
+/**
+ * The real-NFL context for the calculator's `nflSos` component: the calendar
+ * plus the latest FPI snapshot, or null when the component cannot apply.
+ *
+ * Null on a historical view before anything is fetched — the component is
+ * live-view-only, so paging back through a season stays as cheap as it is
+ * today. Null, with a warning, on any failure: the ranking must never break
+ * because an optional data source did, so a failure here costs the component,
+ * not the page. Null when either half is empty — a schedule with no ratings
+ * (or vice versa) cannot score anything.
+ *
+ * @returns {Promise<{ scheduleRows: Array, teamRatings: Object }|null>}
+ */
+async function loadNflData(ctx, seasonYear, isLiveView) {
+  if (!isLiveView || !seasonYear) return null;
+
+  try {
+    const [scheduleRows, ratings] = await Promise.all([
+      getNflScheduleForSeason(ctx, seasonYear),
+      getLatestNflTeamRatings(ctx, seasonYear)
+    ]);
+
+    if (!scheduleRows?.length || !ratings?.week) return null;
+
+    return { scheduleRows, teamRatings: ratings.byProTeamId };
+  } catch (error) {
+    log.warn(`NFL data unavailable for ${seasonYear}, ranking without nflSos:`, error?.message ?? error);
+    return null;
+  }
+}
+
 // Power rankings - always calculate live for accuracy
 export async function calculatePowerRankings(ctx, seasonId, weekNumber = null) {
 
@@ -132,6 +165,11 @@ export async function calculateLivePowerRankings(ctx, seasonId, weekNumber = nul
       throughWeek: currentWeek
     });
 
+    // This path is always the live view — it is what the snapshot writes — so
+    // the NFL context loads unconditionally. The snapshot then carries nflSos
+    // and the diagnostics into `components` jsonb with no schema change.
+    const nflData = await loadNflData(ctx, season.year, true);
+
     // Attach roster data to teams with division IDs
     const teamsWithRosters = teams.map(team => ({
       ...team,
@@ -160,7 +198,8 @@ export async function calculateLivePowerRankings(ctx, seasonId, weekNumber = nul
       regularSeasonWeeks,
       playerWeekStats,
       // Which playoff rule applies. 2026 changed how the six spots are earned.
-      season.year
+      season.year,
+      nflData
     );
 
     // Calculate all team stats with power rankings
@@ -463,6 +502,12 @@ export async function calculateRankingsForViewedWeek(ctx, seasonId, { week, view
 
     const regularSeasonWeeks = seasonRow.data?.regular_season_weeks || 14;
 
+    // Live view only, mirroring the calculator's own gate, so historical
+    // paging stays as cheap as it is today — `loadNflData` returns null
+    // without a query when the view is a past week.
+    const isLiveView = effectiveViewingWeek >= currentWeek;
+    const nflData = await loadNflData(ctx, seasonRow.data?.year ?? null, isLiveView);
+
     const teamsWithRosters = teams.map((team) => ({
       ...team,
       roster: rostersByTeam?.[team.id]?.roster || []
@@ -484,7 +529,8 @@ export async function calculateRankingsForViewedWeek(ctx, seasonId, { week, view
       playerWeekStats,
       // Which playoff rule applies. 2026 changed how the six spots are earned;
       // a 2025 view must keep the odds it had.
-      seasonRow.data?.year ?? null
+      seasonRow.data?.year ?? null,
+      nflData
     );
 
     return await calculator.getRankings(previousRankings);

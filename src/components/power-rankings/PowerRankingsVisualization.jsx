@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   TrendingUp, Target, Zap, Shield, Award, BarChart3, ChevronDown, Info,
-  Trophy, Users, Flame, Gauge, Telescope
+  Trophy, Users, Flame, Gauge, Telescope, Swords
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -44,7 +44,8 @@ const COMPONENT_ICONS = {
   rosterStrength: Zap,
   lineupEfficiency: Gauge,
   futureStrength: Telescope,
-  leagueSos: Target
+  leagueSos: Target,
+  nflSos: Swords
 };
 
 const componentValue = (team, key) => {
