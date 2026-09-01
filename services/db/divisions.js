@@ -8,7 +8,7 @@
 
 import * as models from '../../types/index.js';
 import { formatForDatabase, formatFromDatabase } from './caseMap.js';
-import { throwDbError } from './errors.js';
+import { DbError, DbErrorKind, throwDbError } from './errors.js';
 export async function getDivisions(ctx, seasonId) {
 
   try {
@@ -215,13 +215,52 @@ export async function deleteDivision(ctx, divisionId) {
   }
 }
 
+/**
+ * Put a team in a division.
+ *
+ * A team row belongs to one season and a division row belongs to one season,
+ * so the write is season-scoped by construction — but the FK on
+ * `teams.division_id` only says the division exists, not that it is the same
+ * season's. Pointing 2024's team at 2026's division would pass the FK and
+ * then vanish from both years' standings, because `get_standings_by_division`
+ * joins on the season. So the pair is checked here before anything is written,
+ * and the update is filtered on the team's own `season_id` as well as its id.
+ *
+ * `divisionId` may be null: that is "unassigned", which every season allows.
+ */
 export async function assignTeamToDivision(ctx, teamId, divisionId) {
 
   try {
+    const { data: team, error: teamError } = await ctx.client
+      .from('teams')
+      .select('season_id')
+      .eq('id', teamId)
+      .single();
+
+    if (teamError) throw teamError;
+
+    if (divisionId != null) {
+      const { data: division, error: divisionError } = await ctx.client
+        .from('divisions')
+        .select('season_id')
+        .eq('id', divisionId)
+        .single();
+
+      if (divisionError) throw divisionError;
+
+      if (division?.season_id !== team?.season_id) {
+        throw new DbError('Division belongs to a different season than the team', {
+          kind: DbErrorKind.FOREIGN_KEY,
+          details: { teamId, divisionId, teamSeasonId: team?.season_id, divisionSeasonId: division?.season_id }
+        });
+      }
+    }
+
     const { data, error } = await ctx.client
       .from('teams')
       .update({ division_id: divisionId })
       .eq('id', teamId)
+      .eq('season_id', team.season_id)
       .select('season_id')
       .single();
 
