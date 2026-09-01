@@ -71,3 +71,36 @@ export function useWeekPlayerStats(seasonId, week, { enabled = true } = {}) {
     staleTime: 10 * 60_000
   });
 }
+
+/**
+ * The current starting lineups for a week, grouped `{ [teamId]: rows }`.
+ *
+ * What `useWeekPlayerStats` should have been for a present-tense question.
+ * That hook reads `player_week_stats`, which the cron writes once a week, so
+ * anything asking "who is starting *this* week" got an answer that was up to
+ * seven days old — and, before a season starts, months old. This reads the
+ * live `rosters` snapshot and layers the week's points onto it; see
+ * `services/db/rosters.js::getCurrentLineupsForWeek` for the ordering.
+ *
+ * `useWeekPlayerStats` is still the right hook for a week that is over, where
+ * the question is who actually started and the current roster would be an
+ * anachronism.
+ *
+ * The `staleTime` is short on purpose. The rows behind it change whenever a
+ * manager touches their lineup, which during a pick'ems window is constantly,
+ * and the panel that reads it is opened to make a decision.
+ */
+export function useCurrentLineups(seasonId, week, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: qk.rosters.lineupsForWeek(seasonId, week),
+    queryFn: () => db().rosters.getCurrentLineupsForWeek(seasonId, week),
+    enabled: Boolean(seasonId) && Boolean(week) && enabled,
+    select: (rows) => {
+      const byTeam = {};
+      for (const row of rows ?? []) (byTeam[row.teamId] ??= []).push(row);
+      return byTeam;
+    },
+    staleTime: 60_000,
+    refetchOnWindowFocus: true
+  });
+}
