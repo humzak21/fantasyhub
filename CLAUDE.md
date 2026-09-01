@@ -263,6 +263,46 @@ from signed out — gating on the flag alone bounces a member's bookmarked
 `/takes` on every cold load. `ViewerContext` exposes it for the same reason it
 exposes `isParlayCommissionerLoading`.
 
+**Every act on a take is logged by the database.** `take_events` is
+append-only and written *only* by `log_take_event()` (INSERT/UPDATE on `takes`)
+and `log_take_participant_event()` (INSERT/DELETE on `take_participants`).
+There is no INSERT/UPDATE/DELETE policy on the table and the `anon` /
+`authenticated` grants stop at SELECT — the triggers are SECURITY DEFINER owned
+by `postgres`, so they write and nobody else does. That is what makes the log
+the database's account rather than the client's: a hand-rolled POST straight to
+`/rest/v1/takes` is logged exactly like an edit made in the app, and no caller
+can forget to log or choose what to log.
+
+- **One act, one row.** A statement that rewords *and* grades a take emits both
+  an `edited` and a `graded`. Within `edited`, every field that moved arrives in
+  one `changes` object, because one save is one act.
+- **`changes` records `from` as well as `to`.** Old values exist only inside the
+  trigger. "Edited" is not information; "the stake went from $20 to $50" is the
+  whole point, and it is the reason `edited_at` alone was not enough.
+- **`seq` is the sort's tiebreaker, not decoration.** `now()` is transaction
+  time, so two events from one statement carry identical `created_at`, and the
+  ids are random uuids. Sort `(created_at DESC, seq DESC)` — `getTakeActivity`
+  and `sortEventsNewestFirst` both do.
+- **The `edited` / `graded` timestamps are read from the row only when they
+  moved.** `set_take_edited_at()` watches the body and the wager, so a
+  milestone-only change leaves `edited_at` stale; reading it blindly would date
+  the new event to the previous reword.
+- **Backfilled rows carry `{"backfilled": true}` and no diff.** They predate the
+  log and their old values were never recorded; rendering the take's *current*
+  wording as what was "posted" would be a fabrication the reader cannot detect.
+  `describeTakeEvent` shows a note instead.
+- The participant trigger **skips the `unfaded` row when the parent take is
+  already gone** — that is the cascade from deleting a take, not a withdrawal,
+  and inserting it would violate the FK and make deleting a faded take
+  impossible.
+- The log is fetched per take (`qk.takes.activity`), not embedded on the board:
+  it appears nowhere but the open detail sheet. Its key sits under
+  `['takes', seasonId, …]` so the mutations' shared `invalidate()` reaches it.
+
+**Times are `hour: 'numeric'`, never `'2-digit'`.** The latter renders 8:42 PM
+as "08:42 PM", which is not a clock face anybody writes. `formatDateTime` in
+`src/lib/utils.js` is the single definition; minutes stay 2-digit.
+
 **The `take_participants` write policies subquery `takes`,** and an RLS
 subquery runs as the calling user — so restricting who may SELECT `takes` can
 silently break the +1. It does not here (both are `authenticated`), and there

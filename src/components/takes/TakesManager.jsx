@@ -11,6 +11,7 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
   useActualWeek,
   useSeasonConfig,
+  useTakeActivity,
   useTakesBoard,
   useTakesMutations
 } from '../../../hooks/queries/index.js';
@@ -76,6 +77,12 @@ export function TakesManager({ season, loading }) {
     () => takes.find((take) => take.id === editingId) ?? null,
     [takes, editingId]
   );
+
+  // Deferred until a take is open — the log appears nowhere else, and `enabled`
+  // inside the hook makes a null id the resting state rather than a bug. It
+  // lives here rather than in the sheet so the sheet stays presentational,
+  // matching how the take itself is passed down.
+  const { activity, isLoading: activityLoading } = useTakeActivity(seasonId, selectedId);
 
   const {
     createTake,
@@ -210,6 +217,8 @@ export function TakesManager({ season, loading }) {
         take={selectedTake}
         displayNames={displayNames}
         seasonConfig={seasonConfig}
+        activity={activity}
+        activityLoading={activityLoading}
         open={Boolean(selectedTake)}
         onOpenChange={(open) => {
           if (!open) setSelectedId(null);
