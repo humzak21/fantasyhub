@@ -45,6 +45,10 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
   ESPN's public `proTeamSchedules_wl`. `[year]`, `--backfill` for 2020 onward,
   `--dry-run`. The weekly sync re-runs it for the active season, so this is for
   a first import or a repair.
+- `npm run sync-nfl-ratings` - Snapshot ESPN's Football Power Index into
+  `nfl_team_ratings` for the current week. `[week]`, `--dry-run`. No
+  `--backfill` — ESPN serves current FPI only, which is why the weekly
+  snapshots exist. The weekly sync runs it as its `nflRatings` step.
 
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
@@ -159,15 +163,17 @@ season row supplies the season, week, playoff boundary and ESPN league. Every
 step is an idempotent upsert against ESPN, so re-running a failed sync is the
 fix. Each run writes a `sync_runs` row.
 
-Its steps are rosters → scores → playerStats → nflSchedule → transactions →
-snapshot. Scores and playerStats read **one** ESPN fetch between them, so do
-not re-fetch inside a step. The nflSchedule step fetches separately and needs
-no cookies. playerStats, nflSchedule and transactions are non-fatal: a failure
-is recorded in `sync_runs.steps` and the run continues, because losing the
-week's snapshot to a player-data hiccup costs more than the missing rows.
+Its steps are rosters → scores → playerStats → nflSchedule → nflRatings →
+transactions → snapshot. Scores and playerStats read **one** ESPN fetch
+between them, so do not re-fetch inside a step. The nflSchedule and nflRatings
+steps fetch separately and need no cookies; nflRatings runs before snapshot on
+purpose, so the week's snapshot ranks on fresh FPI. playerStats, nflSchedule,
+nflRatings and transactions are non-fatal: a failure is recorded in
+`sync_runs.steps` and the run continues, because losing the week's snapshot to
+a player-data hiccup costs more than the missing rows.
 Skip flags:
 `--skip-rosters --skip-scores --skip-player-stats --skip-nfl-schedule
---skip-transactions --skip-snapshot`, plus `--dry-run`.
+--skip-nfl-ratings --skip-transactions --skip-snapshot`, plus `--dry-run`.
 
 `reasonToSkip` reports; it does not decide. **`--force` proceeds past a
 returned reason** and logs it — for the days before week 1 when ESPN already
@@ -199,7 +205,7 @@ were deleted on 2026-08-08; `espn_schedule_imports` remains as the import log.
 The browser cannot start an import — ESPN needs cookies only the scripts have.
 
 ### The power ranking is roster-aware
-`services/powerRankingCalculator.js` scores nine components, each normalized
+`services/powerRankingCalculator.js` scores ten components, each normalized
 0–100 **across the league**, combined with `POWER_RANKING_WEIGHTS`. Rules that
 are load-bearing:
 
@@ -216,11 +222,18 @@ are load-bearing:
   `player_week_stats`, which starts with the 2026 season. `futureStrength` is
   live-view only — nobody archived last month's projections, so producing one
   for a past week would be fabrication.
-- **Both schedule adjustments point the same way: tougher opponents score
-  higher.** That is the opponent multiplier inside `record` (past opponents) and
-  `leagueSos` (remaining opponents). They used to disagree, which made the same
-  schedule simultaneously an excuse and a penalty, and let an easy run-in
-  flatter a mid-table team. Do not invert one without inverting the other.
+- **All three schedule adjustments point the same way: tougher opponents score
+  higher.** That is the opponent multiplier inside `record` (past opponents),
+  `leagueSos` (remaining fantasy opponents) and `nflSos` (the starters'
+  remaining real-NFL opponents, by FPI). The first two used to disagree, which
+  made the same schedule simultaneously an excuse and a penalty, and let an
+  easy run-in flatter a mid-table team. Do not invert one without inverting
+  all three.
+- **`nflSos` reads `nfl_schedule` + `nfl_team_ratings`** and is live-view-only,
+  like `futureStrength`. A missing calendar row is *unknown* and a bye row is
+  skipped, never scored — a bye's output loss is already priced into ESPN's
+  projections, which is also why `byeExposure` rides along at zero weight as a
+  diagnostic instead of being a penalty.
 
 **`player_week_stats`** is one row per player per week: team, lineup slot,
 whether they started, actual and projected points. It is the grain neither
@@ -510,6 +523,19 @@ no cookies, unlike every other ESPN call here) through the pure
 - The weekly sync re-imports the **whole** active season, non-fatally. The NFL
   flexes late-season kickoffs, so a calendar imported once in September would
   have the wrong times by December.
+
+**`nfl_team_ratings` is the calendar's companion: how good each NFL team is.**
+ESPN's Football Power Index, snapshotted per fantasy week because ESPN serves
+current FPI only — the snapshots are what make past rankings reproducible.
+Keyed by `season_year` like `nfl_schedule`, and for the same reason. The FPI
+payload's team ids are ESPN's **NFL-side id space, not the fantasy
+`proTeamId`** — `services/espnFpiMapper.js` joins by abbreviation (`WSH`→`WAS`
+is the one live alias). Fed by `scripts/sync-nfl-ratings.js` /
+the weekly sync's `nflRatings` step through `services/espnFpiFetcher.js`
+(public, no cookies); written only by `services/db/nflTeamRatings.js`. The
+documented fallback if the endpoint disappears is nflverse's `nfldata`
+standings CSVs. The domain is `nflTeamRatings`; there is no query key — the
+rankings queryFn consumes it inside the db layer, like player stats.
 
 **`player_week_stats.stat_breakdown` is the single copy of the category data.**
 The sync has always downloaded ESPN's raw per-category stat map alongside the

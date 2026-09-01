@@ -896,6 +896,63 @@ export type Database = {
         }
         Relationships: []
       }
+      nfl_team_ratings: {
+        Row: {
+          created_at: string
+          epa_defense: number | null
+          epa_offense: number | null
+          epa_special_teams: number | null
+          fetched_at: string
+          fpi: number | null
+          fpi_rank: number | null
+          id: string
+          playoff_probability: number | null
+          pro_team_id: number
+          projected_losses: number | null
+          projected_wins: number | null
+          season_year: number
+          sos_remaining_rank: number | null
+          updated_at: string
+          week: number
+        }
+        Insert: {
+          created_at?: string
+          epa_defense?: number | null
+          epa_offense?: number | null
+          epa_special_teams?: number | null
+          fetched_at?: string
+          fpi?: number | null
+          fpi_rank?: number | null
+          id?: string
+          playoff_probability?: number | null
+          pro_team_id: number
+          projected_losses?: number | null
+          projected_wins?: number | null
+          season_year: number
+          sos_remaining_rank?: number | null
+          updated_at?: string
+          week: number
+        }
+        Update: {
+          created_at?: string
+          epa_defense?: number | null
+          epa_offense?: number | null
+          epa_special_teams?: number | null
+          fetched_at?: string
+          fpi?: number | null
+          fpi_rank?: number | null
+          id?: string
+          playoff_probability?: number | null
+          pro_team_id?: number
+          projected_losses?: number | null
+          projected_wins?: number | null
+          season_year?: number
+          sos_remaining_rank?: number | null
+          updated_at?: string
+          week?: number
+        }
+        Relationships: []
+      }
       pick_em_results: {
         Row: {
           actual_winner_team_id: string | null

@@ -1,7 +1,7 @@
 /**
  * The power ranking.
  *
- * Nine components, each normalized 0-100 across the league, combined with the
+ * Ten components, each normalized 0-100 across the league, combined with the
  * weights in `types/index.js`. A component that cannot be computed is null and
  * drops out, with the remaining weights renormalized — so a season with no
  * player data scores on its team components alone rather than taking zeros for
@@ -156,6 +156,8 @@ export class PowerRankingCalculator {
    * @param {Array}  divisions
    * @param {number} regularSeasonWeeks
    * @param {Object} playerWeekStats    `{ [teamId]: { [week]: rows } }`, or null
+   * @param {number} seasonYear
+   * @param {Object} nflData            `{ scheduleRows, teamRatings }`, or null
    */
   constructor(
     teams,
@@ -166,7 +168,8 @@ export class PowerRankingCalculator {
     divisions = [],
     regularSeasonWeeks = 14,
     playerWeekStats = null,
-    seasonYear = null
+    seasonYear = null,
+    nflData = null
   ) {
     this.teams = Array.isArray(teams) ? teams : [];
     this.games = Array.isArray(games) ? games : [];
@@ -185,6 +188,34 @@ export class PowerRankingCalculator {
 
     this.playerWeekStats =
       playerWeekStats && typeof playerWeekStats === 'object' ? playerWeekStats : null;
+
+    // The real-NFL context, tenth argument and optional. Seven- and nine-arg
+    // call sites keep working: without it `nflSos` and the bye diagnostic are
+    // null everywhere, which is the same degradation every roster component
+    // already promises. Both halves stay in the ids the rest of this system
+    // stores — the fantasy proTeamId space.
+    const scheduleRows = Array.isArray(nflData?.scheduleRows) ? nflData.scheduleRows : [];
+    this.nflTeamRatings =
+      nflData?.teamRatings && typeof nflData.teamRatings === 'object'
+        ? nflData.teamRatings
+        : null;
+
+    // proTeamId → week → row, so the per-starter loop is two map lookups. A
+    // missing entry stays distinguishable from a bye row: the bye is a row
+    // whose opponentProTeamId is null, per nfl_schedule's contract.
+    this.nflOpponentByTeamWeek = null;
+    if (scheduleRows.length > 0) {
+      this.nflOpponentByTeamWeek = new Map();
+      for (const row of scheduleRows) {
+        if (row?.proTeamId == null || row?.week == null) continue;
+        let byWeek = this.nflOpponentByTeamWeek.get(row.proTeamId);
+        if (!byWeek) {
+          byWeek = new Map();
+          this.nflOpponentByTeamWeek.set(row.proTeamId, byWeek);
+        }
+        byWeek.set(row.week, row);
+      }
+    }
 
     // Projections describe the future, and nobody archived last month's view of
     // it. They are honest for the live week and a fabrication for any earlier
@@ -506,6 +537,107 @@ export class PowerRankingCalculator {
     return { restOfSeason, nextWeek };
   }
 
+  /**
+   * How tough the current starters' remaining real-NFL opponents are.
+   *
+   * Over the same remaining-weeks window as `remainingOpponents` — starting at
+   * the viewing week, deliberately, even though that overlaps one week of
+   * `futureStrength`'s nextWeek horizon: window symmetry with `leagueSos`
+   * matters more than the small double-count, which the `futureStrength`
+   * weight trim accounts for. For each starter with a resolvable proTeamId,
+   * each remaining week contributes the opponent's *overall* FPI — overall
+   * rather than a unit split because it is the only single number signed
+   * correctly for every slot (a D/ST's "tough opponent" is a good offense).
+   *
+   * Each (starter, week) term is weighted by the starter's projected remaining
+   * output, so a hard December for the roster's star moves the number more
+   * than the same slate for a fringe flex.
+   *
+   * Three different absences, three different treatments, per nfl_schedule's
+   * contract: a missing row is *unknown* and contributes nothing; a bye row is
+   * a fact — the starter has no NFL opponent that week, and the output hole is
+   * already priced into ESPN's projections, so it is skipped, not scored; an
+   * opponent with no FPI stored is skipped like the missing row.
+   *
+   * Live view only, same rule and same reason as `rawFutureOutlook`: the
+   * remaining schedule of a past week was not archived from that week's
+   * vantage, and reconstructing it with today's FPI would be fabrication.
+   */
+  rawNflSos(teamId) {
+    if (!this.isLiveView) return null;
+    if (!this.nflOpponentByTeamWeek || !this.nflTeamRatings) return null;
+
+    const starters = this.currentStarters(teamId);
+    if (starters.length === 0) return null;
+
+    let weightedSum = 0;
+    let weightTotal = 0;
+
+    for (const entry of starters) {
+      const player = this.resolvePlayerForRosterEntry(entry);
+      const proTeamId = player?.proTeamId ?? player?.pro_team_id ?? null;
+      if (proTeamId == null) continue;
+
+      const seasonProjected = toNumber(
+        player.seasonProjectedPoints ?? player.season_projected_points
+      );
+      const seasonActual = toNumber(player.seasonActualPoints ?? player.season_actual_points);
+      const weekProjected = toNumber(player.projectedPoints ?? player.projected_points);
+      const weight =
+        Math.max(0, seasonProjected - seasonActual) || weekProjected || 1;
+
+      const byWeek = this.nflOpponentByTeamWeek.get(proTeamId);
+      if (!byWeek) continue;
+
+      for (let week = this.viewingWeek; week <= this.regularSeasonWeeks; week += 1) {
+        const row = byWeek.get(week);
+        if (!row) continue; // unknown, not a bye
+        if (row.opponentProTeamId == null) continue; // a bye is not an opponent
+
+        const opponentFpi = this.nflTeamRatings[row.opponentProTeamId]?.fpi;
+        if (!isUsable(opponentFpi)) continue;
+
+        weightedSum += weight * opponentFpi;
+        weightTotal += weight;
+      }
+    }
+
+    return weightTotal > 0 ? weightedSum / weightTotal : null;
+  }
+
+  /**
+   * How many current starters have an explicit bye row in the viewing week.
+   *
+   * Diagnostic only — it carries no weight, because ESPN's projections
+   * already zero a bye week out and weighting it would double-count. The 0/null
+   * distinction is the point: 0 means "we looked, nobody is on a bye"; null
+   * means "we could not look" (historical view, no calendar, no resolvable
+   * starters). Only an explicit bye row counts — a missing row is a coverage
+   * gap, and inferring a bye from a gap is the exact failure the calendar's
+   * design exists to prevent.
+   */
+  rawByeExposure(teamId) {
+    if (!this.isLiveView || !this.nflOpponentByTeamWeek) return null;
+
+    const starters = this.currentStarters(teamId);
+    if (starters.length === 0) return null;
+
+    let resolved = 0;
+    let onBye = 0;
+
+    for (const entry of starters) {
+      const player = this.resolvePlayerForRosterEntry(entry);
+      const proTeamId = player?.proTeamId ?? player?.pro_team_id ?? null;
+      if (proTeamId == null) continue;
+
+      resolved += 1;
+      const row = this.nflOpponentByTeamWeek.get(proTeamId)?.get(this.viewingWeek);
+      if (row && row.opponentProTeamId == null) onBye += 1;
+    }
+
+    return resolved > 0 ? onBye : null;
+  }
+
   /** Remaining regular-season opponents from the viewing week onward. */
   remainingOpponents(teamId) {
     return this.games
@@ -529,8 +661,9 @@ export class PowerRankingCalculator {
    *
    * `leagueSos` needs two passes: it scores a team by the quality of the
    * opponents it has left, and opponent quality is itself a power rating. Pass
-   * one rates everyone on the eight components that need no opponent; pass two
-   * uses those ratings.
+   * one rates everyone on the nine components that need no fantasy opponent —
+   * `nflSos` among them, since its opponents are NFL teams; pass two uses
+   * those ratings.
    */
   calculateAllComponents() {
     const teamIds = this.teams.map((team) => team.id);
@@ -542,7 +675,8 @@ export class PowerRankingCalculator {
       recentForm: {},
       consistency: {},
       rosterStrength: {},
-      lineupEfficiency: {}
+      lineupEfficiency: {},
+      nflSos: {}
     };
     const futureRestOfSeason = {};
     const futureNextWeek = {};
@@ -557,10 +691,39 @@ export class PowerRankingCalculator {
       raw.consistency[teamId] = this.calculateConsistencyScore(teamId) * 100;
       raw.rosterStrength[teamId] = this.rawRosterStrength(teamId);
       raw.lineupEfficiency[teamId] = this.rawLineupEfficiency(teamId);
+      raw.nflSos[teamId] = this.rawNflSos(teamId);
 
       const outlook = this.rawFutureOutlook(teamId);
       futureRestOfSeason[teamId] = outlook ? outlook.restOfSeason : null;
       futureNextWeek[teamId] = outlook ? outlook.nextWeek : null;
+    }
+
+    // The viewing week's fantasy matchup, as a diagnostic pair beside
+    // `luckPercentage`: who this team plays next, and that opponent's *raw*
+    // projected starter total — raw rather than normalized, because "their
+    // starters project 118.4" is a number a reader can check against ESPN,
+    // where the 0-100 rescale is not. Live view only, same rule as the outlook
+    // the projection comes from.
+    this.nextMatchupByTeam = {};
+    if (this.isLiveView) {
+      for (const teamId of teamIds) {
+        const nextGame = this.games.find(
+          (game) =>
+            game.week === this.viewingWeek &&
+            (game.team1Id === teamId || game.team2Id === teamId) &&
+            game.team1Id != null &&
+            game.team2Id != null
+        );
+        if (!nextGame) continue;
+
+        const opponentId = nextGame.team1Id === teamId ? nextGame.team2Id : nextGame.team1Id;
+        this.nextMatchupByTeam[teamId] = {
+          opponentTeamId: opponentId,
+          opponentProjected: isUsable(futureNextWeek[opponentId])
+            ? futureNextWeek[opponentId]
+            : null
+        };
+      }
     }
 
     const normalized = {};
@@ -584,6 +747,9 @@ export class PowerRankingCalculator {
         futureStrength: isUsable(restOfSeason[teamId])
           ? 0.6 * restOfSeason[teamId] + 0.4 * toNumber(nextWeek[teamId])
           : null,
+        // Normalized with the others, so pass one's base rating includes it —
+        // deliberately: a team's NFL run-in informs its quality as an opponent.
+        nflSos: normalized.nflSos[teamId],
         leagueSos: null
       };
     }
@@ -624,19 +790,26 @@ export class PowerRankingCalculator {
   /**
    * The rating and the components behind it.
    *
-   * `luckPercentage` and `allPlayWinPct` ride along unweighted: the table shows
-   * both, and neither belongs in the score.
+   * `luckPercentage`, `allPlayWinPct`, `byeExposure` and the next-matchup pair
+   * ride along unweighted: the table shows them, and none belongs in the
+   * score. `byeExposure` in particular must stay at zero weight — ESPN's
+   * projections already zero out a bye week, so weighting it would count the
+   * same absence twice.
    */
   calculatePowerRating(teamId) {
     const components = this.componentsByTeam[teamId] ?? {};
     const powerRating = combineWeightedComponents(components);
+    const nextMatchup = this.nextMatchupByTeam?.[teamId] ?? null;
 
     return {
       powerRating: Math.max(0, Math.min(100, powerRating)),
       components: {
         ...components,
         allPlayWinPct: this.calculateAllPlayWinPercentage(teamId) * 100,
-        luckPercentage: this.calculateLuckPercentage(teamId)
+        luckPercentage: this.calculateLuckPercentage(teamId),
+        byeExposure: this.rawByeExposure(teamId),
+        nextOpponentTeamId: nextMatchup?.opponentTeamId ?? null,
+        nextOpponentProjected: nextMatchup?.opponentProjected ?? null
       }
     };
   }
