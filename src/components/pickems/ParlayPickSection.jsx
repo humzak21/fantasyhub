@@ -12,12 +12,14 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { useDebouncedValue } from '../../hooks/use-debounced-value.js';
 import {
   useMyParlayPick,
+  useNflOpponentMap,
   useParlayWeekPicks,
   usePlayerSearch,
   useSubmitParlayPick
 } from '../../../hooks/queries/index.js';
 import { getMaskedUserName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
+import { formatOpponent } from '../../../utils/nflOpponent.js';
 
 /**
  * The weekly TD parlay, at the foot of the pick'ems form.
@@ -34,7 +36,7 @@ import { getPositionColor } from '../../utils/positionColors';
  *   - the canonical player name on a matched pick.
  * So the UI here can be naive about all three, and a bug in it leaks nothing.
  */
-const ParlayPickSection = ({ pickEmWeek, status, weekNumber }) => {
+const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }) => {
   const { user, isAuthenticated, isAdmin, isParlayCommissioner, teamOwnerNames } = useViewer();
 
   const isOpen = status?.status === 'open';
@@ -48,6 +50,11 @@ const ParlayPickSection = ({ pickEmWeek, status, weekNumber }) => {
   const { data: leaguePicks = [] } = useParlayWeekPicks(pickEmWeek?.id, {
     enabled: Boolean(pickEmWeek?.id) && (isRevealed || isAdmin || isParlayCommissioner)
   });
+
+  // Who each NFL team plays this week, for the "vs BUF" / "@ KC" / "BYE" chips
+  // on the current pick and on every autocomplete row. One fetch for the whole
+  // season, shared by both — see `hooks/queries/useNflSchedule.js`.
+  const { data: opponents = {} } = useNflOpponentMap(seasonYear, weekNumber);
 
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState(null);
@@ -116,6 +123,7 @@ const ParlayPickSection = ({ pickEmWeek, status, weekNumber }) => {
         {isAuthenticated && !myPickLoading && myPick && !isEditing && (
           <CurrentPick
             pick={myPick}
+            opponent={opponents[myPick.player?.proTeamId]}
             canEdit={isOpen}
             onEdit={() => setIsEditing(true)}
             showGrade={isRevealed}
@@ -134,6 +142,7 @@ const ParlayPickSection = ({ pickEmWeek, status, weekNumber }) => {
           <PlayerPicker
             key={myPick?.id ?? 'new'}
             initialQuery={isEditing ? myPick?.playerNameRaw ?? '' : ''}
+            opponents={opponents}
             submitting={submit.isPending}
             onCancel={isEditing ? () => setIsEditing(false) : null}
             onSubmit={handleSubmit}
@@ -158,8 +167,38 @@ const ParlayPickSection = ({ pickEmWeek, status, weekNumber }) => {
   );
 };
 
+/**
+ * A player's NFL opponent this week: "vs BUF", "@ KC", "BYE".
+ *
+ * Renders nothing when the calendar has no entry — a free-text pick with no
+ * matched player, a player with no NFL team, or a season nobody has imported.
+ * That silence is deliberate: the alternative is a placeholder that reads as a
+ * fact, and on a bye chip specifically it would tell somebody their pick is
+ * unplayable when it is not.
+ *
+ * `warnOnBye` colours the bye where the pick is already committed and there is
+ * something to do about it. In the autocomplete the same information is a
+ * filter, not an alarm, so it stays muted.
+ */
+const OpponentChip = ({ entry, warnOnBye = false, className }) => {
+  const label = formatOpponent(entry);
+  if (!label) return null;
+
+  return (
+    <span
+      className={cn(
+        'shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em]',
+        entry.bye && warnOnBye ? 'text-warning' : 'text-muted-foreground',
+        className
+      )}
+    >
+      {label}
+    </span>
+  );
+};
+
 /** The pick as stored, with its grade once the week is graded. */
-const CurrentPick = ({ pick, canEdit, onEdit, showGrade }) => (
+const CurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade }) => (
   <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -177,8 +216,7 @@ const CurrentPick = ({ pick, canEdit, onEdit, showGrade }) => (
         {pick.player?.teamAbbreviation && (
           <span className="text-xs text-muted-foreground">{pick.player.teamAbbreviation}</span>
         )}
-        {/* Reserved: "vs BUF" / "@ KC" / "BYE" once an nfl_schedule table
-            exists. Nothing in the system knows a player's opponent today. */}
+        <OpponentChip entry={opponent} warnOnBye />
         {!pick.playerId && (
           <Badge variant="outline" className="text-[10px]">
             Not in our player list
@@ -219,7 +257,7 @@ const GradeBadge = ({ scoredTd, className }) => {
  * a Popover: a popover moves focus, and on touch that fights the on-screen
  * keyboard — the list closes as the keyboard opens.
  */
-const PlayerPicker = ({ initialQuery, submitting, onSubmit, onCancel }) => {
+const PlayerPicker = ({ initialQuery, opponents = {}, submitting, onSubmit, onCancel }) => {
   const [query, setQuery] = useState(initialQuery ?? '');
   const [selected, setSelected] = useState(null);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -341,7 +379,7 @@ const PlayerPicker = ({ initialQuery, submitting, onSubmit, onCancel }) => {
                   <span className="w-10 shrink-0 text-right text-xs text-muted-foreground">
                     {player.teamAbbreviation ?? ''}
                   </span>
-                  {/* Reserved: opponent / bye chip, pending an nfl_schedule table. */}
+                  <OpponentChip entry={opponents[player.proTeamId]} className="w-14" />
                   {player.injuryStatus && player.injuryStatus !== 'ACTIVE' && (
                     <span
                       className="h-2 w-2 shrink-0 rounded-full bg-warning"

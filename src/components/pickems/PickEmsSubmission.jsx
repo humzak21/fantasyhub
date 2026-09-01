@@ -34,6 +34,11 @@ const PickEmsSubmission = ({
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
+  // The NFL season the opponent chips are keyed on. `espn_season_year` is the
+  // year ESPN's calendar endpoint is keyed by; `year` is the same value today
+  // and is the fallback for a season row created before that column existed.
+  const nflSeasonYear = season?.espnSeasonYear ?? season?.espn_season_year ?? season?.year ?? null;
+
   // Initialize picks from existing user picks
   useEffect(() => {
     if (userPicks && userPicks.length > 0) {
@@ -279,6 +284,7 @@ const PickEmsSubmission = ({
       {status.status !== 'no-week' && availableGames.length > 0 && (
         <MatchupResearchSection
           seasonId={season?.id ?? pickEmWeek?.seasonId ?? null}
+          seasonYear={nflSeasonYear}
           week={currentWeek}
           games={availableGames}
         />
@@ -408,6 +414,7 @@ const PickEmsSubmission = ({
           activated" rule. */}
       <ParlayPickSection
         pickEmWeek={pickEmWeek}
+        seasonYear={nflSeasonYear}
         status={status}
         weekNumber={currentWeek}
       />

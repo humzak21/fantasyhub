@@ -60,4 +60,14 @@ describe('reasonToSkip', () => {
     expect(check({ is_completed: true, start_date: null }, new Date('2026-10-01T12:00:00Z')))
       .toMatch(/completed/);
   });
+
+  /**
+   * `--force` is applied by `syncWeek`, not here. This function's job is to
+   * report the truth about the season window; whether to obey it is the
+   * caller's call, and keeping that split is what lets the forced run still
+   * print *why* it should not have run.
+   */
+  it('still reports the reason when the caller intends to override it', () => {
+    expect(check({}, new Date('2026-09-01T12:00:00Z'))).toMatch(/starts 2026-09-08/);
+  });
 });

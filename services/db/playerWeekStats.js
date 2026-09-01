@@ -167,6 +167,11 @@ export async function upsertPlayerWeekStats(ctx, seasonId, week, mappedRows = []
         position: row.position,
         actual_points: row.actualPoints,
         projected_points: row.projectedPoints,
+        // The whole per-category map, as ESPN sent it. Touchdown counts are
+        // derived from this (see `getTouchdownCount`) rather than stored
+        // beside it, so there is one copy of the number and nothing to fall
+        // out of step with it.
+        stat_breakdown: row.statBreakdown ?? null,
         // Absent means ESPN said nothing, not that the player is healthy — the
         // usual 'ACTIVE' default would assert something this row does not know.
         injury_status: row.injuryStatus ? mapESPNInjuryStatus(row.injuryStatus) : null,
@@ -259,6 +264,7 @@ export async function getPlayerWeekStatsForWeek(ctx, seasonId, week) {
         position,
         actual_points,
         projected_points,
+        stat_breakdown,
         injury_status,
         player:players (
           id,

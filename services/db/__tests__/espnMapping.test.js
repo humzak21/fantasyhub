@@ -3,7 +3,10 @@ import {
   mapESPNInjuryStatus,
   getNFLTeamAbbreviation,
   mapESPNRosterSlot,
-  isStarterSlot
+  isStarterSlot,
+  ESPN_STAT_IDS,
+  getTouchdownCount,
+  getScoredTouchdownCount
 } from '../espnMapping.js';
 
 describe('mapESPNInjuryStatus', () => {
@@ -76,5 +79,59 @@ describe('isStarterSlot', () => {
   it('treats a missing slot as not started rather than as a start', () => {
     expect(isStarterSlot(null)).toBe(false);
     expect(isStarterSlot(undefined)).toBe(false);
+  });
+});
+
+/**
+ * Touchdowns, derived from `player_week_stats.stat_breakdown`.
+ *
+ * Two distinctions carry the weight here: null is not zero, and thrown is not
+ * scored. Both are the sort of thing that reads as a rounding difference and
+ * behaves as a wrong answer nobody audits.
+ */
+describe('touchdown counts', () => {
+  // Jahmyr Gibbs' 2025 season line, whose figures reconcile to his stored
+  // appliedTotal of 366.9 under PPR — which is how these ids were verified.
+  const GIBBS_SEASON = { 24: 1223, 25: 13, 42: 616, 43: 5, 53: 77, 72: 1 };
+
+  // Jalen Hurts' 2025: 25 passing, 8 rushing, none receiving.
+  const HURTS_SEASON = { 3: 3224, 4: 25, 20: 6, 24: 421, 25: 8 };
+
+  it('names the ids as strings, because ESPN keys the map with strings', () => {
+    expect(ESPN_STAT_IDS).toEqual({ PASSING_TD: '4', RUSHING_TD: '25', RECEIVING_TD: '43' });
+    // `statBreakdown[25]` and `statBreakdown['25']` are the same lookup in JS,
+    // but the constant has to be a string for Object.values comparisons.
+    expect(Object.values(ESPN_STAT_IDS).every((id) => typeof id === 'string')).toBe(true);
+  });
+
+  it('counts rushing and receiving as scored', () => {
+    expect(getScoredTouchdownCount(GIBBS_SEASON)).toBe(18);
+  });
+
+  it('does not credit a quarterback with the touchdowns he threw', () => {
+    // 25 thrown, 8 run. He scored 8; he was involved in 33.
+    expect(getScoredTouchdownCount(HURTS_SEASON)).toBe(8);
+    expect(getTouchdownCount(HURTS_SEASON)).toBe(33);
+  });
+
+  it('treats an absent category as zero of it, not as unknown', () => {
+    // A player with a breakdown who caught none has 0 receiving TDs; the row
+    // knows that. This is the case null must not be conflated with.
+    expect(getScoredTouchdownCount({ 24: 40 })).toBe(0);
+    expect(getTouchdownCount({})).toBe(0);
+  });
+
+  it('is null when there is no breakdown at all', () => {
+    // Every row written before 2026-09 is this case. Returning 0 would report
+    // the whole of league history as having scored nothing.
+    expect(getTouchdownCount(null)).toBeNull();
+    expect(getTouchdownCount(undefined)).toBeNull();
+    expect(getScoredTouchdownCount(null)).toBeNull();
+    expect(getScoredTouchdownCount('not an object')).toBeNull();
+  });
+
+  it('ignores a non-numeric value rather than producing NaN', () => {
+    expect(getScoredTouchdownCount({ 25: 2, 43: null })).toBe(2);
+    expect(getScoredTouchdownCount({ 25: 'x' })).toBe(0);
   });
 });

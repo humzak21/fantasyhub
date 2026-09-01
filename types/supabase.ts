@@ -851,6 +851,51 @@ export type Database = {
         }
         Relationships: []
       }
+      nfl_schedule: {
+        Row: {
+          created_at: string
+          espn_game_id: number | null
+          game_time: string | null
+          id: string
+          is_home: boolean | null
+          opponent_pro_team_id: number | null
+          pro_team_id: number
+          season_year: number
+          start_time_tbd: boolean
+          stats_official: boolean
+          updated_at: string
+          week: number
+        }
+        Insert: {
+          created_at?: string
+          espn_game_id?: number | null
+          game_time?: string | null
+          id?: string
+          is_home?: boolean | null
+          opponent_pro_team_id?: number | null
+          pro_team_id: number
+          season_year: number
+          start_time_tbd?: boolean
+          stats_official?: boolean
+          updated_at?: string
+          week: number
+        }
+        Update: {
+          created_at?: string
+          espn_game_id?: number | null
+          game_time?: string | null
+          id?: string
+          is_home?: boolean | null
+          opponent_pro_team_id?: number | null
+          pro_team_id?: number
+          season_year?: number
+          start_time_tbd?: boolean
+          stats_official?: boolean
+          updated_at?: string
+          week?: number
+        }
+        Relationships: []
+      }
       pick_em_results: {
         Row: {
           actual_winner_team_id: string | null
@@ -1227,6 +1272,7 @@ export type Database = {
           roster_slot: string | null
           season_id: string
           started: boolean
+          stat_breakdown: Json | null
           team_id: string
           updated_at: string | null
           week: number
@@ -1245,6 +1291,7 @@ export type Database = {
           roster_slot?: string | null
           season_id: string
           started?: boolean
+          stat_breakdown?: Json | null
           team_id: string
           updated_at?: string | null
           week: number
@@ -1263,6 +1310,7 @@ export type Database = {
           roster_slot?: string | null
           season_id?: string
           started?: boolean
+          stat_breakdown?: Json | null
           team_id?: string
           updated_at?: string | null
           week?: number
@@ -4030,13 +4078,6 @@ export type Database = {
       update_season_pick_em_standings: {
         Args: { p_season_id: string }
         Returns: undefined
-      }
-      validate_nfl_calendar: {
-        Args: { season_year?: number }
-        Returns: {
-          issues_found: string[]
-          validation_passed: boolean
-        }[]
       }
     }
     Enums: {
