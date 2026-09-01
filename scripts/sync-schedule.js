@@ -19,13 +19,16 @@
  *   node scripts/sync-schedule.js                 # the active season
  *   node scripts/sync-schedule.js <season-id>     # a specific season
  *
- * Options: --dry-run      fetch and plan, write nothing
- *          --skip-teams   schedule only, leave team identity alone
- *          --manual       record the run as manually triggered
+ * Options: --dry-run           fetch and plan, write nothing
+ *          --skip-teams        schedule only, leave team identity alone
+ *          --skip-nfl-schedule leave the NFL calendar alone
+ *          --manual            record the run as manually triggered
  */
 
 import '../services/db/client.server.js';
 
+import { fetchProTeamSchedules } from '../services/espnNflScheduleFetcher.js';
+import { mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
@@ -184,15 +187,58 @@ export async function syncSchedule(argv = []) {
     );
   }
 
+  // The NFL's own calendar, alongside our league's. This is the natural place
+  // for the first import of a year — it is the same "the season now exists"
+  // moment — and the weekly sync keeps it current from here.
+  //
+  // Non-fatal, and last: it is a different provider endpoint from everything
+  // above, and losing a whole schedule import because a public endpoint was
+  // down would be a poor trade. `--dry-run` is honoured inside.
+  let nflScheduleResult = { skipped: 'flag' };
+  if (!options['skip-nfl-schedule']) {
+    try {
+      nflScheduleResult = await syncNflCalendar(espn.seasonYear, dryRun);
+    } catch (error) {
+      nflScheduleResult = { failed: error.message };
+      console.warn(`⚠️  nfl schedule: ${error.message}`);
+    }
+  }
+
   if (dryRun) {
     console.log('   --dry-run: nothing was written.');
-    return { dryRun: true, seasonId, teamResult, gameResult };
+    return { dryRun: true, seasonId, teamResult, gameResult, nflScheduleResult };
   }
 
   const summary = await writeImportLog({ seasonId, espn, scheduleData, teamResult, gameResult });
   console.log(`✅ ${summary}`);
 
-  return { seasonId, teamResult, gameResult };
+  return { seasonId, teamResult, gameResult, nflScheduleResult };
+}
+
+/**
+ * Import the NFL calendar for the same year.
+ *
+ * Shares the mapper and writer with `scripts/sync-nfl-schedule.js` and with the
+ * weekly sync's own step, so all three produce identical rows. Needs no ESPN
+ * credentials: `proTeamSchedules_wl` is public.
+ */
+async function syncNflCalendar(seasonYear, dryRun) {
+  const proTeams = await fetchProTeamSchedules(seasonYear);
+  const { rows, warnings, weekSpan } = mapProTeamSchedules(proTeams, seasonYear);
+
+  for (const warning of warnings) console.warn(`⚠️  nfl schedule: ${warning}`);
+
+  if (rows.length === 0) return { upserted: 0, warnings };
+
+  if (dryRun) {
+    console.log(`🗓️  nfl schedule: would write ${rows.length} team-weeks (1-${weekSpan})`);
+    return { dryRun: true, upserted: 0, warnings };
+  }
+
+  const result = await getDb().nflSchedule.upsertNflSchedule(seasonYear, rows);
+  console.log(`🗓️  nfl schedule: ${result.upserted} team-weeks (1-${weekSpan})`);
+
+  return { upserted: result.upserted, warnings };
 }
 
 /**

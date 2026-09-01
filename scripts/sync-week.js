@@ -22,8 +22,9 @@
  *   node scripts/sync-week.js 5 <season-id>   # target a season explicitly
  *
  * Options: --skip-rosters --skip-scores --skip-transactions --skip-player-stats
- *          --skip-snapshot
+ *          --skip-nfl-schedule --skip-snapshot
  *          --dry-run   resolve and report the target, write nothing
+ *          --force     sync anyway when the season window says not to
  */
 
 import '../services/db/client.server.js';
@@ -31,6 +32,8 @@ import '../services/db/client.server.js';
 import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
 import { buildTeamIndex } from '../services/espnGameMapper.js';
 import { mapMatchupRosterEntries } from '../services/espnPlayerStatsMapper.js';
+import { fetchProTeamSchedules } from '../services/espnNflScheduleFetcher.js';
+import { mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
@@ -47,6 +50,13 @@ import { deriveCurrentWeek, deriveWeekStart, toSeasonConfig } from '../utils/sea
  * meaningless, and silence would hide it — so that one throws and names the
  * column. The guard lives here rather than in the workflow so a manual run
  * behaves exactly like the scheduled one.
+ *
+ * This reports; it does not decide. `--force` lets the caller proceed past a
+ * returned reason (see `syncWeek`), which is what makes a pre-season run
+ * possible once ESPN has the rosters and projections but before week 1 starts.
+ * The missing `start_date` case is deliberately a throw rather than a reason,
+ * so it is *not* overridable: forcing past it would not sync early, it would
+ * sync an arbitrary week.
  *
  * @returns {string|null} why to stop, or null to carry on.
  */
@@ -189,6 +199,37 @@ async function syncPlayerStats(seasonId, weekNumber, espnMatchups) {
   };
 }
 
+/**
+ * Refresh the NFL calendar for this season.
+ *
+ * A re-import of the whole season rather than of this week, because the NFL
+ * moves games: flex scheduling rewrites late-season kickoff times weeks in
+ * advance, and a calendar imported in September and never revisited would show
+ * the wrong time for them all year. The write is one idempotent upsert of ~576
+ * rows, so re-importing the whole thing costs a single round trip and removes
+ * the question of which weeks are stale.
+ *
+ * The one step here that needs no ESPN credentials: `proTeamSchedules_wl` is a
+ * public endpoint about the NFL, not about our league. It also does not touch
+ * the matchup payload the scores and player-stats steps share, so it neither
+ * costs nor depends on their fetch.
+ *
+ * Keyed on the ESPN season year, not the season id — see
+ * `services/db/nflSchedule.js` for why this table is not season-scoped.
+ */
+async function syncNflSchedule(seasonYear) {
+  const proTeams = await fetchProTeamSchedules(seasonYear);
+  const { rows, warnings, weekSpan } = mapProTeamSchedules(proTeams, seasonYear);
+
+  if (rows.length === 0) {
+    return { upserted: 0, errors: warnings.map((warning) => ({ error: warning })) };
+  }
+
+  const result = await getDb().nflSchedule.upsertNflSchedule(seasonYear, rows);
+
+  return { upserted: result.upserted, weekSpan, errors: warnings.map((w) => ({ error: w })) };
+}
+
 async function syncTransactions(seasonId, espn) {
   const db = getDb();
   const season = await db.seasons.getSeason(seasonId);
@@ -299,9 +340,21 @@ export async function syncWeek(argv = []) {
 
   // Out of season. Exit 0 so the weekly cron stays quiet rather than mailing a
   // failure every week between February and September.
-  if (skip) {
+  //
+  // `--force` overrides that, and exists for the window this guard is too
+  // blunt for: ESPN publishes rosters, projections and the NFL calendar well
+  // before week 1 kicks off, so there is real data to sync during the days the
+  // season row still calls "not started". Every step is an idempotent upsert,
+  // so a forced run is overwritten by the first scheduled one rather than
+  // fighting it. Never set this on the cron -- the quiet exit is the point
+  // there.
+  if (skip && !options.force) {
     console.log(`⏭️  ${skip}`);
     return { skipped: skip, seasonId };
+  }
+
+  if (skip) {
+    console.warn(`⚠️  --force: ${skip}`);
   }
 
   if (weekNumber < 1 || weekNumber > season.weekCount) {
@@ -404,6 +457,26 @@ export async function syncWeek(argv = []) {
       } catch (error) {
         steps.playerStats = { failed: error.message };
         console.warn(`⚠️  player stats: ${error.message}`);
+      }
+    }
+
+    // Non-fatal, for the same reason as player stats: the opponent chips fall
+    // back to showing nothing, which is a thinner page rather than a broken
+    // one, and failing the run over it would cost the week's snapshot. It is
+    // also the step most likely to fail on its own — a public endpoint nobody
+    // promised us, reached without credentials.
+    if (options['skip-nfl-schedule']) {
+      steps.nflSchedule = { skipped: 'flag' };
+    } else {
+      try {
+        steps.nflSchedule = await syncNflSchedule(espn.seasonYear);
+        console.log(`🗓️  nfl schedule: ${steps.nflSchedule.upserted} team-weeks`);
+        for (const miss of steps.nflSchedule.errors) {
+          console.warn(`⚠️  nfl schedule: ${miss.error}`);
+        }
+      } catch (error) {
+        steps.nflSchedule = { failed: error.message };
+        console.warn(`⚠️  nfl schedule: ${error.message}`);
       }
     }
 

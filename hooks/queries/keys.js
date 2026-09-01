@@ -204,6 +204,28 @@ export const qk = {
     all: ['schedule'],
     /** The ESPN import log. Written by scripts, read-only in the app. */
     history: (limit = 25) => ['schedule', 'history', limit]
+  },
+
+  /**
+   * The NFL calendar — who each pro team plays in each week.
+   *
+   * Named `nflSchedule` rather than `schedule` because `schedule` above is
+   * already this app's ESPN *import log*, and a domain prefix that meant two
+   * things would make a prefix invalidation reach the wrong one.
+   *
+   * Keyed by `seasonYear` and not by `seasonId`, the only key here that is:
+   * the NFL's calendar is league-independent, so the table has no season FK
+   * and neither does its key. See `services/db/nflSchedule.js`.
+   *
+   * One entry per season and no finer. A week's opponents and a team's bye are
+   * `select` projections of this same entry rather than keys of their own —
+   * a season is ~576 rows, and deriving every view from one cached fetch is
+   * what stops two of them disagreeing about the same week. Written by the
+   * weekly cron, so there is no mutation to invalidate it.
+   */
+  nflSchedule: {
+    all: ['nflSchedule'],
+    season: (seasonYear) => ['nflSchedule', seasonYear]
   }
 };
 

@@ -18,12 +18,14 @@ const rosters = { getCurrentLineupsForWeek: vi.fn(async () => []) };
 /** Kept mocked so a regression back to this source fails loudly rather than
  *  falling through to a real client. */
 const playerWeekStats = { getPlayerWeekStatsForWeek: vi.fn(async () => []) };
+const nflSchedule = { getNflScheduleForSeason: vi.fn(async () => []) };
 
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
     rosters,
     playerWeekStats,
+    nflSchedule,
     users: { isParlayCommissioner: async () => false },
     seasons: { getActiveSeason: async () => null }
   })
@@ -175,5 +177,118 @@ describe('MatchupResearchSection', () => {
 
     expect(await screen.findByText(/on bye/i)).toBeInTheDocument();
     expect(screen.queryByText('Team Two')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * The NFL opponent chip.
+ *
+ * The distinction worth protecting is bye-versus-unknown: a bye is asserted by
+ * a row in `nfl_schedule`, and no row means the calendar has nothing to say.
+ * Rendering the second as "BYE" would tell a reader their starter has the week
+ * off when in fact they are playing, which is the one error a research panel
+ * must not make.
+ */
+describe('MatchupResearchSection · opponent chips', () => {
+  const SEASON_YEAR = 2026;
+
+  /** BUF(2) away at KC(12); DET(8) is on a bye. */
+  const NFL_ROWS = [
+    { seasonYear: SEASON_YEAR, week: 3, proTeamId: 2, opponentProTeamId: 12, isHome: false },
+    { seasonYear: SEASON_YEAR, week: 3, proTeamId: 12, opponentProTeamId: 2, isHome: true },
+    { seasonYear: SEASON_YEAR, week: 3, proTeamId: 8, opponentProTeamId: null, isHome: null }
+  ];
+
+  const LINEUP = [
+    {
+      id: 'r1',
+      teamId: 't1',
+      proTeamId: 2,
+      rosterSlot: 'QB',
+      started: true,
+      projectedPoints: 21.4,
+      actualPoints: null,
+      player: { name: 'Josh Allen', position: 'QB' }
+    },
+    {
+      id: 'r2',
+      teamId: 't1',
+      proTeamId: 8,
+      rosterSlot: 'RB',
+      started: true,
+      projectedPoints: 14.2,
+      actualPoints: null,
+      player: { name: 'Jahmyr Gibbs', position: 'RB' }
+    },
+    {
+      id: 'r3',
+      teamId: 't1',
+      proTeamId: 99,
+      rosterSlot: 'WR',
+      started: true,
+      projectedPoints: 9.1,
+      actualPoints: null,
+      player: { name: 'Unknown Team', position: 'WR' }
+    }
+  ];
+
+  beforeEach(() => {
+    rosters.getCurrentLineupsForWeek.mockResolvedValue(LINEUP);
+    nflSchedule.getNflScheduleForSeason.mockResolvedValue(NFL_ROWS);
+  });
+
+  const open = async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <MatchupResearchSection
+        seasonId="s1"
+        seasonYear={SEASON_YEAR}
+        week={3}
+        games={GAMES}
+      />
+    );
+    await user.click(await screen.findByRole('button', { name: /research/i }));
+    await user.click(await screen.findByRole('button', { name: /Team One/ }));
+    return user;
+  };
+
+  it('shows the opponent, with home and away spelled differently', async () => {
+    await open();
+
+    expect(await screen.findByText('@ KC')).toBeInTheDocument();
+  });
+
+  it('shows BYE for a starter whose team is off', async () => {
+    await open();
+
+    expect(await screen.findByText('BYE')).toBeInTheDocument();
+  });
+
+  it('shows nothing for a player the calendar does not cover', async () => {
+    await open();
+
+    // proTeamId 99 has no row. The starter still renders, and its chip is
+    // empty — never "vs null", and never "BYE", which would be a claim.
+    const row = (await screen.findByText('Unknown Team')).closest('li');
+
+    expect(row).toBeInTheDocument();
+    expect(row.textContent).not.toMatch(/BYE|vs|@/);
+  });
+
+  it('asks the NFL calendar for the season year, not the season id', async () => {
+    await open();
+
+    expect(nflSchedule.getNflScheduleForSeason).toHaveBeenCalledWith(SEASON_YEAR);
+  });
+
+  it('does not query the calendar at all without a season year', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
+    await user.click(await screen.findByRole('button', { name: /research/i }));
+    await user.click(await screen.findByRole('button', { name: /Team One/ }));
+
+    // The lineups still load; only the chips are absent.
+    expect(await screen.findByText('Josh Allen')).toBeInTheDocument();
+    expect(nflSchedule.getNflScheduleForSeason).not.toHaveBeenCalled();
   });
 });

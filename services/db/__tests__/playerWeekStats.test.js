@@ -234,3 +234,31 @@ describe('getPlayerWeekStats', () => {
     expect(await getPlayerWeekStats(ctx, SEASON)).toEqual({});
   });
 });
+
+/**
+ * The per-category map. Written straight through — the mapper decides what it
+ * contains and the derivation helpers decide what it means, so the writer's
+ * only job is to not drop it and not invent one.
+ */
+describe('upsertPlayerWeekStats · stat_breakdown', () => {
+  it('writes the breakdown the mapper produced', async () => {
+    const ctx = makeCtx(existingPlayers([{ id: 'player-1', espn_player_id: 101 }]));
+    const breakdown = { 3: 288, 4: 3, 20: 1 };
+
+    await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped({ statBreakdown: breakdown })], teams);
+
+    const [{ payload }] = ctx.client.callsFor('player_week_stats', 'upsert');
+    expect(payload[0].stat_breakdown).toEqual(breakdown);
+  });
+
+  it('writes null, not {}, when the mapper found no categories', async () => {
+    const ctx = makeCtx(existingPlayers([{ id: 'player-1', espn_player_id: 101 }]));
+
+    await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams);
+
+    const [{ payload }] = ctx.client.callsFor('player_week_stats', 'upsert');
+    // `stat_breakdown` is nullable and NULL means "not known". An empty object
+    // would claim ESPN reported a player who did nothing.
+    expect(payload[0].stat_breakdown).toBeNull();
+  });
+});
