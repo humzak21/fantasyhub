@@ -14,17 +14,20 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
 
       - run: npm ci
 
-      # Lint is advisory for now: the repo carries ~800 pre-existing errors from
+      # Lint is advisory for now: the repo carries a pre-existing backlog from
       # before this refactor, so a hard gate would fail every PR on day one.
+      # Measured at the ESLint 9 migration: 6 errors and 258 warnings, and
+      # `--max-warnings 0` means the warnings fail the command too. (The "~800"
+      # this comment used to claim was never re-counted after the refactor.)
       # Drop `continue-on-error` once that backlog is worked off.
       - name: Lint
         run: npm run lint
@@ -69,9 +72,9 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -89,7 +92,7 @@ jobs:
       - name: Smoke test at 375px and 1280px
         run: npm run test:e2e
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: smoke-screenshots
@@ -103,9 +106,9 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: latest
 

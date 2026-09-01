@@ -653,12 +653,25 @@ their subject. Components that consume `ViewerContext`, `ViewedWeekProvider` or
 TanStack Query must be rendered through `src/test/renderWithProviders.jsx`, not
 bare `render`. CI (`.github/workflows/ci.yml`) gates type-check, tests and
 build, the CSS token check, the mobile-convention greps, and a Playwright
-smoke job. Lint is advisory repo-wide until its pre-existing ~800-error backlog
-is cleared, **except** in `src/components/ui/**` and
-`src/components/layout/**`, where `rules-of-hooks`, `exhaustive-deps` and
-`no-unused-vars` are errors — those files are the foundation everything else is
-built on, they are new, and a hook-ordering mistake in one breaks every
-consumer at once.
+smoke job. Lint is advisory repo-wide until its pre-existing backlog is cleared
+(6 errors and 258 warnings as of the ESLint 9 migration; the "~800" this file
+used to claim predates the refactor and was never re-counted), **except** in
+`src/components/ui/**` and `src/components/layout/**`, where `rules-of-hooks`,
+`exhaustive-deps` and `no-unused-vars` are errors — those files are the
+foundation everything else is built on, they are new, and a hook-ordering
+mistake in one breaks every consumer at once.
+
+**ESLint is flat config (`eslint.config.js`), on 9 and not 10.**
+`eslint-plugin-react` peers on `^9.7` at its current release, so 10 would mean
+giving up the react rules. `--ext` no longer exists as a CLI flag — the
+`files: ['**/*.{js,jsx}']` key is what makes `.jsx` get linted, and dropping it
+silently narrows the run to `.js` while still exiting clean. The strict
+`ui/`/`layout/` block is the second config object; flat config has no
+`overrides`, and order decides precedence, so it must stay last.
+`eslint-plugin-react-hooks` 7 ships sixteen rules in `recommended` — the two
+classic ones plus fourteen React Compiler rules. Only the classic two are
+enabled; turning on the rest is a decision about how this code should be
+written, not a config migration.
 
 Two things jsdom cannot do, so do not write tests that pretend otherwise:
 it has **no layout engine**, so assigning `window.innerWidth` re-evaluates no
