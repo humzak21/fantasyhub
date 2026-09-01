@@ -73,7 +73,13 @@ export {
   useSetParlayCommissioners
 } from './useParlay.js';
 
-export { useAwardsUnlockStatus, useAwards, useAwardsMutations } from './useAwards.js';
+export {
+  useAwardsUnlockStatus,
+  useAwards,
+  useAwardResults,
+  useAwardBallotSeasons,
+  useAwardsMutations
+} from './useAwards.js';
 
 export { useTakesBoard, useTakesMutations } from './useTakes.js';
 

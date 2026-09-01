@@ -13,6 +13,8 @@ import AwardsGallery from './AwardsGallery';
 import AwardsAdmin from './AwardsAdmin';
 import { getDb } from '../../../services/db/index.js';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { useAwardBallotSeasons } from '../../../hooks/queries/index.js';
+import { viewableResultSeasons } from './resultsAccess.js';
 
 const AwardsManager = ({
   season,
@@ -24,7 +26,12 @@ const AwardsManager = ({
   const [activeTab, setActiveTab] = useState('voting');
   const [awards, setAwards] = useState([]);
   const [userVotes, setUserVotes] = useState([]);
-  const [unlockStatus, setUnlockStatus] = useState({ unique_voters: 0, required_voters: 14, unlocked: false });
+  // camelCase, because `getAwardsUnlockStatus` runs the RPC's jsonb through
+  // `formatFromDatabase` before it ever reaches here. Reading the snake_case
+  // keys the RPC returns gave `undefined` for all three, which rendered
+  // "undefined / undefined Voters" and left Results and Gallery permanently
+  // disabled for everyone but the admin.
+  const [unlockStatus, setUnlockStatus] = useState({ uniqueVoters: 0, requiredVoters: 14, resultsReleased: false });
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -41,7 +48,7 @@ const AwardsManager = ({
       ]);
 
       setAwards(awardsData || []);
-      setUnlockStatus(unlockData || { unique_voters: 0, required_voters: 14, unlocked: false });
+      setUnlockStatus(unlockData || { uniqueVoters: 0, requiredVoters: 14, resultsReleased: false });
 
       if (user) {
         const votesData = await getDb().awards.getUserVotes(season.id, user.id);
@@ -61,11 +68,25 @@ const AwardsManager = ({
 
   // Check if conditions are met (deadline passed AND enough voters)
   const conditionsMet =
-    unlockStatus.unique_voters >= unlockStatus.required_voters &&
+    unlockStatus.uniqueVoters >= unlockStatus.requiredVoters &&
     (!unlockStatus.deadline || new Date() > new Date(unlockStatus.deadline));
 
-  // Results are unlocked only if explicitly released by admin
-  const isUnlocked = unlockStatus.results_released;
+  // Results are unlocked only if explicitly released by admin. That flag is
+  // about *this* season; a finished season's results are readable regardless,
+  // which is what `viewableResultSeasons` below decides.
+  const isUnlocked = Boolean(unlockStatus.resultsReleased);
+
+  // The Results tab is worth opening if there is any season in it — the ballot
+  // this season has released, or any past season that was voted on. Without
+  // this the tab stayed locked over 2025's charts, which nobody could reach
+  // once 2026 went active.
+  const { data: ballotSeasons } = useAwardBallotSeasons();
+  const hasViewableResults =
+    viewableResultSeasons(ballotSeasons, {
+      isAdmin,
+      activeSeasonResultsReleased: isUnlocked
+    }).length > 0;
+  const resultsAccessible = isAdmin || hasViewableResults;
 
   const handleReleaseResults = async () => {
     if (!confirm('Are you sure you want to release the results? This will make them visible to all users.')) return;
@@ -100,7 +121,7 @@ const AwardsManager = ({
             <div className="flex flex-col items-end gap-2">
               <div className="flex items-center gap-2">
                 <Badge variant={conditionsMet ? "success" : "secondary"}>
-                  {unlockStatus.unique_voters} / {unlockStatus.required_voters} Voters
+                  {unlockStatus.uniqueVoters} / {unlockStatus.requiredVoters} Voters
                 </Badge>
                 {isUnlocked ? (
                   <Badge variant="default" className="bg-green-600">Results Released</Badge>
@@ -134,8 +155,8 @@ const AwardsManager = ({
           <TabsTrigger value="voting" icon={<Vote className="h-4 w-4" />}>
             Ballot
           </TabsTrigger>
-          <TabsTrigger value="results" disabled={!isUnlocked && !isAdmin} icon={<PieChart className="h-4 w-4" />}>
-            Results {(!isUnlocked && !isAdmin) && '(Locked)'}
+          <TabsTrigger value="results" disabled={!resultsAccessible} icon={<PieChart className="h-4 w-4" />}>
+            Results {!resultsAccessible && '(Locked)'}
           </TabsTrigger>
           <TabsTrigger value="gallery" disabled={!isUnlocked && !isAdmin} icon={<Trophy className="h-4 w-4" />}>
             Gallery {(!isUnlocked && !isAdmin) && '(Locked)'}
@@ -161,9 +182,9 @@ const AwardsManager = ({
 
         <TabsContent value="results">
           <AwardsResults
-            awards={awards.filter(a => a.category === 'voted')}
-            season={season}
-            loading={dataLoading}
+            activeSeasonId={season?.id}
+            activeSeasonResultsReleased={isUnlocked}
+            isAdmin={isAdmin}
           />
         </TabsContent>
 
