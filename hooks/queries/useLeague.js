@@ -32,10 +32,17 @@ const forgetSeasonCache = (seasonId = null) =>
 // Seasons
 // ---------------------------------------------------------------------------
 
-export function useSeasons() {
+/**
+ * Every season, newest first. `enabled` is for surfaces that only want the
+ * list for one kind of viewer — the standings drawer's season picker is
+ * admin-only, and fetching fourteen teams per season for everyone who opens
+ * the standings would be paying for a control they cannot see.
+ */
+export function useSeasons({ enabled = true } = {}) {
   return useQuery({
     queryKey: qk.seasons.list(),
-    queryFn: () => db().seasons.getAllSeasons()
+    queryFn: () => db().seasons.getAllSeasons(),
+    enabled
   });
 }
 
