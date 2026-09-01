@@ -36,7 +36,7 @@ import { OpponentChip } from '../ui/opponent-chip';
  * Three things are the database's job, not this component's:
  *   - the deadline (`submit_td_parlay_pick` raises outside the window),
  *   - who may see whose pick (RLS on `td_parlay_picks` — everyone, always,
- *     since `20260901120000_parlay_picks_visible_as_submitted`),
+ *     since `20260902150000_parlay_picks_visible_as_submitted`),
  *   - the canonical player name on a matched pick.
  * So the UI here can be naive about all three, and a bug in it leaks nothing.
  *
@@ -428,7 +428,7 @@ const PlayerPicker = ({ initialQuery, opponents = {}, submitting, onSubmit, onCa
  * The league's picks, in a column per division.
  *
  * Live, not revealed: a pick appears here the moment it is submitted, which is
- * what `20260901120000_parlay_picks_visible_as_submitted` made true in the only
+ * what `20260902150000_parlay_picks_visible_as_submitted` made true in the only
  * place it could be true — the row filter. This component holds nothing back.
  *
  * Every division gets a column even before anybody has entered it, so the board
