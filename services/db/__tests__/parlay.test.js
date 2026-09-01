@@ -16,7 +16,9 @@ import {
   submitParlayPick,
   getMyParlayPick,
   getParlayPicksForWeek,
-  getSeasonParlayPicks
+  getSeasonParlayPicks,
+  getUngradedMatchedPicks,
+  applyParlayGrades
 } from '../parlay.js';
 import { searchPlayers } from '../players.js';
 import {
@@ -299,5 +301,84 @@ describe('league roles', () => {
     expect(ctx.client.callsFor('league_roles', 'select')[0].filters).toEqual({
       role: 'parlay_commissioner'
     });
+  });
+});
+
+describe('getUngradedMatchedPicks', () => {
+  it('asks only for ungraded, player-matched picks in elapsed weeks', async () => {
+    const ctx = makeCtx({ 'td_parlay_picks.select': () => [storedRow] });
+
+    await getUngradedMatchedPicks(ctx, SEASON_ID, 5);
+
+    const [call] = ctx.client.callsFor('td_parlay_picks', 'select');
+    expect(call.filters).toMatchObject({
+      season_id: SEASON_ID,
+      // Only NULL rows: this is what makes a re-run idempotent and a manual
+      // grade permanent.
+      'is:scored_td': null,
+      'not:player_id:is': null,
+      // Exclusive — grading the week in progress would grade Sunday's picks on
+      // Sunday morning.
+      'lt:week': 5
+    });
+  });
+
+  it('carries the ESPN player id, which the board projection deliberately does not', async () => {
+    const ctx = makeCtx({
+      'td_parlay_picks.select': () => [
+        { ...storedRow, player: { id: PLAYER_ID, espn_player_id: 3117251, pro_team_id: 2 } }
+      ]
+    });
+
+    const [pick] = await getUngradedMatchedPicks(ctx, SEASON_ID, 5);
+
+    expect(pick.player).toEqual({ id: PLAYER_ID, espnPlayerId: 3117251, proTeamId: 2 });
+  });
+});
+
+describe('applyParlayGrades', () => {
+  it('writes each grade, and only over a row that is still ungraded', async () => {
+    const ctx = makeCtx({ 'td_parlay_picks.update': () => [{}] });
+
+    const result = await applyParlayGrades(ctx, [
+      { pickId: 'a', scoredTd: true },
+      { pickId: 'b', scoredTd: false }
+    ]);
+
+    expect(result).toEqual({ updated: 2, errors: [] });
+
+    const calls = ctx.client.callsFor('td_parlay_picks', 'update');
+    expect(calls.map((call) => call.payload)).toEqual([
+      { scored_td: true },
+      { scored_td: false }
+    ]);
+    // The `is:scored_td` guard is what stops a second writer — another run, or
+    // a human grading between the read and the write — from winning silently.
+    expect(calls.every((call) => call.filters['is:scored_td'] === null)).toBe(true);
+  });
+
+  it('collects a failure rather than losing the rest of the batch', async () => {
+    const ctx = makeCtx({
+      'td_parlay_picks.update': (state) => {
+        if (state.filters.id === 'b') throw new Error('nope');
+        return [{}];
+      }
+    });
+
+    const result = await applyParlayGrades(ctx, [
+      { pickId: 'a', scoredTd: true },
+      { pickId: 'b', scoredTd: true },
+      { pickId: 'c', scoredTd: false }
+    ]);
+
+    expect(result.updated).toBe(2);
+    expect(result.errors).toEqual([{ pickId: 'b', error: 'nope' }]);
+  });
+
+  it('writes nothing for an empty batch', async () => {
+    const ctx = makeCtx({});
+
+    await expect(applyParlayGrades(ctx, [])).resolves.toEqual({ updated: 0, errors: [] });
+    expect(ctx.client.callsFor('td_parlay_picks')).toEqual([]);
   });
 });

@@ -19,7 +19,7 @@ import {
 } from '../../../hooks/queries/index.js';
 import { getMaskedUserName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
-import { formatOpponent } from '../../../utils/nflOpponent.js';
+import { OpponentChip } from '../ui/opponent-chip';
 
 /**
  * The weekly TD parlay, at the foot of the pick'ems form.
@@ -164,36 +164,6 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
         )}
       </CardContent>
     </Card>
-  );
-};
-
-/**
- * A player's NFL opponent this week: "vs BUF", "@ KC", "BYE".
- *
- * Renders nothing when the calendar has no entry — a free-text pick with no
- * matched player, a player with no NFL team, or a season nobody has imported.
- * That silence is deliberate: the alternative is a placeholder that reads as a
- * fact, and on a bye chip specifically it would tell somebody their pick is
- * unplayable when it is not.
- *
- * `warnOnBye` colours the bye where the pick is already committed and there is
- * something to do about it. In the autocomplete the same information is a
- * filter, not an alarm, so it stays muted.
- */
-const OpponentChip = ({ entry, warnOnBye = false, className }) => {
-  const label = formatOpponent(entry);
-  if (!label) return null;
-
-  return (
-    <span
-      className={cn(
-        'shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em]',
-        entry.bye && warnOnBye ? 'text-warning' : 'text-muted-foreground',
-        className
-      )}
-    >
-      {label}
-    </span>
   );
 };
 
