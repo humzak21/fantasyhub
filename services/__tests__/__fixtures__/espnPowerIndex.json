@@ -1,0 +1,1520 @@
+{
+  "currentSeason": {
+    "year": 2026
+  },
+  "lastUpdated": "2026-08-31T14:44Z",
+  "categories": [
+    {
+      "name": "fpi",
+      "names": [
+        "fpi",
+        "epaoffense",
+        "epadefense",
+        "epaspecialteams",
+        "fpirank",
+        "accomplishmentrank",
+        "avgsosrank",
+        "sosremainingrank",
+        "gamecontrolrank",
+        "avgingamewprank",
+        "rankchange7days",
+        "numwins",
+        "numlosses",
+        "numties"
+      ]
+    },
+    {
+      "name": "projections",
+      "names": [
+        "projectedw",
+        "projectedl",
+        "probwinout",
+        "probwinconf",
+        "probwindiv",
+        "probmakeplayoffs",
+        "probmakedivplayoffs",
+        "probmaketitlegame",
+        "probwintitle",
+        "probmakeconfchamp"
+      ]
+    },
+    {
+      "name": "efficiencies",
+      "displayName": "Efficiencies"
+    }
+  ],
+  "teams": [
+    {
+      "team": {
+        "id": "14",
+        "abbreviation": "LAR",
+        "displayName": "Los Angeles Rams"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            5.854,
+            4.114,
+            1.635,
+            0.105,
+            1,
+            0,
+            0,
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            11.26,
+            5.688,
+            0.1,
+            null,
+            50.4,
+            84.89999999999999,
+            64.60000000000001,
+            26.8,
+            17,
+            41.6
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "2",
+        "abbreviation": "BUF",
+        "displayName": "Buffalo Bills"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            4.11,
+            3.944,
+            0.16,
+            0.006,
+            2,
+            0,
+            0,
+            19,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            10.731,
+            6.216,
+            0,
+            null,
+            67.10000000000001,
+            84.1,
+            59.099999999999994,
+            19.8,
+            10.2,
+            34.599999999999994
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "26",
+        "abbreviation": "SEA",
+        "displayName": "Seattle Seahawks"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            3.552,
+            1.25,
+            2.139,
+            0.164,
+            3,
+            0,
+            0,
+            6,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            10.183,
+            6.762,
+            0,
+            null,
+            26.3,
+            68,
+            42.6,
+            11.700000000000001,
+            6.2,
+            22.3
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "33",
+        "abbreviation": "BAL",
+        "displayName": "Baltimore Ravens"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            3.451,
+            2.808,
+            0.678,
+            -0.035,
+            4,
+            0,
+            0,
+            28,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            10.658,
+            6.29,
+            0,
+            null,
+            50.4,
+            79.80000000000001,
+            52.1,
+            15.6,
+            8.1,
+            29.299999999999997
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "25",
+        "abbreviation": "SF",
+        "displayName": "San Francisco 49ers"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            2.961,
+            2.998,
+            -0.227,
+            0.191,
+            5,
+            0,
+            0,
+            11,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            10.007,
+            6.937,
+            0,
+            null,
+            23.200000000000003,
+            63.800000000000004,
+            39,
+            10.4,
+            5.3,
+            20.599999999999998
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "24",
+        "abbreviation": "LAC",
+        "displayName": "Los Angeles Chargers"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            2.9,
+            0.975,
+            1.599,
+            0.326,
+            6,
+            0,
+            0,
+            7,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.754,
+            7.188,
+            0,
+            null,
+            36.1,
+            66.2,
+            38.7,
+            10.8,
+            5.3,
+            20.4
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "9",
+        "abbreviation": "GB",
+        "displayName": "Green Bay Packers"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            2.718,
+            2.98,
+            -0.126,
+            -0.136,
+            7,
+            0,
+            0,
+            14,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.889,
+            7.051,
+            0,
+            null,
+            31.1,
+            61.9,
+            37.1,
+            9,
+            4.7,
+            18.3
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            2.624,
+            2.575,
+            0.003,
+            0.046,
+            8,
+            0,
+            0,
+            31,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            10.452,
+            6.494,
+            0,
+            null,
+            40.400000000000006,
+            71.39999999999999,
+            44.4,
+            11,
+            5.2,
+            22.400000000000002
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "12",
+        "abbreviation": "KC",
+        "displayName": "Kansas City Chiefs"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            2.548,
+            1.674,
+            0.907,
+            -0.033,
+            9,
+            0,
+            0,
+            17,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.873,
+            7.07,
+            0,
+            null,
+            37.7,
+            68,
+            40.699999999999996,
+            10.299999999999999,
+            4.9,
+            20.7
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "21",
+        "abbreviation": "PHI",
+        "displayName": "Philadelphia Eagles"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            2.082,
+            0.746,
+            1.565,
+            -0.23,
+            10,
+            0,
+            0,
+            16,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.758,
+            7.184,
+            0,
+            null,
+            46.300000000000004,
+            62.8,
+            37.2,
+            9,
+            4.5,
+            19.3
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "6",
+        "abbreviation": "DAL",
+        "displayName": "Dallas Cowboys"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            1.879,
+            1.883,
+            -0.219,
+            0.216,
+            11,
+            0,
+            0,
+            4,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.206,
+            7.733,
+            0,
+            null,
+            33.900000000000006,
+            51.9,
+            28.799999999999997,
+            6.5,
+            3,
+            14.499999999999998
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "4",
+        "abbreviation": "CIN",
+        "displayName": "Cincinnati Bengals"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            1.839,
+            2.578,
+            -0.748,
+            0.008,
+            12,
+            0,
+            0,
+            32,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            10.106,
+            6.837,
+            0,
+            null,
+            35.5,
+            70.7,
+            40.6,
+            9.6,
+            4.5,
+            19.5
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "34",
+        "abbreviation": "HOU",
+        "displayName": "Houston Texans"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            1.67,
+            -0.468,
+            1.953,
+            0.185,
+            13,
+            0,
+            0,
+            10,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.311,
+            7.626,
+            0,
+            null,
+            40.5,
+            58.9,
+            33.6,
+            7.7,
+            3.5999999999999996,
+            16.5
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "17",
+        "abbreviation": "NE",
+        "displayName": "New England Patriots"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            1.498,
+            1.101,
+            0.58,
+            -0.183,
+            14,
+            0,
+            0,
+            22,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.348,
+            7.594,
+            0,
+            null,
+            30.4,
+            59.4,
+            31.3,
+            6.7,
+            2.9000000000000004,
+            14.299999999999999
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "7",
+        "abbreviation": "DEN",
+        "displayName": "Denver Broncos"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            1.46,
+            0.104,
+            1.384,
+            -0.029,
+            15,
+            0,
+            0,
+            18,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.183,
+            7.756,
+            0,
+            null,
+            24.8,
+            54.2,
+            29.4,
+            6.2,
+            2.6,
+            13.4
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "30",
+        "abbreviation": "JAX",
+        "displayName": "Jacksonville Jaguars"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            1.124,
+            0.104,
+            0.842,
+            0.178,
+            16,
+            0,
+            0,
+            23,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.002,
+            7.939,
+            0,
+            null,
+            32.9,
+            52.400000000000006,
+            27.6,
+            5.800000000000001,
+            2.4,
+            12.4
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "3",
+        "abbreviation": "CHI",
+        "displayName": "Chicago Bears"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            1.11,
+            0.63,
+            0.442,
+            0.038,
+            17,
+            0,
+            0,
+            12,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            9.075,
+            7.861,
+            0,
+            null,
+            18.5,
+            45.5,
+            23.5,
+            4.5,
+            2.1999999999999997,
+            10.8
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "27",
+        "abbreviation": "TB",
+        "displayName": "Tampa Bay Buccaneers"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            0.035,
+            0.519,
+            -0.668,
+            0.184,
+            18,
+            0,
+            0,
+            20,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            8.303,
+            8.636,
+            0,
+            null,
+            39.5,
+            45.4,
+            21.4,
+            3,
+            1.3,
+            8.200000000000001
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "11",
+        "abbreviation": "IND",
+        "displayName": "Indianapolis Colts"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -0.359,
+            0.348,
+            -0.763,
+            0.056,
+            19,
+            0,
+            0,
+            26,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            8.383,
+            8.551,
+            0,
+            null,
+            22,
+            39.2,
+            18,
+            2.9000000000000004,
+            1.0999999999999999,
+            7.199999999999999
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "16",
+        "abbreviation": "MIN",
+        "displayName": "Minnesota Vikings"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -0.4,
+            -2.18,
+            1.585,
+            0.196,
+            20,
+            0,
+            0,
+            15,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            8.262,
+            8.679,
+            0,
+            null,
+            9.9,
+            29.7,
+            13.8,
+            1.7999999999999998,
+            0.7000000000000001,
+            5
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "23",
+        "abbreviation": "PIT",
+        "displayName": "Pittsburgh Steelers"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -0.558,
+            -1.048,
+            0.212,
+            0.277,
+            21,
+            0,
+            0,
+            25,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            8.503,
+            8.437,
+            0,
+            null,
+            13.200000000000001,
+            39.2,
+            18.099999999999998,
+            3.1,
+            1.2,
+            7.6
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "28",
+        "abbreviation": "WSH",
+        "displayName": "Washington Commanders"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -1.4,
+            -0.074,
+            -1.207,
+            -0.119,
+            22,
+            0,
+            0,
+            5,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            7.339,
+            9.602,
+            0,
+            null,
+            9.5,
+            18.9,
+            7.9,
+            1.0999999999999999,
+            0.4,
+            2.8000000000000003
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "19",
+        "abbreviation": "NYG",
+        "displayName": "New York Giants"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -1.528,
+            -0.452,
+            -0.976,
+            -0.1,
+            23,
+            0,
+            0,
+            8,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            7.465,
+            9.479,
+            0,
+            null,
+            10.299999999999999,
+            19.7,
+            7.6,
+            1.0999999999999999,
+            0.4,
+            2.8000000000000003
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "1",
+        "abbreviation": "ATL",
+        "displayName": "Atlanta Falcons"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -1.802,
+            -1.054,
+            -1.12,
+            0.371,
+            24,
+            0,
+            0,
+            24,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            7.665,
+            9.27,
+            0,
+            null,
+            25.900000000000002,
+            31.7,
+            13.900000000000002,
+            1.7999999999999998,
+            0.7000000000000001,
+            5.2
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "18",
+        "abbreviation": "NO",
+        "displayName": "New Orleans Saints"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -2.817,
+            -2.335,
+            -0.44,
+            -0.041,
+            25,
+            0,
+            0,
+            30,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            7.419,
+            9.521,
+            0,
+            null,
+            20.7,
+            25.7,
+            10.5,
+            1.2,
+            0.5,
+            3.8
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "29",
+        "abbreviation": "CAR",
+        "displayName": "Carolina Panthers"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -2.903,
+            -2.106,
+            -0.726,
+            -0.07,
+            26,
+            0,
+            0,
+            13,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            6.724,
+            10.211,
+            0,
+            null,
+            13.900000000000002,
+            17.299999999999997,
+            7.3,
+            1,
+            0.4,
+            2.5
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "10",
+        "abbreviation": "TEN",
+        "displayName": "Tennessee Titans"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -4.016,
+            -3.366,
+            -0.527,
+            -0.123,
+            27,
+            0,
+            0,
+            21,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            6.322,
+            10.623,
+            0,
+            null,
+            4.6,
+            9.6,
+            4.2,
+            0.6,
+            0.3,
+            1.7000000000000002
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "13",
+        "abbreviation": "LV",
+        "displayName": "Las Vegas Raiders"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -4.673,
+            -3.587,
+            -0.933,
+            -0.153,
+            28,
+            0,
+            0,
+            9,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            5.674,
+            11.275,
+            0,
+            null,
+            1.3,
+            5,
+            2.4,
+            0.5,
+            0.3,
+            1
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "20",
+        "abbreviation": "NYJ",
+        "displayName": "New York Jets"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -4.702,
+            -3.271,
+            -1.631,
+            0.201,
+            29,
+            0,
+            0,
+            27,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            5.975,
+            10.979,
+            0,
+            null,
+            2,
+            6.5,
+            1.9,
+            0.2,
+            0.1,
+            0.5
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "5",
+        "abbreviation": "CLE",
+        "displayName": "Cleveland Browns"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -5.313,
+            -5.176,
+            -0.174,
+            0.037,
+            30,
+            0,
+            0,
+            29,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            5.836,
+            11.114,
+            0,
+            null,
+            1,
+            5.4,
+            2,
+            0.4,
+            0.2,
+            0.8999999999999999
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "22",
+        "abbreviation": "ARI",
+        "displayName": "Arizona Cardinals"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -5.382,
+            -2.655,
+            -2.578,
+            -0.148,
+            31,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            4.91,
+            12.046,
+            0,
+            null,
+            0.1,
+            1.4000000000000001,
+            0.4,
+            0,
+            0,
+            0.2
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    },
+    {
+      "team": {
+        "id": "15",
+        "abbreviation": "MIA",
+        "displayName": "Miami Dolphins"
+      },
+      "categories": [
+        {
+          "name": "fpi",
+          "values": [
+            -6.143,
+            -3.558,
+            -2.62,
+            0.034,
+            32,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "projections",
+          "values": [
+            4.516,
+            12.445,
+            0,
+            null,
+            0.5,
+            1.6,
+            0.3,
+            0,
+            0,
+            0.1
+          ]
+        },
+        {
+          "name": "efficiencies"
+        }
+      ]
+    }
+  ]
+}

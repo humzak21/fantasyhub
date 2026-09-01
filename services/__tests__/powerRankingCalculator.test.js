@@ -287,9 +287,9 @@ describe('combineWeightedComponents', () => {
   });
 
   it('weights the surviving components against each other', () => {
-    // record 0.22 and allPlay 0.15 => (100*0.22 + 0*0.15) / 0.37
+    // record 0.21 and allPlay 0.15 => (100*0.21 + 0*0.15) / 0.36
     const value = combineWeightedComponents({ record: 100, allPlay: 0 });
-    expect(value).toBeCloseTo((100 * 0.22) / (0.22 + 0.15), 10);
+    expect(value).toBeCloseTo((100 * 0.21) / (0.21 + 0.15), 10);
   });
 
   it('ignores a null instead of scoring it as zero', () => {
@@ -577,6 +577,197 @@ describe('remaining-schedule difficulty', () => {
     });
     expect(withPlayoff.remainingOpponents('t1')).toEqual([]);
     expect(withPlayoff.componentsByTeam.t1.leagueSos).toBeNull();
+  });
+});
+
+describe('nflSos, byeExposure and the next-matchup diagnostics', () => {
+  // Two teams with one starter each. p1 plays for BUF (proTeamId 2), p2 for
+  // KC (proTeamId 12). Weeks 4-5 remain (regularSeasonWeeks 5, viewing week 4).
+  const nflTeams = [
+    { id: 't1', name: 'T1', roster: [{ rosterSlot: 'QB', player: { id: 'p1' } }] },
+    { id: 't2', name: 'T2', roster: [{ rosterSlot: 'QB', player: { id: 'p2' } }] },
+    { id: 't3', name: 'T3', roster: [] },
+    { id: 't4', name: 'T4', roster: [] }
+  ];
+
+  const nflPlayers = [
+    { id: 'p1', proTeamId: 2, seasonProjectedPoints: 200, seasonActualPoints: 50, projectedPoints: 20 },
+    { id: 'p2', proTeamId: 12, seasonProjectedPoints: 200, seasonActualPoints: 50, projectedPoints: 15 }
+  ];
+
+  const sched = (week, proTeamId, opponentProTeamId) => ({
+    seasonYear: 2026, week, proTeamId, opponentProTeamId
+  });
+
+  // BUF faces the two strongest teams; KC faces the two weakest.
+  const scheduleRows = [
+    sched(4, 2, 21), sched(5, 2, 33),
+    sched(4, 12, 29), sched(5, 12, 30)
+  ];
+
+  const teamRatings = {
+    21: { fpi: 8.0 }, 33: { fpi: 6.0 },
+    29: { fpi: -7.0 }, 30: { fpi: -5.0 }
+  };
+
+  const buildNfl = (opts = {}) =>
+    new PowerRankingCalculator(
+      opts.teams ?? nflTeams,
+      opts.games ?? games,
+      opts.currentWeek ?? 4,
+      opts.players ?? nflPlayers,
+      opts.viewingWeek ?? 4,
+      [],
+      opts.regularSeasonWeeks ?? 5,
+      null,
+      2026,
+      'nflData' in opts ? opts.nflData : { scheduleRows, teamRatings }
+    );
+
+  it('scores a tougher pro slate higher, the same direction as leagueSos', () => {
+    const calc = buildNfl();
+    expect(calc.rawNflSos('t1')).toBeCloseTo(7.0, 10); // (8 + 6) / 2
+    expect(calc.rawNflSos('t2')).toBeCloseTo(-6.0, 10); // (-7 + -5) / 2
+    expect(calc.componentsByTeam.t1.nflSos).toBe(100);
+    expect(calc.componentsByTeam.t2.nflSos).toBe(0);
+  });
+
+  it('weights each starter by projected remaining output, so stars matter more', () => {
+    // One team, two starters: a 150-points-remaining star facing 8.0 FPI and a
+    // 50-remaining role player facing -4.0. Weighted mean = (150*8 + 50*-4)/200.
+    const twoStarters = [
+      {
+        id: 't1',
+        name: 'T1',
+        roster: [
+          { rosterSlot: 'QB', player: { id: 'star' } },
+          { rosterSlot: 'RB', player: { id: 'role' } }
+        ]
+      }
+    ];
+    const players = [
+      { id: 'star', proTeamId: 2, seasonProjectedPoints: 200, seasonActualPoints: 50 },
+      { id: 'role', proTeamId: 12, seasonProjectedPoints: 60, seasonActualPoints: 10 }
+    ];
+    const calc = buildNfl({
+      teams: twoStarters,
+      players,
+      regularSeasonWeeks: 4,
+      nflData: {
+        scheduleRows: [sched(4, 2, 21), sched(4, 12, 29)],
+        teamRatings: { 21: { fpi: 8.0 }, 29: { fpi: -4.0 } }
+      }
+    });
+    expect(calc.rawNflSos('t1')).toBeCloseTo((150 * 8 + 50 * -4) / 200, 10);
+  });
+
+  it('skips a bye row rather than scoring it — its cost is already in the projections', () => {
+    const calc = buildNfl({
+      nflData: {
+        scheduleRows: [sched(4, 2, null), sched(5, 2, 33), sched(4, 12, 29), sched(5, 12, 30)],
+        teamRatings
+      }
+    });
+    // Only week 5's opponent counts for t1.
+    expect(calc.rawNflSos('t1')).toBeCloseTo(6.0, 10);
+  });
+
+  it('treats a missing calendar row as unknown, contributing nothing', () => {
+    const calc = buildNfl({
+      nflData: { scheduleRows: [sched(5, 2, 33), sched(4, 12, 29), sched(5, 12, 30)], teamRatings }
+    });
+    expect(calc.rawNflSos('t1')).toBeCloseTo(6.0, 10);
+  });
+
+  it('skips an opponent with no stored FPI', () => {
+    const calc = buildNfl({
+      nflData: { scheduleRows, teamRatings: { 33: { fpi: 6.0 }, 29: { fpi: -7.0 }, 30: { fpi: -5.0 } } }
+    });
+    expect(calc.rawNflSos('t1')).toBeCloseTo(6.0, 10); // week 4's opponent (21) unrated
+  });
+
+  it('is null with no NFL data, on a historical view, and with no starters', () => {
+    expect(buildNfl({ nflData: null }).rawNflSos('t1')).toBeNull();
+    expect(buildNfl({ viewingWeek: 3 }).rawNflSos('t1')).toBeNull();
+    expect(buildNfl().rawNflSos('t3')).toBeNull();
+  });
+
+  it('is null when every remaining matchup is unscoreable', () => {
+    const calc = buildNfl({
+      nflData: { scheduleRows: [sched(4, 2, null), sched(5, 2, null)], teamRatings }
+    });
+    expect(calc.rawNflSos('t1')).toBeNull();
+  });
+
+  it('still constructs with seven and nine arguments, dropping nflSos', () => {
+    const sevenArg = new PowerRankingCalculator(nflTeams, games, 4, nflPlayers, 4, [], 5);
+    const nineArg = new PowerRankingCalculator(
+      nflTeams, games, 4, nflPlayers, 4, [], 5, null, 2026
+    );
+    expect(sevenArg.componentsByTeam.t1.nflSos).toBeNull();
+    expect(nineArg.componentsByTeam.t1.nflSos).toBeNull();
+    expect(Number.isFinite(sevenArg.calculatePowerRating('t1').powerRating)).toBe(true);
+  });
+
+  describe('byeExposure', () => {
+    it('counts starters with an explicit bye row in the viewing week', () => {
+      const calc = buildNfl({
+        nflData: {
+          scheduleRows: [sched(4, 2, null), sched(5, 2, 33), sched(4, 12, 29), sched(5, 12, 30)],
+          teamRatings
+        }
+      });
+      expect(calc.calculatePowerRating('t1').components.byeExposure).toBe(1);
+    });
+
+    it('reports 0, not null, when it looked and found nobody on a bye', () => {
+      expect(buildNfl().calculatePowerRating('t1').components.byeExposure).toBe(0);
+    });
+
+    it('does not infer a bye from a missing row', () => {
+      // BUF has no week-4 row at all: unknown is not a bye.
+      const calc = buildNfl({
+        nflData: { scheduleRows: [sched(5, 2, 33)], teamRatings }
+      });
+      expect(calc.calculatePowerRating('t1').components.byeExposure).toBe(0);
+    });
+
+    it('is null on a historical view, without a calendar, or without starters', () => {
+      expect(buildNfl({ viewingWeek: 3 }).calculatePowerRating('t1').components.byeExposure)
+        .toBeNull();
+      expect(buildNfl({ nflData: null }).calculatePowerRating('t1').components.byeExposure)
+        .toBeNull();
+      expect(buildNfl().calculatePowerRating('t3').components.byeExposure).toBeNull();
+    });
+  });
+
+  describe('next-matchup diagnostics', () => {
+    const withWeek4 = [
+      ...games,
+      { id: '4-t1-t2', week: 4, team1Id: 't1', team2Id: 't2', team1Score: null, team2Score: null, isCompleted: false }
+    ];
+
+    it('names the viewing week’s opponent and their raw projected total', () => {
+      const calc = buildNfl({ games: withWeek4 });
+      const components = calc.calculatePowerRating('t1').components;
+      expect(components.nextOpponentTeamId).toBe('t2');
+      // t2's one starter projects 15 next week — the raw figure, not the
+      // 0-100 rescale.
+      expect(components.nextOpponentProjected).toBe(15);
+    });
+
+    it('is null with no game scheduled in the viewing week', () => {
+      const components = buildNfl().calculatePowerRating('t1').components;
+      expect(components.nextOpponentTeamId).toBeNull();
+      expect(components.nextOpponentProjected).toBeNull();
+    });
+
+    it('is null on a historical view', () => {
+      const calc = buildNfl({ games: withWeek4, viewingWeek: 3 });
+      const components = calc.calculatePowerRating('t1').components;
+      expect(components.nextOpponentTeamId).toBeNull();
+      expect(components.nextOpponentProjected).toBeNull();
+    });
   });
 });
 

@@ -26,6 +26,7 @@
     "db:types": "supabase gen types typescript --project-id kvcnijyyfylxfarrlxkv > types/supabase.ts",
     "sync-schedule": "node scripts/sync-schedule.js",
     "sync-nfl-schedule": "node scripts/sync-nfl-schedule.js",
+    "sync-nfl-ratings": "node scripts/sync-nfl-ratings.js",
     "sync-week": "node scripts/sync-week.js",
     "check-bundle": "node scripts/check-bundle.js",
     "check-css-tokens": "node scripts/check-css-tokens.js",

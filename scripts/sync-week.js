@@ -22,8 +22,8 @@
  *   node scripts/sync-week.js 5 <season-id>   # target a season explicitly
  *
  * Options: --skip-rosters --skip-scores --skip-transactions --skip-player-stats
- *          --skip-nfl-schedule --skip-finalize-prev --skip-parlay-grades
- *          --skip-snapshot
+ *          --skip-nfl-schedule --skip-nfl-ratings --skip-finalize-prev
+ *          --skip-parlay-grades --skip-snapshot
  *          --dry-run   resolve and report the target, write nothing
  *          --force     sync anyway when the season window says not to
  */
@@ -42,6 +42,7 @@ import {
   statKey
 } from '../services/parlayGrader.js';
 import { mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
+import { syncNflRatings } from './sync-nfl-ratings.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
@@ -663,10 +664,34 @@ export async function syncWeek(argv = []) {
       }
     }
 
-    // Grading reads what the two steps above just wrote — `stats_official`
-    // from the calendar, the category breakdowns from the finished week — so
-    // it has to come after both. Non-fatal: an ungraded pick reads as
-    // "Pending", which is exactly what it was before this step existed.
+    // Non-fatal, same reasoning as the calendar above: without a fresh FPI
+    // snapshot the ranking's NFL Schedule component reads last week's ratings
+    // — or drops entirely for a first-ever run — which is a thinner ranking,
+    // not a broken one. It runs before the snapshot step on purpose, so the
+    // week's snapshot ranks on fresh FPI. Another public endpoint reached
+    // without credentials, so it fails on its own schedule too.
+    if (options['skip-nfl-ratings']) {
+      steps.nflRatings = { skipped: 'flag' };
+    } else {
+      try {
+        const ratings = await syncNflRatings(espn.seasonYear, weekNumber);
+        steps.nflRatings = {
+          upserted: ratings.upserted,
+          errors: (ratings.warnings ?? []).map((warning) => ({ error: warning }))
+        };
+        console.log(`📈 nfl ratings: ${ratings.upserted} teams`);
+      } catch (error) {
+        steps.nflRatings = { failed: error.message };
+        console.warn(`⚠️  nfl ratings: ${error.message}`);
+      }
+    }
+
+    // Grading reads what the calendar and finalizePrev just wrote —
+    // `stats_official` from the one, the category breakdowns from the other —
+    // so it has to come after both. It does not depend on the ratings step
+    // and could sit either side of it; here, so the three NFL fetches stay
+    // together. Non-fatal: an ungraded pick reads as "Pending", which is
+    // exactly what it was before this step existed.
     if (options['skip-parlay-grades']) {
       steps.parlayGrades = { skipped: 'flag' };
     } else {
