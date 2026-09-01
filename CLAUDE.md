@@ -344,8 +344,17 @@ computed awards. Both are idempotent, both guarded by `can_write_league()`.
 Rules that are load-bearing:
 
 - **It raises rather than guessing.** An incomplete game, no championship game,
-  or a bracket that is not six teams stops the run. A wrong champion is worse
-  than no champion, and every downstream view keys off `playoff_finish`.
+  or a bracket that is not six teams stops the run — and from 2026, a season
+  without exactly two `bye` rows. A wrong champion is worse than no champion,
+  and every downstream view keys off `playoff_finish`.
+- **Seeding changed in 2026 and the function branches on the year.** Through
+  2025 seeds 1-6 went to the bracket by overall standing and byes were not
+  represented; from 2026 the two bye teams are seeds 1-2 and the other four
+  bracket teams are 3-6, all by the canonical sort — win% desc, points for desc,
+  points against asc. Re-running a 2025 finalise is byte-identical to what is
+  stored, and there is a probe that asserts it. `utils/playoffSeeding.js` is the
+  client-side mirror of the same rule, and `get_standings_by_division` its
+  live-standings mirror; changing one means changing all three.
 - **`teams.playoff_finish` is the fact; the award is a description of it.**
   `getChampionships` and `v_franchise_career` read the placement, not the award,
   so a season with no awards still has a champion.

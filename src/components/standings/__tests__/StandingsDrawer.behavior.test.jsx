@@ -5,10 +5,12 @@ import { describe, it, expect, vi } from 'vitest';
 import StandingsDrawer, { StandingsTrigger } from '../StandingsDrawer';
 
 vi.mock('../DrawerStandingsTable', () => ({
-  default: ({ teams, divisions, loading }) => (
+  default: ({ teams, divisions, loading, seasonYear, onDivisionDelete }) => (
     <div data-testid="standings-table">
       <div>Teams: {teams?.length || 0}</div>
       <div>Divisions: {divisions?.length || 0}</div>
+      <div>Season: {seasonYear ?? 'none'}</div>
+      <div>Delete wired: {onDivisionDelete ? 'yes' : 'no'}</div>
       {loading && <div>Loading…</div>}
     </div>
   ),
@@ -79,6 +81,27 @@ describe('StandingsDrawer', () => {
     const table = screen.getByTestId('standings-table');
     expect(table).toHaveTextContent('Teams: 2');
     expect(table).toHaveTextContent('Divisions: 1');
+  });
+
+  it('passes the season year down, since qualification changed in 2026', () => {
+    // Not read from `getSeasonConfig()` inside the table: the drawer renders
+    // whichever season it was handed, and the rule is a property of that season.
+    render(
+      <StandingsDrawer {...baseProps} open onOpenChange={vi.fn()} seasonYear={2026} />
+    );
+    expect(screen.getByTestId('standings-table')).toHaveTextContent('Season: 2026');
+  });
+
+  it('forwards the delete-division handler when one is wired', () => {
+    render(
+      <StandingsDrawer
+        {...baseProps}
+        open
+        onOpenChange={vi.fn()}
+        onDivisionDelete={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId('standings-table')).toHaveTextContent('Delete wired: yes');
   });
 
   it('forwards the loading state rather than hiding the panel', () => {
