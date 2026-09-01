@@ -58,7 +58,7 @@ const PROBES = [
     // business. (Tailwind's own animate-spin/pulse are built in and would
     // pass even with no config at all, so they are deliberately not listed.)
     name: 'keyframe animations',
-    pattern: /\.animate-(?:float-in|bounce-subtle|fade-in|slide-in|modal-in|pulse-glow|shimmer)(?![\w-])/,
+    pattern: /\.animate-(?:float-in|bounce-subtle|fade-in|slide-in|modal-in|shimmer)(?![\w-])/,
     why: 'theme.extend.animation is not registered',
   },
 ];
