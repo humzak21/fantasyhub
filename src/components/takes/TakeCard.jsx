@@ -1,4 +1,4 @@
-import { Flame, Plus, Check } from 'lucide-react';
+import { Coins, Check, ThumbsDown } from 'lucide-react';
 
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -8,9 +8,11 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
   STATUS_BADGE,
   STATUS_LABEL,
-  canPlusOne,
-  hasPlusOned,
-  plusOneCount
+  canFade,
+  fadeCount,
+  fadeTerms,
+  hasFaded,
+  hasWager
 } from './milestones.js';
 
 /**
@@ -18,10 +20,15 @@ import {
  *
  * A card stack at every width — there is no table here and so no fifth column
  * to push a phone into a horizontal scroll. The card is the click target for
- * the detail sheet, which is why the +1 button stops propagation: co-signing
- * and opening are two different intentions on the same rectangle.
+ * the detail sheet, which is why the Hell Nah button stops propagation: fading
+ * a take and reading it are two different intentions on the same rectangle.
+ *
+ * Everything about the bet — the stake, the terms, the count, the button — is
+ * conditional on there being a wager. An unstaked take is a prediction nobody
+ * can be on the other side of, so it shows no fade affordance at all rather
+ * than a disabled one or a "0 hell nahs" that means nothing.
  */
-export function TakeCard({ take, displayNames = {}, onOpen, onPlusOne, onWithdraw, pending }) {
+export function TakeCard({ take, displayNames = {}, onOpen, onFade, onWithdraw, pending }) {
   const { user, isAdmin, teamOwnerNames } = useViewer();
 
   const authorName = getMaskedUserName(
@@ -32,14 +39,15 @@ export function TakeCard({ take, displayNames = {}, onOpen, onPlusOne, onWithdra
     teamOwnerNames
   );
 
-  const count = plusOneCount(take);
-  const joined = hasPlusOned(take, user);
-  const canToggle = canPlusOne(take, user);
+  const staked = hasWager(take);
+  const count = fadeCount(take);
+  const faded = hasFaded(take, user);
+  const canToggle = canFade(take, user);
 
   const handleToggle = (event) => {
     event.stopPropagation();
-    if (joined) onWithdraw?.(take);
-    else onPlusOne?.(take);
+    if (faded) onWithdraw?.(take);
+    else onFade?.(take);
   };
 
   return (
@@ -78,37 +86,58 @@ export function TakeCard({ take, displayNames = {}, onOpen, onPlusOne, onWithdra
         {take.body}
       </p>
 
-      <div className="mt-4 flex items-center justify-between gap-3">
-        {/* The count is always visible; only the control is conditional. The
-            author cannot co-sign their own take, but they still need to see
-            that six other people did. */}
-        <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
-          <Flame className="h-3.5 w-3.5" aria-hidden="true" />
-          {count} {count === 1 ? 'co-sign' : 'co-signs'}
-        </span>
+      {/* The stake and what pressing the button costs, together — the terms
+          belong beside the number they are about, not in a legend somewhere
+          else on the page. The icon carries the accent and the stake itself
+          stays `text-foreground`: a wager is a fact, not a direction. */}
+      {staked && (
+        <div className="mt-3 rounded-md bg-muted/60 px-2.5 py-2">
+          <p className="flex items-baseline gap-1.5 text-[13px]">
+            <Coins
+              className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-warning"
+              aria-hidden="true"
+            />
+            <span className="text-muted-foreground">The bet</span>
+            <span className="break-words text-foreground">{take.wager}</span>
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{fadeTerms(take)}</p>
+        </div>
+      )}
 
-        {canToggle && (
-          <Button
-            variant={joined ? 'secondary' : 'outline'}
-            size="sm"
-            onClick={handleToggle}
-            disabled={pending}
-            className="gap-1.5"
-          >
-            {joined ? (
-              <>
-                <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                Joined
-              </>
-            ) : (
-              <>
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                +1
-              </>
-            )}
-          </Button>
-        )}
-      </div>
+      {/* No wager, no sides: the whole row goes rather than rendering a count
+          of nothing. The count *is* always shown on a staked take, though —
+          the author cannot fade their own, but they need to see the six people
+          who did, because that is who they owe. */}
+      {staked && (
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
+            <ThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
+            {count} {count === 1 ? 'hell nah' : 'hell nahs'}
+          </span>
+
+          {canToggle && (
+            <Button
+              variant={faded ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={handleToggle}
+              disabled={pending}
+              className="gap-1.5"
+            >
+              {faded ? (
+                <>
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  Hell Nah&apos;d
+                </>
+              ) : (
+                <>
+                  <ThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
+                  Hell Nah
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

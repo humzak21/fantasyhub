@@ -10,8 +10,9 @@
  *     component must not assume that gate: it is what renders during the window
  *     where the session has not resolved yet, and it would be quietly wrong if
  *     the gate ever moved.
- *   * The +1 control is absent on your own take. RLS refuses a self co-sign, so
- *     a button offering one can only ever produce an error.
+ *   * The Hell Nah control is absent on your own take, and on any take with no
+ *     wager. RLS refuses both, so a button offering either can only ever
+ *     produce an error — and a take with nothing staked has no side to take.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -58,6 +59,7 @@ const BOARD = {
       targetType: 'end_of_season',
       targetWeek: null,
       status: 'pending',
+      wager: '$20',
       createdAt: '2026-09-01T12:00:00Z',
       takeParticipants: []
     },
@@ -68,6 +70,7 @@ const BOARD = {
       targetType: 'week',
       targetWeek: 3,
       status: 'correct',
+      wager: '40 FAAB',
       createdAt: '2026-09-05T12:00:00Z',
       resolvedAt: '2026-09-20T12:00:00Z',
       takeParticipants: [{ id: 'p1', userId: READER, createdAt: '2026-09-06T12:00:00Z' }]
@@ -105,12 +108,23 @@ describe('TakesManager, signed out', () => {
     expect(headings).toEqual(['Week 3', 'End of season']);
   });
 
-  it('shows the co-sign count without offering the control', async () => {
+  it('shows the hell nah count without offering the control', async () => {
     renderTab();
     await screen.findByText('Nobody goes 14-0');
 
-    expect(screen.getByText(/1 co-sign/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /\+1/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/1 hell nah/)).toBeInTheDocument();
+    // Anchored: the card wrapper is itself `role="button"`, so its accessible
+    // name is the whole card's text and an unanchored /hell nah/ matches it.
+    expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
+  });
+
+  it('states what a Hell Nah costs wherever a wager is shown', async () => {
+    renderTab();
+    await screen.findByText('Nobody goes 14-0');
+
+    // The terms are not decoration: the button is a financial commitment, and
+    // it must not be possible to press one without the price beside it.
+    expect(screen.getAllByText(/if this take hits, you owe \$20/i).length).toBeGreaterThan(0);
   });
 
   it('renders the grade the admin gave', async () => {
@@ -138,9 +152,9 @@ describe('TakesManager, signed in', () => {
     expect(screen.queryByText('Sign in to post a take.')).not.toBeInTheDocument();
   });
 
-  it('hides the +1 on the viewer\'s own takes', async () => {
-    // Both takes here belong to AUTHOR, and RLS refuses a self co-sign — so a
-    // +1 button on either could only ever produce an error toast.
+  it('hides the Hell Nah on the viewer\'s own takes', async () => {
+    // Both takes here belong to AUTHOR, and RLS refuses fading your own — so a
+    // button on either could only ever produce an error toast.
     auth = {
       user: { id: AUTHOR, user_metadata: { name: 'Humza Khalil' } },
       isAuthenticated: true,
@@ -151,11 +165,11 @@ describe('TakesManager, signed in', () => {
     renderTab();
     await screen.findByText('Nobody goes 14-0');
 
-    expect(screen.queryByRole('button', { name: /^\+1$/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /joined/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /hell nah'd/i })).not.toBeInTheDocument();
   });
 
-  it('offers a +1 on somebody else\'s ungraded take, and shows the one already joined', async () => {
+  it('offers a Hell Nah on somebody else\'s ungraded, staked take', async () => {
     auth = {
       user: { id: READER, user_metadata: { name: 'Arya Shah' } },
       isAuthenticated: true,
@@ -166,10 +180,33 @@ describe('TakesManager, signed in', () => {
     renderTab();
     await screen.findByText('Nobody goes 14-0');
 
-    // 'late' is ungraded and not theirs → joinable.
-    expect(screen.getByRole('button', { name: /^\+1$/ })).toBeInTheDocument();
-    // 'early' is graded → frozen, so no control at all despite their co-sign.
-    expect(screen.queryByRole('button', { name: /joined/i })).not.toBeInTheDocument();
+    // 'late' is ungraded, staked and not theirs → fadeable.
+    expect(screen.getByRole('button', { name: /^hell nah$/i })).toBeInTheDocument();
+    // 'early' is graded → frozen, so no control at all despite their fade.
+    expect(screen.queryByRole('button', { name: /hell nah'd/i })).not.toBeInTheDocument();
+  });
+
+  it('offers nothing to fade on a take with no wager', async () => {
+    // The rule the migration added to `take_participants insert own`: nothing
+    // staked, no side to take. Not a disabled button and not a "0 hell nahs" —
+    // the whole affordance is absent.
+    takes.getTakesForSeason.mockResolvedValue({
+      takes: [{ ...BOARD.takes[0], id: 'bare', wager: null, takeParticipants: [] }],
+      displayNames: BOARD.displayNames
+    });
+    auth = {
+      user: { id: READER, user_metadata: { name: 'Arya Shah' } },
+      isAuthenticated: true,
+      isAdmin: false,
+      loading: false
+    };
+
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/hell nah/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/the bet/i)).not.toBeInTheDocument();
   });
 });
 

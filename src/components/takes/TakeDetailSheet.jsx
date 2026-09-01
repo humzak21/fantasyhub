@@ -1,4 +1,4 @@
-import { Check, Flame, Minus, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { Check, Coins, Minus, Pencil, RotateCcw, ThumbsDown, Trash2, X } from 'lucide-react';
 
 import {
   Sheet,
@@ -28,8 +28,10 @@ import {
   STATUS_LABEL,
   canDeleteTake,
   canEditTake,
-  canPlusOne,
-  hasPlusOned,
+  canFade,
+  fadeTerms,
+  hasFaded,
+  hasWager,
   isPending,
   milestoneLabel
 } from './milestones.js';
@@ -45,7 +47,7 @@ const FieldRow = ({ label, children }) => (
  * One take, in full: who called it, who joined, and what the admin did about it.
  *
  * It reads its take from the board query's cache rather than fetching — the
- * board already carries the co-signs, so opening a take costs nothing. The
+ * board already carries the fades, so opening a take costs nothing. The
  * caller passes the take down; when the board refetches after a mutation the
  * caller hands over the fresh row, which is why nothing here holds a copy.
  */
@@ -55,7 +57,7 @@ export function TakeDetailSheet({
   seasonConfig,
   open,
   onOpenChange,
-  onPlusOne,
+  onFade,
   onWithdraw,
   onEdit,
   onDelete,
@@ -71,13 +73,14 @@ export function TakeDetailSheet({
     getMaskedUserName(displayNames[userId], userId, user, isAdmin, teamOwnerNames);
 
   const participants = take.takeParticipants || [];
-  const joined = hasPlusOned(take, user);
-  const canToggle = canPlusOne(take, user);
+  const staked = hasWager(take);
+  const faded = hasFaded(take, user);
+  const canToggle = canFade(take, user);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {/* Wider than the primitive's `max-w-sm` default, matching the standings
-          drawer: this holds a paragraph plus a roster of co-signers. */}
+          drawer: this holds a paragraph plus a roster of faders. */}
       <SheetContent side="right" className="w-[92vw] max-w-[690px] overflow-y-auto sm:w-[690px]">
         <SheetHeader>
           <SheetTitle className="font-display text-xl tracking-tight">Take</SheetTitle>
@@ -93,6 +96,25 @@ export function TakeDetailSheet({
             </p>
           </div>
 
+          {/* Its own block rather than a FieldRow: those right-align a short
+              value on one line, and a stake runs to 200 characters. The terms
+              sit with it, because this is the sentence somebody should have
+              read before the button below it. */}
+          {staked && (
+            <div className="rounded-lg border border-border bg-muted/40 p-4">
+              <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <Coins className="mr-1 inline h-3.5 w-3.5 text-warning" aria-hidden="true" />
+                The bet
+              </h3>
+              <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-foreground">
+                {take.wager}
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                {fadeTerms(take)}
+              </p>
+            </div>
+          )}
+
           <div>
             <FieldRow label="Status">
               <Badge variant={STATUS_BADGE[take.status] ?? 'secondary'}>
@@ -105,14 +127,19 @@ export function TakeDetailSheet({
             {take.resolvedAt && <FieldRow label="Graded">{formatDateTime(take.resolvedAt)}</FieldRow>}
           </div>
 
+          {/* Nothing staked, nothing to fade — so this whole section is absent
+              rather than an empty roster on a take that could never have one. */}
+          {staked && (
           <div>
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-              <Flame className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
-              Co-signed by {participants.length}
+              <ThumbsDown className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+              Hell nah&apos;d by {participants.length}
             </h3>
 
             {participants.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nobody has joined this take yet.</p>
+              <p className="text-sm text-muted-foreground">
+                Nobody has taken the other side of this yet.
+              </p>
             ) : (
               <ul className="space-y-1.5">
                 {participants.map((participant) => (
@@ -131,26 +158,27 @@ export function TakeDetailSheet({
 
             {canToggle && (
               <Button
-                variant={joined ? 'secondary' : 'outline'}
+                variant={faded ? 'secondary' : 'outline'}
                 size="sm"
                 className="mt-4 gap-1.5"
-                onClick={() => (joined ? onWithdraw?.(take) : onPlusOne?.(take))}
+                onClick={() => (faded ? onWithdraw?.(take) : onFade?.(take))}
                 disabled={pending}
               >
-                {joined ? (
+                {faded ? (
                   <>
                     <X className="h-3.5 w-3.5" aria-hidden="true" />
-                    Withdraw +1
+                    Take it back
                   </>
                 ) : (
                   <>
-                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                    Join this take
+                    <ThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    Hell Nah
                   </>
                 )}
               </Button>
             )}
           </div>
+          )}
 
           {(canEditTake(take, user) || canDeleteTake(take, user)) && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
@@ -177,8 +205,8 @@ export function TakeDetailSheet({
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete this take?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        It disappears from the board along with every co-sign on it. This cannot be
-                        undone.
+                        It disappears from the board along with every Hell Nah on it. This cannot
+                        be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
