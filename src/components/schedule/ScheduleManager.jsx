@@ -4,6 +4,8 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { EmptyState } from '../ui/empty-state';
+import { OpponentChip } from '../ui/opponent-chip';
+import { PlayerPoints } from '../ui/player-points';
 import { TeamIdentity } from '../ui/team-identity';
 import { IndependentColumns } from '../ui/independent-columns';
 import PageHeader from '../layout/PageHeader';
@@ -14,6 +16,12 @@ import { formatPoints } from '../../utils/format';
 import { cn } from '../../lib/utils';
 import SeasonProgressBar from '../season/SeasonProgressBar';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import {
+  useActualWeek,
+  useCurrentLineups,
+  useNflOpponentMap,
+  useWeekPlayerStats
+} from '../../../hooks/queries/index.js';
 
 /** The slots this league starts, in lineup order. Matches OPTIMAL_LINEUP_TEMPLATE. */
 const STARTER_SLOTS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
@@ -32,6 +40,21 @@ const ScheduleManager = ({
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const [viewMode, setViewMode] = useState('week'); // 'week' or 'full'
+
+  // The week the league is actually in, which is what decides whether a viewed
+  // week is history or now. `currentWeek` is the *viewed* week and cannot
+  // answer that: navigating to week 3 in November must still read week 3 as a
+  // finished week. See the week-state split in `hooks/queries/useWeek.jsx`.
+  const actualWeek = useActualWeek();
+
+  // Hooks first: `season` is null on the empty state below, and a conditional
+  // hook would change the call order between renders.
+  const seasonId = season?.id ?? null;
+  // The NFL season the opponent chips are keyed on. `espn_season_year` is the
+  // year ESPN's calendar endpoint is keyed by; `year` is the same value today
+  // and is the fallback for a season row created before that column existed.
+  const nflSeasonYear =
+    season?.espnSeasonYear ?? season?.espn_season_year ?? season?.year ?? null;
 
   if (!season) {
     return (
@@ -132,6 +155,9 @@ const ScheduleManager = ({
                 week={currentWeek}
                 games={getGamesForWeek(currentWeek)}
                 teams={season.teams}
+                seasonId={seasonId}
+                nflSeasonYear={nflSeasonYear}
+                actualWeek={actualWeek}
                 onUpdateGame={onUpdateGame}
                 onDeleteGame={onDeleteGame}
                 isAuthenticated={isAuthenticated}
@@ -171,6 +197,9 @@ const WeekScheduleView = ({
   week,
   games,
   teams,
+  seasonId = null,
+  nflSeasonYear = null,
+  actualWeek = 1,
   onUpdateGame,
   onDeleteGame,
   isAuthenticated = false,
@@ -210,6 +239,9 @@ const WeekScheduleView = ({
       {(game) => (
         <GameCard
           game={game}
+          seasonId={seasonId}
+          nflSeasonYear={nflSeasonYear}
+          actualWeek={actualWeek}
           onUpdateGame={onUpdateGame}
           onDeleteGame={onDeleteGame}
           isAuthenticated={isAuthenticated}
@@ -367,6 +399,9 @@ const FullScheduleView = ({
 // Game Card Component with Versus Layout
 const GameCard = ({
   game,
+  seasonId = null,
+  nflSeasonYear = null,
+  actualWeek = 1,
   onUpdateGame,
   onDeleteGame,
   isAuthenticated = false,
@@ -612,16 +647,22 @@ const GameCard = ({
           {/* Rendered only while open, so a week of fixtures does not carry
               fourteen squad lists in the DOM. */}
           {isLineupOpen && (
-            <div className="grid grid-cols-1 gap-5 border-t border-border/60 p-3.5 sm:grid-cols-2">
-              <TeamRosterPreview
-                roster={rosters[game.team1Id]?.roster || []}
-                teamName={team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : ''}
-              />
-              <TeamRosterPreview
-                roster={rosters[game.team2Id]?.roster || []}
-                teamName={team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : ''}
-              />
-            </div>
+            <LineupPanel
+              seasonId={seasonId}
+              nflSeasonYear={nflSeasonYear}
+              week={game.week}
+              actualWeek={actualWeek}
+              sides={[
+                {
+                  teamId: game.team1Id,
+                  teamName: team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : ''
+                },
+                {
+                  teamId: game.team2Id,
+                  teamName: team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : ''
+                }
+              ]}
+            />
           )}
         </div>
       )}
@@ -630,17 +671,117 @@ const GameCard = ({
 };
 
 /**
- * A team's lineup, grouped by slot. Rendered only when its matchup card is
- * expanded, so a week of fixtures does not carry fourteen squad lists.
+ * The lineups behind one matchup.
+ *
+ * Mounted only while the disclosure is open, which is what makes its queries
+ * lazy — there is no `enabled` latch to maintain, and TanStack's cache means
+ * closing and reopening does not refetch.
+ *
+ * **Which table it reads is decided by the week, not by convenience.** A week
+ * that is over is a past-tense question — who actually started, and what they
+ * actually scored — and that is `player_week_stats`, the historical fact table
+ * the cron writes once. A week that has not finished is a present-tense
+ * question, and `player_week_stats` cannot answer one: between two syncs it
+ * describes a roster that has since taken waivers and changed its lineup, which
+ * on 2026-08-31 made it name 122 of 125 starters wrongly. That week reads the
+ * live `rosters` snapshot instead, through `getCurrentLineupsForWeek`.
+ *
+ * Both hooks are called every render and gated by `enabled`, so exactly one
+ * fetches and the hook order never changes.
+ *
+ * The card this replaces read the `rosters` prop — the whole league's roster
+ * snapshot, with no points and no opponent, and with an `injuryStatus` the
+ * query never selected, so the injury dot below could not fire. `rosters` now
+ * survives only as the disclosure's "is there anything to open" gate.
  */
-const TeamRosterPreview = ({ roster, teamName }) => {
-  if (!roster || roster.length === 0) {
-    return <div className="text-xs text-muted-foreground">No roster data</div>;
+const LineupPanel = ({ seasonId, nflSeasonYear, week, actualWeek, sides = [] }) => {
+  const isPastWeek = week < actualWeek;
+
+  const past = useWeekPlayerStats(seasonId, week, { enabled: isPastWeek });
+  const live = useCurrentLineups(seasonId, week, { enabled: !isPastWeek });
+
+  // The NFL calendar, for the "vs BUF" / "@ KC" / "BYE" chips. One cache entry
+  // per season, shared with every other chip on the page, and deliberately not
+  // awaited: a lineup renders without its opponents rather than waiting on a
+  // second query.
+  const { data: opponents = {} } = useNflOpponentMap(nflSeasonYear, week);
+
+  const { data: rowsByTeam, isLoading } = isPastWeek ? past : live;
+
+  if (isLoading) return <LineupSkeleton />;
+
+  const hasAnything = sides.some((side) => (rowsByTeam?.[side.teamId]?.length || 0) > 0);
+
+  if (!hasAnything) {
+    return (
+      <div className="border-t border-border/60 p-3.5 text-xs text-muted-foreground">
+        {/* Honest for a pre-2026 week: `player_week_stats` starts with the 2026
+            season, so there is genuinely no lineup to show rather than a
+            failure to load one. */}
+        No lineup data for this week.
+      </div>
+    );
   }
 
-  const grouped = roster.reduce((acc, player) => {
-    const slot = player.rosterSlot || 'BE';
-    (acc[slot] ||= []).push(player);
+  return (
+    <div className="grid grid-cols-1 gap-5 border-t border-border/60 p-3.5 sm:grid-cols-2">
+      {sides.map((side) => (
+        <TeamLineup
+          key={side.teamId}
+          teamName={side.teamName}
+          rows={rowsByTeam?.[side.teamId] ?? []}
+          opponents={opponents}
+        />
+      ))}
+    </div>
+  );
+};
+
+/**
+ * A skeleton rather than a spinner, because the shape *is* predictable here —
+ * a lineup is a column of slot/name/points rows, and reserving it means the
+ * card does not resize under the reader when the rows land.
+ */
+const LineupSkeleton = () => (
+  <div
+    role="status"
+    aria-label="Loading lineups"
+    className="grid grid-cols-1 gap-5 border-t border-border/60 p-3.5 sm:grid-cols-2"
+  >
+    {[0, 1].map((column) => (
+      <div key={column} className="space-y-2" aria-hidden="true">
+        <div className="h-3.5 w-2/5 animate-pulse rounded bg-muted" />
+        {Array.from({ length: 7 }, (_, row) => (
+          <div key={row} className="flex items-center gap-2">
+            <div className="h-4 w-10 shrink-0 animate-pulse rounded bg-muted" />
+            <div className="h-3 flex-1 animate-pulse rounded bg-muted" />
+            <div className="h-3 w-10 shrink-0 animate-pulse rounded bg-muted" />
+          </div>
+        ))}
+      </div>
+    ))}
+    <span className="sr-only">Loading lineups</span>
+  </div>
+);
+
+/**
+ * One team's lineup, grouped by slot. Starters in lineup order, then bench,
+ * then IR — the order the manager set it in, so the two columns read as the
+ * same lineup side by side.
+ */
+const TeamLineup = ({ teamName, rows, opponents }) => {
+  if (!rows || rows.length === 0) {
+    return (
+      <div className="space-y-3">
+        {teamName && <h4 className="truncate text-sm font-semibold">{teamName}</h4>}
+        <div className="text-xs text-muted-foreground">No lineup for this team.</div>
+      </div>
+    );
+  }
+
+  const grouped = rows.reduce((acc, row) => {
+    const slot = row.rosterSlot || 'BE';
+    (acc[slot] ||= []).push(row);
     return acc;
   }, {});
 
@@ -652,8 +793,13 @@ const TeamRosterPreview = ({ roster, teamName }) => {
     players.length > 0 && (
       <div className="space-y-1">
         <h5 className={cn('text-[11px] font-semibold uppercase tracking-wide', tone)}>{label}</h5>
-        {players.map((player, idx) => (
-          <PlayerRow key={`${label}-${idx}`} player={player} muted={label !== 'Starters'} />
+        {players.map((row, idx) => (
+          <PlayerRow
+            key={row.id ?? `${label}-${idx}`}
+            row={row}
+            opponent={opponents[row.proTeamId]}
+            muted={label !== 'Starters'}
+          />
         ))}
       </div>
     );
@@ -668,10 +814,10 @@ const TeamRosterPreview = ({ roster, teamName }) => {
   );
 };
 
-const PlayerRow = ({ player, muted }) => {
-  const playerName = player.playerName || player.player?.name || 'Unknown';
-  const position = player.position || player.player?.position || '?';
-  const isInjured = player.injuryStatus && player.injuryStatus !== 'ACTIVE';
+const PlayerRow = ({ row, opponent, muted }) => {
+  const playerName = row.player?.name || row.playerName || 'Unknown';
+  const position = row.position || row.player?.position || '?';
+  const isInjured = row.injuryStatus && row.injuryStatus !== 'ACTIVE';
 
   return (
     <div className={cn('flex items-center gap-2 text-xs', muted && 'text-muted-foreground')}>
@@ -687,10 +833,20 @@ const PlayerRow = ({ player, muted }) => {
       {isInjured && (
         <span
           className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive"
-          title={player.injuryStatus}
-          aria-label={player.injuryStatus}
+          title={row.injuryStatus}
+          aria-label={row.injuryStatus}
         />
       )}
+      {/* Fixed width whether or not the chip renders — an unknown opponent is
+          nothing at all, and the points must still line up down the column. */}
+      <span className="w-12 shrink-0 text-right">
+        <OpponentChip entry={opponent} warnOnBye />
+      </span>
+      <PlayerPoints
+        actualPoints={row.actualPoints}
+        projectedPoints={row.projectedPoints}
+        className="w-[4.25rem] shrink-0 text-right"
+      />
     </div>
   );
 };

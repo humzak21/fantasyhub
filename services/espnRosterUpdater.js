@@ -102,8 +102,17 @@ export class ESPNRosterUpdater {
         acquisitionType: player?.acquisitionType,
         isActive: entry.lineupSlotId !== 20 && entry.lineupSlotId !== 21,
         
-        // Points data - current week/period
-        projectedPoints: projectedStats?.appliedTotal || 0,
+        // Points data - current week/period.
+        //
+        // `?? null`, not `|| 0`. A player ESPN has not projected has not been
+        // projected to score nothing, and the difference shows: the Teams tab
+        // renders this figure as "proj 0.0" against every unprojected player
+        // on every roster if it arrives as a zero, which is a claim nobody
+        // made. Same rule as the power ranking's components and the touchdown
+        // helpers — unknown is null, never 0. `players.projected_points` is
+        // nullable and `upsertPlayer` writes null through, so existing 0 rows
+        // heal themselves on the next roster sync.
+        projectedPoints: projectedStats?.appliedTotal ?? null,
         actualPoints: actualStats?.appliedTotal || 0,
         
         // Season totals
