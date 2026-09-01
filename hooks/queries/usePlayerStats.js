@@ -104,3 +104,59 @@ export function useCurrentLineups(seasonId, week, { enabled = true } = {}) {
     refetchOnWindowFocus: true
   });
 }
+
+/**
+ * The lineups for a week, from whichever table can answer for it.
+ *
+ * The past/present rule in one place. A week that is over is a past-tense
+ * question — who actually started, and what they actually scored — and that is
+ * `player_week_stats`. A week that has not finished is a present-tense
+ * question, which that table cannot answer: the cron writes it once, so
+ * between two syncs it describes a roster that has since taken waivers and
+ * changed its lineup, and on 2026-08-31 it named 122 of 125 starters wrongly.
+ *
+ * This exists because two things now ask it — the Schedule card's projected
+ * score line and the lineup disclosure underneath it — and a card whose score
+ * came from one table while its lineup came from the other would be a total
+ * that does not add up to the rows below it.
+ *
+ * Both hooks are always called and gated by `enabled`, so exactly one fetches
+ * and the hook order never changes. `actualWeek` is passed in rather than read
+ * from context, which keeps this usable from anywhere and keeps the comparison
+ * explicit: it is deliberately *not* the viewed week — navigating to week 3 in
+ * November must still read week 3 as history.
+ *
+ * **`actualWeek: null` means "not known yet", and nothing fetches.** That case
+ * has to be representable, because `useActualWeek()` returns `1` while the
+ * season is still loading and a `1` is indistinguishable from a real week 1 —
+ * the same trap as gating on `isAuthenticated` before `isAuthLoading` clears.
+ * Collapsed to a number, every historical week looks live for one render, which
+ * fires the wrong query and briefly totals a finished week off the *current*
+ * roster. `isLoading` is true in that state because, from the caller's side,
+ * it is: the answer is coming, we just cannot ask yet.
+ *
+ * @param {string} seasonId
+ * @param {number} week       the week being displayed
+ * @param {{ actualWeek?: number|null, enabled?: boolean }} options
+ * @returns {{ data: object|undefined, isLoading: boolean, isPastWeek: boolean }}
+ *   `data` is `{ [teamId]: rows }`, the shape both underlying hooks select to.
+ */
+export function useLineupsForWeek(seasonId, week, { actualWeek = null, enabled = true } = {}) {
+  const known = actualWeek != null;
+  const isPastWeek = known && Boolean(week) && week < actualWeek;
+
+  const past = useWeekPlayerStats(seasonId, week, {
+    enabled: enabled && known && isPastWeek
+  });
+  const live = useCurrentLineups(seasonId, week, {
+    enabled: enabled && known && !isPastWeek
+  });
+
+  const source = isPastWeek ? past : live;
+
+  return {
+    data: known ? source.data : undefined,
+    isLoading: !known || source.isLoading,
+    isPastWeek
+  };
+}

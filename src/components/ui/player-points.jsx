@@ -20,15 +20,25 @@ import { NumberText } from './number-text';
  * projected to score nothing (`utils/format.js`). The dash carries no label:
  * "proj —" would assert a projection that does not exist.
  *
+ * `display` sets the figure in the scoreboard face, for the one place this
+ * stands in for a matchup score rather than a player's line. The "proj" label
+ * stays small either way — it is an annotation on the number, not part of it.
+ *
  * @param {{
  *   actualPoints?: number|null,
  *   projectedPoints?: number|null,
+ *   display?: boolean,
  *   className?: string
  * }} props
  */
-const PlayerPoints = ({ actualPoints = null, projectedPoints = null, className }) => {
+const PlayerPoints = ({
+  actualPoints = null,
+  projectedPoints = null,
+  display = false,
+  className
+}) => {
   if (actualPoints != null) {
-    return <NumberText value={actualPoints} className={className} />;
+    return <NumberText value={actualPoints} display={display} className={className} />;
   }
 
   if (projectedPoints != null) {
@@ -37,12 +47,16 @@ const PlayerPoints = ({ actualPoints = null, projectedPoints = null, className }
         <span className="text-[9px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
           proj
         </span>
-        <NumberText value={projectedPoints} className="text-muted-foreground" />
+        <NumberText
+          value={projectedPoints}
+          display={display}
+          className="text-muted-foreground"
+        />
       </span>
     );
   }
 
-  return <NumberText value={null} className={className} />;
+  return <NumberText value={null} display={display} className={className} />;
 };
 
 export { PlayerPoints };

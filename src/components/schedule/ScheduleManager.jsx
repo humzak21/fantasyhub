@@ -18,10 +18,11 @@ import SeasonProgressBar from '../season/SeasonProgressBar';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
   useActualWeek,
-  useCurrentLineups,
+  useLineupsForWeek,
   useNflOpponentMap,
-  useWeekPlayerStats
+  useSeasonConfig
 } from '../../../hooks/queries/index.js';
+import { starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
 
 /** The slots this league starts, in lineup order. Matches OPTIMAL_LINEUP_TEMPLATE. */
 const STARTER_SLOTS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
@@ -45,7 +46,14 @@ const ScheduleManager = ({
   // week is history or now. `currentWeek` is the *viewed* week and cannot
   // answer that: navigating to week 3 in November must still read week 3 as a
   // finished week. See the week-state split in `hooks/queries/useWeek.jsx`.
-  const actualWeek = useActualWeek();
+  //
+  // Passed down as `null` until the season config is loaded, because
+  // `useActualWeek()` answers `1` in the meantime and a `1` cannot be told
+  // apart from a real week 1 — which would make every historical week look
+  // live for one render and total it off the current roster.
+  const seasonConfig = useSeasonConfig();
+  const derivedWeek = useActualWeek();
+  const actualWeek = seasonConfig?.startDate ? derivedWeek : null;
 
   // Hooks first: `season` is null on the empty state below, and a conditional
   // hook would change the call order between renders.
@@ -199,7 +207,7 @@ const WeekScheduleView = ({
   teams,
   seasonId = null,
   nflSeasonYear = null,
-  actualWeek = 1,
+  actualWeek = null,
   onUpdateGame,
   onDeleteGame,
   isAuthenticated = false,
@@ -210,6 +218,12 @@ const WeekScheduleView = ({
   teamOwnerNames = []
 }) => {
   const [openLineupId, setOpenLineupId] = useState(null);
+
+  // One query for the whole week, not one per card: both hooks behind this
+  // return the league's rows keyed by team, so fourteen cards share a single
+  // fetch. It is the same cache entry the lineup disclosure reads, which is
+  // what makes a card's projected score add up to the rows underneath it.
+  const { data: lineupsByTeam } = useLineupsForWeek(seasonId, week, { actualWeek });
 
   if (games.length === 0) {
     return (
@@ -242,6 +256,10 @@ const WeekScheduleView = ({
           seasonId={seasonId}
           nflSeasonYear={nflSeasonYear}
           actualWeek={actualWeek}
+          projectedTotals={{
+            [game.team1Id]: starterTotal(lineupsByTeam?.[game.team1Id] ?? []),
+            [game.team2Id]: starterTotal(lineupsByTeam?.[game.team2Id] ?? [])
+          }}
           onUpdateGame={onUpdateGame}
           onDeleteGame={onDeleteGame}
           isAuthenticated={isAuthenticated}
@@ -401,7 +419,8 @@ const GameCard = ({
   game,
   seasonId = null,
   nflSeasonYear = null,
-  actualWeek = 1,
+  actualWeek = null,
+  projectedTotals = {},
   onUpdateGame,
   onDeleteGame,
   isAuthenticated = false,
@@ -480,6 +499,7 @@ const GameCard = ({
     const team = teams.find((t) => t.id === teamId);
     const stats = getTeamStats(teamId);
     const rank = getTeamRanking(teamId);
+    const projectedTotal = projectedTotals[teamId];
 
     if (isByeSlot) {
       return (
@@ -538,15 +558,33 @@ const GameCard = ({
             className="w-20 text-center"
             placeholder="0"
           />
-        ) : (
+        ) : score !== null && score !== undefined ? (
           <span
             className={cn(
               'font-display text-[21px] leading-none tabular tracking-[-0.01em]',
               isWinner ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'
             )}
           >
-            {score !== null && score !== undefined ? formatPoints(score) : '—'}
+            {formatPoints(score)}
           </span>
+        ) : (
+          /*
+            No score yet, so the lineup's own projection stands in — an
+            upcoming fixture read "— vs —", which is the least useful thing a
+            schedule can say about a game nobody has played.
+
+            The imported score always wins: this branch is only reached when
+            `game.team1Score`/`team2Score` is null, so the moment the sync
+            writes a real result the projection is gone rather than sitting
+            beside it. `PlayerPoints` labels it "proj" until then, and renders
+            the em dash by itself for a week with no player data at all —
+            every season before 2026.
+          */
+          <PlayerPoints
+            {...totalAsPoints(projectedTotal)}
+            display
+            className="shrink-0 whitespace-nowrap text-[21px] leading-none tracking-[-0.01em]"
+          />
         )}
       </div>
     );
@@ -686,8 +724,10 @@ const GameCard = ({
  * on 2026-08-31 made it name 122 of 125 starters wrongly. That week reads the
  * live `rosters` snapshot instead, through `getCurrentLineupsForWeek`.
  *
- * Both hooks are called every render and gated by `enabled`, so exactly one
- * fetches and the hook order never changes.
+ * The past/present choice is `useLineupsForWeek`'s, not this component's —
+ * the card's projected score line reads the same hook, and a score that came
+ * from one table while the lineup under it came from the other would not add
+ * up.
  *
  * The card this replaces read the `rosters` prop — the whole league's roster
  * snapshot, with no points and no opponent, and with an `injuryStatus` the
@@ -695,18 +735,13 @@ const GameCard = ({
  * survives only as the disclosure's "is there anything to open" gate.
  */
 const LineupPanel = ({ seasonId, nflSeasonYear, week, actualWeek, sides = [] }) => {
-  const isPastWeek = week < actualWeek;
-
-  const past = useWeekPlayerStats(seasonId, week, { enabled: isPastWeek });
-  const live = useCurrentLineups(seasonId, week, { enabled: !isPastWeek });
+  const { data: rowsByTeam, isLoading } = useLineupsForWeek(seasonId, week, { actualWeek });
 
   // The NFL calendar, for the "vs BUF" / "@ KC" / "BYE" chips. One cache entry
   // per season, shared with every other chip on the page, and deliberately not
   // awaited: a lineup renders without its opponents rather than waiting on a
   // second query.
   const { data: opponents = {} } = useNflOpponentMap(nflSeasonYear, week);
-
-  const { data: rowsByTeam, isLoading } = isPastWeek ? past : live;
 
   if (isLoading) return <LineupSkeleton />;
 
