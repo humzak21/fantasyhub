@@ -23,6 +23,7 @@ import { Button } from '../ui/button';
 import { formatDate, formatDateTime } from '../../lib/utils';
 import { getMaskedUserName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { TakeActivityLog } from './TakeActivityLog.jsx';
 import {
   STATUS_BADGE,
   STATUS_LABEL,
@@ -50,11 +51,18 @@ const FieldRow = ({ label, children }) => (
  * board already carries the fades, so opening a take costs nothing. The
  * caller passes the take down; when the board refetches after a mutation the
  * caller hands over the fresh row, which is why nothing here holds a copy.
+ *
+ * The activity log is the one thing that does cost a request, and it arrives
+ * the same way: fetched by the caller, passed in here. This component stays
+ * presentational, so a test can render any history it likes without a query
+ * client standing behind it.
  */
 export function TakeDetailSheet({
   take,
   displayNames = {},
   seasonConfig,
+  activity,
+  activityLoading,
   open,
   onOpenChange,
   onFade,
@@ -283,6 +291,18 @@ export function TakeDetailSheet({
               )}
             </div>
           )}
+
+          {/* Last, and for everyone: the log is the record the league argues
+              from, not an admin tool. It sits below the controls because it
+              answers "what happened to this" rather than "what can I do with
+              this", and the second question is the one somebody opened the
+              sheet holding. */}
+          <TakeActivityLog
+            events={activity?.events}
+            displayNames={activity?.displayNames}
+            seasonConfig={seasonConfig}
+            loading={activityLoading}
+          />
         </div>
       </SheetContent>
     </Sheet>

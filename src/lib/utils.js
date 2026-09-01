@@ -64,12 +64,15 @@ export const formatDate = (date) => {
   }).format(new Date(date))
 }
 
+// `hour: 'numeric'`, never '2-digit': the latter renders 8:42 PM as "08:42 PM",
+// which is a clock face nobody writes. Minutes stay 2-digit because 8:5 PM is
+// not a time either.
 export const formatDateTime = (date) => {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
+    hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(date))
 }

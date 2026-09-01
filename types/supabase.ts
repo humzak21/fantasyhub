@@ -161,6 +161,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "awards_2025_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
+          {
             foreignKeyName: "awards_winner_franchise_id_fkey"
             columns: ["winner_franchise_id"]
             isOneToOne: false
@@ -237,6 +244,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "awards_metadata_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: true
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       divisions: {
@@ -278,6 +292,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "divisions_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
         ]
       }
@@ -469,6 +490,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "espn_schedule_imports_assigned_season_id_fkey"
+            columns: ["assigned_season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       espn_teams: {
@@ -635,6 +663,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
           {
             foreignKeyName: "games_team1_id_fkey"
@@ -915,6 +950,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pick_em_season_standings_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       pick_em_submissions: {
@@ -1130,6 +1172,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "pick_em_weeks_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       player_week_stats: {
@@ -1208,6 +1257,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "player_week_stats_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
           {
             foreignKeyName: "player_week_stats_team_id_fkey"
@@ -1383,6 +1439,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "playoffs_2025_config_season_fkey"
+            columns: ["season_id"]
+            isOneToOne: true
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       playoff_picks: {
@@ -1492,6 +1555,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "playoffs_2025_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       power_rankings_history: {
@@ -1592,6 +1662,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "power_rankings_history_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
+          {
             foreignKeyName: "power_rankings_history_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
@@ -1687,6 +1764,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_history_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
           {
             foreignKeyName: "roster_history_team_id_fkey"
@@ -1957,6 +2041,78 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "sync_runs_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
+        ]
+      }
+      take_events: {
+        Row: {
+          actor_id: string | null
+          changes: Json
+          created_at: string
+          event_type: string
+          id: string
+          season_id: string
+          seq: number
+          subject_id: string | null
+          take_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          changes?: Json
+          created_at?: string
+          event_type: string
+          id?: string
+          season_id: string
+          seq?: never
+          subject_id?: string | null
+          take_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          changes?: Json
+          created_at?: string
+          event_type?: string
+          id?: string
+          season_id?: string
+          seq?: never
+          subject_id?: string | null
+          take_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "take_events_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "take_events_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_season"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "take_events_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
+          {
+            foreignKeyName: "take_events_take_id_fkey"
+            columns: ["take_id"]
+            isOneToOne: false
+            referencedRelation: "takes"
+            referencedColumns: ["id"]
+          },
         ]
       }
       take_participants: {
@@ -1995,6 +2151,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "take_participants_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
           {
             foreignKeyName: "take_participants_take_id_fkey"
@@ -2066,6 +2229,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "takes_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       td_parlay_picks: {
@@ -2136,6 +2306,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "td_parlay_picks_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
         ]
       }
@@ -2329,6 +2506,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "teams_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       transactions: {
@@ -2411,6 +2595,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
           {
             foreignKeyName: "transactions_team_id_fkey"
@@ -2630,6 +2821,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "weekly_lineups_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
+          {
             foreignKeyName: "weekly_lineups_te_id_fkey"
             columns: ["te_id"]
             isOneToOne: false
@@ -2719,6 +2917,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "weeks_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
     }
@@ -2780,6 +2985,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "awards_2025_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
         ]
       }
@@ -2890,6 +3102,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "playoffs_2025_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       playoffs_2025_config: {
@@ -2935,6 +3154,13 @@ export type Database = {
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "playoffs_2025_config_season_fkey"
+            columns: ["season_id"]
+            isOneToOne: true
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
         ]
       }
       roster_stats: {
@@ -2962,6 +3188,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
         ]
       }
@@ -3058,6 +3291,19 @@ export type Database = {
           user_id?: string | null
           week_count?: never
           year?: number | null
+        }
+        Relationships: []
+      }
+      v_award_ballot_seasons: {
+        Row: {
+          is_active: boolean | null
+          is_completed: boolean | null
+          name: string | null
+          season_id: string | null
+          vote_count: number | null
+          voted_award_count: number | null
+          voter_count: number | null
+          year: number | null
         }
         Relationships: []
       }
@@ -3235,6 +3481,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_active_season"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
           },
         ]
       }
