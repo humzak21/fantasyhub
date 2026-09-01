@@ -62,6 +62,42 @@ export function findProjectedPoints(player, week) {
   return projection?.appliedTotal ?? null;
 }
 
+/**
+ * The raw per-category stat map ESPN recorded for this player in this week.
+ *
+ * The same three predicates as `findProjectedPoints`, with the source flipped:
+ * `statSourceId === 0` is the actual result rather than the projection, and
+ * split 1 / `scoringPeriodId === week` narrows it to this single week. Matching
+ * on fewer than all three picks up the season-to-date totals that ride along in
+ * the same array, which would report a running total as one week's production —
+ * and a season total in a week's row is not a smaller error than a wrong
+ * number, it is one that grows all year.
+ *
+ * Returned verbatim, keyed by ESPN stat id as a string ("4" passing TD, "25"
+ * rushing TD, "43" receiving TD; see `ESPN_STAT_IDS`). Storing the whole map
+ * rather than the few categories wanted today is what makes it worth a column:
+ * the payload is already downloaded and discarded, and nothing else in this
+ * system has player-level category data at all.
+ *
+ * Null, never `{}`, when ESPN reported nothing — an empty object would assert a
+ * player who did nothing, which is a different claim from not knowing.
+ */
+export function findStatBreakdown(player, week) {
+  const stats = Array.isArray(player?.stats) ? player.stats : [];
+
+  const actual = stats.find(
+    (stat) =>
+      stat?.statSourceId === 0 &&
+      stat?.statSplitTypeId === 1 &&
+      stat?.scoringPeriodId === week
+  );
+
+  const breakdown = actual?.stats;
+  if (!breakdown || typeof breakdown !== 'object') return null;
+
+  return Object.keys(breakdown).length > 0 ? breakdown : null;
+}
+
 /** The actual points a stat line records for this week, when the total is absent. */
 function findActualPoints(entry, player, week) {
   // `appliedStatTotal` on the pool entry is ESPN's own answer and is what the
@@ -102,6 +138,7 @@ function mapEntry(entry, espnTeamId, week) {
     started: isStarterSlot(lineupSlotId),
     actualPoints: findActualPoints(entry, player, week),
     projectedPoints: findProjectedPoints(player, week),
+    statBreakdown: findStatBreakdown(player, week),
     injuryStatus: player.injuryStatus ?? null
   };
 }

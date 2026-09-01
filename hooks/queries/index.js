@@ -63,6 +63,13 @@ export {
 } from './usePlayerStats.js';
 
 export {
+  useNflSeasonSchedule,
+  useNflWeekSchedule,
+  useNflOpponentMap,
+  buildOpponentMap
+} from './useNflSchedule.js';
+
+export {
   useMyParlayPick,
   useParlayWeekPicks,
   useSeasonParlayPicks,

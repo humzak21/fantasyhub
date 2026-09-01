@@ -283,11 +283,35 @@ non-fatal: losing the week's snapshot to a player-data hiccup would cost more
 than the missing rows.
 
 **Start of season** (`npm run sync-schedule`): imports a whole season's teams
-and games. Manual only — a schedule is published once a year.
+and games, then refreshes the NFL calendar for the same year. Manual only — a
+schedule is published once a year.
 
-Both accept `--dry-run` to see what they'd do without writing. ESPN needs
-cookies that only the scripts have, so nothing can start an import from the
-browser.
+**The NFL calendar** (`npm run sync-nfl-schedule`): who each NFL team plays in
+each week, and who is on a bye, from ESPN's `proTeamSchedules_wl` view. This is
+the source behind the "vs BUF" / "@ KC" / "BYE" chips in the pick'ems research
+panel and the TD parlay. It is re-imported for the whole active season by the
+weekly sync — the NFL flexes late-season kickoffs, so a calendar imported in
+September and never revisited would have the wrong times by December.
+`--backfill` imports 2020 onward; that has been run, so the table already
+covers 2020-2026.
+
+Unlike everything else here, that endpoint needs **no ESPN cookies** — it
+describes the NFL rather than our private league. If it ever disappears (it is
+undocumented, like the rest of ESPN's fantasy API), the documented fallback is
+[nflverse](https://nflreadr.nflverse.com), whose schedule CSVs refresh every
+five minutes; adopting it would mean writing a team/player id crosswalk, which
+is the reason ESPN is the first choice.
+
+`sync-week` also takes `--force`, which runs it past the "season hasn't
+started" guard. ESPN publishes rosters, projections and the NFL calendar days
+before week 1 kicks off, so there is real data to pull in that window. Every
+step is an idempotent upsert, so a forced run is simply overwritten by the
+first scheduled one. It is not set on the cron, where exiting quietly
+out of season is the desired behaviour.
+
+All three accept `--dry-run` to see what they'd do without writing. Aside from
+the NFL calendar, ESPN needs cookies that only the scripts have, so nothing can
+start an import from the browser.
 
 Every script in `scripts/` guards its entry point, so importing one is safe.
 Keep that guard when you add a script — an unguarded import once ran a full
@@ -505,7 +529,9 @@ Two workflows run outside the PR path and write to production directly:
   optional week and dry-run inputs.
 - **`refresh-rosters.yml`** — Wednesdays and Thursdays at 09:00 ET. Runs only
   the roster step of the same script, so the pick'ems research panel reflects
-  Wednesday's waiver claims instead of Tuesday morning's rosters.
+  Wednesday's waiver claims instead of Tuesday morning's rosters. It passes
+  `--skip-nfl-schedule` along with the other skips: the calendar does not
+  change on a waiver day.
 - **`sync-schedule.yml`** — manual only, for the start-of-season import.
 
 Both read `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ESPN_S2` and
@@ -572,11 +598,12 @@ npm run db:types       # regenerate types/supabase.ts from the live schema
 ### Sync
 
 ```bash
-npm run sync-week      # sync the current week of the active season from ESPN
-npm run sync-schedule  # import a whole season's teams and games
+npm run sync-week          # sync the current week of the active season from ESPN
+npm run sync-schedule      # import a whole season's teams and games
+npm run sync-nfl-schedule  # import the NFL calendar (add --backfill for 2020 on)
 ```
 
-Both take `--dry-run`.
+All take `--dry-run`.
 
 ---
 

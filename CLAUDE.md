@@ -38,8 +38,13 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 ### Sync
 - `npm run sync-week` - Sync the current week of the active season from ESPN.
   Zero arguments; pass `--dry-run` to resolve the target without writing.
-- `npm run sync-schedule` - Import a whole season from ESPN (teams + games).
+- `npm run sync-schedule` - Import a whole season from ESPN (teams + games),
+  then refresh the NFL calendar for the same year.
   The start-of-season job; zero arguments, `--dry-run` to plan without writing.
+- `npm run sync-nfl-schedule` - Import the NFL calendar (`nfl_schedule`) from
+  ESPN's public `proTeamSchedules_wl`. `[year]`, `--backfill` for 2020 onward,
+  `--dry-run`. The weekly sync re-runs it for the active season, so this is for
+  a first import or a repair.
 
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
@@ -51,8 +56,9 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
 - **Main App**: `FantasyFootballApp.jsx` - Primary application component with tab-based navigation
 - **Data Layer**: `services/db/` - one module per domain (`seasons`, `teams`,
   `divisions`, `rosters`, `players`, `playerWeekStats`, `games`, `rankings`,
-  `schedule`, `pickems`, `parlay`, `awards`, `playoffs`, `transactions`,
-  `takes`, `history`, `users`, `espnMapping`). **Write new data access here.**
+  `schedule`, `nflSchedule`, `pickems`, `parlay`, `awards`, `playoffs`,
+  `transactions`, `takes`, `history`, `users`, `espnMapping`).
+  **Write new data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
   - `services/espnRosterUpdater.js` - ESPN integration for roster updates
@@ -153,13 +159,23 @@ season row supplies the season, week, playoff boundary and ESPN league. Every
 step is an idempotent upsert against ESPN, so re-running a failed sync is the
 fix. Each run writes a `sync_runs` row.
 
-Its steps are rosters → scores → playerStats → transactions → snapshot. Scores
-and playerStats read **one** ESPN fetch between them, so do not re-fetch inside
-a step. playerStats and transactions are non-fatal: a failure is recorded in
-`sync_runs.steps` and the run continues, because losing the week's snapshot to a
-player-data hiccup costs more than the missing rows. Skip flags:
-`--skip-rosters --skip-scores --skip-player-stats --skip-transactions
---skip-snapshot`, plus `--dry-run`.
+Its steps are rosters → scores → playerStats → nflSchedule → transactions →
+snapshot. Scores and playerStats read **one** ESPN fetch between them, so do
+not re-fetch inside a step. The nflSchedule step fetches separately and needs
+no cookies. playerStats, nflSchedule and transactions are non-fatal: a failure
+is recorded in `sync_runs.steps` and the run continues, because losing the
+week's snapshot to a player-data hiccup costs more than the missing rows.
+Skip flags:
+`--skip-rosters --skip-scores --skip-player-stats --skip-nfl-schedule
+--skip-transactions --skip-snapshot`, plus `--dry-run`.
+
+`reasonToSkip` reports; it does not decide. **`--force` proceeds past a
+returned reason** and logs it — for the days before week 1 when ESPN already
+has rosters, projections and the NFL calendar but the season row still says
+"not started". The missing-`start_date` case stays a throw and is *not*
+overridable: forcing past it would not sync early, it would sync an arbitrary
+week. Never set `--force` on the cron; the quiet out-of-season exit is the
+whole point there.
 
 ### One path from ESPN into `games`
 `services/db/games.js::upsertEspnGames` is the only writer of ESPN schedule
@@ -445,10 +461,82 @@ other layout has to make room for, and it belongs beside the form the picks it
 reports on are entered in. PickEmsManager lazy-loads it and passes `embedded`,
 which drops its `PageHeader` so the page is not titled twice.
 
-`player_week_stats.pro_team_id` and the reserved "vs OPP / @ OPP / BYE" slots in
-both new components are for a future `nfl_schedule` table. Nothing in this
-system knows who a player's team plays in a given week, and the ESPN fetchers do
-not ask.
+`player_week_stats.pro_team_id` is the join key into `nfl_schedule`, and the
+"vs BUF / @ KC / BYE" chips those slots were reserved for are now wired — see
+"The NFL schedule is team-perspective, and a bye is a row" below.
+
+### The NFL schedule is team-perspective, and a bye is a row
+
+`nfl_schedule` is who each NFL team plays in each week. It exists because
+nothing here could answer that, which left the parlay unable to say a pick was
+on a bye and the research panel unable to say it either. Fed from ESPN's
+`proTeamSchedules_wl` view by `services/espnNflScheduleFetcher.js` (public —
+no cookies, unlike every other ESPN call here) through the pure
+`services/espnNflScheduleMapper.js`, and written only by
+`services/db/nflSchedule.js`.
+
+- **Two rows per game and an explicit row per bye.** Every consumer asks the
+  team-keyed question "who does team T play in week W", so the table answers it
+  with one lookup. `opponent_pro_team_id IS NULL` is an *assertion* that the
+  team is off; a missing row means the calendar does not cover them. Those must
+  stay distinguishable — a bye inferred from a gap is indistinguishable from a
+  fetch that dropped half the league, and the chip would tell a manager their
+  starter has the week off when he is playing. `formatOpponent`
+  (`utils/nflOpponent.js`) returns `null` for an absent entry and the chips
+  render nothing, which is the whole point.
+- **Both perspectives are emitted from one game object,** in one iteration of
+  the mapper. ESPN lists every game twice, once under each team, and mapping
+  those independently would let a payload where the copies disagree produce a
+  schedule in which BUF plays KC but KC plays nobody. A unit test asserts the
+  symmetry exhaustively, and `nfl_schedule_not_self` catches the rest at write
+  time.
+- **Keyed by `season_year`, not `season_id`.** The only key in `keys.js` that
+  is. The NFL's calendar is league-independent, is the same for everybody, and
+  exists for years we have no season row for — so there is no FK to `seasons`
+  and no re-import per fantasy season.
+- **The week span is derived, never assumed.** 2020 ran to 17 scoring periods
+  and every season since has run to 18. `deriveWeekSpan` reads the highest
+  period anybody plays in; hardcoding 18 would fabricate 32 bye rows for 2020.
+- **No scores, by design.** That payload carries none — verified against the
+  completed 2025 season. `stats_official` is the only completion signal it has,
+  and it is the gate a future auto-grader waits on.
+- **The domain is `nflSchedule`, not `schedule`,** because `schedule` is
+  already the ESPN *import log* and a prefix meaning two things would let an
+  invalidation reach the wrong one.
+- **One fetch per season, everything else a `select` projection.** A season is
+  ~576 rows. `useNflWeekSchedule` and `useNflOpponentMap` share
+  `useNflSeasonSchedule`'s single cache entry so two chips on one page cannot
+  disagree about the same week. There are no mutations — the cron writes it.
+- The weekly sync re-imports the **whole** active season, non-fatally. The NFL
+  flexes late-season kickoffs, so a calendar imported once in September would
+  have the wrong times by December.
+
+**`player_week_stats.stat_breakdown` is the single copy of the category data.**
+The sync has always downloaded ESPN's raw per-category stat map alongside the
+fantasy total and thrown it away; it is now stored as jsonb at the grain that
+already exists. Derive touchdown counts from it with the helpers in
+`services/db/espnMapping.js` — **never add a TD column**, which would be a
+second copy to fall out of step.
+
+- **`ESPN_STAT_IDS` are `'4'` / `'25'` / `'43'`,** verified arithmetically
+  rather than copied from a community list: Gibbs' 2025 line reproduces his
+  366.9 `appliedTotal` exactly under PPR, and Hurts' his 299.06.
+- **Thrown is not scored.** `getScoredTouchdownCount` counts rushing and
+  receiving only and is the one the TD parlay's question ("will this player
+  score a touchdown") means; `getTouchdownCount` adds passing and answers a
+  different question. A quarterback who throws four has scored none. They are
+  two functions rather than a flag so a future auto-grader has to say which.
+- **Both return `null`, not 0, without a breakdown.** Every row written before
+  2026-09 has none, and 0 would report the whole of league history as having
+  scored nothing — the same rule as the power ranking's components.
+- **jsonb keys must not contain underscores or capitals.** `caseMap`'s
+  `convertKeys` recurses into plain objects, so a key like `rush_td` would be
+  rewritten in transit. ESPN's numeric-string ids round-trip untouched, which
+  is why the raw map can be stored verbatim.
+
+Nothing yet writes `scored_td`: grading stays manual. The data, the
+`stats_official` gate and the derivation helpers are in place, so it is a small
+follow-up rather than a subsystem.
 
 ### No analytics subsystem
 The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,

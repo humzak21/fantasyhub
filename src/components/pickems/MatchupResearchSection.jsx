@@ -7,9 +7,10 @@ import { NumberText } from '../ui/number-text';
 import RouteLoading from '../layout/RouteLoading';
 import { cn } from '../../lib/utils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
-import { useCurrentLineups } from '../../../hooks/queries/index.js';
+import { useCurrentLineups, useNflOpponentMap } from '../../../hooks/queries/index.js';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
+import { formatOpponent } from '../../../utils/nflOpponent.js';
 
 /**
  * Who is actually starting this week, so a parlay pick is a decision rather
@@ -37,13 +38,25 @@ import { getPositionColor } from '../../utils/positionColors';
  * then the rolling projection the roster sync refreshes. A starter with no
  * figure at all still appears, with a dash — see
  * `services/db/rosters.js::getCurrentLineupsForWeek`.
+ *
+ * Each starter also carries their NFL opponent, joined from `nfl_schedule` on
+ * `proTeamId`. A starter on a bye is the most actionable thing this panel can
+ * tell a reader, and it is the only chip variant that takes a colour.
  */
-const MatchupResearchSection = ({ seasonId, week, games = [] }) => {
+const MatchupResearchSection = ({ seasonId, seasonYear = null, week, games = [] }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const [expanded, setExpanded] = useState(false);
   const [hasExpanded, setHasExpanded] = useState(false);
 
   const { data: statsByTeam = {}, isLoading } = useCurrentLineups(seasonId, week, {
+    enabled: hasExpanded
+  });
+
+  // The NFL calendar, for the "vs BUF" / "@ KC" / "BYE" chips. Loaded on the
+  // same latch as the lineups, and deliberately not awaited: a starter renders
+  // without their opponent rather than the list waiting on a second query. The
+  // chip is context, the lineup is the answer.
+  const { data: opponents = {} } = useNflOpponentMap(seasonYear, week, {
     enabled: hasExpanded
   });
 
@@ -93,6 +106,7 @@ const MatchupResearchSection = ({ seasonId, week, games = [] }) => {
                   key={game.id}
                   game={game}
                   statsByTeam={statsByTeam}
+                  opponents={opponents}
                   viewer={viewer}
                 />
               ))
@@ -124,7 +138,7 @@ const pointsFor = (row) => (row.actualPoints != null ? row.actualPoints : row.pr
 
 const totalFor = (rows) => rows.reduce((sum, row) => sum + Number(pointsFor(row) ?? 0), 0);
 
-const MatchupCard = ({ game, statsByTeam, viewer }) => {
+const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
   const [open, setOpen] = useState(false);
 
   const isBye = game.type === 'bye' || !game.team2;
@@ -186,8 +200,8 @@ const MatchupCard = ({ game, statsByTeam, viewer }) => {
             </p>
           ) : (
             <div className={cn('grid gap-4', !isBye && 'grid-cols-1 sm:grid-cols-2')}>
-              <StarterList rows={team1Starters} />
-              {!isBye && <StarterList rows={team2Starters} />}
+              <StarterList rows={team1Starters} opponents={opponents} />
+              {!isBye && <StarterList rows={team2Starters} opponents={opponents} />}
             </div>
           )}
         </div>
@@ -213,27 +227,43 @@ const TeamSide = ({ team, total, hasRows, align = 'left', viewer }) => (
   </span>
 );
 
-const StarterList = ({ rows }) => (
+const StarterList = ({ rows, opponents = {} }) => (
   <ul className="space-y-1">
-    {rows.map((row) => (
-      <li key={row.id} className="flex items-center gap-2 text-sm">
-        <span
-          className={cn(
-            'w-11 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.06em]',
-            getPositionColor(row.rosterSlot)
-          )}
-        >
-          {row.rosterSlot}
-        </span>
-        <span className="min-w-0 flex-1 truncate">{row.player?.name ?? '—'}</span>
-        {/* Reserved: "vs BUF" / "@ KC" / "BYE" chip, pending an nfl_schedule
-            table keyed on `pro_team_id`. */}
-        <NumberText
-          value={pointsFor(row)}
-          className={cn('w-12 shrink-0 text-right', row.actualPoints == null && 'text-muted-foreground')}
-        />
-      </li>
-    ))}
+    {rows.map((row) => {
+      const opponent = opponents[row.proTeamId];
+      const label = formatOpponent(opponent);
+
+      return (
+        <li key={row.id} className="flex items-center gap-2 text-sm">
+          <span
+            className={cn(
+              'w-11 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.06em]',
+              getPositionColor(row.rosterSlot)
+            )}
+          >
+            {row.rosterSlot}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{row.player?.name ?? '—'}</span>
+          {/* A starter on a bye is the single most useful thing this panel can
+              say, so it is the one variant that gets colour. An unknown
+              opponent renders nothing at all rather than a placeholder — see
+              `formatOpponent`. The column keeps its width either way so the
+              points stay in a straight line. */}
+          <span
+            className={cn(
+              'w-14 shrink-0 text-right text-[10px] font-semibold uppercase tracking-[0.06em]',
+              opponent?.bye ? 'text-warning' : 'text-muted-foreground'
+            )}
+          >
+            {label}
+          </span>
+          <NumberText
+            value={pointsFor(row)}
+            className={cn('w-12 shrink-0 text-right', row.actualPoints == null && 'text-muted-foreground')}
+          />
+        </li>
+      );
+    })}
   </ul>
 );
 

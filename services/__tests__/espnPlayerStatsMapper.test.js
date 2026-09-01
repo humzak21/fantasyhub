@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import {
   mapMatchupRosterEntries,
   findProjectedPoints,
+  findStatBreakdown,
   mapDefaultPositionId
 } from '../espnPlayerStatsMapper.js';
 
@@ -198,5 +199,90 @@ describe('mapMatchupRosterEntries', () => {
       awayTeam: { teamId: null }
     };
     expect(mapMatchupRosterEntries([bye], WEEK)).toHaveLength(2);
+  });
+});
+
+/**
+ * The per-category stat map, which rides in the same `stats` array as the
+ * points and is selected by the same three predicates with the source flipped.
+ * Getting the predicates wrong here does not produce a missing value — it
+ * produces a season-to-date total sitting in a single week's row.
+ */
+describe('findStatBreakdown', () => {
+  const weekActual = {
+    scoringPeriodId: WEEK,
+    statSourceId: 0,
+    statSplitTypeId: 1,
+    appliedTotal: 20.3,
+    stats: { 24: 88, 25: 1, 42: 31, 43: 1 }
+  };
+
+  const seasonActual = {
+    scoringPeriodId: 0,
+    statSourceId: 0,
+    statSplitTypeId: 0,
+    appliedTotal: 366.9,
+    stats: { 24: 1223, 25: 13, 42: 616, 43: 5 }
+  };
+
+  const weekProjection = {
+    scoringPeriodId: WEEK,
+    statSourceId: 1,
+    statSplitTypeId: 1,
+    appliedTotal: 18.4,
+    stats: { 24: 70, 25: 0.6 }
+  };
+
+  const lastWeekActual = {
+    scoringPeriodId: WEEK - 1,
+    statSourceId: 0,
+    statSplitTypeId: 1,
+    appliedTotal: 6.4,
+    stats: { 24: 40, 25: 0 }
+  };
+
+  it('returns this week’s actual categories verbatim', () => {
+    const player = { stats: [seasonActual, weekProjection, weekActual, lastWeekActual] };
+
+    expect(findStatBreakdown(player, WEEK)).toEqual({ 24: 88, 25: 1, 42: 31, 43: 1 });
+  });
+
+  it('does not pick up the season total', () => {
+    // Split 0 is the season to date. It is the first entry here on purpose:
+    // a `find` missing the split predicate would return 13 rushing TDs for one
+    // week, and the error would grow every week rather than being noticed.
+    const player = { stats: [seasonActual] };
+
+    expect(findStatBreakdown(player, WEEK)).toBeNull();
+  });
+
+  it('does not pick up the projection or another week', () => {
+    expect(findStatBreakdown({ stats: [weekProjection] }, WEEK)).toBeNull();
+    expect(findStatBreakdown({ stats: [lastWeekActual] }, WEEK)).toBeNull();
+  });
+
+  it('is null rather than {} when ESPN reported no categories', () => {
+    // An empty object asserts a player who did nothing; null says we do not
+    // know. They are different claims and the grading gate depends on which.
+    expect(findStatBreakdown({ stats: [{ ...weekActual, stats: {} }] }, WEEK)).toBeNull();
+    expect(findStatBreakdown({ stats: [{ ...weekActual, stats: undefined }] }, WEEK)).toBeNull();
+    expect(findStatBreakdown({}, WEEK)).toBeNull();
+    expect(findStatBreakdown(null, WEEK)).toBeNull();
+  });
+
+  it('rides along on the mapped rows', () => {
+    const rows = mapMatchupRosterEntries(
+      [
+        matchup(
+          1,
+          [entry({ id: 10, name: 'Jahmyr Gibbs', positionId: 2, slot: 2, extraStats: [weekActual] })],
+          2,
+          []
+        )
+      ],
+      WEEK
+    );
+
+    expect(rows[0].statBreakdown).toEqual({ 24: 88, 25: 1, 42: 31, 43: 1 });
   });
 });
