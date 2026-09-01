@@ -14,7 +14,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
+import { renderWithProviders, screen, waitFor, within } from '../../../test/renderWithProviders.jsx';
 
 const rosters = { getCurrentLineupsForWeek: vi.fn(async () => []) };
 const playerWeekStats = { getPlayerWeekStatsForWeek: vi.fn(async () => []) };
@@ -123,9 +123,39 @@ beforeEach(() => {
 });
 
 describe('ScheduleManager lineups', () => {
-  it('fetches nothing until the disclosure is opened', async () => {
+  it('reads the week once for the whole card list, and again for no disclosure', async () => {
+    // The week's lineups are no longer lazy — the card's projected score line
+    // needs them before anything is expanded. What still holds is that it is
+    // *one* query for fourteen cards, and that opening a disclosure adds no
+    // fetch of its own: the panel reads the same cache entry.
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([row({ projectedPoints: 21.4 })]);
+
     renderWeek(ACTUAL_WEEK);
-    await screen.findByRole('button', { name: /lineups/i });
+    await waitFor(() => expect(rosters.getCurrentLineupsForWeek).toHaveBeenCalledTimes(1));
+
+    await openLineups();
+    expect(await screen.findByText('Josh Allen')).toBeInTheDocument();
+
+    expect(rosters.getCurrentLineupsForWeek).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders no squad lists until the disclosure is opened', async () => {
+    // The laziness that mattered is the DOM's, not the query's: a week of
+    // fixtures must not carry fourteen squad lists.
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([row({ projectedPoints: 21.4 })]);
+
+    renderWeek(ACTUAL_WEEK);
+    await waitFor(() => expect(rosters.getCurrentLineupsForWeek).toHaveBeenCalled());
+
+    expect(screen.queryByText('Josh Allen')).not.toBeInTheDocument();
+  });
+
+  it('asks neither table until it knows which week the league is in', async () => {
+    // `useActualWeek()` answers 1 while the season loads, which is
+    // indistinguishable from a real week 1. Firing on that default would send
+    // a finished week to the live-roster query and total it off the current
+    // roster for a render.
+    renderWeek(3);
 
     expect(rosters.getCurrentLineupsForWeek).not.toHaveBeenCalled();
     expect(playerWeekStats.getPlayerWeekStatsForWeek).not.toHaveBeenCalled();
@@ -228,5 +258,87 @@ describe('ScheduleManager lineups', () => {
     expect(within(column).getByText('Starters')).toBeInTheDocument();
     expect(within(column).getByText('Bench')).toBeInTheDocument();
     expect(within(column).getByText('Injured reserve')).toBeInTheDocument();
+  });
+});
+
+
+describe('ScheduleManager projected score line', () => {
+  it('projects the total from the lineup while a game has no score', async () => {
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([
+      row({ teamId: 't1', projectedPoints: 21.4 }),
+      row({ id: 'r2', teamId: 't1', rosterSlot: 'RB', projectedPoints: 11.1 }),
+      row({ id: 'r3', teamId: 't2', rosterSlot: 'WR', projectedPoints: 14.3 })
+    ]);
+
+    renderWithProviders(
+      <ScheduleManager
+        season={SEASON}
+        schedule={[{ ...gameForWeek(ACTUAL_WEEK), team1Score: null, team2Score: null }]}
+        currentWeek={ACTUAL_WEEK}
+        rosters={ROSTER_PROP}
+      />
+    );
+
+    // 21.4 + 11.1 against 14.3, both still projections.
+    expect(await screen.findByText('32.5')).toBeInTheDocument();
+    expect(screen.getByText('14.3')).toBeInTheDocument();
+    expect(screen.getAllByText('proj')).toHaveLength(2);
+  });
+
+  it('shows the imported score instead, once there is one', async () => {
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([
+      row({ teamId: 't1', projectedPoints: 21.4 })
+    ]);
+
+    renderWithProviders(
+      <ScheduleManager
+        season={SEASON}
+        schedule={[gameForWeek(ACTUAL_WEEK)]}
+        currentWeek={ACTUAL_WEEK}
+        rosters={ROSTER_PROP}
+      />
+    );
+
+    expect(await screen.findByText('101.2')).toBeInTheDocument();
+    expect(screen.getByText('99.4')).toBeInTheDocument();
+    // Replaced, not shown beside it.
+    expect(screen.queryByText('21.4')).not.toBeInTheDocument();
+    expect(screen.queryByText('proj')).not.toBeInTheDocument();
+  });
+
+  it('leaves the em dash alone for a week with no player data', async () => {
+    // Every season before 2026 is this case.
+    renderWithProviders(
+      <ScheduleManager
+        season={SEASON}
+        schedule={[{ ...gameForWeek(ACTUAL_WEEK), team1Score: null, team2Score: null }]}
+        currentWeek={ACTUAL_WEEK}
+        rosters={ROSTER_PROP}
+      />
+    );
+
+    await waitFor(() => expect(rosters.getCurrentLineupsForWeek).toHaveBeenCalled());
+
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.queryByText('proj')).not.toBeInTheDocument();
+  });
+
+  it('stops calling the total a projection once every starter has played', async () => {
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([
+      row({ teamId: 't1', actualPoints: 18.2, projectedPoints: 21.4 }),
+      row({ id: 'r2', teamId: 't1', rosterSlot: 'RB', actualPoints: 4, projectedPoints: 11 })
+    ]);
+
+    renderWithProviders(
+      <ScheduleManager
+        season={SEASON}
+        schedule={[{ ...gameForWeek(ACTUAL_WEEK), team1Score: null, team2Score: null }]}
+        currentWeek={ACTUAL_WEEK}
+        rosters={ROSTER_PROP}
+      />
+    );
+
+    expect(await screen.findByText('22.2')).toBeInTheDocument();
+    expect(screen.queryByText('proj')).not.toBeInTheDocument();
   });
 });

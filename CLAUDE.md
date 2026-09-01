@@ -561,12 +561,39 @@ week)` — note the *year*, derived as
 `season.espnSeasonYear ?? season.espn_season_year ?? season.year`, never the
 season id.
 
+**A team's total is a projection until every starter in it is a result.**
+`starterTotal` (`utils/lineupTotals.js`) sums the scoring starters and reports
+`isProjected`, which stays true while *any* counted starter is still on a
+projection — a mid-week mixture of settled Thursday actuals and pending Sunday
+projections is not a result, and calling it one is the error a reader cannot
+detect, since 118.4 looks identical either way. Rows with no figure at all are
+skipped rather than counted as zero; the per-row dash is what shows the gap.
+Two surfaces render it and both go through `totalAsPoints` — the pick'ems
+research header (collapsed by default, so that total is often the only number
+a reader sees) and the Schedule card's score line.
+
+**On Schedule the imported score always wins.** The projected total renders
+only where `games.team1Score`/`team2Score` is null, so the moment the sync
+writes a real result the projection is gone rather than sitting beside it. An
+upcoming fixture used to read "— vs —", which is the least useful thing a
+schedule can say about a game nobody has played.
+
 **Which lineup table a surface reads is decided by the week, not by
-convenience.** Schedule's `LineupPanel` reads `useWeekPlayerStats` for a week
-that is over (who actually started, with what they actually scored) and
-`useCurrentLineups` for the week in progress. That comparison is against
-`useActualWeek()`, never the viewed week: navigating to week 3 in November must
-still read week 3 as history. Teams has no week navigation at all — it is
+convenience.** `useLineupsForWeek` owns that choice — `useWeekPlayerStats` for a
+week that is over (who actually started, with what they actually scored),
+`useCurrentLineups` for the week in progress — and both the Schedule card's
+score line and the lineup disclosure under it read it, so a card's total cannot
+come from one table while its rows come from the other. The comparison is
+against `useActualWeek()`, never the viewed week: navigating to week 3 in
+November must still read week 3 as history.
+
+**`actualWeek: null` means "not known yet", and nothing fetches.**
+`useActualWeek()` answers `1` while the season is still loading, and a `1` is
+indistinguishable from a real week 1 — the same trap as gating on
+`isAuthenticated` before `isAuthLoading` clears. Collapsed to a number, every
+historical week looks live for one render, fires the wrong query, and briefly
+totals a finished week off the *current* roster. Callers pass `null` until
+`useSeasonConfig()` has a `startDate`. Teams has no week navigation at all — it is
 present-tense, keys on the actual week, and every figure on it is a projection
 and is labelled as one. Getting this backwards is invisible on screen, because
 the wrong table's names are all plausible; it is the mistake that had the
@@ -849,10 +876,14 @@ each replaced four or five hand-rolled variants:
   entry**, and callers give the column a fixed-width wrapper rather than asking
   for a placeholder — see the bye-versus-unknown rule under "The NFL schedule
   is team-perspective".
-- `ui/player-points.jsx` — a player's points for a week. An actual is bare; a
-  projection is **labelled "proj"**, not merely dimmed, because a guess and a
-  result are different claims and a shade cannot carry that. Missing is the em
-  dash, unlabelled.
+- `ui/player-points.jsx` — a player's points for a week, or a team's total. An
+  actual is bare; a projection is **labelled "proj"**, not merely dimmed,
+  because a guess and a result are different claims and a shade cannot carry
+  that. Missing is the em dash, unlabelled. `display` sets it in the scoreboard
+  face for the one place it stands in for a matchup score.
+- `utils/lineupTotals.js` — `starterTotal(rows)` → `{ total, isProjected }`,
+  and `totalAsPoints` to hand that pair to `PlayerPoints`. See "A team's total
+  is a projection until every starter in it is a result" below.
 
 Typography: `font-display` (Barlow Condensed) is the scoreboard voice — page
 titles, scores, hero numbers, nothing else. Inter carries the interface.
