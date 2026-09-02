@@ -1009,6 +1009,61 @@ This fantasy football module integrates with:
 - **UI components**: From `src/components/ui/` (button, card, tabs, badge) using shadcn/ui
 - **Tailwind CSS v4**: theme in `globals.css`; there is no `tailwind.config.js`
 
+### Magic-link sign-in
+
+The login popover offers **"Email me a login link"** beneath the password
+form. `AuthContext.signInWithMagicLink` calls `supabase.auth.signInWithOtp`;
+the emailed link carries the session in its `#` fragment and
+`detectSessionInUrl` in `services/db/client.js` consumes it. No server, no
+route, no migration. Rules that are load-bearing:
+
+- **The flow is implicit, not PKCE, and the comment in `client.js` says why.**
+  A magic link is requested in one browser and opened in another — Safari
+  asks, Gmail's in-app browser opens — and PKCE's code verifier lives only in
+  the first. Setting `flowType: 'pkce'` would make the common case fail.
+- **`shouldCreateUser: false`.** The league is a fixed set of people, so an
+  unknown address is a typo or a stranger. Supabase answers `otp_disabled`
+  ("Signups not allowed for otp") and `describeMagicLinkError` turns it into
+  "No account uses that email".
+- **A failed link is reported, not swallowed.** An expired or reused link lands
+  on `#error_code=otp_expired&error_description=…`; supabase-js parses that
+  during `initialize()` but `getSession()` discards the result. `readAuthLinkError`
+  reads the fragment at mount into `authLinkError`, the provider strips the
+  fragment, and `LoginDropdown` opens on the magic-link face with the reason
+  showing so the remedy is the form in front of them.
+- **Nothing here touches the provider's `loading` flag.** `App.jsx` swaps the
+  whole tree for a spinner while it is true, which would unmount the popover
+  mid-request. The popover carries its own busy state.
+- `emailRedirectTo` is the page the link was requested from. `serve -s` falls
+  every path back to `index.html`, and the fragment is parsed at client init,
+  before React Router's `/:tab` validation runs.
+
+**The Supabase dashboard has to agree**, one-time, in project
+`kvcnijyyfylxfarrlxkv`:
+
+- **Authentication → URL Configuration.** Site URL = the production origin.
+  Redirect URLs must include the production origin as `https://<host>/**`
+  and `http://localhost:3000/**` for dev. A redirect not on this list is
+  silently replaced with the Site URL, and a wrong Site URL fails outright.
+- **Authentication → Email Templates → Magic Link.** Keep the default
+  `{{ .ConfirmationURL }}`. Switching to `{{ .Token }}` turns this into a
+  six-digit-code flow, which needs a code field the UI does not have.
+- **Custom SMTP is not set up (as of 2026-09-02) and should be before the
+  league leans on this.** Supabase's built-in mailer is rate-limited to a
+  handful of emails per hour project-wide and is meant for development; once
+  a few members request links in the same hour, sends are refused and the
+  popover shows the rate-limit message. To fix: Authentication → Settings →
+  SMTP Settings → enable, enter the host, port, user and password from a
+  provider (Resend and Postmark both have free tiers), set the sender address
+  on a domain you control, then raise Authentication → Rate Limits → "Rate
+  limit for sending emails" above the built-in cap. Password-reset email goes
+  through the same path and gains the same headroom.
+
+Known gap, unchanged here: `resetPassword` redirects to `/reset-password`,
+which has no route — it falls through `/:tab` and bounces to the default tab.
+The session is still recovered from the fragment on the way past, which is
+why nobody noticed. It is the same landing problem, and it wants its own page.
+
 ## Development Notes
 
 - Built with Vite for fast development and optimized builds
