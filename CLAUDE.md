@@ -1037,6 +1037,13 @@ route, no migration. Rules that are load-bearing:
 - `emailRedirectTo` is the page the link was requested from. `serve -s` falls
   every path back to `index.html`, and the fragment is parsed at client init,
   before React Router's `/:tab` validation runs.
+- **Every panel that follows an email send shows `EmailSentNote`** (spam
+  folder, rate limits, wait a minute) — the login link, the password reset,
+  and sign-up when a confirmation went out. `signUp` reports `emailSent` so
+  the sign-up panel can tell a confirmation from an immediate session; a
+  member with no email coming should not be sent to their spam folder. The
+  three senders map the mailer's rate-limit error through
+  `describeEmailRateLimit` to the same advice.
 
 **The Supabase dashboard has to agree**, one-time, in project
 `kvcnijyyfylxfarrlxkv`:
