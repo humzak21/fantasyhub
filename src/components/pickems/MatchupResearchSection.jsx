@@ -17,14 +17,16 @@ import { isScoringStarter, starterTotal, totalAsPoints } from '../../../utils/li
  * Who is actually starting this week, so a parlay pick is a decision rather
  * than a guess.
  *
- * Deliberately collapsed, twice over. The whole block is behind a toggle
- * because most visits to this page are here to click two buttons and leave;
- * and each matchup is behind its own, because fourteen teams' starting
- * lineups is ~130 rows and nobody reads all of them.
+ * Every matchup is listed, and each one folds open to its two lineups. The
+ * list used to sit behind a second toggle of its own — "Research matchups" —
+ * on the reasoning that most visits are here to click two buttons and leave.
+ * In practice it was a tedious extra click on the way to the thing people
+ * came to compare, so the outer toggle is gone and the matchups are always in
+ * view. The per-matchup fold stays, because fourteen teams' starting lineups
+ * is ~130 rows and nobody reads all of them; each row now says "Lineups" next
+ * to its chevron so it reads as a disclosure rather than a label.
  *
- * The player query does not run until the section is opened for the first
- * time. `hasExpanded` latches rather than tracking `expanded`, so collapsing
- * does not throw the rows away and re-fetch them on the next open.
+ * The player query runs as soon as there are games to research.
  *
  * The lineups come from the live `rosters` snapshot, not from
  * `player_week_stats`. That distinction is the whole point: this panel asks a
@@ -49,74 +51,55 @@ import { isScoringStarter, starterTotal, totalAsPoints } from '../../../utils/li
  */
 const MatchupResearchSection = ({ seasonId, seasonYear = null, week, games = [] }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
-  const [expanded, setExpanded] = useState(false);
-  const [hasExpanded, setHasExpanded] = useState(false);
+  const hasGames = games.length > 0;
 
   const { data: statsByTeam = {}, isLoading } = useCurrentLineups(seasonId, week, {
-    enabled: hasExpanded
+    enabled: hasGames
   });
 
-  // The NFL calendar, for the "vs BUF" / "@ KC" / "BYE" chips. Loaded on the
-  // same latch as the lineups, and deliberately not awaited: a starter renders
-  // without their opponent rather than the list waiting on a second query. The
-  // chip is context, the lineup is the answer.
+  // The NFL calendar, for the "vs BUF" / "@ KC" / "BYE" chips. Deliberately
+  // not awaited: a starter renders without their opponent rather than the
+  // list waiting on a second query. The chip is context, the lineup is the
+  // answer.
   const { data: opponents = {} } = useNflOpponentMap(seasonYear, week, {
-    enabled: hasExpanded
+    enabled: hasGames
   });
 
-  if (games.length === 0) return null;
-
-  const open = () => {
-    setExpanded((was) => !was);
-    setHasExpanded(true);
-  };
+  if (!hasGames) return null;
 
   const viewer = { user, isAdmin, teamOwnerNames };
 
   return (
     <Card>
-      <CardContent className="p-0">
-        <button
-          type="button"
-          onClick={open}
-          aria-expanded={expanded}
-          className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-accent/40"
-        >
+      <CardContent className="p-3 sm:p-4">
+        <div className="mb-3 flex items-center gap-3 px-1">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span className="min-w-0 flex-1">
-            <span className="block font-semibold">Research matchups</span>
-            <span className="block text-xs text-muted-foreground">
-              Starting lineups and projections for week {week}
-            </span>
-          </span>
-          <ChevronDown
-            className={cn(
-              'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
-              expanded && 'rotate-180'
-            )}
-            aria-hidden="true"
-          />
-        </button>
-
-        {expanded && (
-          <div className="space-y-2 border-t border-border p-3 sm:p-4">
-            {isLoading ? (
-              // The collapsed cards are one line each and the panel is already
-              // open, so there is no shape to skeleton — only a short wait.
-              <RouteLoading className="min-h-[8rem]" />
-            ) : (
-              games.map((game) => (
-                <MatchupCard
-                  key={game.id}
-                  game={game}
-                  statsByTeam={statsByTeam}
-                  opponents={opponents}
-                  viewer={viewer}
-                />
-              ))
-            )}
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold">Research matchups</h3>
+            <p className="text-xs text-muted-foreground">
+              Starting lineups and projections for week {week}. Open a matchup to see who
+              each side is starting.
+            </p>
           </div>
-        )}
+        </div>
+
+        <div className="space-y-2">
+          {isLoading ? (
+            // The collapsed cards are one line each and the panel is already
+            // open, so there is no shape to skeleton — only a short wait.
+            <RouteLoading className="min-h-[8rem]" />
+          ) : (
+            games.map((game) => (
+              <MatchupCard
+                key={game.id}
+                game={game}
+                statsByTeam={statsByTeam}
+                opponents={opponents}
+                viewer={viewer}
+              />
+            ))
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -179,13 +162,21 @@ const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
           />
         )}
 
-        <ChevronDown
+        {/* A word beside the chevron. A bare chevron at the end of a row of
+            names and numbers reads as decoration; "Lineups" says there is
+            something under it, and the pill gives the eye a control to find. */}
+        <span
           className={cn(
-            'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
-            open && 'rotate-180'
+            'flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground transition-colors',
+            open && 'bg-muted text-foreground'
           )}
-          aria-hidden="true"
-        />
+        >
+          {open ? 'Hide' : 'Lineups'}
+          <ChevronDown
+            className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')}
+            aria-hidden="true"
+          />
+        </span>
       </button>
 
       {open && (

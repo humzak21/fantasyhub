@@ -704,8 +704,16 @@ export class PowerRankingCalculator {
     // starters project 118.4" is a number a reader can check against ESPN,
     // where the 0-100 rescale is not. Live view only, same rule as the outlook
     // the projection comes from.
+    // The team's own raw projected starter total for the viewing week — the
+    // figure the opponent's is read against. Same source, same live-only rule.
+    this.projectedStarterTotalByTeam = {};
     this.nextMatchupByTeam = {};
     if (this.isLiveView) {
+      for (const teamId of teamIds) {
+        this.projectedStarterTotalByTeam[teamId] = isUsable(futureNextWeek[teamId])
+          ? futureNextWeek[teamId]
+          : null;
+      }
       for (const teamId of teamIds) {
         const nextGame = this.games.find(
           (game) =>
@@ -790,8 +798,8 @@ export class PowerRankingCalculator {
   /**
    * The rating and the components behind it.
    *
-   * `luckPercentage`, `allPlayWinPct`, `byeExposure` and the next-matchup pair
-   * ride along unweighted: the table shows them, and none belongs in the
+   * `luckPercentage`, `allPlayWinPct`, `byeExposure`, `projectedStarterTotal`
+   * and the next-matchup pair ride along unweighted: the table shows them, and none belongs in the
    * score. `byeExposure` in particular must stay at zero weight — ESPN's
    * projections already zero out a bye week, so weighting it would count the
    * same absence twice.
@@ -808,6 +816,7 @@ export class PowerRankingCalculator {
         allPlayWinPct: this.calculateAllPlayWinPercentage(teamId) * 100,
         luckPercentage: this.calculateLuckPercentage(teamId),
         byeExposure: this.rawByeExposure(teamId),
+        projectedStarterTotal: this.projectedStarterTotalByTeam?.[teamId] ?? null,
         nextOpponentTeamId: nextMatchup?.opponentTeamId ?? null,
         nextOpponentProjected: nextMatchup?.opponentProjected ?? null
       }

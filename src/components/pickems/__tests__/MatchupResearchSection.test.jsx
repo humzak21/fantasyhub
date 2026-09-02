@@ -86,14 +86,17 @@ beforeEach(() => {
 });
 
 describe('MatchupResearchSection', () => {
-  it('is collapsed, and fetches nothing, until it is opened', async () => {
+  it('lists every matchup on mount, each closed, and fetches the week at once', async () => {
     renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
 
-    expect(screen.getByRole('button', { name: /research matchups/i })).toHaveAttribute(
-      'aria-expanded',
-      'false'
-    );
-    expect(rosters.getCurrentLineupsForWeek).not.toHaveBeenCalled();
+    // No outer "Research matchups" toggle any more — the list is the panel.
+    expect(screen.queryByRole('button', { name: /research matchups/i })).not.toBeInTheDocument();
+    expect(rosters.getCurrentLineupsForWeek).toHaveBeenCalledWith('s1', 3);
+
+    const matchup = await screen.findByRole('button', { name: /team one/i });
+    expect(matchup).toHaveAttribute('aria-expanded', 'false');
+    // The disclosure says what it hides, so it reads as one.
+    expect(matchup).toHaveTextContent(/lineups/i);
   });
 
   it('renders nothing at all without games', () => {
@@ -104,13 +107,12 @@ describe('MatchupResearchSection', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('fetches the week once opened and lists starters, not the bench', async () => {
+  it('lists starters, not the bench, once a matchup is opened', async () => {
     const user = userEvent.setup();
     rosters.getCurrentLineupsForWeek.mockResolvedValue(ROWS);
 
     renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
 
-    await user.click(screen.getByRole('button', { name: /research matchups/i }));
     expect(rosters.getCurrentLineupsForWeek).toHaveBeenCalledWith('s1', 3);
 
     const matchup = await screen.findByRole('button', { name: /team one/i });
@@ -126,7 +128,6 @@ describe('MatchupResearchSection', () => {
     rosters.getCurrentLineupsForWeek.mockResolvedValue(ROWS);
 
     renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
-    await user.click(screen.getByRole('button', { name: /research matchups/i }));
 
     expect(await screen.findByRole('button', { name: /team one/i })).toBeInTheDocument();
     // The staleness bug this component was fixed for: `player_week_stats` is a
@@ -149,7 +150,6 @@ describe('MatchupResearchSection', () => {
     ]);
 
     renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
-    await user.click(screen.getByRole('button', { name: /research matchups/i }));
     await user.click(await screen.findByRole('button', { name: /team one/i }));
 
     expect(await screen.findByText('Waiver Pickup')).toBeInTheDocument();
@@ -160,7 +160,6 @@ describe('MatchupResearchSection', () => {
 
     renderWithProviders(<MatchupResearchSection seasonId="s1" week={9} games={GAMES} />);
 
-    await user.click(screen.getByRole('button', { name: /research matchups/i }));
     const matchup = await screen.findByRole('button', { name: /team one/i });
     await user.click(matchup);
 
@@ -173,7 +172,6 @@ describe('MatchupResearchSection', () => {
 
     renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={BYE_GAME} />);
 
-    await user.click(screen.getByRole('button', { name: /research matchups/i }));
 
     expect(await screen.findByText(/on bye/i)).toBeInTheDocument();
     expect(screen.queryByText('Team Two')).not.toBeInTheDocument();
@@ -247,7 +245,6 @@ describe('MatchupResearchSection · opponent chips', () => {
         games={GAMES}
       />
     );
-    await user.click(await screen.findByRole('button', { name: /research/i }));
     await user.click(await screen.findByRole('button', { name: /Team One/ }));
     return user;
   };
@@ -284,7 +281,6 @@ describe('MatchupResearchSection · opponent chips', () => {
   it('does not query the calendar at all without a season year', async () => {
     const user = userEvent.setup();
     renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
-    await user.click(await screen.findByRole('button', { name: /research/i }));
     await user.click(await screen.findByRole('button', { name: /Team One/ }));
 
     // The lineups still load; only the chips are absent.
@@ -294,9 +290,9 @@ describe('MatchupResearchSection · opponent chips', () => {
 });
 
 describe('MatchupResearchSection · team totals', () => {
+  // The list is open from the start; wait for the first matchup to render.
   const open = async () => {
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: /research matchups/i }));
+    await screen.findByRole('button', { name: /Team One/ });
   };
 
   it('labels the header total while any starter is still projected', async () => {

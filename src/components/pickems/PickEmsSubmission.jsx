@@ -278,9 +278,27 @@ const PickEmsSubmission = ({
         </Alert>
       )}
 
+      {/* The parlay leads the page. It used to sit under the pick'ems submit
+          bar so the page would not show two submit buttons in a row; it is now
+          the first thing on it because it is the pick people forget, and a
+          card below fourteen matchups is a card nobody scrolls to. Its own
+          Submit is inside its own card, so which button saves what stays clear.
+
+          `status` is passed rather than recomputed so the two windows are the
+          same window by construction. The section renders nothing without a
+          pick'em week, which is the whole of the "only when pick'ems is
+          activated" rule. */}
+      <ParlayPickSection
+        pickEmWeek={pickEmWeek}
+        seasonYear={nflSeasonYear}
+        status={status}
+        weekNumber={currentWeek}
+      />
+
       {/* Research, above the picks: the point of it is to be read before a
           choice is made, and a panel underneath the buttons is a panel nobody
-          opens. Collapsed by default — see MatchupResearchSection. */}
+          opens. Every matchup is listed; each one folds open to its lineups —
+          see MatchupResearchSection. */}
       {status.status !== 'no-week' && availableGames.length > 0 && (
         <MatchupResearchSection
           seasonId={season?.id ?? pickEmWeek?.seasonId ?? null}
@@ -404,20 +422,6 @@ const PickEmsSubmission = ({
         />
       )}
 
-      {/* The parlay sits *below* the pick'ems submit bar, because it has its
-          own Submit: above it, the page would show two submit buttons and the
-          nearer one would not be the one that saves your picks.
-
-          `status` is passed rather than recomputed so the two windows are the
-          same window by construction. The section renders nothing without a
-          pick'em week, which is the whole of the "only when pick'ems is
-          activated" rule. */}
-      <ParlayPickSection
-        pickEmWeek={pickEmWeek}
-        seasonYear={nflSeasonYear}
-        status={status}
-        weekNumber={currentWeek}
-      />
     </div>
   );
 };

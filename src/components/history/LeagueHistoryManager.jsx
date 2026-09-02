@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { History, Trophy, Users, Target, Award, Medal } from 'lucide-react';
+import { History, Users, Target, Award, Medal } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/card';
+import { Card } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { EmptyState } from '../ui/empty-state';
+import PageHeader from '../layout/PageHeader';
+import RouteLoading from '../layout/RouteLoading';
 import {
   useHistoryTimeline,
   useHistoryFranchises,
@@ -82,87 +85,67 @@ const LeagueHistoryManager = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeSubTab]);
 
+  // The one header, in every state. The counts only join it once there is
+  // something to count — a "0 Franchises" badge over a spinner would be a
+  // claim about the league rather than about the fetch.
+  const header = (
+    <PageHeader
+      icon={History}
+      title="League History"
+      description="Franchise records, championships, and season-by-season statistics."
+      badge={
+        franchises.length > 0 && seasons.length > 0 ? (
+          <>
+            <Badge variant="secondary">{franchises.length} Franchises</Badge>
+            <Badge variant="outline">{seasons.length} Seasons</Badge>
+          </>
+        ) : null
+      }
+    />
+  );
+
   // Handle initialization errors
   if (!initializing && error && !franchises.length) {
     return (
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            League History
-          </CardTitle>
-          <CardDescription>
-            Explore franchise records, championships, and season-by-season statistics
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertDescription>
-              {error}
-              <div className="mt-4">
-                <Button onClick={refresh} variant="outline" size="sm">
-                  Retry
-                </Button>
-              </div>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <>
+        {header}
+        <Alert variant="destructive">
+          <AlertDescription>
+            {error}
+            <div className="mt-4">
+              <Button onClick={refresh} variant="outline" size="sm">
+                Retry
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </>
     );
   }
 
   // Loading state
   if (initializing) {
     return (
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            League History
-          </CardTitle>
-          <CardDescription>
-            Explore franchise records, championships, and season-by-season statistics
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center p-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Loading league history...</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <>
+        {header}
+        <RouteLoading />
+      </>
     );
   }
 
   // Empty state - no data
   if (!franchises.length || !seasons.length) {
     return (
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            League History
-          </CardTitle>
-          <CardDescription>
-            Explore franchise records, championships, and season-by-season statistics
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertDescription>
-              <div className="space-y-4">
-                <p>No league history yet.</p>
-                <p className="text-sm text-muted-foreground">
-                  A season appears here once it is finalized in Season Management —
-                  that is what works out the final standings and awards.
-                </p>
-              </div>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <>
+        {header}
+        <Card>
+          <EmptyState
+            icon={History}
+            title="No league history yet"
+            description="A season appears here once it is finalized in Season Management — that is what works out the final standings and awards."
+          />
+        </Card>
+      </>
     );
   }
 
@@ -201,25 +184,8 @@ const LeagueHistoryManager = ({
   ];
 
   return (
-    <div className="space-y-6 mt-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            League History
-            <Badge variant="secondary" className="ml-auto">
-              {franchises.length} Franchises
-            </Badge>
-            <Badge variant="outline">
-              {seasons.length} Seasons
-            </Badge>
-          </CardTitle>
-          <CardDescription>
-            Explore franchise records, championships, and season-by-season statistics.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+    <div className="space-y-6">
+      {header}
 
       {/* Error Alert (if any) */}
       {error && (
