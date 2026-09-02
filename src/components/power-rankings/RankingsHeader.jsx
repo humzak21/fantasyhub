@@ -37,7 +37,7 @@ export function RankingsHeader({
     <PageHeader
       icon={Trophy}
       title={`Week ${week} Power Rankings`}
-      description="Ten weighted components, normalised across the league."
+      description="Power rankings from across the league!"
       actions={
         <>
           {isTable && (
