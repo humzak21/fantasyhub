@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../../services/supabaseClient.js'
 import { useIsAdmin } from '../utils/adminUtils'
+import { readAuthLinkError, describeMagicLinkError } from '../utils/magicLink.js'
 
 const AuthContext = createContext({})
 
@@ -15,6 +16,11 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  // Set once at mount when the URL carries a failed magic link; see
+  // readAuthLinkError. Cleared by the login popover once it has shown it.
+  const [authLinkError, setAuthLinkError] = useState(() =>
+    typeof window === 'undefined' ? null : readAuthLinkError(window.location.hash)
+  )
 
   // Initialize auth state from Supabase
   useEffect(() => {
@@ -29,17 +35,24 @@ export const AuthProvider = ({ children }) => {
 
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession()
-        if (error) {
-        } else if (session?.user) {
+        if (!error && session?.user) {
           setUser(session.user)
         }
-      } catch (error) {
+      } catch {
+        // A session that cannot be read is a signed-out viewer.
       } finally {
         setLoading(false)
       }
     }
 
     initializeAuth()
+
+    // A failed link's fragment has been read into state; leave the address
+    // bar clean so a reload does not re-report it. A successful link's
+    // fragment is stripped by supabase-js itself.
+    if (typeof window !== 'undefined' && readAuthLinkError(window.location.hash)) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
 
     // Listen for auth changes only if supabase is initialized
     if (!supabase || !supabase.auth) {
@@ -158,6 +171,43 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  /**
+   * Email a one-time login link. Nothing here touches `loading`: App.jsx
+   * swaps the whole tree for a spinner while it is true, which would unmount
+   * the popover mid-request. The popover carries its own busy flag, as the
+   * forgot-password path does.
+   *
+   * `shouldCreateUser: false` — this league is a fixed set of people, so an
+   * unknown address is a typo or a stranger, not a sign-up. The redirect is
+   * the page the link was requested from, and it is only honoured if the
+   * origin is in the Supabase dashboard's redirect allowlist (see CLAUDE.md).
+   */
+  const signInWithMagicLink = async (email) => {
+    try {
+      if (!supabase || !supabase.auth) {
+        return { success: false, error: 'Authentication service not available' }
+      }
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: `${window.location.origin}${window.location.pathname}`,
+        },
+      })
+
+      if (error) {
+        return { success: false, error: describeMagicLinkError(error) }
+      }
+
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: describeMagicLinkError(error) }
+    }
+  }
+
+  const clearAuthLinkError = () => setAuthLinkError(null)
+
   const updatePassword = async (newPassword) => {
     try {
       const { error } = await supabase.auth.updateUser({
@@ -202,6 +252,9 @@ export const AuthProvider = ({ children }) => {
     signIn,
     signUp,
     signOut,
+    signInWithMagicLink,
+    authLinkError,
+    clearAuthLinkError,
     resetPassword,
     updatePassword,
     updateProfile,

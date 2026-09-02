@@ -8,15 +8,74 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Avatar, AvatarFallback } from '../ui/avatar'
-import { User, LogIn, LogOut, UserPlus, Mail, Lock, CheckCircle, Settings } from 'lucide-react'
+import { User, LogIn, LogOut, Mail, Lock, CheckCircle, Settings, Wand2 } from 'lucide-react'
+import { cn } from '../../lib/utils'
+
+/**
+ * The popover has four faces, one `mode` at a time. Each carries one accent:
+ * sign-in is the primary (warm: *yours*, *act*), sign-up is `success`, and the
+ * two email-a-link faces — password reset and magic link — share `warning`,
+ * because both end the same way: "go check your inbox".
+ */
+const MODE = {
+  signIn: {
+    title: 'Welcome Back',
+    description: 'Sign in to your fantasy football dashboard',
+    accent: 'text-primary',
+    fill: 'bg-primary text-primary-foreground hover:bg-primary/90',
+  },
+  signUp: {
+    title: 'Create Account',
+    description: 'Start tracking your fantasy football power rankings',
+    accent: 'text-success',
+    fill: 'bg-success text-success-foreground hover:bg-success/90',
+  },
+  forgot: {
+    title: 'Reset Password',
+    description: 'Enter your email to receive a password reset link',
+    accent: 'text-warning',
+    fill: 'bg-warning text-warning-foreground hover:bg-warning/90',
+  },
+  magic: {
+    title: 'Email Me a Login Link',
+    description: 'No password needed. We will email you a link that signs you in.',
+    accent: 'text-warning',
+    fill: 'bg-warning text-warning-foreground hover:bg-warning/90',
+  },
+}
+
+const EMPTY_FORM = { email: '', password: '', name: '' }
+
+const ErrorBox = ({ message }) =>
+  message ? (
+    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg" role="alert">
+      <p className="text-destructive text-sm">{message}</p>
+    </div>
+  ) : null
+
+/** The "check your inbox" panel both email-a-link faces end on. */
+const SentPanel = ({ title, children, onDone, accent = 'text-warning' }) => (
+  <div className="text-center space-y-4 py-4">
+    <CheckCircle className={cn('h-12 w-12 mx-auto', accent)} />
+    <div className="space-y-2">
+      <h3 className={cn('text-lg font-semibold', accent)}>{title}</h3>
+      <p className="text-sm text-muted-foreground px-2">{children}</p>
+    </div>
+    <Button onClick={onDone} className="w-full" variant="outline" tabIndex={1}>
+      Done
+    </Button>
+  </div>
+)
 
 export const LoginDropdown = () => {
-  const { user, signIn, signUp, signOut, resetPassword } = useAuth()
+  const {
+    user, signIn, signUp, signOut, resetPassword,
+    signInWithMagicLink, authLinkError, clearAuthLinkError,
+  } = useAuth()
   const navigate = useNavigate()
   const [showLoginForm, setShowLoginForm] = useState(false)
-  const [isSignUp, setIsSignUp] = useState(false)
-  const [isForgotPassword, setIsForgotPassword] = useState(false)
-  const [formData, setFormData] = useState({ email: '', password: '', name: '' })
+  const [mode, setMode] = useState('signIn')
+  const [formData, setFormData] = useState(EMPTY_FORM)
   const [resetEmail, setResetEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -33,7 +92,11 @@ export const LoginDropdown = () => {
     return ''
   })
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
+  // The address a magic link went to; non-empty means "show the sent panel".
+  const [magicLinkSentTo, setMagicLinkSentTo] = useState('')
 
+  const isSignUp = mode === 'signUp'
+  const face = MODE[mode]
 
   // Refs for form fields
   const nameInputRef = useRef(null)
@@ -54,6 +117,21 @@ export const LoginDropdown = () => {
       return () => clearTimeout(timer)
     }
   }, [showLoginForm, showSuccessMessage, isSignUp])
+
+  // A magic link that failed (expired, already used) lands the member here
+  // signed out. Open on the magic-link face with the reason showing, so the
+  // remedy — request another — is the form already in front of them.
+  useEffect(() => {
+    if (authLinkError && !user) {
+      setMode('magic')
+      setError(authLinkError)
+      setShowLoginForm(true)
+    }
+  }, [authLinkError, user])
+
+  const dismissLinkError = () => {
+    if (authLinkError) clearAuthLinkError?.()
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -79,13 +157,13 @@ export const LoginDropdown = () => {
 
           // Small delay to ensure popup renders before other state changes
           setTimeout(() => {
-            setFormData({ email: '', password: '', name: '' })
-            setIsSignUp(false)
+            setFormData(EMPTY_FORM)
+            setMode('signIn')
           }, 100)
         } else {
           // Normal sign in success
           setShowLoginForm(false)
-          setFormData({ email: '', password: '', name: '' })
+          setFormData(EMPTY_FORM)
         }
       } else {
         setError(result.error || 'Authentication failed')
@@ -100,6 +178,7 @@ export const LoginDropdown = () => {
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     if (error) setError('')
+    dismissLinkError()
   }
 
   const handleKeyDown = (e, nextFieldRef) => {
@@ -110,7 +189,7 @@ export const LoginDropdown = () => {
   }
 
   const resetForm = () => {
-    setFormData({ email: '', password: '', name: '' })
+    setFormData(EMPTY_FORM)
     setError('')
   }
 
@@ -135,7 +214,7 @@ export const LoginDropdown = () => {
         // Auto-close after 5 seconds
         setTimeout(() => {
           setResetPasswordSuccess(false)
-          setIsForgotPassword(false)
+          setMode('signIn')
           setShowLoginForm(false)
         }, 5000)
       } else {
@@ -148,11 +227,58 @@ export const LoginDropdown = () => {
     }
   }
 
+  const handleMagicLinkSubmit = async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    const email = formData.email.trim()
+    if (!email) {
+      setError('Please enter your email address')
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    dismissLinkError()
+
+    try {
+      const result = await signInWithMagicLink(email)
+      if (result.success) {
+        setMagicLinkSentTo(email)
+      } else {
+        setError(result.error || 'Failed to send a login link')
+      }
+    } catch (err) {
+      setError(err.message || 'An unexpected error occurred')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleBackToLogin = () => {
-    setIsForgotPassword(false)
+    setMode('signIn')
     setResetEmail('')
     setError('')
     setResetPasswordSuccess(false)
+    setMagicLinkSentTo('')
+    dismissLinkError()
+  }
+
+  const closePopover = () => {
+    setShowLoginForm(false)
+    setMagicLinkSentTo('')
+    setResetPasswordSuccess(false)
+    setMode('signIn')
+    setError('')
+    dismissLinkError()
+  }
+
+  const handleOpenChange = (open) => {
+    if (open) {
+      setShowLoginForm(true)
+    } else {
+      closePopover()
+    }
   }
 
   // Show success popup even if user is logged in (after sign up)
@@ -169,9 +295,9 @@ export const LoginDropdown = () => {
           <Card>
             <CardContent className="space-y-4 p-6">
               <div className="text-center space-y-4 py-4">
-                <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+                <CheckCircle className="h-12 w-12 text-success mx-auto" />
                 <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-green-700">Account Created!</h3>
+                  <h3 className="text-lg font-semibold text-success">Account Created!</h3>
                   <p className="text-sm text-muted-foreground px-2">
                     {successMessage}
                   </p>
@@ -184,7 +310,7 @@ export const LoginDropdown = () => {
                     localStorage.removeItem('showSignUpSuccess')
                     localStorage.removeItem('signUpSuccessMessage')
                   }}
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  className={cn('w-full', MODE.signUp.fill)}
                 >
                   Got it!
                 </Button>
@@ -238,8 +364,22 @@ export const LoginDropdown = () => {
     )
   }
 
+  const backToSignIn = (
+    <div className="text-center border-t pt-4">
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={handleBackToLogin}
+        className="text-sm font-medium text-primary hover:text-primary"
+        tabIndex={3}
+      >
+        ← Back to Sign In
+      </Button>
+    </div>
+  )
+
   return (
-    <Popover open={showLoginForm} onOpenChange={setShowLoginForm}>
+    <Popover open={showLoginForm} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm">
           <LogIn className="mr-2 h-4 w-4" />
@@ -249,68 +389,23 @@ export const LoginDropdown = () => {
       <PopoverContent className="w-80 p-0" align="end">
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className={`text-lg transition-colors ${
-              isForgotPassword ? 'text-orange-600' : isSignUp ? 'text-green-600' : 'text-blue-600'
-            }`}>
-              {isForgotPassword ? 'Reset Password' : isSignUp ? 'Create Account' : 'Welcome Back'}
+            <CardTitle className={cn('text-lg transition-colors', face.accent)}>
+              {face.title}
             </CardTitle>
-            <CardDescription>
-              {isForgotPassword
-                ? 'Enter your email to receive a password reset link'
-                : isSignUp
-                  ? 'Start tracking your fantasy football power rankings'
-                  : 'Sign in to your fantasy football dashboard'
-              }
-            </CardDescription>
+            <CardDescription>{face.description}</CardDescription>
           </CardHeader>
-          
+
           <CardContent className="space-y-4">
             {resetPasswordSuccess ? (
-              <div className="text-center space-y-4 py-4">
-                <CheckCircle className="h-12 w-12 text-orange-500 mx-auto" />
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-orange-700">Email Sent!</h3>
-                  <p className="text-sm text-muted-foreground px-2">
-                    Check your email for a password reset link. You can now close this dialog.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => {
-                    setResetPasswordSuccess(false)
-                    setIsForgotPassword(false)
-                    setShowLoginForm(false)
-                  }}
-                  className="w-full bg-orange-600 hover:bg-orange-700"
-                  tabIndex={1}
-                >
-                  Done
-                </Button>
-              </div>
-            ) : showSuccessMessage ? (
-              <div className="text-center space-y-4 py-4">
-                <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
-                <div className="space-y-2">
-                  <h3 className="text-lg font-semibold text-green-700">Account Created!</h3>
-                  <p className="text-sm text-muted-foreground px-2">
-                    {successMessage}
-                  </p>
-                </div>
-                <Button
-                  onClick={() => {
-                    setShowSuccessMessage(false)
-                    setShowLoginForm(false)
-                    setSuccessMessage('')
-                    // Clear localStorage
-                    localStorage.removeItem('showSignUpSuccess')
-                    localStorage.removeItem('signUpSuccessMessage')
-                  }}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  tabIndex={1}
-                >
-                  Got it!
-                </Button>
-              </div>
-            ) : isForgotPassword ? (
+              <SentPanel title="Email Sent!" onDone={closePopover}>
+                Check your email for a password reset link. You can now close this dialog.
+              </SentPanel>
+            ) : magicLinkSentTo ? (
+              <SentPanel title="Check your email" onDone={closePopover}>
+                We sent a login link to <span className="text-foreground">{magicLinkSentTo}</span>.
+                It expires in an hour and works on any device. Click it and you are in.
+              </SentPanel>
+            ) : mode === 'forgot' ? (
               <>
                 <form onSubmit={handleForgotPasswordSubmit} className="space-y-3">
                   <div className="space-y-2">
@@ -326,7 +421,7 @@ export const LoginDropdown = () => {
                           setResetEmail(e.target.value)
                           if (error) setError('')
                         }}
-                        className="pl-10 border-orange-200 focus:border-orange-500 focus:ring-orange-500"
+                        className="pl-10"
                         required
                         tabIndex={1}
                         autoFocus
@@ -334,33 +429,54 @@ export const LoginDropdown = () => {
                     </div>
                   </div>
 
-                  {error && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-destructive text-sm">{error}</p>
-                    </div>
-                  )}
+                  <ErrorBox message={error} />
 
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-orange-600 hover:bg-orange-700 focus:ring-orange-500"
+                    className={cn('w-full', face.fill)}
                     tabIndex={2}
                   >
                     {loading ? 'Sending...' : 'Send Reset Link'}
                   </Button>
                 </form>
 
-                <div className="text-center border-t pt-4">
+                {backToSignIn}
+              </>
+            ) : mode === 'magic' ? (
+              <>
+                <form onSubmit={handleMagicLinkSubmit} className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="magic-email">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        ref={emailInputRef}
+                        id="magic-email"
+                        type="email"
+                        placeholder="Enter your email"
+                        value={formData.email}
+                        onChange={(e) => handleInputChange('email', e.target.value)}
+                        className="pl-10"
+                        required
+                        tabIndex={1}
+                      />
+                    </div>
+                  </div>
+
+                  <ErrorBox message={error} />
+
                   <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleBackToLogin}
-                    className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                    tabIndex={3}
+                    type="submit"
+                    disabled={loading}
+                    className={cn('w-full', face.fill)}
+                    tabIndex={2}
                   >
-                    ← Back to Sign In
+                    {loading ? 'Sending...' : 'Send Login Link'}
                   </Button>
-                </div>
+                </form>
+
+                {backToSignIn}
               </>
             ) : (
               <>
@@ -369,9 +485,9 @@ export const LoginDropdown = () => {
                     isSignUp ? 'opacity-100 max-h-20' : 'opacity-0 max-h-0 overflow-hidden'
                   }`}>
                     <div className="space-y-2 pb-3">
-                      <Label htmlFor="name" className="text-green-700 font-medium">Name</Label>
+                      <Label htmlFor="name" className="text-success font-medium">Name</Label>
                       <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-green-500" />
+                        <User className="absolute left-3 top-3 h-4 w-4 text-success" />
                         <Input
                           ref={nameInputRef}
                           id="name"
@@ -380,7 +496,7 @@ export const LoginDropdown = () => {
                           value={formData.name}
                           onChange={(e) => handleInputChange('name', e.target.value)}
                           onKeyDown={(e) => handleKeyDown(e, emailInputRef)}
-                          className="pl-10 border-green-200 focus:border-green-500 focus:ring-green-500"
+                          className="pl-10"
                           required={isSignUp}
                           tabIndex={isSignUp ? 1 : -1}
                         />
@@ -425,20 +541,12 @@ export const LoginDropdown = () => {
                     </div>
                   </div>
 
-                  {error && (
-                    <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-                      <p className="text-destructive text-sm">{error}</p>
-                    </div>
-                  )}
+                  <ErrorBox message={error} />
 
                   <Button
                     type="submit"
                     disabled={loading}
-                    className={`w-full transition-colors ${
-                      isSignUp
-                        ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500'
-                        : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
-                    }`}
+                    className={cn('w-full transition-colors', face.fill)}
                     tabIndex={isSignUp ? 4 : 3}
                   >
                     {loading
@@ -450,19 +558,18 @@ export const LoginDropdown = () => {
                   </Button>
                 </form>
 
-                <div className="space-y-3 border-t pt-4">
+                <div className="space-y-1 border-t pt-4">
                   <Button
                     type="button"
                     variant="ghost"
                     onClick={() => {
-                      setIsSignUp(!isSignUp)
+                      setMode(isSignUp ? 'signIn' : 'signUp')
                       resetForm()
                     }}
-                    className={`w-full text-sm font-medium transition-colors ${
-                      isSignUp
-                        ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
-                        : 'text-green-600 hover:text-green-700 hover:bg-green-50'
-                    }`}
+                    className={cn(
+                      'w-full text-sm font-medium transition-colors',
+                      isSignUp ? 'text-primary hover:text-primary' : 'text-success hover:text-success'
+                    )}
                     tabIndex={isSignUp ? 5 : 4}
                   >
                     {isSignUp
@@ -471,18 +578,36 @@ export const LoginDropdown = () => {
                     }
                   </Button>
                   {!isSignUp && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => {
-                        setIsForgotPassword(true)
-                        setError('')
-                      }}
-                      className="w-full text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                      tabIndex={5}
-                    >
-                      Forgot Password?
-                    </Button>
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          setMode('forgot')
+                          setError('')
+                        }}
+                        className="w-full text-sm font-medium text-warning hover:text-warning"
+                        tabIndex={5}
+                      >
+                        Forgot Password?
+                      </Button>
+                      {/* The email typed above carries across, so a member who
+                          reached for the password field and thought better of
+                          it is one click from a link. */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => {
+                          setMode('magic')
+                          setError('')
+                        }}
+                        className="w-full text-sm font-medium text-warning hover:text-warning"
+                        tabIndex={6}
+                      >
+                        <Wand2 className="h-4 w-4" />
+                        Email me a login link
+                      </Button>
+                    </>
                   )}
                 </div>
               </>

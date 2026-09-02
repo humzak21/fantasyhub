@@ -41,6 +41,12 @@ export function getAnonClient() {
       // The browser keeps a session; Node scripts have nowhere to persist one.
       autoRefreshToken: isBrowser(),
       persistSession: isBrowser(),
+      // Magic links and password resets arrive as `#access_token=…`; this is
+      // what consumes them. The flow is the library's default, *implicit*, on
+      // purpose — do not set `flowType: 'pkce'`. PKCE needs the code verifier
+      // stored by the browser that requested the link, and a magic link is
+      // routinely requested in Safari and opened in Gmail's in-app browser on
+      // a phone, where that verifier does not exist and sign-in fails.
       detectSessionInUrl: isBrowser()
     },
     db: { schema: 'public' },
