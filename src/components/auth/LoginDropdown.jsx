@@ -53,6 +53,20 @@ const ErrorBox = ({ message }) =>
     </div>
   ) : null
 
+/**
+ * Shown wherever an email has just been sent. The built-in mailer is slow,
+ * rate-limited and lands in spam often enough that "nothing arrived" is the
+ * common support question; answering it here is cheaper than answering it in
+ * the group chat.
+ */
+export const EmailSentNote = () => (
+  <p className="text-xs text-muted-foreground px-2" data-testid="email-sent-note">
+    Emails can take a minute to arrive and may land in your spam folder.
+    Sends are rate-limited, so if nothing turns up, wait a minute before
+    trying again.
+  </p>
+)
+
 /** The "check your inbox" panel both email-a-link faces end on. */
 const SentPanel = ({ title, children, onDone, accent = 'text-warning' }) => (
   <div className="text-center space-y-4 py-4">
@@ -60,6 +74,7 @@ const SentPanel = ({ title, children, onDone, accent = 'text-warning' }) => (
     <div className="space-y-2">
       <h3 className={cn('text-lg font-semibold', accent)}>{title}</h3>
       <p className="text-sm text-muted-foreground px-2">{children}</p>
+      <EmailSentNote />
     </div>
     <Button onClick={onDone} className="w-full" variant="outline" tabIndex={1}>
       Done
@@ -90,6 +105,15 @@ export const LoginDropdown = () => {
       return localStorage.getItem('signUpSuccessMessage') || ''
     }
     return ''
+  })
+  // Whether sign-up sent a confirmation email. Only then does the success
+  // panel talk about inboxes; a sign-up that came back with a session sent
+  // nothing, and telling that member to check spam would be a wild goose.
+  const [signUpEmailSent, setSignUpEmailSent] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('signUpEmailSent') === 'true'
+    }
+    return false
   })
   const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
   // The address a magic link went to; non-empty means "show the sent panel".
@@ -149,11 +173,13 @@ export const LoginDropdown = () => {
           // Set success message immediately
           const message = result.message || 'Account created successfully! You can now sign in.'
           setSuccessMessage(message)
+          setSignUpEmailSent(Boolean(result.emailSent))
           setShowSuccessMessage(true)
 
           // Persist to localStorage in case of page refresh
           localStorage.setItem('signUpSuccessMessage', message)
           localStorage.setItem('showSignUpSuccess', 'true')
+          localStorage.setItem('signUpEmailSent', result.emailSent ? 'true' : 'false')
 
           // Small delay to ensure popup renders before other state changes
           setTimeout(() => {
@@ -211,12 +237,6 @@ export const LoginDropdown = () => {
       if (result.success) {
         setResetPasswordSuccess(true)
         setResetEmail('')
-        // Auto-close after 5 seconds
-        setTimeout(() => {
-          setResetPasswordSuccess(false)
-          setMode('signIn')
-          setShowLoginForm(false)
-        }, 5000)
       } else {
         setError(result.error || 'Failed to send password reset email')
       }
@@ -301,14 +321,17 @@ export const LoginDropdown = () => {
                   <p className="text-sm text-muted-foreground px-2">
                     {successMessage}
                   </p>
+                  {signUpEmailSent && <EmailSentNote />}
                 </div>
                 <Button
                   onClick={() => {
                     setShowSuccessMessage(false)
                     setSuccessMessage('')
+                    setSignUpEmailSent(false)
                     // Clear localStorage
                     localStorage.removeItem('showSignUpSuccess')
                     localStorage.removeItem('signUpSuccessMessage')
+                    localStorage.removeItem('signUpEmailSent')
                   }}
                   className={cn('w-full', MODE.signUp.fill)}
                 >
@@ -398,7 +421,7 @@ export const LoginDropdown = () => {
           <CardContent className="space-y-4">
             {resetPasswordSuccess ? (
               <SentPanel title="Email Sent!" onDone={closePopover}>
-                Check your email for a password reset link. You can now close this dialog.
+                Check your email for a password reset link.
               </SentPanel>
             ) : magicLinkSentTo ? (
               <SentPanel title="Check your email" onDone={closePopover}>
