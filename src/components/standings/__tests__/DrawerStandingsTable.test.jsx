@@ -68,8 +68,10 @@ describe('DrawerStandingsTable, 2026 and later', () => {
   it('seeds the two division winners and marks them as byes', () => {
     render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
 
-    expect(within(rowFor('Alpha')).getByText('Bye')).toBeInTheDocument();
-    expect(within(rowFor('Foxtrot')).getByText('Bye')).toBeInTheDocument();
+    // Yellow row, no chip: the key above the divisions says what yellow means.
+    expect(rowFor('Alpha')).toHaveClass('bg-warning/15');
+    expect(rowFor('Foxtrot')).toHaveClass('bg-warning/15');
+    expect(within(rowFor('Alpha')).getByText('First-round bye')).toHaveClass('sr-only');
     expect(within(rowFor('Alpha')).getByTitle('Playoff seed 1')).toBeInTheDocument();
     expect(within(rowFor('Foxtrot')).getByTitle('Playoff seed 2')).toBeInTheDocument();
   });
@@ -84,7 +86,8 @@ describe('DrawerStandingsTable, 2026 and later', () => {
       ['Golf', 6]
     ]) {
       const row = rowFor(name);
-      expect(within(row).getByText('WC')).toBeInTheDocument();
+      expect(row).toHaveClass('bg-success/10');
+      expect(within(row).getByText('Wild card')).toHaveClass('sr-only');
       expect(within(row).getByTitle(`Playoff seed ${seed}`)).toBeInTheDocument();
     }
   });
@@ -93,10 +96,38 @@ describe('DrawerStandingsTable, 2026 and later', () => {
     render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
 
     // Delta is 4th in the stacked division and holds seed 5.
-    expect(within(rowFor('Delta')).getByText('WC')).toBeInTheDocument();
+    expect(rowFor('Delta')).toHaveClass('bg-success/10');
     // Hotel is 3rd in the weak division — a qualifier under the old rule only.
-    expect(within(rowFor('Hotel')).queryByText('WC')).not.toBeInTheDocument();
-    expect(within(rowFor('Hotel')).queryByText('Bye')).not.toBeInTheDocument();
+    expect(rowFor('Hotel')).not.toHaveClass('bg-success/10');
+    expect(rowFor('Hotel')).not.toHaveClass('bg-warning/15');
+    expect(within(rowFor('Hotel')).queryByText('Wild card')).not.toBeInTheDocument();
+    expect(within(rowFor('Hotel')).queryByText('First-round bye')).not.toBeInTheDocument();
+  });
+
+  it('explains the two tints in a key above the first division', () => {
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
+
+    const key = screen.getByLabelText('Key');
+    expect(within(key).getByText('Bye')).toBeInTheDocument();
+    expect(within(key).getByText('Wild card')).toBeInTheDocument();
+    // Above, not below: the key precedes every division heading in the DOM.
+    const firstHeading = screen.getAllByRole('heading', { level: 3 })[0];
+    expect(key.compareDocumentPosition(firstHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('puts the seed in its own column after Win %, not on the name', () => {
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
+
+    const headers = within(screen.getAllByRole('table')[0])
+      .getAllByRole('columnheader')
+      .map((th) => th.textContent.trim());
+    expect(headers.indexOf('Seed')).toBe(headers.indexOf('Win %') + 1);
+
+    const cells = within(rowFor('Alpha')).getAllByRole('cell');
+    expect(cells[headers.indexOf('Seed')]).toHaveTextContent('1');
+    expect(cells[headers.indexOf('Team')]).not.toHaveTextContent('1');
+    // A team outside the bracket has no seed, and says so rather than 0.
+    expect(within(rowFor('Hotel')).getByLabelText('No seed')).toBeInTheDocument();
   });
 
   it('still shows division rank, which the seed does not replace', () => {
@@ -126,19 +157,22 @@ describe('DrawerStandingsTable, 2026 and later', () => {
       />
     );
 
-    expect(within(rowFor('Alpha')).getByText('Bye')).toBeInTheDocument();
-    expect(within(rowFor('Bravo')).getByText('WC')).toBeInTheDocument();
+    expect(rowFor('Alpha')).toHaveClass('bg-warning/15');
+    expect(rowFor('Bravo')).toHaveClass('bg-success/10');
     expect(within(rowFor('Bravo')).getByTitle('Playoff seed 3')).toBeInTheDocument();
   });
 });
 
 describe('DrawerStandingsTable, 2025 and earlier', () => {
-  it('shows no seeds or byes — that season had neither', () => {
-    render(<DrawerStandingsTable {...baseProps} seasonYear={2025} />);
+  it('shows no seeds, byes or key — that season had none of them', () => {
+    const { container } = render(<DrawerStandingsTable {...baseProps} seasonYear={2025} />);
 
-    expect(screen.queryByText('Bye')).not.toBeInTheDocument();
-    expect(screen.queryByText('WC')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Key')).not.toBeInTheDocument();
+    expect(screen.queryByText('First-round bye')).not.toBeInTheDocument();
+    expect(screen.queryByText('Wild card')).not.toBeInTheDocument();
+    expect(container.querySelectorAll('tr.bg-warning\\/15')).toHaveLength(0);
     expect(screen.queryByTitle('Playoff seed 1')).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Seed' })).not.toBeInTheDocument();
   });
 
   it('qualifies the top three of each division, including the weak one', () => {
@@ -153,7 +187,8 @@ describe('DrawerStandingsTable, 2025 and earlier', () => {
 
   it('treats a season with no year as a legacy season rather than guessing', () => {
     render(<DrawerStandingsTable {...baseProps} />);
-    expect(screen.queryByText('Bye')).not.toBeInTheDocument();
+    expect(screen.queryByText('First-round bye')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Key')).not.toBeInTheDocument();
   });
 });
 

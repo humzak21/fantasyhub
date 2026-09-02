@@ -52,7 +52,7 @@ import DrawerStandingsTable from './DrawerStandingsTable';
  * (`divisions.season_id`, `teams.season_id`), and Manage mode is the only
  * place in the app that moves a team between them — but the drawer was wired
  * to the active season alone, so fixing 2024's divisions meant SQL. The
- * picker in the header is admin-only, and choosing a season other than the
+ * picker in the table's header row is admin-only, and choosing a season other than the
  * active one hands the table that season's teams, divisions and standings,
  * with mutations scoped to that season's id so the writes and the cache
  * invalidations both land on the year being edited. The active season keeps
@@ -102,43 +102,54 @@ const StandingsDrawer = ({
     description = currentWeek ? `Through week ${currentWeek}` : 'Current league standings';
   }
 
+  // The admin's season picker. It renders inside the table's header row, in
+  // the controls cluster next to Manage — the drawer used to carry a second
+  // header of its own above the table (title, description, then this control
+  // on a line by itself), so "Standings" appeared twice and the picker sat in
+  // the gap between them. The sheet's own title and description are still
+  // rendered, visually hidden, because they are what labels the dialog.
+  const seasonPicker = showSeasonPicker ? (
+    <div className="flex items-center gap-2">
+      <Label htmlFor="standings-season" className="sr-only">
+        Season
+      </Label>
+      <Select
+        value={pickerValue}
+        onValueChange={(value) => {
+          const season = seasons.find((s) => String(s.id) === value);
+          setPickedSeasonId(season ? season.id : null);
+        }}
+      >
+        <SelectTrigger id="standings-season" className="h-8 w-auto min-w-[7.5rem] text-xs">
+          <SelectValue placeholder="Season" />
+        </SelectTrigger>
+        <SelectContent>
+          {seasons.map((season) => (
+            <SelectItem key={season.id} value={String(season.id)}>
+              {season.year}
+              {String(season.id) === String(seasonId) ? ' (active)' : ''}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  ) : null;
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="right"
+        // From the left, the side the standings trigger sits on in the header,
+        // so the panel slides out from under the control that opened it.
+        side="left"
+        // The table's header row carries the close button.
+        hideClose
         // Wider than the primitive's default: this is a table, and the default
         // `max-w-sm` would put the points columns into a horizontal scroll.
-        className="w-[92vw] max-w-[690px] sm:w-[690px]"
+        className="w-[92vw] max-w-[725px] sm:w-[725px]"
       >
-        <SheetHeader>
-          <SheetTitle className="font-display text-xl tracking-tight">Standings</SheetTitle>
+        <SheetHeader className="sr-only">
+          <SheetTitle>Standings</SheetTitle>
           <SheetDescription>{description}</SheetDescription>
-          {showSeasonPicker && (
-            <div className="flex items-center gap-2 pt-1">
-              <Label htmlFor="standings-season" className="text-xs uppercase tracking-[0.06em] text-muted-foreground">
-                Season
-              </Label>
-              <Select
-                value={pickerValue}
-                onValueChange={(value) => {
-                  const season = seasons.find((s) => String(s.id) === value);
-                  setPickedSeasonId(season ? season.id : null);
-                }}
-              >
-                <SelectTrigger id="standings-season" className="h-8 w-auto min-w-[9rem] text-sm">
-                  <SelectValue placeholder="Season" />
-                </SelectTrigger>
-                <SelectContent>
-                  {seasons.map((season) => (
-                    <SelectItem key={season.id} value={String(season.id)}>
-                      {season.year}
-                      {String(season.id) === String(seasonId) ? ' (active)' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </SheetHeader>
 
         {editingSeasonId ? (
@@ -149,6 +160,7 @@ const StandingsDrawer = ({
             user={user}
             isAdmin={isAdmin}
             teamOwnerNames={teamOwnerNames}
+            seasonPicker={seasonPicker}
           />
         ) : (
           <DrawerStandingsTable
@@ -168,6 +180,7 @@ const StandingsDrawer = ({
             user={user}
             isAdmin={isAdmin}
             teamOwnerNames={teamOwnerNames}
+            seasonPicker={seasonPicker}
           />
         )}
       </SheetContent>
@@ -183,7 +196,7 @@ const StandingsDrawer = ({
  * `assignTeamToDivision` in the data layer refuses a division from any other
  * season, so the picker cannot be used to cross the years even by accident.
  */
-function SeasonStandings({ seasonId, season, onClose, user, isAdmin, teamOwnerNames }) {
+function SeasonStandings({ seasonId, season, onClose, user, isAdmin, teamOwnerNames, seasonPicker }) {
   const teamsQuery = useSeasonTeams(seasonId);
   const divisionsQuery = useDivisions(seasonId);
   const standingsQuery = useStandings(seasonId);
@@ -212,6 +225,7 @@ function SeasonStandings({ seasonId, season, onClose, user, isAdmin, teamOwnerNa
       user={user}
       isAdmin={isAdmin}
       teamOwnerNames={teamOwnerNames}
+      seasonPicker={seasonPicker}
     />
   );
 }

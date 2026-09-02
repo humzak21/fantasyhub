@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Edit2, Settings, Plus, Trash2, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ResponsiveDataTable } from '../ui/responsive-table';
@@ -19,6 +19,24 @@ import {
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
 
+/**
+ * What the row tints mean, above the first division. Only seeded seasons
+ * (2026+) render it: before that a green row meant "top three in the
+ * division" and there was nothing else to tell apart.
+ */
+const QualifierKey = () => (
+  <dl className="flex items-center gap-4 px-1 text-xs text-muted-foreground" aria-label="Key">
+    <div className="flex items-center gap-1.5">
+      <dt className="h-3 w-3 shrink-0 rounded-sm bg-warning/40 ring-1 ring-inset ring-warning/60" aria-hidden="true" />
+      <dd>Bye</dd>
+    </div>
+    <div className="flex items-center gap-1.5">
+      <dt className="h-3 w-3 shrink-0 rounded-sm bg-success/40 ring-1 ring-inset ring-success/60" aria-hidden="true" />
+      <dd>Wild card</dd>
+    </div>
+  </dl>
+);
+
 const DrawerStandingsTable = ({
   teams = [],
   divisions = [],
@@ -37,7 +55,11 @@ const DrawerStandingsTable = ({
   games = [], // Add games data for streak calculation fallback
   user = null,
   isAdmin = false,
-  teamOwnerNames = []
+  teamOwnerNames = [],
+  // The drawer's season picker, rendered in the header's control cluster
+  // beside Manage. Owned by the drawer, because which seasons exist and which
+  // one is being edited are its state, not the table's.
+  seasonPicker = null
 }) => {
   const [isManaging, setIsManaging] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState('');
@@ -231,11 +253,14 @@ const DrawerStandingsTable = ({
    * because the remap block at the end of globals.css catches those exact
    * selectors; `bg-success` is the token that actually means this.
    *
-   * A bye is a stronger fact than a berth, so it reads a step brighter — but
-   * only from 2026, where byes are a thing the standings can tell you about.
+   * From 2026 the tint is the whole marker: a bye row is yellow and a
+   * wild-card row is green, and the key above the first division says which
+   * is which. The rows used to carry "Bye" and "WC" chips as well, which put
+   * a third badge beside the seed on a name that was already truncating. The
+   * words survive for screen readers only, in the team cell.
    */
   const qualifierTint = (team) => {
-    if (seeded && team.isBye) return 'bg-success/15';
+    if (seeded && team.isBye) return 'bg-warning/15';
     return team.isPlayoffSpot ? 'bg-success/10' : '';
   };
 
@@ -426,6 +451,107 @@ const DrawerStandingsTable = ({
 
   const { divisions: divisionStandings, unassigned } = calculateStandings();
 
+  /*
+   * One team-column width for every table on the board.
+   *
+   * Each division is its own <table>, and an auto-layout table sizes its
+   * columns from its own content — so the division with "U dont have 🌮🥒"
+   * in it got a wide team column and a clipped DIFF, while the one next to
+   * it wrapped its owner names into two lines to make room. Two tables that
+   * disagree about where the owner column starts read as two different
+   * reports. The fix is the one a spreadsheet would use: measure the longest
+   * team cell across *all* the teams, and give every table that width with
+   * `table-fixed`, so the numeric columns and the owner column line up too.
+   *
+   * Measured, not counted: a character count cannot price an emoji or a
+   * wide glyph. The cells are rendered once more into a hidden block that
+   * inherits the real font, and the widest sets `--standings-team-col`.
+   * Re-measured when the names change (a season switch, a rename, the
+   * masking toggling), and again once the webfont has loaded — before that,
+   * the fallback face measures differently.
+   *
+   * The cap is what the owner column can spare. Under `table-fixed` the
+   * owner column takes whatever the others leave, so an uncapped team column
+   * would hand a novelty name the whole row and break "Gatamaneni" across
+   * three lines. The longest single owner *word* is measured alongside the
+   * team cells; owners may wrap at a space, never inside a name. The team
+   * column grows to its longest name up to that limit and wraps past it —
+   * at a space, exactly as the owner column does, never inside a word: the
+   * floor is the longest single team word.
+   */
+  const boardRef = useRef(null);
+  const measureRef = useRef(null);
+  const [teamColWidth, setTeamColWidth] = useState(null);
+  const allTeams = [...divisionStandings.flatMap((d) => d.teams), ...unassigned];
+  const teamCells = allTeams.map((team) => ({
+    key: team.id ?? team.teamId ?? team.name,
+    name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
+  }));
+  // The words of every team name, for the floor: the column may wrap a name
+  // but never break a word.
+  const teamWords = [
+    ...new Set(teamCells.flatMap((cell) => String(cell.name ?? '').split(/\s+/))),
+  ].filter(Boolean);
+  const ownerWords = [
+    ...new Set(
+      allTeams.flatMap((team) =>
+        String(getMaskedOwnerName(team, user, isAdmin, teamOwnerNames) ?? '').split(/\s+/)
+      )
+    ),
+  ].filter(Boolean);
+  // The effect keys on the rendered text, not the arrays: the standings are
+  // rebuilt every render, and only a change in what the cells say matters.
+  const nameKey = [...teamCells.map((c) => c.name), ...teamWords, ...ownerWords].join('|');
+
+  useLayoutEffect(() => {
+    const measurer = measureRef.current;
+    const board = boardRef.current;
+    if (!measurer || !board) return undefined;
+
+    const measure = () => {
+      const widest = (kind) =>
+        Math.max(
+          0,
+          ...[...measurer.querySelectorAll(`[data-measure="${kind}"]`)].map(
+            (el) => el.getBoundingClientRect().width
+          )
+        );
+      const widestTeam = widest('team');
+      // jsdom has no layout engine and reports 0: leave the column to itself.
+      if (widestTeam === 0) return;
+
+      const cellPadding = 24; // px-3 on both sides
+      const wanted = Math.ceil(widestTeam) + cellPadding;
+
+      // What the other columns leave. The fixed-width columns report their
+      // class widths under `table-fixed` whatever their content, so they are
+      // read from the first table rather than restated here as numbers.
+      const table = board.querySelector('table');
+      const tableWidth = table?.getBoundingClientRect().width ?? 0;
+      const fixed = table
+        ? [...table.querySelectorAll('thead th')]
+            .filter((th) => !th.classList.contains('standings-fluid-col'))
+            .reduce((sum, th) => sum + th.getBoundingClientRect().width, 0)
+        : 0;
+      const ownerMin = Math.ceil(widest('owner')) + cellPadding;
+      const teamMin = Math.ceil(widest('team-word')) + cellPadding;
+      const cap = Math.max(teamMin, Math.floor(tableWidth - fixed - ownerMin));
+
+      setTeamColWidth(tableWidth > 0 ? Math.min(wanted, cap) : wanted);
+    };
+
+    measure();
+    let cancelled = false;
+    document.fonts?.ready?.then(() => {
+      if (!cancelled) measure();
+    });
+    window.addEventListener('resize', measure);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('resize', measure);
+    };
+  }, [nameKey]);
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -506,35 +632,20 @@ const DrawerStandingsTable = ({
       key: 'team',
       header: 'Team',
       priority: 'primary',
-      headerClassName: 'px-3 py-2 text-sm min-w-[140px]',
+      // The width is the measured one, shared by every table on the board;
+      // see `useLayoutEffect` above. Unset (before the first measurement, or
+      // in jsdom) it resolves to auto.
+      // `standings-fluid-col` is a marker with no CSS, read by the measurer.
+      headerClassName: 'standings-fluid-col w-(--standings-team-col) px-3 py-2 text-sm',
       className: 'px-3 py-2 font-medium',
       cell: (team) => (
         <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate font-medium">
-              {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
-            </span>
-            {/* The seed is the number that decides who plays whom, so it reads
-                as a number rather than as another badge. Only 2026+ rows carry
-                one; before that a division place was the whole story. */}
-            {team.playoffSeed != null && (
-              <span
-                className="shrink-0 rounded bg-primary/15 px-1.5 font-display text-[11px] font-semibold leading-5 text-primary"
-                title={`Playoff seed ${team.playoffSeed}`}
-              >
-                {team.playoffSeed}
-              </span>
-            )}
-            {team.isBye && (
-              <Badge variant="success" className="shrink-0 px-1.5" title="First-round bye">
-                Bye
-              </Badge>
-            )}
-            {team.isWildcard && (
-              <Badge variant="outline" className="shrink-0 px-1.5" title="Wildcard">
-                WC
-              </Badge>
-            )}
+          {/* Wraps at a space, as the owner column does; the measured column
+              floor is the longest single word, so it never breaks inside one. */}
+          <div className="min-w-0 font-medium">
+            {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+            {team.isBye && <span className="sr-only">First-round bye</span>}
+            {team.isWildcard && <span className="sr-only">Wild card</span>}
           </div>
           {/* The owner is its own column at sm:+; on a card it belongs under
               the team name rather than in the stats grid. */}
@@ -548,7 +659,9 @@ const DrawerStandingsTable = ({
       key: 'owner',
       header: 'Owner',
       priority: 'detail',
-      headerClassName: 'px-3 py-2 text-sm min-w-[120px]',
+      // The one column with no width: under `table-fixed` it takes what the
+      // others leave, and the measurer above keeps that at least a word wide.
+      headerClassName: 'standings-fluid-col px-3 py-2 text-sm',
       className: 'px-3 py-2 text-muted-foreground',
       cell: (team) => getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
     },
@@ -562,10 +675,32 @@ const DrawerStandingsTable = ({
     {
       key: 'winPct',
       header: 'Win %',
-      headerClassName: 'w-16 px-2 py-2 text-center text-sm',
+      // A hair wider than the other numeric columns: at w-16 the header's
+      // "%" fell onto a second line and made this the tallest header cell.
+      headerClassName: 'w-[4.5rem] whitespace-nowrap px-2 py-2 text-center text-sm',
       className: 'px-2 py-2 text-center',
       cell: (team) => `${((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%`,
     },
+    // The playoff seed is the number that decides who plays whom, so it is a
+    // column of numbers rather than a chip on the name. Only seeded seasons
+    // (2026+) have one; before that a division place was the whole story, so
+    // the column is absent rather than a column of dashes.
+    ...(seeded
+      ? [{
+          key: 'seed',
+          header: 'Seed',
+          headerClassName: 'w-14 px-2 py-2 text-center text-sm',
+          className: 'px-2 py-2 text-center',
+          cell: (team) =>
+            team.playoffSeed != null ? (
+              <span className="font-medium" title={`Playoff seed ${team.playoffSeed}`}>
+                {team.playoffSeed}
+              </span>
+            ) : (
+              <span className="text-muted-foreground" aria-label="No seed">—</span>
+            ),
+        }]
+      : []),
     {
       key: 'pf',
       header: 'PF',
@@ -621,9 +756,9 @@ const DrawerStandingsTable = ({
   return (
     <div className="space-y-4">
       {/* Header with management controls and close button */}
-      <div className="flex items-center justify-between px-1 pb-4 border-b border-border">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 px-1 pb-4 border-b border-border">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg sm:text-xl font-semibold text-foreground">Standings</h2>
+          <h2 className="font-display text-xl tracking-tight text-foreground">Standings</h2>
           {currentWeek && (
             <Badge variant="outline" className="text-xs">
               Week {currentWeek}
@@ -631,6 +766,7 @@ const DrawerStandingsTable = ({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {seasonPicker}
           {isAuthenticated && (
             <div className="flex items-center gap-1">
               {isManaging && (
@@ -685,19 +821,48 @@ const DrawerStandingsTable = ({
               </Button>
             </div>
           )}
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="p-2 sm:p-3 rounded-md hover:bg-muted active:bg-muted transition-colors duration-200 touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             aria-label="Close standings drawer"
-            style={{ minHeight: '44px', minWidth: '44px' }}
+            className="h-8 w-8 text-muted-foreground"
           >
-            <X size={20} className="text-muted-foreground" />
-          </button>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
         </div>
       </div>
 
       {/* Divisions stacked vertically */}
-      <div className="space-y-4">
+      <div
+        ref={boardRef}
+        className="relative space-y-4"
+        style={teamColWidth ? { '--standings-team-col': `${teamColWidth}px` } : undefined}
+      >
+        {/* The measuring block: every team cell as the table renders it, in
+            the table's own font, hidden and out of flow. */}
+        <div
+          ref={measureRef}
+          aria-hidden="true"
+          className="pointer-events-none invisible absolute left-0 top-0 h-0 overflow-hidden whitespace-nowrap text-sm"
+        >
+          {teamCells.map((cell) => (
+            <div key={cell.key} data-measure="team" className="w-max font-medium">
+              {cell.name}
+            </div>
+          ))}
+          {teamWords.map((word) => (
+            <div key={word} data-measure="team-word" className="w-max font-medium">
+              {word}
+            </div>
+          ))}
+          {ownerWords.map((word) => (
+            <div key={word} data-measure="owner" className="w-max">
+              {word}
+            </div>
+          ))}
+        </div>
+        {seeded && <QualifierKey />}
         {divisionStandings.map((division, divisionIndex) => (
           <div key={division.id} className="space-y-2">
             {/* Compact division header */}
@@ -793,6 +958,7 @@ const DrawerStandingsTable = ({
                     moveTargets: () => divisionStandings.filter((d) => d.id !== division.id),
                   })}
                   data={division.teams}
+                  tableClassName="table-fixed"
                   rowClassName={(team) =>
                     `text-sm transition-all duration-200 hover:bg-muted/50 ${qualifierTint(team)}`
                   }
@@ -820,6 +986,7 @@ const DrawerStandingsTable = ({
                   moveTargets: () => divisionStandings,
                 })}
                 data={unassigned}
+                tableClassName="table-fixed"
                 rowClassName={() => 'text-sm transition-all duration-200 hover:bg-muted/50'}
               />
             </div>

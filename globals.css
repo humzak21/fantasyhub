@@ -484,11 +484,11 @@
   }
 }
 
-/* Drive the .animate-in / .animate-out utilities above. Each modifier sets one
- * custom property; anything left `initial` falls back to the identity value,
- * so `animate-in fade-in-0` moves opacity only and `animate-in
- * slide-in-from-top-2` moves position only, exactly as the shadcn classes
- * behave. */
+/* Drive the `animate-in` / `animate-out` utilities below. Each modifier sets
+ * one custom property; anything not set stays at its registered initial (the
+ * identity value), so `animate-in fade-in-0` moves opacity only and
+ * `animate-in slide-in-from-top-2` moves position only, exactly as the shadcn
+ * classes behave. */
 @keyframes ff-enter {
   from {
     opacity: var(--ff-enter-opacity, 1);
@@ -506,6 +506,79 @@
       scale(var(--ff-exit-scale, 1));
   }
 }
+
+/* The custom properties the two keyframes read. Registered so they do not
+ * inherit: they are set on the element that animates, and a child that
+ * happens to carry `animate-in` of its own must start from the identity
+ * values, not from whatever its parent's modifiers left in scope. Before
+ * registration this was done by resetting every property to `initial` inside
+ * `.animate-in`, which then had to lose a cascade fight with `.fade-in-0`
+ * on the same element — order-dependent, and the reason the reset is gone. */
+@property --ff-enter-opacity { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --ff-exit-opacity { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --ff-enter-scale { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --ff-exit-scale { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --ff-enter-translate-x { syntax: '<length-percentage>'; inherits: false; initial-value: 0px; }
+@property --ff-enter-translate-y { syntax: '<length-percentage>'; inherits: false; initial-value: 0px; }
+@property --ff-exit-translate-x { syntax: '<length-percentage>'; inherits: false; initial-value: 0px; }
+@property --ff-exit-translate-y { syntax: '<length-percentage>'; inherits: false; initial-value: 0px; }
+
+/* Radix enter/exit animations.
+ *
+ * dropdown-menu, select, popover, tooltip, dialog, alert-dialog and sheet are
+ * all authored against `animate-in` / `fade-in-0` / `zoom-in-95` /
+ * `slide-in-from-*`, the names of the tailwindcss-animate plugin, which this
+ * project has never installed. The keyframes were then added here as plain
+ * classes inside `@layer utilities` — and that still produced nothing,
+ * because every one of those components applies them under a variant
+ * (`data-[state=open]:animate-in`), and Tailwind v4 only generates a variant
+ * form for a utility declared with `@utility`. A plain class in the utilities
+ * layer is emitted as written and is invisible to the variant engine.
+ * Verified against the built CSS: not one `[data-state=open]` animation rule
+ * in it, so every sheet, menu and dialog popped in with no transition,
+ * unmounted with none, and the standings drawer appeared in place.
+ *
+ * `@utility` fixes that and must sit at the top level, not inside `@layer`.
+ *
+ * The durations read a custom property so a large surface can ask for a
+ * slower one — a 690px panel sliding in over 150ms is a flash, not a slide —
+ * without a second set of keyframes. The set is deliberately only what the
+ * codebase references. */
+@utility animate-in {
+  animation-name: ff-enter;
+  animation-duration: var(--ff-enter-duration, 150ms);
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+@utility animate-out {
+  animation-name: ff-exit;
+  animation-duration: var(--ff-exit-duration, 120ms);
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: both;
+}
+
+@utility fade-in-0 { --ff-enter-opacity: 0; }
+@utility fade-out-0 { --ff-exit-opacity: 0; }
+
+@utility zoom-in-95 { --ff-enter-scale: 0.95; }
+@utility zoom-out-95 { --ff-exit-scale: 0.95; }
+
+@utility slide-in-from-top-2 { --ff-enter-translate-y: -0.5rem; }
+@utility slide-in-from-bottom-2 { --ff-enter-translate-y: 0.5rem; }
+@utility slide-in-from-left-2 { --ff-enter-translate-x: -0.5rem; }
+@utility slide-in-from-right-2 { --ff-enter-translate-x: 0.5rem; }
+@utility slide-in-from-left-1 { --ff-enter-translate-x: -0.25rem; }
+@utility slide-out-to-left-1 { --ff-exit-translate-x: -0.25rem; }
+
+@utility slide-in-from-top-full { --ff-enter-translate-y: -100%; }
+@utility slide-out-to-top-full { --ff-exit-translate-y: -100%; }
+@utility slide-in-from-bottom-full { --ff-enter-translate-y: 100%; }
+@utility slide-out-to-bottom-full { --ff-exit-translate-y: 100%; }
+@utility slide-in-from-left-full { --ff-enter-translate-x: -100%; }
+@utility slide-out-to-left-full { --ff-exit-translate-x: -100%; }
+@utility slide-in-from-right-full { --ff-enter-translate-x: 100%; }
+@utility slide-out-to-right-full { --ff-exit-translate-x: 100%; }
 
 @layer utilities {
 
@@ -608,58 +681,9 @@
     font-feature-settings: 'tnum' 1;
   }
 
-  /* Radix enter/exit animations.
-   *
-   * dropdown-menu, select, popover, tooltip and alert-dialog were all authored
-   * against `animate-in` / `fade-in-0` / `zoom-in-95` / `slide-in-from-*`.
-   * Those come from the tailwindcss-animate plugin, which this project has
-   * never installed — verified against the built CSS, where not one of them
-   * appears. Every one of those menus has been popping in with no transition
-   * at all since the day it was written.
-   *
-   * Rather than add a dependency for six keyframes, they are defined here, in
-   * the same names the components already use, so those components animate as
-   * written and the new dialog/sheet/drawer primitives can rely on them too.
-   * The set is deliberately only what the codebase references. */
-  .animate-in {
-    animation-name: ff-enter;
-    animation-duration: 150ms;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-    animation-fill-mode: both;
-    --ff-enter-opacity: initial;
-    --ff-enter-scale: initial;
-    --ff-enter-translate-x: initial;
-    --ff-enter-translate-y: initial;
-  }
-
-  .animate-out {
-    animation-name: ff-exit;
-    animation-duration: 120ms;
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-    animation-fill-mode: both;
-    --ff-exit-opacity: initial;
-    --ff-exit-scale: initial;
-    --ff-exit-translate-x: initial;
-    --ff-exit-translate-y: initial;
-  }
-
-  .fade-in-0 { --ff-enter-opacity: 0; }
-  .fade-out-0 { --ff-exit-opacity: 0; }
-
-  .zoom-in-95 { --ff-enter-scale: 0.95; }
-  .zoom-out-95 { --ff-exit-scale: 0.95; }
-
-  .slide-in-from-top-2 { --ff-enter-translate-y: -0.5rem; }
-  .slide-in-from-bottom-2 { --ff-enter-translate-y: 0.5rem; }
-  .slide-in-from-left-2 { --ff-enter-translate-x: -0.5rem; }
-  .slide-in-from-right-2 { --ff-enter-translate-x: 0.5rem; }
-  .slide-in-from-left-1 { --ff-enter-translate-x: -0.25rem; }
-  .slide-out-to-left-1 { --ff-exit-translate-x: -0.25rem; }
-
-  .slide-in-from-bottom-full { --ff-enter-translate-y: 100%; }
-  .slide-out-to-bottom-full { --ff-exit-translate-y: 100%; }
-  .slide-in-from-right-full { --ff-enter-translate-x: 100%; }
-  .slide-out-to-right-full { --ff-exit-translate-x: 100%; }
+  /* The Radix enter/exit utilities (`animate-in`, `fade-in-0`, ...) are
+   * `@utility` blocks after this layer — see the note there for why they
+   * cannot live here. */
 
 
   .gradient-bg {
