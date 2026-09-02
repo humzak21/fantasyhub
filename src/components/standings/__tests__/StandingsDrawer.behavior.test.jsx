@@ -5,8 +5,12 @@ import { describe, it, expect, vi } from 'vitest';
 import StandingsDrawer, { StandingsTrigger } from '../StandingsDrawer';
 
 vi.mock('../DrawerStandingsTable', () => ({
-  default: ({ teams, divisions, loading, seasonYear, onDivisionDelete }) => (
+  default: ({ teams, divisions, loading, seasonYear, onDivisionDelete, onClose }) => (
     <div data-testid="standings-table">
+      {/* The table's header row owns the close button; the sheet's corner X is hidden. */}
+      <button type="button" onClick={onClose} aria-label="Close standings drawer">
+        Close
+      </button>
       <div>Teams: {teams?.length || 0}</div>
       <div>Divisions: {divisions?.length || 0}</div>
       <div>Season: {seasonYear ?? 'none'}</div>
@@ -48,7 +52,9 @@ describe('StandingsDrawer', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Standings' })).toBeInTheDocument();
+    // The visible heading is the table's; this one is the dialog's accessible
+    // name, and a screen reader is the only thing that meets it.
+    expect(dialog).toHaveAccessibleName('Standings');
     expect(screen.getByTestId('standings-table')).toBeInTheDocument();
   });
 
@@ -57,11 +63,12 @@ describe('StandingsDrawer', () => {
     expect(screen.getByText(/through week 8/i)).toBeInTheDocument();
   });
 
-  it('offers a close control and reports the close upward', async () => {
+  it('renders exactly one close control, in the table header, and reports the close upward', async () => {
     const onOpenChange = vi.fn();
     const user = userEvent.setup();
     render(<StandingsDrawer {...baseProps} open onOpenChange={onOpenChange} />);
 
+    // `getByRole` throws on two matches: the sheet's own corner X must be off.
     await user.click(screen.getByRole('button', { name: /close/i }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });

@@ -182,6 +182,12 @@ test.describe('phone navigation', () => {
     const panel = page.getByRole('dialog')
     await expect(panel).toBeVisible()
 
+    // The sheet slides in from the left edge, and `toBeVisible` resolves on
+    // the first frame of that slide — when the panel is mostly off-screen by
+    // design. Measure it at rest: a position sampled mid-animation says
+    // nothing about whether the panel fits.
+    await panel.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+
     const box = await panel.boundingBox()
     const vw = page.viewportSize().width
     expect(box.x).toBeGreaterThanOrEqual(-1)

@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { render, screen } from '../../../test/renderWithProviders.jsx';
+import { render, screen, within } from '../../../test/renderWithProviders.jsx';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -55,8 +55,10 @@ vi.mock('../../../../hooks/queries/index.js', () => ({
 }));
 
 vi.mock('../DrawerStandingsTable', () => ({
-  default: ({ teams, divisions, seasonYear, currentWeek, onTeamDivisionChange }) => (
+  default: ({ teams, divisions, seasonYear, currentWeek, onTeamDivisionChange, seasonPicker }) => (
     <div data-testid="standings-table">
+      {/* The picker sits in the table's header row, beside Manage. */}
+      <div data-testid="header-controls">{seasonPicker}</div>
       <div>Teams: {teams?.length || 0}</div>
       <div>Divisions: {divisions?.length || 0}</div>
       <div>Season: {seasonYear ?? 'none'}</div>
@@ -108,7 +110,8 @@ describe('StandingsDrawer season picker', () => {
     viewerValue = { user: { id: 'admin' }, isAdmin: true, teamOwnerNames: [] };
     render(<StandingsDrawer {...baseProps} />);
 
-    expect(screen.getByLabelText('Season')).toBeInTheDocument();
+    // Inline with the table's header controls, not in a header of its own.
+    expect(within(screen.getByTestId('header-controls')).getByLabelText('Season')).toBeInTheDocument();
     const table = screen.getByTestId('standings-table');
     expect(table).toHaveTextContent('Teams: 2');
     expect(table).toHaveTextContent('Divisions: 2');
