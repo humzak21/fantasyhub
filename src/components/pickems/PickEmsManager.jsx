@@ -2,13 +2,12 @@ import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import RouteLoading from '../layout/RouteLoading';
 import { EmptyState } from '../ui/empty-state';
 import PageHeader from '../layout/PageHeader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Separator } from '../ui/separator';
-import { Target, Trophy, Settings, AlertCircle, Clock, UserCheck, Crosshair } from 'lucide-react';
+import { Target, Trophy, AlertCircle, Clock, UserCheck, Crosshair } from 'lucide-react';
 
 import PickEmsSubmission from './PickEmsSubmission';
 import PickEmsResults from './PickEmsResults';
@@ -207,83 +206,54 @@ const PickEmsManager = ({
 
   if (!season) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No Season Available</h3>
-          <p className="text-muted-foreground">
-            Pick'ems require an active season to be configured.
-          </p>
-        </CardContent>
-      </Card>
+      <>
+        <PageHeader icon={Target} title="Pick'ems" />
+        <Card>
+          <EmptyState
+            icon={Target}
+            title="No season available"
+            description="Pick'ems need an active season to be configured."
+          />
+        </Card>
+      </>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Pick'ems - Week {currentWeek}
-              </CardTitle>
-              <CardDescription>
-                Predict matchup winners and compete with your leaguemates
-              </CardDescription>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {getStatusBadge()}
-
+      {/* The same header the loading branch above renders, so the page does
+          not swap one header for another when the data lands — that swap was
+          a visible flash on every visit. The week's status is the badge, the
+          deadline sits beside the actions, and the admin's one control is the
+          action itself rather than a labelled "Admin Controls" strip. */}
+      <PageHeader
+        icon={Target}
+        title="Pick'ems"
+        description={`Week ${currentWeek} — predict matchup winners and compete with your leaguemates.`}
+        badge={getStatusBadge()}
+        actions={
+          pickEmStatus?.timeInfo || (isAdmin && !pickEmWeek) ? (
+            <>
               {pickEmStatus?.timeInfo && (
-                <div className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
+                <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                   {pickEmStatus.timeInfo}
-                </div>
+                </span>
               )}
-            </div>
-          </div>
-        </CardHeader>
-
-        {/* Admin controls */}
-        {isAdmin && (
-          <CardContent>
-            <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                <span className="font-medium">Admin Controls:</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {!pickEmWeek && (
-                  <Button
-                    onClick={handleCreatePickEmWeek}
-                    disabled={dataLoading}
-                    size="sm"
-                    variant="outline"
-                  >
-                    Create Pick'em Week
-                  </Button>
-                )}
-
-                {/* {pickEmWeek && pickEmStatus?.status === 'closed' && (
-                  <Button
-                    onClick={handleCalculateResults}
-                    disabled={dataLoading}
-                    size="sm"
-                    variant="outline"
-                  >
-                    Calculate Results
-                  </Button>
-                )} */}
-              </div>
-            </div>
-          </CardContent>
-        )}
-      </Card>
+              {isAdmin && !pickEmWeek && (
+                <Button
+                  onClick={handleCreatePickEmWeek}
+                  disabled={dataLoading}
+                  size="sm"
+                  variant="outline"
+                >
+                  Create pick'em week
+                </Button>
+              )}
+            </>
+          ) : null
+        }
+      />
 
       {/* Error display */}
       {error && (
@@ -304,7 +274,7 @@ const PickEmsManager = ({
             title="No pick'ems this week"
             description={
               isAdmin
-                ? `Week ${currentWeek} has no pick'em week yet. Create one with the admin controls above.`
+                ? `Week ${currentWeek} has no pick'em week yet. Create one with the button above.`
                 : `Week ${currentWeek} has no pick'em week yet.`
             }
           />

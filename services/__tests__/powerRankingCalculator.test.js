@@ -756,10 +756,22 @@ describe('nflSos, byeExposure and the next-matchup diagnostics', () => {
       expect(components.nextOpponentProjected).toBe(15);
     });
 
+    it('carries the team’s own raw projected starter total beside the opponent’s', () => {
+      const calc = buildNfl({ games: withWeek4 });
+      const components = calc.calculatePowerRating('t1').components;
+      // t1's one starter projects 20 — the same raw figure the opponent's 15
+      // is read against, so the table can put the two side by side.
+      expect(components.projectedStarterTotal).toBe(20);
+      // No resolvable starters is unknown, not zero.
+      expect(calc.calculatePowerRating('t3').components.projectedStarterTotal).toBeNull();
+    });
+
     it('is null with no game scheduled in the viewing week', () => {
       const components = buildNfl().calculatePowerRating('t1').components;
       expect(components.nextOpponentTeamId).toBeNull();
       expect(components.nextOpponentProjected).toBeNull();
+      // The team's own projection does not depend on a fixture existing.
+      expect(components.projectedStarterTotal).toBe(20);
     });
 
     it('is null on a historical view', () => {
@@ -767,6 +779,7 @@ describe('nflSos, byeExposure and the next-matchup diagnostics', () => {
       const components = calc.calculatePowerRating('t1').components;
       expect(components.nextOpponentTeamId).toBeNull();
       expect(components.nextOpponentProjected).toBeNull();
+      expect(components.projectedStarterTotal).toBeNull();
     });
   });
 });

@@ -162,7 +162,7 @@ describe('PowerRankingsTable', () => {
     expect(screen.getByText(/week 4 needs teams/i)).toBeInTheDocument();
   });
 
-  describe('the Byes and Next columns', () => {
+  describe('the Proj and Next columns', () => {
     const opponent = (overrides = {}) =>
       team({
         teamId: 't2',
@@ -173,32 +173,19 @@ describe('PowerRankingsTable', () => {
         ...overrides,
       });
 
-    it('renders a warning badge when starters are on a bye', () => {
-      const withByes = team({
-        powerRatingComponents: { ...team().powerRatingComponents, byeExposure: 4 },
+    it('shows the team’s own projected starter total to one decimal', () => {
+      const withProjection = team({
+        powerRatingComponents: { ...team().powerRatingComponents, projectedStarterTotal: 124.36 },
       });
       renderWithProviders(
-        <PowerRankingsTable rankings={[withByes]} currentWeek={4} showAdvanced />
+        <PowerRankingsTable rankings={[withProjection]} currentWeek={4} showAdvanced />
       );
-      expect(within(table()).getByText('4')).toBeInTheDocument();
+      expect(within(table()).getByText('124.4')).toBeInTheDocument();
     });
 
-    it('renders a muted 0 — we looked, nobody is off — distinct from the dash', () => {
-      // badLosses bumped to 1 so the QW/BL cell no longer contains a 0 of its
-      // own and the assertion targets the Byes cell alone.
-      const noByes = team({
-        badLosses: 1,
-        powerRatingComponents: { ...team().powerRatingComponents, byeExposure: 0 },
-      });
-      renderWithProviders(
-        <PowerRankingsTable rankings={[noByes]} currentWeek={4} showAdvanced />
-      );
-      expect(within(table()).getByText('0')).toBeInTheDocument();
-    });
-
-    it('renders an em dash when the bye count could not be computed', () => {
-      // The fixture has no byeExposure at all — a historical view, or a season
-      // with no NFL calendar.
+    it('renders an em dash when the projection could not be computed', () => {
+      // The fixture has no projectedStarterTotal at all — a historical view,
+      // or a team with no resolvable starters.
       renderWithProviders(
         <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />
       );

@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Trophy, Award, Star, Target, TrendingUp, Crown, Zap, Settings, PieChart, Vote } from 'lucide-react';
+import { Trophy, Crown, Settings, PieChart, Vote } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
-import { Alert, AlertDescription } from '../ui/alert';
+import PageHeader from '../layout/PageHeader';
+import RouteLoading from '../layout/RouteLoading';
 
 // Components (to be created)
 import AwardsVoting from './AwardsVoting';
@@ -102,48 +102,44 @@ const AwardsManager = ({
     }
   };
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) {
+    return (
+      <>
+        <PageHeader icon={Trophy} title="Awards" />
+        <RouteLoading />
+      </>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Trophy className="h-6 w-6 text-yellow-500" />
-                Season {season?.year} Awards
-              </CardTitle>
-              <CardDescription>
-                Vote for the best (and worst) of the season!
-              </CardDescription>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <div className="flex items-center gap-2">
-                <Badge variant={conditionsMet ? "success" : "secondary"}>
-                  {unlockStatus.uniqueVoters} / {unlockStatus.requiredVoters} Voters
-                </Badge>
-                {isUnlocked ? (
-                  <Badge variant="default" className="bg-green-600">Results Released</Badge>
-                ) : (
-                  <Badge variant="outline">Results Locked</Badge>
-                )}
-              </div>
-
-              {isAdmin && conditionsMet && !isUnlocked && (
-                <Button
-                  onClick={handleReleaseResults}
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <Crown className="h-4 w-4 mr-2" />
-                  Release Results
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
+      {/* Voter count and release state read as badges after the title; the
+          admin's release button is the page's one action. */}
+      <PageHeader
+        icon={Trophy}
+        title="Awards"
+        description={`${season?.year ? `Season ${season.year} — ` : ''}vote for the best (and worst) of the season.`}
+        badge={
+          <>
+            <Badge variant={conditionsMet ? 'success' : 'secondary'}>
+              {unlockStatus.uniqueVoters} / {unlockStatus.requiredVoters} Voters
+            </Badge>
+            {isUnlocked ? (
+              <Badge variant="success">Results released</Badge>
+            ) : (
+              <Badge variant="outline">Results locked</Badge>
+            )}
+          </>
+        }
+        actions={
+          isAdmin && conditionsMet && !isUnlocked ? (
+            <Button onClick={handleReleaseResults} size="sm">
+              <Crown className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              Release results
+            </Button>
+          ) : null
+        }
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         {/* `grid-cols-4` divided the width by the tab count regardless of
