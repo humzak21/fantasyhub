@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import RouteLoading from '../layout/RouteLoading';
 import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
+import { EmptyState } from '../ui/empty-state';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -130,86 +131,67 @@ const PlayoffsBracketManager = ({
 
     if (!season) {
         return (
-            <Card>
-                <CardContent className="p-8 text-center">
-                    <Trophy className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No Season Available</h3>
-                    <p className="text-muted-foreground">
-                        Playoff bracket requires an active season.
-                    </p>
-                </CardContent>
-            </Card>
+            <>
+                <PageHeader icon={Trophy} title="Playoffs" />
+                <Card>
+                    <EmptyState
+                        icon={Trophy}
+                        title="No season available"
+                        description="The playoff bracket needs an active season."
+                    />
+                </Card>
+            </>
         );
     }
 
+    const released = Boolean(bracketStatus?.resultsReleased);
+    const seasonYear = season?.year ?? getSeasonConfig()?.year ?? null;
+
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <Card>
-                <CardHeader>
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                            <CardTitle className="flex items-center gap-2">
-                                <Trophy className="h-5 w-5 text-yellow-500" />
-                                {getSeasonConfig()?.year ?? ''} Playoff Bracket Challenge
-                            </CardTitle>
-                            <CardDescription>
-                                Predict the playoff and consolation bracket winners
-                            </CardDescription>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            {bracketStatus?.canSubmit ? (
-                                <Badge variant="default" className="flex items-center gap-1">
-                                    <Clock className="h-3 w-3" />
-                                    {bracketStatus.timeRemaining || 'Submissions Open'}
-                                </Badge>
-                            ) : (
-                                <Badge variant="secondary">
-                                    Submissions Closed
-                                </Badge>
-                            )}
-
-                            {bracketStatus?.resultsReleased && (
-                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                                    Results Released
-                                </Badge>
-                            )}
-                        </div>
-                    </div>
-                </CardHeader>
-
-                {/* Deadline Info */}
-                <CardContent>
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/50 p-4">
-                        {/* `min-w-0` and a shrinkable date. The row is
-                            `justify-between` with a long formatted deadline on
-                            one side and a button on the other; without this the
-                            date refuses to shrink and pushes the button past
-                            the right edge of a 375px screen. */}
-                        <div className="flex min-w-0 items-center gap-2">
-                            <Clock className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-                            <span className="shrink-0 font-medium">Deadline:</span>
-                            <span className="min-w-0 text-sm">
-                                {bracketStatus?.deadlineFormatted || 'Not set'}
-                            </span>
-                        </div>
-
-                        {/* Admin controls */}
-                        {isAdmin && !bracketStatus?.resultsReleased && (
-                            <Button
-                                onClick={handleReleaseResults}
-                                variant="outline"
-                                size="sm"
-                                disabled={dataLoading}
-                            >
-                                <Settings className="h-4 w-4 mr-2" />
-                                Release Results
-                            </Button>
+            {/* The status badges sit after the title, the admin's one act sits
+                in the actions slot, and the deadline — the fact a reader came
+                for — is the toolbar row. It used to be a second card under the
+                header card, a strip of muted grey for one date. */}
+            <PageHeader
+                icon={Trophy}
+                title="Playoffs"
+                description={`${seasonYear ? `${seasonYear} bracket challenge — ` : ''}predict the playoff and consolation bracket winners.`}
+                badge={
+                    <>
+                        {bracketStatus?.canSubmit ? (
+                            <Badge variant="default" className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" aria-hidden="true" />
+                                {bracketStatus.timeRemaining || 'Submissions open'}
+                            </Badge>
+                        ) : (
+                            <Badge variant="secondary">Submissions closed</Badge>
                         )}
-                    </div>
-                </CardContent>
-            </Card>
+                        {released && <Badge variant="success">Results released</Badge>}
+                    </>
+                }
+                actions={
+                    isAdmin && !released ? (
+                        <Button
+                            onClick={handleReleaseResults}
+                            variant="outline"
+                            size="sm"
+                            disabled={dataLoading}
+                        >
+                            <Settings className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                            Release results
+                        </Button>
+                    ) : null
+                }
+            >
+                <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <Clock className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                    <span className="font-medium">Deadline</span>
+                    <span className="min-w-0 text-muted-foreground">
+                        {bracketStatus?.deadlineFormatted || 'Not set'}
+                    </span>
+                </p>
+            </PageHeader>
 
             {/* Error display */}
             {error && (

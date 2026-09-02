@@ -261,23 +261,21 @@ const PowerRankingsTable = ({
         ),
       },
       {
-        key: 'byes',
-        header: 'Byes',
-        cardLabel: 'Starters on bye',
+        key: 'projected',
+        header: 'Proj',
+        cardLabel: 'Projected total',
         priority: 'detail',
-        className: 'text-center',
-        headerClassName: 'text-center',
-        // Zero and null are different facts and render differently: a muted 0
-        // is "we looked, nobody is off"; the em dash is "we could not look" —
-        // a historical view, or a season with no NFL calendar.
-        cell: (team) => {
-          const byes = team.powerRatingComponents?.byeExposure;
-          if (byes === null || byes === undefined) {
-            return <span className="text-muted-foreground">—</span>;
-          }
-          if (byes === 0) return <span className="tabular text-muted-foreground">0</span>;
-          return <Badge variant={byes >= 3 ? 'destructive' : 'warning'}>{byes}</Badge>;
-        },
+        className: 'text-right',
+        headerClassName: 'text-right',
+        // This team's own projected starter total for the week, so the Next
+        // column's opponent figure has something to be read against. Null is
+        // the em dash — a historical view, or no resolvable starters — never 0.
+        cell: (team) => (
+          <NumberText
+            value={team.powerRatingComponents?.projectedStarterTotal}
+            className="font-medium"
+          />
+        ),
       },
       {
         key: 'nextMatchup',
@@ -348,7 +346,7 @@ const PowerRankingsTable = ({
                     ['Playoff odds', 'Probability of making the six-team playoff field'],
                     ['Form', 'Direction over the last four weeks'],
                     ['QW / BL', 'Quality wins and bad losses'],
-                    ['Byes', 'Current starters whose NFL team is off this week — a dash means it could not be checked'],
+                    ['Proj', 'This team’s projected starter total for the week'],
                     ['Next', 'This week’s opponent and their projected starter total'],
                   ].map(([term, definition]) => (
                     <div key={term} className="flex gap-2">
