@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../../services/supabaseClient.js'
 import { useIsAdmin } from '../utils/adminUtils'
-import { readAuthLinkError, describeMagicLinkError } from '../utils/magicLink.js'
+import { readAuthLinkError, describeMagicLinkError, describeEmailRateLimit } from '../utils/magicLink.js'
 
 const AuthContext = createContext({})
 
@@ -120,18 +120,20 @@ export const AuthProvider = ({ children }) => {
       }
 
 
-      // Check if user needs to confirm email
+      // No session back means Supabase sent a confirmation email; the
+      // popover uses `emailSent` to decide whether to talk about inboxes.
       if (data.user && !data.session) {
         return {
           success: true,
           user: data.user,
+          emailSent: true,
           message: 'Please check your email to confirm your account'
         }
       }
 
-      return { success: true, user: data.user }
+      return { success: true, user: data.user, emailSent: false }
     } catch (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: describeEmailRateLimit(error) || error.message }
     } finally {
       setLoading(false)
     }
@@ -167,7 +169,7 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, message: 'Password reset email sent' }
     } catch (error) {
-      return { success: false, error: error.message }
+      return { success: false, error: describeEmailRateLimit(error) || error.message }
     }
   }
 

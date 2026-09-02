@@ -9,7 +9,9 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 const auth = vi.hoisted(() => ({
   getSession: vi.fn(),
   onAuthStateChange: vi.fn(),
-  signInWithOtp: vi.fn()
+  signInWithOtp: vi.fn(),
+  signUp: vi.fn(),
+  resetPasswordForEmail: vi.fn()
 }));
 
 vi.mock('../../../services/supabaseClient.js', () => ({
@@ -29,6 +31,8 @@ beforeEach(() => {
   auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
   auth.onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   auth.signInWithOtp.mockReset();
+  auth.signUp.mockReset();
+  auth.resetPasswordForEmail.mockReset();
   window.history.replaceState(null, '', '/pickems');
 });
 
@@ -62,9 +66,11 @@ describe('describeMagicLinkError', () => {
       .toMatch(/no account uses that email/i);
   });
 
-  it('explains the per-address send limit', () => {
+  it('explains the per-address send limit, spam folder included', () => {
     expect(describeMagicLinkError({ code: 'over_email_send_rate_limit', message: 'x' }))
-      .toMatch(/try again in a minute/i);
+      .toMatch(/spam folder.*wait a minute/i);
+    expect(describeMagicLinkError({ message: 'email rate limit exceeded' }))
+      .toMatch(/wait a minute/i);
   });
 
   it('passes anything else through', () => {
@@ -118,6 +124,39 @@ describe('signInWithMagicLink', () => {
     await act(async () => { outcome = await result.current.signInWithMagicLink('nobody@x.y'); });
     expect(outcome.success).toBe(false);
     expect(outcome.error).toMatch(/no account uses that email/i);
+  });
+});
+
+describe('the other email senders', () => {
+  it('sign-up says whether a confirmation email went out', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    auth.signUp.mockResolvedValue({ data: { user: { id: 'u1' }, session: null }, error: null });
+    let outcome;
+    await act(async () => { outcome = await result.current.signUp('a@b.c', 'pw', 'A'); });
+    expect(outcome).toMatchObject({ success: true, emailSent: true });
+
+    auth.signUp.mockResolvedValue({ data: { user: { id: 'u1' }, session: { access_token: 't' } }, error: null });
+    await act(async () => { outcome = await result.current.signUp('a@b.c', 'pw', 'A'); });
+    expect(outcome).toMatchObject({ success: true, emailSent: false });
+  });
+
+  it('sign-up and reset map the mailer rate limit to advice', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const limited = { data: {}, error: { code: 'over_email_send_rate_limit', message: 'email rate limit exceeded' } };
+
+    auth.signUp.mockResolvedValue(limited);
+    let outcome;
+    await act(async () => { outcome = await result.current.signUp('a@b.c', 'pw', 'A'); });
+    expect(outcome.success).toBe(false);
+    expect(outcome.error).toMatch(/spam folder.*wait a minute/i);
+
+    auth.resetPasswordForEmail.mockResolvedValue(limited);
+    await act(async () => { outcome = await result.current.resetPassword('a@b.c'); });
+    expect(outcome.success).toBe(false);
+    expect(outcome.error).toMatch(/wait a minute/i);
   });
 });
 

@@ -29,6 +29,25 @@ export function readAuthLinkError(hash) {
 }
 
 /**
+ * Supabase's built-in mailer refuses a second email to one address inside
+ * sixty seconds and caps project-wide sends per hour. Every email path here —
+ * sign-up confirmation, password reset, login link — can hit it, and the raw
+ * message ("email rate limit exceeded") does not say what to do.
+ */
+export const EMAIL_RATE_LIMIT_MESSAGE =
+  'An email was sent to that address recently. Check your inbox and spam folder, then wait a minute before trying again.'
+
+/** The rate-limit message when `error` is one, otherwise null. */
+export function describeEmailRateLimit(error) {
+  const code = error?.code
+  const message = error?.message || ''
+  if (code === 'over_email_send_rate_limit' || /rate limit/i.test(message)) {
+    return EMAIL_RATE_LIMIT_MESSAGE
+  }
+  return null
+}
+
+/**
  * Turn a `signInWithOtp` failure into something a member can act on. The two
  * cases that are not the member's fault get a specific sentence; anything
  * else keeps Supabase's wording.
@@ -39,8 +58,5 @@ export function describeMagicLinkError(error) {
   if (code === 'otp_disabled' || /signups not allowed/i.test(message)) {
     return 'No account uses that email. Sign up with a password first.'
   }
-  if (code === 'over_email_send_rate_limit' || /rate limit/i.test(message)) {
-    return 'A link was sent to that address recently. Check your inbox, or try again in a minute.'
-  }
-  return message || 'Could not send a login link'
+  return describeEmailRateLimit(error) || message || 'Could not send a login link'
 }
