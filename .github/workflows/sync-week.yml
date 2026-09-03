@@ -11,9 +11,13 @@ name: Weekly ESPN sync
 
 on:
   schedule:
-    # 09:00 UTC Tuesday = 04:00 ET during the NFL season, after Monday night
-    # football has settled. Cron here is always UTC; GitHub does not do zones.
-    - cron: '0 9 * * 2'
+    # 10:00 UTC Tuesday = 05:00 EST / 06:00 EDT. Cron here is always UTC;
+    # GitHub does not do zones, so this is the hour that is never *earlier*
+    # than 05:00 ET across the season — the buffer exists for the Tuesdays
+    # when ESPN clears a late waiver run after Monday night football, and it
+    # is also when the week's pick'em row is created (the `pickEmWeek` step),
+    # so nobody has to open it by hand.
+    - cron: '0 10 * * 2'
   workflow_dispatch:
     inputs:
       week:

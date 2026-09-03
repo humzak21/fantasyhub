@@ -163,8 +163,9 @@ season row supplies the season, week, playoff boundary and ESPN league. Every
 step is an idempotent upsert against ESPN, so re-running a failed sync is the
 fix. Each run writes a `sync_runs` row.
 
-Its steps are rosters → scores → playerStats → **finalizePrev** →
-nflSchedule → nflRatings → **parlayGrades** → transactions → snapshot. Scores
+Its steps are **pickEmWeek** → rosters → scores → playerStats →
+**finalizePrev** → nflSchedule → nflRatings → **parlayGrades** → transactions
+→ snapshot. Scores
 and playerStats read **one** ESPN fetch between them, so do not re-fetch inside
 a step. The nflSchedule and nflRatings steps fetch separately and need no
 cookies; nflRatings runs before snapshot on purpose, so the week's snapshot
@@ -173,12 +174,27 @@ parlayGrades and transactions are non-fatal: a failure is recorded in
 `sync_runs.steps` and the run continues, because losing the week's snapshot to
 a player-data hiccup costs more than the missing rows.
 Skip flags:
-`--skip-rosters --skip-scores --skip-player-stats --skip-finalize-prev
---skip-nfl-schedule --skip-nfl-ratings --skip-parlay-grades
---skip-transactions --skip-snapshot`, plus `--dry-run`.
+`--skip-pick-em-week --skip-rosters --skip-scores --skip-player-stats
+--skip-finalize-prev --skip-nfl-schedule --skip-nfl-ratings
+--skip-parlay-grades --skip-transactions --skip-snapshot`, plus `--dry-run`.
+
+**`pickEmWeek` opens the week's pick'ems.** It is the first step and needs no
+ESPN call: `pickems.ensurePickEmWeek` creates the `pick_em_weeks` row for the
+target week if none exists, through the same `create_pick_em_week` RPC the
+admin button uses, sending no timestamps so the database derives the window
+from the season's `pickem_*` columns. It runs first so an ESPN outage cannot
+cost the league its pick'ems, is a no-op when the row exists (so the Wednesday
+and Thursday roster refreshes double as a retry), and skips playoff weeks like
+the roster step. Before 2026-09-03 this was an admin pressing a button every
+Tuesday morning. Note the window still *opens* at `pickem_open_time`
+(04:00 by default) while the row appears at the 05:00 run; nothing reads the
+row in that hour, but a season that wants the two to coincide sets the open
+time to 05:00.
 
 **`finalizePrev` is why the week's real numbers exist at all.** The cron runs
-Tuesday 04:00 ET and `deriveCurrentWeek` rolls over at Tuesday 00:00 ET, so
+Tuesday 05:00 ET (10:00 UTC, so 06:00 during daylight time — GitHub cron has
+no zones, and this is the hour that is never earlier than 05:00 ET) and
+`deriveCurrentWeek` rolls over at Tuesday 00:00 ET, so
 every scheduled run targets the week that has just *begun* — and `getSingleWeek`
 filters ESPN's matchups strictly to that scoring period. Week N-1's actual
 points, stat breakdowns and final scores were therefore never fetched by any
@@ -300,12 +316,15 @@ with no figure still renders, with a dash; hiding them is how the stale view
 managed to look complete while being wrong.
 
 `.github/workflows/refresh-rosters.yml` is the other half. The weekly sync
-writes `rosters` once, Tuesday 04:00 ET, and waivers clear on Wednesday — in
+writes `rosters` once, Tuesday 05:00 ET, and waivers clear on Wednesday — in
 the middle of the pick'ems window — so a roster-only run goes out Wednesday and
 Thursday morning. It passes `--skip-scores --skip-player-stats
---skip-transactions --skip-snapshot`, which skips the matchup fetch entirely,
-and shares the `espn-write` concurrency group because the weekly sync's own
-roster step writes exactly what it writes.
+--skip-nfl-schedule --skip-nfl-ratings --skip-transactions --skip-snapshot`,
+which skips the matchup fetch entirely, and shares the `espn-write`
+concurrency group because the weekly sync's own roster step writes exactly
+what it writes. `pickEmWeek`, `finalizePrev` and `parlayGrades` are left
+running on purpose: all three are idempotent no-ops once Tuesday's run
+succeeded, and each is the retry if it did not.
 
 Verified against the live league: this league starts QB/2RB/2WR/TE/FLEX/D/ST/K,
 which is what `OPTIMAL_LINEUP_TEMPLATE` encodes, and summing a team's starters
