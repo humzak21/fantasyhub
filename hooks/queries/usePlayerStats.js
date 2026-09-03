@@ -51,7 +51,7 @@ export function useTeamPlayerStats(seasonId, teamId, throughWeek = null) {
  * The live-week counterpart to `useSeasonPlayerStats`, whose `throughWeek` is
  * exclusive and so can never return the week you are looking at. This is what
  * the pick'ems research cards read, and it works because the sync writes the
- * coming week's *projections* on Tuesday at 04:00 ET — a whole pick'ems window
+ * coming week's *projections* on Tuesday at 05:00 ET — a whole pick'ems window
  * before that week's actual points exist.
  *
  * Grouping happens in `select`, so it runs on cache reads rather than on every

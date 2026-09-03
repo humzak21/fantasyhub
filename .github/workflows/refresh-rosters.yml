@@ -3,18 +3,22 @@ name: Refresh rosters
 # The lineups the pick'ems research panel shows, kept current inside the
 # pick'ems window.
 #
-# sync-week.yml runs once, Tuesday 04:00 ET, and writes `rosters` as one of its
-# five steps. The pick'ems window runs Tuesday 04:00 to Thursday 20:00 — and
+# sync-week.yml runs once, Tuesday 05:00 ET, and writes `rosters` as one of its
+# steps. The pick'ems window runs Tuesday 04:00 to Thursday 20:00 — and
 # waivers clear in the middle of it, on Wednesday. So for the back half of
 # every window, the panel was describing a roster that predated the single
 # biggest roster-churn event of the week, and the researcher was reading a
 # lineup the manager had already changed.
 #
-# This runs only the roster step. It is not a second sync: scores, player
-# stats, transactions, the NFL calendar, the FPI snapshot and the ranking
-# snapshot are all skipped, so it writes `rosters` and `players` and touches
-# nothing the weekly job owns. The underlying write is delete-then-insert per team, so re-running
-# is how you fix a failed run, same as everywhere else here.
+# This is not a second sync: scores, player stats, transactions, the NFL
+# calendar, the FPI snapshot and the ranking snapshot are all skipped, so it
+# writes `rosters` and `players`. Three cheap, idempotent steps are left on
+# deliberately: the pick'em-week check (a no-op once Tuesday's run has created
+# the row, and the thing that creates it if Tuesday's run did not), the
+# previous-week finalize and the parlay grades, so a stat line that went
+# official late lands two days sooner. The roster write is delete-then-insert
+# per team, so re-running is how you fix a failed run, same as everywhere else
+# here.
 
 on:
   schedule:

@@ -36,6 +36,48 @@ export async function createPickEmWeek(ctx, seasonId, weekNumber, customSchedule
   }
 }
 
+/**
+ * Make sure a week has its pick'em row, creating it if not.
+ *
+ * The weekly sync's `pickEmWeek` step. Until 2026-09-03 the row was created
+ * by an admin pressing a button in the Pick'ems tab every Tuesday, and a week
+ * with no row has no pick'em form and no TD parlay — so a missed morning was
+ * a missed week for the whole league.
+ *
+ * Two things separate this from `createPickEmWeek` above, and both are why it
+ * is a second function rather than a flag:
+ *
+ * - **It sends no timestamps.** `createPickEmWeek` computes the window in the
+ *   browser through `calculatePickEmSchedule`, which reads the season config
+ *   the app has loaded into module state — state a script does not have.
+ *   Passing nulls lets `create_pick_em_week` derive the window itself from the
+ *   season row's `pickem_*` columns, which is the single definition anyway.
+ * - **It is idempotent.** `(season_id, week_number)` is unique, so a second
+ *   call would raise; checking first makes a re-run, a Wednesday roster
+ *   refresh, or an admin who already pressed the button all a quiet no-op.
+ *
+ * @returns {Promise<{ created: boolean, id: string }>}
+ */
+export async function ensurePickEmWeek(ctx, seasonId, weekNumber) {
+  try {
+    const existing = await getPickEmWeek(ctx, seasonId, weekNumber);
+    if (existing) return { created: false, id: existing.id };
+
+    const { data, error } = await ctx.client.rpc('create_pick_em_week', {
+      p_season_id: seasonId,
+      p_week_number: weekNumber
+    });
+
+    if (error) throw error;
+
+    log.info(`week ${weekNumber}: pick'em week created`);
+
+    return { created: true, id: data };
+  } catch (error) {
+    throwDbError(error, 'Ensure pick em week');
+  }
+}
+
 export async function getPickEmWeek(ctx, seasonId, weekNumber) {
 
   try {

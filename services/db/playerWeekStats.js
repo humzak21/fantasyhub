@@ -241,7 +241,7 @@ export async function getPlayerWeekStats(ctx, seasonId, { throughWeek = null } =
  * historical ranking starts seeing a week the reader has not navigated to.
  *
  * This is the read for the *live* week, which exists because the sync writes
- * the coming week's projections on Tuesday at 04:00 ET, a full pick'ems window
+ * the coming week's projections on Tuesday at 05:00 ET, a full pick'ems window
  * before its actual points land the following Tuesday.
  *
  * @returns {Promise<object[]>} rows, camelCased, each with `.player`

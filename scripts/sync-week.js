@@ -21,9 +21,9 @@
  *   node scripts/sync-week.js 5               # re-sync a specific week
  *   node scripts/sync-week.js 5 <season-id>   # target a season explicitly
  *
- * Options: --skip-rosters --skip-scores --skip-transactions --skip-player-stats
- *          --skip-nfl-schedule --skip-nfl-ratings --skip-finalize-prev
- *          --skip-parlay-grades --skip-snapshot
+ * Options: --skip-pick-em-week --skip-rosters --skip-scores --skip-transactions
+ *          --skip-player-stats --skip-nfl-schedule --skip-nfl-ratings
+ *          --skip-finalize-prev --skip-parlay-grades --skip-snapshot
  *          --dry-run   resolve and report the target, write nothing
  *          --force     sync anyway when the season window says not to
  */
@@ -212,7 +212,7 @@ async function syncPlayerStats(seasonId, weekNumber, espnMatchups) {
  * Write the finished week's real results.
  *
  * **This step exists because nothing else in the schedule ever writes them.**
- * The cron runs Tuesday 04:00 ET, and `deriveCurrentWeek` rolls over at
+ * The cron runs Tuesday 05:00 ET, and `deriveCurrentWeek` rolls over at
  * Tuesday 00:00 ET — so the run always targets the week that has just *begun*,
  * and `getSingleWeek` filters ESPN's matchups strictly to that scoring period.
  * Week N-1's actual points, stat breakdowns and final scores were therefore
@@ -538,6 +538,27 @@ export async function syncWeek(argv = []) {
     // at the end of the regular season. The boundary is the season row's
     // regular_season_weeks + 1, not a hardcoded week 15.
     const isPlayoffWeek = weekNumber >= season.playoffStartWeek;
+
+    // Open the week's pick'ems. First, and before anything that talks to
+    // ESPN: this needs only the database, and an ESPN outage must not cost
+    // the league its picks for the week. Non-fatal for the same reason the
+    // steps after it are — a missing pick'em row is one broken tab, and the
+    // Wednesday roster refresh runs this step again. Playoff weeks have no
+    // pick'ems, the same boundary the roster step uses.
+    if (options['skip-pick-em-week']) {
+      steps.pickEmWeek = { skipped: 'flag' };
+    } else if (isPlayoffWeek) {
+      steps.pickEmWeek = { skipped: 'playoff week' };
+    } else {
+      try {
+        const week = await getDb().pickems.ensurePickEmWeek(seasonId, weekNumber);
+        steps.pickEmWeek = { created: week.created, id: week.id };
+        console.log(`🗳️  pick'em week: ${week.created ? 'created' : 'already open'}`);
+      } catch (error) {
+        steps.pickEmWeek = { failed: error.message };
+        console.warn(`⚠️  pick'em week: ${error.message}`);
+      }
+    }
 
     if (options['skip-rosters'] || isPlayoffWeek) {
       steps.rosters = { skipped: isPlayoffWeek ? 'playoff week' : 'flag' };
