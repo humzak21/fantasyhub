@@ -127,7 +127,7 @@ export const AuthProvider = ({ children }) => {
           success: true,
           user: data.user,
           emailSent: true,
-          message: 'Please check your email to confirm your account'
+          message: 'Please check your email to confirm your account. The league admin will then approve it.'
         }
       }
 

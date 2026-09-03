@@ -327,6 +327,11 @@ const PickEmsManager = ({
               canSubmit={pickEmStatus?.canSubmit || false}
               timeRemaining={pickEmWeek?.submissionClosesAt}
               user={user}
+              /* `isAuthenticated` is the shell's "may submit", which is
+                 approval; the second flag only picks the copy for a
+                 signed-in account that is still waiting. */
+              isApproved={isAuthenticated}
+              awaitingApproval={Boolean(user) && !isAuthenticated}
               isAdmin={isAdmin}
               teamOwnerNames={teamOwnerNames}
             />

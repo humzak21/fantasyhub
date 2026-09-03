@@ -52,7 +52,10 @@ const TAKES_DESCRIPTION =
  * older manual `getDb()` pattern.
  */
 export function TakesManager({ season, loading }) {
-  const { isAuthenticated } = useViewer();
+  // `isAuthenticated` is the prop, and the shell passes approval as it — but
+  // the copy below has to tell a signed-in, unapproved member apart from a
+  // visitor, so the real session flag is read here as well.
+  const { isAuthenticated: hasSession, isApproved } = useViewer();
   const seasonConfig = useSeasonConfig();
   const actualWeek = useActualWeek();
 
@@ -152,10 +155,12 @@ export function TakesManager({ season, loading }) {
       description={TAKES_DESCRIPTION}
       badge={takes.length > 0 ? <Badge variant="secondary">{takes.length}</Badge> : null}
       actions={
-        isAuthenticated ? (
+        isApproved ? (
           addTakeButton
         ) : (
-          <p className="text-sm text-muted-foreground">Sign in to post a take.</p>
+          <p className="text-sm text-muted-foreground">
+            {hasSession ? 'Your account is awaiting approval.' : 'Sign in to post a take.'}
+          </p>
         )
       }
     />
@@ -197,7 +202,7 @@ export function TakesManager({ season, loading }) {
         onFade={(take) => run(fade, { takeId: take.id }, 'Could not fade that take')}
         onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
         pendingTakeId={pendingTakeId}
-        emptyAction={isAuthenticated ? addTakeButton : null}
+        emptyAction={isApproved ? addTakeButton : null}
       />
 
       <AddTakeDialog

@@ -54,7 +54,10 @@ import { OpponentChip } from '../ui/opponent-chip';
 const EMPTY = [];
 
 const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }) => {
-  const { user, isAuthenticated, isAdmin, teamOwnerNames } = useViewer();
+  // `isApproved` gates the form; `isAuthenticated` only chooses the copy —
+  // a signed-in member the admin has not approved yet is told so, rather
+  // than being asked to sign in again.
+  const { user, isAuthenticated, isApproved, isAdmin, teamOwnerNames } = useViewer();
 
   const isOpen = status?.status === 'open';
   const isRevealed = status?.status === 'closed' || status?.status === 'completed';
@@ -103,7 +106,7 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
     }
   };
 
-  const showPicker = isOpen && isAuthenticated && (!myPick || isEditing);
+  const showPicker = isOpen && isApproved && (!myPick || isEditing);
 
   return (
     <Card>
@@ -143,15 +146,17 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
           </Alert>
         )}
 
-        {!isAuthenticated && (
+        {!isApproved && (
           <p className="text-sm text-muted-foreground">
-            {isOpen
-              ? 'Sign in to enter this week’s parlay.'
-              : 'Sign in to see your parlay picks.'}
+            {isAuthenticated
+              ? 'Your account is awaiting approval before you can enter the parlay.'
+              : isOpen
+                ? 'Sign in to enter this week’s parlay.'
+                : 'Sign in to see your parlay picks.'}
           </p>
         )}
 
-        {isAuthenticated && !myPickLoading && myPick && !isEditing && (
+        {isApproved && !myPickLoading && myPick && !isEditing && (
           <CurrentPick
             pick={myPick}
             opponent={opponents[myPick.player?.proTeamId]}
@@ -161,7 +166,7 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
           />
         )}
 
-        {isAuthenticated && !isOpen && !myPickLoading && !myPick && (
+        {isApproved && !isOpen && !myPickLoading && !myPick && (
           <p className="text-sm text-muted-foreground">
             {status?.status === 'upcoming'
               ? 'The parlay opens with pick’ems.'

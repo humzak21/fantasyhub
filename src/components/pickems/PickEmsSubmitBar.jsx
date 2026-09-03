@@ -26,6 +26,9 @@ export function PickEmsSubmitBar({
   hasChanges,
   submitting,
   user,
+  /** Shown in place of the buttons when `user` is null — a visitor, or a
+   *  signed-in account the admin has not approved yet; the caller says which. */
+  signInMessage = 'Sign in to make picks.',
   onSubmit,
   onEdit,
   onCancelEdit,
@@ -63,7 +66,7 @@ export function PickEmsSubmitBar({
 
         <div className="flex items-center gap-2">
           {!user ? (
-            <p className="text-sm text-muted-foreground">Sign in to make picks.</p>
+            <p className="text-sm text-muted-foreground">{signInMessage}</p>
           ) : hasSubmitted && !isEditing ? (
             <Button onClick={onEdit} variant="outline" className="gap-2">
               <Edit3 className="h-4 w-4" aria-hidden="true" />

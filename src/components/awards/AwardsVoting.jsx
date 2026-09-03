@@ -13,6 +13,8 @@ const AwardsVoting = ({
     season,
     user,
     loading,
+    canVote = Boolean(user),
+    cannotVoteMessage = 'Sign in to vote.',
     teamOwnerNames = []
 }) => {
     const [votes, setVotes] = useState({});
@@ -165,15 +167,21 @@ const AwardsVoting = ({
             </div>
 
             <div className="mt-8 flex justify-center">
-                <Button
-                    size="lg"
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    className="shadow-lg bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                    <Save className="h-4 w-4 mr-2" />
-                    {submitting ? 'Submitting...' : 'Submit Ballot'}
-                </Button>
+                {/* The ballot RLS refuses an unapproved account, so the button
+                    is replaced by the reason rather than left to error. */}
+                {canVote ? (
+                    <Button
+                        size="lg"
+                        onClick={handleSubmit}
+                        disabled={submitting}
+                        className="shadow-lg bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                        <Save className="h-4 w-4 mr-2" />
+                        {submitting ? 'Submitting...' : 'Submit Ballot'}
+                    </Button>
+                ) : (
+                    <p className="text-sm text-muted-foreground">{cannotVoteMessage}</p>
+                )}
             </div>
         </div>
     );

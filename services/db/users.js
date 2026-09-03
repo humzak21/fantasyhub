@@ -179,3 +179,119 @@ export async function setParlayCommissioners(ctx, userIds = []) {
     throwDbError(error, 'Set parlay commissioners');
   }
 }
+
+// ---------------------------------------------------------------------------
+// Member approvals
+// ---------------------------------------------------------------------------
+// The approval gate on new accounts. These live beside the role functions
+// rather than in a module of their own because every test that renders the
+// real `ViewerProvider` stubs `getDb()` as `{ users: { isParlayCommissioner } }`
+// — the provider's second identity question belongs on the same stub, not on a
+// module those tests do not know to provide.
+
+/** The three states `member_approvals.status` may hold. */
+export const APPROVAL_STATUSES = ['pending', 'approved', 'rejected'];
+
+/**
+ * Has the admin approved the caller's account?
+ *
+ * Same shape and same failure policy as `isParlayCommissioner`: one RPC, false
+ * for an anonymous caller, and false rather than a throw on error — this gates
+ * tabs and unmasking, and a lookup that blipped should read as "not yet", not
+ * as a broken page. The database refuses an unapproved write regardless of
+ * what this returns.
+ */
+export async function isApprovedMember(ctx) {
+  try {
+    const { data: { session } } = await ctx.client.auth.getSession();
+    if (!session?.user?.id) return false;
+
+    const { data, error } = await ctx.client.rpc('is_approved_member');
+
+    if (error) throw error;
+
+    return data === true;
+  } catch (error) {
+    log.warn('member approval check failed:', error?.message ?? error);
+    return false;
+  }
+}
+
+/**
+ * Every confirmed account with its approval status, for Settings → Approvals.
+ *
+ * `[]` for anyone but the admin — the guard is inside `list_member_approvals()`.
+ * Accounts with no `member_approvals` row come back as pending, so a request
+ * the trigger missed is still visible and approvable.
+ */
+export async function listMemberApprovals(ctx) {
+  try {
+    const { data, error } = await ctx.client.rpc('list_member_approvals');
+
+    if (error) throw error;
+
+    return (data || []).map((row) => ({
+      userId: row.user_id,
+      displayName: row.display_name,
+      email: row.email,
+      emailConfirmedAt: row.email_confirmed_at,
+      createdAt: row.created_at,
+      status: row.status,
+      requestedAt: row.requested_at,
+      decidedAt: row.decided_at,
+      note: row.note ?? null
+    }));
+  } catch (error) {
+    throwDbError(error, 'List member approvals');
+  }
+}
+
+/**
+ * Approve, reject, or return an account to pending.
+ *
+ * `decided_at` / `decided_by` are stamped inside the RPC from `now()` and
+ * `auth.uid()`; the client sends the status and nothing about who or when.
+ */
+export async function setMemberApproval(ctx, { userId, status, note = null }) {
+  if (!APPROVAL_STATUSES.includes(status)) {
+    throw new Error(`Unknown approval status "${status}"`);
+  }
+
+  try {
+    const { data, error } = await ctx.client.rpc('set_member_approval', {
+      p_user_id: userId,
+      p_status: status,
+      p_note: note
+    });
+
+    if (error) throw error;
+
+    log.info(`member approval: ${userId} → ${status}`);
+
+    return data;
+  } catch (error) {
+    throwDbError(error, 'Set member approval');
+  }
+}
+
+/**
+ * Revoke an account outright.
+ *
+ * Irreversible: `delete_member_account()` deletes the `auth.users` row and
+ * everything that cascades from it. The RPC refuses the admin's own id.
+ */
+export async function deleteMemberAccount(ctx, userId) {
+  try {
+    const { data, error } = await ctx.client.rpc('delete_member_account', {
+      p_user_id: userId
+    });
+
+    if (error) throw error;
+
+    log.info(`member account deleted: ${userId}`);
+
+    return data === true;
+  } catch (error) {
+    throwDbError(error, 'Delete member account');
+  }
+}

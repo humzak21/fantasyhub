@@ -26,7 +26,7 @@ const MODE = {
   },
   signUp: {
     title: 'Create Account',
-    description: 'Start tracking your fantasy football power rankings',
+    description: 'Ask to join the league. New accounts are approved by the admin once you confirm your email.',
     accent: 'text-success',
     fill: 'bg-success text-success-foreground hover:bg-success/90',
   },

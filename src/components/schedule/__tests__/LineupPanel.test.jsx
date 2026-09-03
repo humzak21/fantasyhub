@@ -47,7 +47,7 @@ vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
     rosters,
     playerWeekStats,
     nflSchedule,
-    users: { isParlayCommissioner: async () => false },
+    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true },
     seasons: { getActiveSeason: async () => SEASON_ROW }
   })
 }));

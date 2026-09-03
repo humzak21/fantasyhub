@@ -171,6 +171,13 @@ const AwardsManager = ({
             onVote={loadAwardsData} // Reload to update vote counts/status
             season={season}
             user={user}
+            /* The shell's `isAuthenticated` is "may submit", which is approval. */
+            canVote={isAuthenticated}
+            cannotVoteMessage={
+              user
+                ? 'Your account is awaiting approval before you can vote.'
+                : 'Sign in to vote.'
+            }
             loading={dataLoading}
             teamOwnerNames={teamOwnerNames}
           />

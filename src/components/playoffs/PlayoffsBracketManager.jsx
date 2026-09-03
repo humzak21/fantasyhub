@@ -226,6 +226,10 @@ const PlayoffsBracketManager = ({
                         onSubmitPicks={handleSubmitPicks}
                         loading={dataLoading}
                         user={user}
+                        /* `isAuthenticated` is the shell's "may submit", which
+                           is approval; the second flag only picks the copy. */
+                        isApproved={isAuthenticated}
+                        awaitingApproval={Boolean(user) && !isAuthenticated}
                         isAdmin={isAdmin}
                         teamOwnerNames={teamOwnerNames}
                         seedByTeamId={seedByTeamId}

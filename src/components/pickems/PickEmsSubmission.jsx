@@ -23,6 +23,8 @@ const PickEmsSubmission = ({
   canSubmit = false,
   timeRemaining = null,
   user = null,
+  isApproved = false,
+  awaitingApproval = false,
   isAdmin = false,
   teamOwnerNames = []
 }) => {
@@ -336,7 +338,10 @@ const PickEmsSubmission = ({
             // One expression for "may this viewer change this pick", instead
             // of the same four-clause condition repeated in each button's
             // onClick, its `disabled` and twice more in its class string.
-            const canPick = Boolean(user) && status.status === 'open' && (!hasSubmitted || isEditing);
+            // `isApproved`, not just a user: `submit_pick_em_picks` refuses an
+            // unapproved account, so a pick it could make is a pick it could
+            // never submit.
+            const canPick = Boolean(user) && isApproved && status.status === 'open' && (!hasSubmitted || isEditing);
             return (
               <Card key={game.id} className={`overflow-hidden ${isBye ? 'bg-muted/30' : ''}`}>
                 <CardContent className="p-4 sm:p-6">
@@ -415,7 +420,12 @@ const PickEmsSubmission = ({
           isEditing={isEditing}
           hasChanges={hasChanges}
           submitting={submitting}
-          user={user}
+          user={isApproved ? user : null}
+          signInMessage={
+            awaitingApproval
+              ? 'Your account is awaiting approval before you can make picks.'
+              : 'Sign in to make picks.'
+          }
           onSubmit={handleSubmit}
           onEdit={() => setIsEditing(true)}
           onCancelEdit={handleCancelEdit}
