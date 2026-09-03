@@ -343,9 +343,10 @@ without a generated column to migrate — which is also why
 **Takes are members-only, and that is enforced in both halves.** The board
 shipped public-read and was closed in `20260831140000_takes_members_only.sql`;
 `Members read takes` / `Members read take_participants` are
-`FOR SELECT TO authenticated`, so a signed-out caller reads zero rows straight
-from PostgREST. The shell half is `customAccess: isAuthenticated` on the takes
-tab — note `requiresAuth` is *not* the flag for that: despite the name it means
+`FOR SELECT TO authenticated USING (is_approved_member())` since
+`20260903120000_member_approvals.sql`, so a signed-out *or unapproved* caller
+reads zero rows straight from PostgREST. The shell half is
+`customAccess: isApproved` on the takes tab — note `requiresAuth` is *not* the flag for that: despite the name it means
 admin-only (`requiresAuth && !isAdmin`). The nav gate alone would have been
 decoration, since the anon key ships in the client bundle.
 
@@ -400,6 +401,76 @@ subquery runs as the calling user — so restricting who may SELECT `takes` can
 silently break the +1. It does not here (both are `authenticated`), and there
 is a probe asserting it, but a future narrowing of the read policy has to
 re-check it.
+
+### New accounts are approved, and the approval is a row
+
+Anyone can sign up, and masking is a client-side string compare, so before
+2026-09-03 a fresh account unmasked the whole league by typing an owner's name.
+`member_approvals` + `public.is_approved_member()` are the rule now
+(`20260903120000_member_approvals.sql`): a confirmed sign-up is *pending* until
+the admin approves it in **Settings → Approvals**, and until then the account
+is a visitor with a login — names masked, members-only tabs hidden, every
+member write refused by the database. Every account that existed when the
+migration ran was **grandfathered as approved** by a backfill that sits before
+any policy in the file, so no existing member ever saw a refusal.
+
+- **The trigger on `auth.users` is the first and only one, and it must never
+  raise.** `on_auth_user_confirmed` fires on insert or update of
+  `email_confirmed_at` (when set) and inserts the pending row with
+  `ON CONFLICT DO NOTHING` inside an `EXCEPTION WHEN OTHERS` block. GoTrue runs
+  sign-up and confirmation in its own transaction; an exception from a trigger
+  is "Database error saving new user" for *everyone*. The recovery path if it
+  ever misses a row: `list_member_approvals()` LEFT JOINs from `auth.users`, so
+  the account still shows as pending, and `set_member_approval()` upserts.
+- **`is_approved_member()` folds the admin in** (like `isParlayCommissioner`
+  on the client) **and is executable by `anon` on purpose.** The baseline write
+  policies on `playoff_picks`, `award_votes` and `pick_em_submissions` have no
+  `TO` clause, so they are evaluated under `anon` too, and a policy calling a
+  function the role cannot execute *errors* instead of denying.
+- **What it gates:** `Members read takes/take_participants/take_events`; every
+  author write on `takes` and `take_participants`; the six baseline own-row
+  write policies on `playoff_picks`, `award_votes`, `pick_em_submissions`; and
+  the three SECURITY DEFINER submit RPCs (`submit_pick_em_picks`,
+  `submit_td_parlay_pick`, `submit_playoff_picks`), which carry the guard
+  themselves because RLS does not apply inside them. Public reads are
+  untouched. Adding a member write path means adding the guard.
+- **Writes go through RPCs, not RLS on the table.** `set_member_approval(id,
+  status)` stamps `decided_at`/`decided_by` server-side and upserts;
+  `delete_member_account(id)` is *Revoke*: a hard delete of the `auth.users`
+  row, refusing the admin's own id. Cascades: `auth.*`, `takes`,
+  `take_participants`, `td_parlay_picks`, `award_votes`, `league_roles`,
+  `member_approvals`; `take_events` keeps NULL-actor rows; `pick_em_submissions`
+  and `playoff_picks` have no FK and keep their rows as history. *Reject* is a
+  pending row hidden from the queue and reconsiderable; the person is never
+  told which they are — the client only reads the boolean.
+- **The client lever is `teamOwnerNames`.** `ViewerContext` hands a signed-in,
+  unapproved viewer an empty owner list, and every `getMasked*` helper and
+  `canViewFullData` already masks on an empty list — so no call site changed
+  and none can forget. `isApproved` (admin folded in) replaces
+  `isAuthenticated` for the Takes tab, the awards vote gate, the pick'ems nag
+  dot, and the `isAuthenticated` prop the shell passes to the four tab
+  components, which always meant "may submit". Copy is three-way: signed-out
+  "Sign in…", signed-in-unapproved "awaiting approval", approved.
+- **The route guard waits on `isApprovalLoading`** for the reason it waits on
+  `isAuthLoading`: a false `isApproved` during the fetch bounces a member's
+  bookmarked `/takes`. The flag is never true signed-out or for the admin,
+  whose query is disabled and would pend forever.
+- **Approval is not pushed to the member's browser.** The admin's
+  `invalidateQueries` reaches the admin's cache only; `useIsApprovedMember`
+  polls once a minute while the answer is no and refetches on focus, and the
+  notice has "Check again". The database refuses writes regardless.
+- **Every test that renders the real `ViewerProvider` stubs
+  `getDb().users.isApprovedMember`** beside `isParlayCommissioner` — that is
+  why the functions live in `services/db/users.js` and not a module of their
+  own. Omit it and the suite fails as masked names.
+- **Probes** (role-impersonating `execute_sql`, `begin … set local role …
+  set_config('request.jwt.claims', …) … rollback`), verified 2026-09-03: anon
+  and an unapproved authenticated caller read zero takes and are refused by
+  all three submit RPCs *before* the week lookup ("has not been approved");
+  the admin email claim is approved with no row; the listing is empty for a
+  non-admin; both write RPCs raise 42501 for a non-admin; the delete refuses
+  the admin's own id. Note that temp tables created before `set local role`
+  need a `GRANT` to `authenticated` or the probe fails on its own scaffolding.
 
 ### Seasons end explicitly
 `public.finalize_season(season_id, dry_run)` derives a season's final placements
@@ -483,7 +554,10 @@ Three rules are the database's, not the UI's, and that is what makes them true:
   `submit_pick_em_picks` now carries the same guard, word for word
   (`20260902140000_pick_em_deadline_guard.sql`) — the two forms submit
   together, and a window meaning one thing for the parlay and another for the
-  picks would be its own bug. Change one and change the other.
+  picks would be its own bug. Change one and change the other. Both (and
+  `submit_playoff_picks`) also carry the `is_approved_member()` check, right
+  after the sign-in check and before the week lookup — see "New accounts are
+  approved".
 - **The canonical name comes from `players`.** Pass `p_player_id` and the
   function looks the name up itself; pass only `p_player_name` and it stores the
   trimmed text. `player_name_raw` is NOT NULL either way, because the FK is
@@ -1079,7 +1153,7 @@ why nobody noticed. It is the same landing problem, and it wants its own page.
 - ESPN integration allows automatic data import
 - Responsive design with mobile-first approach — see "Mobile is not a separate
   app" for the rules that make that true rather than aspirational
-- This project has 1 admin user. All other users are authenticated to create pick'ems, but any user can visualize the data (without logging in). RLS policies should reflect this. Only authenticated users can change their own pickems, but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
+- This project has 1 admin user. All other users are *approved members* — a new account is a visitor until the admin approves it in Settings → Approvals — and any user can visualize the data (without logging in). RLS policies should reflect this. Only approved members can change their own pickems (`is_approved_member()`), but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
 - Owner names eg: "Humza Khalil" are stored in the database and should be the first thing to check against when looking for data for a team. Team names often change but owner names are consistent.
 - **Creating a season carries the previous season's teams forward.**
   `seasons.createSeason` copies the divisions and teams of the most recent

@@ -851,6 +851,33 @@ export type Database = {
         }
         Relationships: []
       }
+      member_approvals: {
+        Row: {
+          decided_at: string | null
+          decided_by: string | null
+          note: string | null
+          requested_at: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          decided_at?: string | null
+          decided_by?: string | null
+          note?: string | null
+          requested_at?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          decided_at?: string | null
+          decided_by?: string | null
+          note?: string | null
+          requested_at?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       nfl_schedule: {
         Row: {
           created_at: string
@@ -3705,6 +3732,7 @@ export type Database = {
         Args: { season_id: string }
         Returns: string
       }
+      delete_member_account: { Args: { p_user_id: string }; Returns: boolean }
       direct_match_test: {
         Args: { p_import_id: string; p_season_id: string }
         Returns: {
@@ -3967,6 +3995,7 @@ export type Database = {
         }[]
       }
       is_admin: { Args: never; Returns: boolean }
+      is_approved_member: { Args: never; Returns: boolean }
       is_parlay_commissioner: { Args: never; Returns: boolean }
       list_league_members: {
         Args: never
@@ -3975,6 +4004,20 @@ export type Database = {
           display_name: string
           email: string
           id: string
+        }[]
+      }
+      list_member_approvals: {
+        Args: never
+        Returns: {
+          created_at: string
+          decided_at: string
+          display_name: string
+          email: string
+          email_confirmed_at: string
+          note: string
+          requested_at: string
+          status: string
+          user_id: string
         }[]
       }
       refresh_season_stats: { Args: { season_id: string }; Returns: undefined }
@@ -3999,6 +4042,23 @@ export type Database = {
       season_week_start: {
         Args: { p_season_id: string; p_week: number }
         Returns: string
+      }
+      set_member_approval: {
+        Args: { p_note?: string; p_status: string; p_user_id: string }
+        Returns: {
+          decided_at: string | null
+          decided_by: string | null
+          note: string | null
+          requested_at: string
+          status: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "member_approvals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       submit_pick_em_picks: {
         Args: { p_pick_em_week_id: string; p_picks: Json }

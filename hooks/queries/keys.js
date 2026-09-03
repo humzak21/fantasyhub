@@ -135,7 +135,8 @@ export const qk = {
    */
   viewer: {
     all: ['viewer'],
-    parlayCommissioner: (userId) => ['viewer', 'parlayCommissioner', userId]
+    parlayCommissioner: (userId) => ['viewer', 'parlayCommissioner', userId],
+    approved: (userId) => ['viewer', 'approved', userId]
   },
 
   /**
@@ -148,6 +149,18 @@ export const qk = {
     all: ['roles'],
     members: () => ['roles', 'members'],
     parlayCommissioners: () => ['roles', 'parlayCommissioners']
+  },
+
+  /**
+   * The approval queue. Beside `roles` for the same reason `roles` is beside
+   * `viewer`: "who is waiting" is an admin read, "am I approved" is the
+   * viewer's own answer under `viewer.approved`. Deciding a request
+   * invalidates both, plus `roles` — the member list is drawn from the same
+   * accounts.
+   */
+  approvals: {
+    all: ['approvals'],
+    list: () => ['approvals', 'list']
   },
 
   /**

@@ -19,10 +19,13 @@
 import { createContext, useContext, useMemo } from 'react';
 
 import { useAuth } from './AuthContext.jsx';
-import { useActiveSeason, useIsParlayCommissioner } from '../../hooks/queries/index.js';
+import { useActiveSeason, useIsApprovedMember, useIsParlayCommissioner } from '../../hooks/queries/index.js';
 import { getTeamOwnerNames, isUserATeamOwner } from '../utils/displayNameUtils.js';
 
 const ViewerContext = createContext(null);
+
+/** A stable empty list, so an unapproved viewer's memo deps do not churn. */
+const NO_OWNERS = [];
 
 export function ViewerProvider({ children }) {
   const { user, isAuthenticated, isAdmin, loading: authLoading } = useAuth();
@@ -36,7 +39,38 @@ export function ViewerProvider({ children }) {
    */
   const { data: isCommissioner, isPending: commissionerPending } = useIsParlayCommissioner();
 
-  const teamOwnerNames = useMemo(() => getTeamOwnerNames(activeSeason), [activeSeason]);
+  /**
+   * Has the admin approved this account? Same shape as the commissioner
+   * check: a database round trip with its own pending state. The admin is
+   * folded in here, the way `isParlayCommissioner` folds them in, and the
+   * query is disabled for them — and for a signed-out viewer, for whom
+   * `isPending` would otherwise be true forever.
+   */
+  const { data: approved, isPending: approvalPending } = useIsApprovedMember();
+  const isApproved = Boolean(isAdmin || approved === true);
+  const isApprovalLoading = Boolean(isAuthenticated && !isAdmin && approvalPending);
+
+  const allOwnerNames = useMemo(() => getTeamOwnerNames(activeSeason), [activeSeason]);
+
+  /**
+   * The one lever the approval gate pulls on the client.
+   *
+   * Every `getMasked*` helper and `canViewFullData` decide "real name or
+   * masked" by asking whether the viewer's display name is in this list — and
+   * an empty list means nobody is. So a signed-in account the admin has not
+   * approved is handed no owners at all, and every one of the ~35 call sites
+   * masks exactly as it does for a visitor, with no new argument to thread and
+   * nothing a future call site can forget. `DisplayNamePrompt` only warns about
+   * an unrecognised name when the list is non-empty, so an unapproved viewer
+   * still gets asked for their name (the admin's queue shows it) without being
+   * told it matches nobody. A signed-out viewer keeps the full list: they are
+   * masked by having no `user`, and the prompt is not shown to them anyway.
+   *
+   * The database is the real boundary — every members-only read and write
+   * checks `is_approved_member()` — so this is what the page *shows*, not what
+   * keeps anyone out.
+   */
+  const teamOwnerNames = isAuthenticated && !isApproved ? NO_OWNERS : allOwnerNames;
 
   const value = useMemo(
     () => ({
@@ -53,6 +87,16 @@ export function ViewerProvider({ children }) {
        * cold load — the same trap `isParlayCommissionerLoading` exists for.
        */
       isAuthLoading: Boolean(authLoading),
+      /**
+       * Approved by the admin, or the admin. Members-only tabs, the member
+       * write paths and — through `teamOwnerNames` above — every masked name
+       * follow this, not `isAuthenticated`.
+       */
+      isApproved,
+      /** True while the approval is still unknown. Never true signed-out or
+       *  for the admin, whose answer needs no round trip. The route guard
+       *  waits on it for the same reason it waits on `isAuthLoading`. */
+      isApprovalLoading,
       teamOwnerNames,
       /**
        * Does this viewer own a team? Drives History-tab access, which the
@@ -82,7 +126,17 @@ export function ViewerProvider({ children }) {
        *  viewer — the query is disabled, so there is nothing to wait for. */
       isParlayCommissionerLoading: Boolean(isAuthenticated && commissionerPending)
     }),
-    [user, isAuthenticated, isAdmin, authLoading, teamOwnerNames, isCommissioner, commissionerPending]
+    [
+      user,
+      isAuthenticated,
+      isAdmin,
+      authLoading,
+      isApproved,
+      isApprovalLoading,
+      teamOwnerNames,
+      isCommissioner,
+      commissionerPending
+    ]
   );
 
   return <ViewerContext.Provider value={value}>{children}</ViewerContext.Provider>;
@@ -94,6 +148,8 @@ export function ViewerProvider({ children }) {
  *   isAuthenticated: boolean,
  *   isAdmin: boolean,
  *   isAuthLoading: boolean,
+ *   isApproved: boolean,
+ *   isApprovalLoading: boolean,
  *   teamOwnerNames: string[],
  *   isTeamOwner: boolean,
  *   isParlayCommissioner: boolean,

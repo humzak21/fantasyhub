@@ -16,7 +16,8 @@ const users = {
   listLeagueMembers: vi.fn(async () => MEMBERS),
   getParlayCommissioners: vi.fn(async () => []),
   setParlayCommissioners: vi.fn(async () => ({ granted: 0, revoked: 0 })),
-  isParlayCommissioner: vi.fn(async () => false)
+  isParlayCommissioner: vi.fn(async () => false),
+  isApprovedMember: vi.fn(async () => true)
 };
 
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({

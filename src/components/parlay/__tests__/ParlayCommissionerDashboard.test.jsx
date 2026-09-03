@@ -15,6 +15,7 @@ const parlay = { getSeasonParlayPicks: vi.fn(async () => []) };
 const pickems = { getAllPickEmWeeks: vi.fn(async () => []) };
 const users = {
   isParlayCommissioner: vi.fn(async () => true),
+  isApprovedMember: vi.fn(async () => true),
   getUserDisplayNames: vi.fn(async () => ({ u1: 'Arya Shah', u2: 'Rohit Ramki' }))
 };
 

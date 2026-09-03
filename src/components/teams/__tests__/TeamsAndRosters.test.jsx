@@ -30,7 +30,7 @@ vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   getContext: () => ({ seasonsCache: new Map(), activeSeasonId: null }),
   getDb: () => ({
     nflSchedule,
-    users: { isParlayCommissioner: async () => false },
+    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true },
     seasons: { getActiveSeason: async () => SEASON_ROW }
   })
 }));

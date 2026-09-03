@@ -29,6 +29,7 @@ import InlineWeekNavigator from './src/components/week-controls/InlineWeekNaviga
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
 import { HeaderNav, MobileTabBar } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
+import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
 import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
@@ -57,10 +58,15 @@ const FantasyFootballApp = () => {
   // Viewer identity and what they may see. `isTeamOwner` replaces an inline
   // `teamOwnerNames.includes(user.user_metadata.display_name)` that decided
   // History-tab access from the shell.
+  //
+  // `isApproved` is the members-only flag, not `isAuthenticated`: an account
+  // the admin has not yet approved is signed in but sees what a visitor sees.
   const {
     user,
     isAuthenticated,
     isAuthLoading,
+    isApproved,
+    isApprovalLoading,
     isAdmin,
     isTeamOwner
   } = useViewer();
@@ -102,7 +108,7 @@ const FantasyFootballApp = () => {
   // actual week. Browsing back to week 3 must not light it up. The pick'ems tab
   // itself still follows `viewedWeek`.
   const { hasSubmitted: hasUserSubmittedPicks, isLoading: pickemNotificationLoading } =
-    useHasSubmittedPicks(seasonId, actualWeek, { enabled: isAuthenticated && Boolean(user) });
+    useHasSubmittedPicks(seasonId, actualWeek, { enabled: isApproved && Boolean(user) });
 
   const { status: awardsUnlockStatus } = useAwardsUnlockStatus(seasonId);
 
@@ -137,8 +143,8 @@ const FantasyFootballApp = () => {
     // Admins always have access
     if (isAdmin) return true;
 
-    // Check if voting is open to all authenticated users
-    if (isAuthenticated && awardsUnlockStatus?.votingOpenToAll) return true;
+    // Check if voting is open to all approved members
+    if (isApproved && awardsUnlockStatus?.votingOpenToAll) return true;
 
     // A past season that was voted on is reachable on its own account — see
     // `src/components/awards/resultsAccess.js`, which the Results tab's picker
@@ -171,11 +177,13 @@ const FantasyFootballApp = () => {
       // the league.
       { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAdmin || isTeamOwner },
       { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
-      // Members only. `requiresAuth` is *not* the flag for this — despite the
-      // name it means admin-only (`requiresAuth && !isAdmin`), which would hide
-      // the board from the fourteen people it is for. `customAccess` is how
-      // History already expresses a non-admin audience.
-      { id: 'takes', label: 'Takes', icon: Flame, requiresSeason: true, requiresAuth: false, customAccess: isAuthenticated },
+      // Members only — approved members, not merely signed-in ones; the
+      // board's RLS asks the same question. `requiresAuth` is *not* the flag
+      // for this — despite the name it means admin-only (`requiresAuth &&
+      // !isAdmin`), which would hide the board from the fourteen people it is
+      // for. `customAccess` is how History already expresses a non-admin
+      // audience.
+      { id: 'takes', label: 'Takes', icon: Flame, requiresSeason: true, requiresAuth: false, customAccess: isApproved },
       { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
       // The league-wide TD parlay view is not a destination of its own. It
       // lives inside Pick'ems, next to Submissions, beside the form the picks
@@ -183,7 +191,7 @@ const FantasyFootballApp = () => {
       // grounds for a nav item every other layout has to make room for.
       { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
     ];
-  }, [isAuthenticated, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults]);
+  }, [isApproved, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults]);
 
   // One definition of "may this viewer see this tab", shared by the nav and by
   // the route guard below — they must not be able to disagree.
@@ -208,7 +216,7 @@ const FantasyFootballApp = () => {
   // every tab renders its own "no season yet" state, which explains the
   // situation, where a dead nav item explains nothing.
   const needsPicks =
-    isAuthenticated && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
+    isApproved && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
   const navTabs = useMemo(
     () =>
       mainTabs.map((tab) => ({
@@ -254,8 +262,18 @@ const FantasyFootballApp = () => {
   // while it is in flight `hasViewableAwardResults` is false, which is
   // indistinguishable from "no past season has results" — so a bookmarked
   // /awards would bounce on every cold load without this.
+  //
+  // And the approval is the fourth: `isApproved` reads false until the row
+  // has been fetched, which is indistinguishable from "not approved", so a
+  // member's bookmarked /takes would bounce the same way.
   if (!activeTabDef) return <Navigate to={`/${DEFAULT_TAB}`} replace />;
-  if (!isLoading && !isAuthLoading && !ballotSeasonsLoading && !shouldShowTab(activeTabDef)) {
+  if (
+    !isLoading &&
+    !isAuthLoading &&
+    !isApprovalLoading &&
+    !ballotSeasonsLoading &&
+    !shouldShowTab(activeTabDef)
+  ) {
     return <Navigate to={`/${DEFAULT_TAB}`} replace />;
   }
 
@@ -361,7 +379,9 @@ const FantasyFootballApp = () => {
           as="main"
           className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-10"
         >
-
+          {/* Signed in but not yet approved by the admin: says so, once, at the
+              top of every page. Renders nothing for everyone else. */}
+          <ApprovalPendingNotice className="mb-6" />
 
           {/* Error Display */}
           {/* `{error}` — not `{error.message}` — was rendering an Error object
@@ -466,11 +486,14 @@ const FantasyFootballApp = () => {
             {activeTab === 'pickems' && (
               <ErrorBoundary key="pickems-error-boundary">
                 <div className="space-y-6">
+                  {/* `isAuthenticated` on the tab components means "may this
+                      viewer submit", and that is approval now — the RPCs and
+                      policies behind every form ask `is_approved_member()`. */}
                   <PickEmsManager
                     season={activeSeason}
                     currentWeek={viewedWeek}
                     loading={isLoading}
-                    isAuthenticated={isAuthenticated}
+                    isAuthenticated={isApproved}
                     initializing={isLoading}
                   />
                 </div>
@@ -487,8 +510,8 @@ const FantasyFootballApp = () => {
                        the page cannot tell a member from a visitor, and the
                        honest answer to "who is this" is not yet, rather than a
                        board that flashes its signed-out state and then flips. */
-                    loading={isLoading || isAuthLoading}
-                    isAuthenticated={isAuthenticated}
+                    loading={isLoading || isAuthLoading || isApprovalLoading}
+                    isAuthenticated={isApproved}
                   />
                 </div>
               </ErrorBoundary>
@@ -501,7 +524,7 @@ const FantasyFootballApp = () => {
                     season={activeSeason}
                     currentWeek={viewedWeek}
                     loading={isLoading}
-                    isAuthenticated={isAuthenticated}
+                    isAuthenticated={isApproved}
                   />
                 </div>
               </ErrorBoundary>
@@ -514,7 +537,7 @@ const FantasyFootballApp = () => {
                     season={activeSeason}
                     currentWeek={viewedWeek}
                     loading={isLoading}
-                    isAuthenticated={isAuthenticated}
+                    isAuthenticated={isApproved}
                   />
                 </div>
               </ErrorBoundary>

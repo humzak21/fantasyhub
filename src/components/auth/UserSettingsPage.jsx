@@ -2,17 +2,20 @@ import React, { useState, useEffect } from 'react'
 import PageContainer from '../layout/PageContainer.jsx'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { supabase } from '../../../services/supabaseClient.js'
-import { useSeasons, useActiveSeason, useLeagueMutations } from '../../../hooks/queries/index.js'
+import { useSeasons, useActiveSeason, useLeagueMutations, useMemberApprovals, countPendingApprovals } from '../../../hooks/queries/index.js'
 import { getDb } from '../../../services/db/index.js'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
-import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck } from 'lucide-react'
+import { Badge } from '../ui/badge'
+import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
+import MemberApprovalsManager from '../admin/MemberApprovalsManager.jsx'
+import ApprovalPendingNotice from './ApprovalPendingNotice.jsx'
 import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
 
 export const UserSettingsPage = () => {
@@ -29,6 +32,11 @@ export const UserSettingsPage = () => {
   const { data: seasons = [], isLoading: seasonsLoading } = useSeasons()
   const { data: activeSeason } = useActiveSeason()
   const seasonMutations = useLeagueMutations(activeSeason?.id ?? null)
+
+  // The sidebar badge. Same query the Approvals panel reads, so it costs
+  // nothing extra; disabled (and empty) for anyone but the admin.
+  const { data: approvalRows = [] } = useMemberApprovals({ enabled: isAdmin })
+  const pendingApprovals = countPendingApprovals(approvalRows)
 
   const dataLoading =
     seasonsLoading ||
@@ -223,6 +231,20 @@ export const UserSettingsPage = () => {
                     </Button>
 
                     <Button
+                      variant={activeSettingsTab === 'approvals' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('approvals')}
+                    >
+                      <UserCheck className="mr-2 h-4 w-4" />
+                      Approvals
+                      {pendingApprovals > 0 && (
+                        <Badge variant="warning" className="ml-auto">
+                          {pendingApprovals}
+                        </Badge>
+                      )}
+                    </Button>
+
+                    <Button
                       variant={activeSettingsTab === 'testing' ? 'default' : 'ghost'}
                       className="w-full justify-start"
                       onClick={() => setActiveSettingsTab('testing')}
@@ -238,6 +260,9 @@ export const UserSettingsPage = () => {
 
           {/* Main Settings Panel */}
           <div className="md:col-span-2 space-y-6">
+            {/* Renders only for a signed-in account the admin has not approved. */}
+            <ApprovalPendingNotice />
+
             {/* Profile Settings */}
             {activeSettingsTab === 'profile' && (
             <>
@@ -385,6 +410,13 @@ export const UserSettingsPage = () => {
                 `list_league_members()`. */}
             {activeSettingsTab === 'roles' && isAdmin && (
               <LeagueRolesManager />
+            )}
+
+            {/* The approval queue. `isAdmin` is the affordance; the boundary
+                is the `is_admin()` guard inside `list_member_approvals()`,
+                `set_member_approval()` and `delete_member_account()`. */}
+            {activeSettingsTab === 'approvals' && isAdmin && (
+              <MemberApprovalsManager />
             )}
 
             {/* Testing Tools - Admin Only */}

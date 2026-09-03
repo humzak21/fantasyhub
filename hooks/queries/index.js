@@ -83,6 +83,14 @@ export {
 } from './useParlay.js';
 
 export {
+  countPendingApprovals,
+  useIsApprovedMember,
+  useMemberApprovals,
+  useSetMemberApproval,
+  useDeleteMemberAccount
+} from './useMemberApprovals.js';
+
+export {
   useAwardsUnlockStatus,
   useAwards,
   useAwardResults,

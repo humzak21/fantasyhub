@@ -20,11 +20,16 @@ import { renderWithProviders, screen, within } from '../../../test/renderWithPro
 
 const takes = { getTakesForSeason: vi.fn() };
 
+// The approval answer, per test. The board is members-only and "member" means
+// approved: a signed-in account the admin has not approved yet must read as a
+// visitor here, with copy that says so.
+let approved = true;
+
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
     takes,
-    users: { isParlayCommissioner: async () => false },
+    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => approved },
     seasons: { getActiveSeason: async () => SEASON }
   })
 }));
@@ -137,6 +142,10 @@ describe('TakesManager, signed out', () => {
 });
 
 describe('TakesManager, signed in', () => {
+  beforeEach(() => {
+    approved = true;
+  });
+
   it('offers the composer', async () => {
     auth = {
       user: { id: READER, user_metadata: { name: 'Arya Shah' } },
@@ -149,6 +158,23 @@ describe('TakesManager, signed in', () => {
     await screen.findByText('Nobody goes 14-0');
 
     expect(screen.getByRole('button', { name: /post a take/i })).toBeInTheDocument();
+    expect(screen.queryByText('Sign in to post a take.')).not.toBeInTheDocument();
+  });
+
+  it('tells an unapproved account it is waiting, rather than asking it to sign in', async () => {
+    approved = false;
+    auth = {
+      user: { id: READER, user_metadata: { name: 'Arya Shah' } },
+      isAuthenticated: true,
+      isAdmin: false,
+      loading: false
+    };
+
+    renderTab();
+    await screen.findByText('Nobody goes 14-0');
+
+    expect(await screen.findByText('Your account is awaiting approval.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /post a take/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Sign in to post a take.')).not.toBeInTheDocument();
   });
 

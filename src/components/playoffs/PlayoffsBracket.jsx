@@ -195,6 +195,12 @@ const PlayoffsBracket = ({
     onSubmitPicks,
     loading = false,
     user = null,
+    // May this viewer submit? The manager passes the shell's approval flag;
+    // the default keeps a bare render (tests) behaving as "signed in may".
+    isApproved = Boolean(user),
+    // Signed in, but the admin has not approved the account yet — chooses
+    // the copy shown in place of the form.
+    awaitingApproval = false,
     isAdmin = false,
     teamOwnerNames = [],
     // 2026+ only: the projected seeds, from the standings RPC. Empty is fine —
@@ -422,7 +428,9 @@ const PlayoffsBracket = ({
     };
 
     const { playoffs, consolation } = organizeGames();
-    const canEdit = bracketStatus?.canSubmit && user;
+    // Approval, not a session: `submit_playoff_picks` refuses an unapproved
+    // account, so offering the form to one would only ever produce an error.
+    const canEdit = bracketStatus?.canSubmit && isApproved;
     const showResult = bracketStatus?.resultsReleased;
 
     // ---------------------------------------------------------------------
@@ -771,8 +779,12 @@ const PlayoffsBracket = ({
                                 </div>
                             </div>
 
-                            {!user ? (
-                                <p className="text-sm text-muted-foreground">Sign in to submit picks.</p>
+                            {!isApproved ? (
+                                <p className="text-sm text-muted-foreground">
+                                    {awaitingApproval
+                                        ? 'Your account is awaiting approval before you can submit picks.'
+                                        : 'Sign in to submit picks.'}
+                                </p>
                             ) : canEdit ? (
                                 hasSubmitted && !isEditing ? (
                                     <>

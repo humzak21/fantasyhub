@@ -76,16 +76,22 @@ git config --get merge.npm-lockfile.driver
 
 ## Who sees what
 
-Three levels, and they matter for reading the rest of this document.
+Four levels, and they matter for reading the rest of this document.
 
 **Anyone with the link** can browse the site without an account — rankings,
 stats, the schedule, playoffs, pick'em results. Team and owner names are
 replaced with a short id for signed-out visitors, so the league's numbers are
 public but the people in it are not.
 
-**League members** (anyone with an account) see real names, submit pick'ems and
-playoff brackets, post and fade takes, and vote on the awards ballot. The Takes
-board and the History tab are members-only.
+**Someone who has just signed up** is a visitor with a login. Confirming the
+email puts the account in a queue; until the admin approves it in **Settings →
+Approvals**, names stay masked, the members-only tabs stay hidden, and every
+form refuses them. The page says so at the top. Everyone who had an account
+before approvals existed was approved automatically.
+
+**League members** (anyone with an approved account) see real names, submit
+pick'ems and playoff brackets, post and fade takes, and vote on the awards
+ballot. The Takes board and the History tab are members-only.
 
 **The admin** runs the league: creating seasons, correcting scores, grading
 takes, opening and releasing the awards.
