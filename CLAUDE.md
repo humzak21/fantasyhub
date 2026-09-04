@@ -297,6 +297,25 @@ pure `services/espnPlayerStatsMapper.js`, and the unique key
 no extra ESPN request: the sync's scores step already fetches
 `rosterForCurrentScoringPeriod` and used to discard it.
 
+**`actual_points` is null until there is evidence the game was played.**
+ESPN reports `appliedStatTotal: 0` for every player from the moment a week
+opens, days before kickoff, and a 0 stored as an actual is a *result* to every
+reader — `ui/player-points.jsx` shows a bare "0.0" where the labelled
+projection should be, and `utils/lineupTotals.js` calls the team total final.
+On 2026-09-04, four days before the season, that put zeros beside every starter
+on Schedule and in the pick'ems research panel while Teams (which reads
+`players.projected_points` alone) showed the projections. So
+`espnPlayerStatsMapper.js::findActualPoints` takes the total only when ESPN
+has settled the matchup (`espnWinner` is not `UNDECIDED`, via
+`isMatchupDecided`) or has a per-category stat line for the player
+(`findStatBreakdown` non-null). A settled week keeps its genuine zeros — the
+inactive starter ESPN's matchup score counted as 0 — and mid-week the Thursday
+starter's actual is in while the Sunday starter's is still "proj". The rule
+lives in the mapper and nowhere else: a read-side guard would be a second
+definition of what a result is. The 231 week-1 rows written before this rule
+were repaired by hand with `actual_points = null where actual_points = 0 and
+stat_breakdown is null`; the sync rewrites them on the next run anyway.
+
 **`player_week_stats` answers past-tense questions only.** It is a historical
 fact table the weekly cron writes once, so between two syncs it describes a
 roster that has since taken waivers, made trades and changed its lineup. "Who
