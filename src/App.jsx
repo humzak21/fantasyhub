@@ -2,12 +2,14 @@ import React from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import FantasyFootballApp from '../FantasyFootballApp.jsx'
 import { UserSettingsPage } from './components/auth/UserSettingsPage.jsx'
+import ResetPasswordPage from './components/auth/ResetPasswordPage.jsx'
 import DisplayNamePrompt from './components/auth/DisplayNamePrompt.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
+import { RESET_PASSWORD_PATH } from './utils/passwordReset.js'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
 
 function App() {
-  const { loading } = useAuth()
+  const { loading, passwordRecoveryPending } = useAuth()
   const { pathname } = useLocation()
 
   // No viewport rewrite, no body classes. `setMobileViewport()` used to stamp
@@ -37,6 +39,19 @@ function App() {
   // responsive tree now, which is also what makes a new feature mobile-ready
   // without anyone doing extra work.
 
+  // A password-reset link signs the browser in and lands here with a session
+  // and no new password. Nothing else renders until one is saved (or the
+  // member signs out): a recovery session that wanders off to the tabs is
+  // exactly the "Forgot Password skipped the login" report. The route below
+  // covers a reload, where the flag is gone but the path is not.
+  if (passwordRecoveryPending) {
+    return (
+      <ErrorBoundary key="reset-password-error-boundary">
+        <ResetPasswordPage />
+      </ErrorBoundary>
+    )
+  }
+
   return (
     <>
       {/*
@@ -47,6 +62,15 @@ function App() {
       {pathname !== '/settings' && <DisplayNamePrompt />}
 
       <Routes>
+        {/* The reset link's landing page. Static, so it outranks /:tab. */}
+        <Route
+          path={RESET_PASSWORD_PATH}
+          element={
+            <ErrorBoundary key="reset-password-error-boundary">
+              <ResetPasswordPage />
+            </ErrorBoundary>
+          }
+        />
         {/* Tabs are routes. React Router ranks static segments above the
             dynamic one, so /settings and the legacy redirects below win over
             /:tab without depending on declaration order. The shell validates

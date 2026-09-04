@@ -31,6 +31,12 @@ vi.mock('../components/auth/UserSettingsPage.jsx', () => ({
   },
 }));
 
+vi.mock('../components/auth/ResetPasswordPage.jsx', () => ({
+  default: function ResetPasswordStub() {
+    return <div data-testid="reset-password" />;
+  },
+}));
+
 vi.mock('../components/auth/DisplayNamePrompt.jsx', () => ({
   default: function DisplayNamePromptStub() {
     return null;
@@ -66,6 +72,17 @@ describe('tab routing', () => {
   it('routes /settings to the settings page, not to a tab named "settings"', async () => {
     render(<App />, { initialEntries: ['/settings'] });
     await waitFor(() => expect(screen.getByTestId('settings')).toBeInTheDocument());
+    expect(screen.queryByTestId('shell')).not.toBeInTheDocument();
+  });
+
+  // The reset link's landing page. It used to fall through to the catch-all
+  // and bounce, signed in, to the default tab — the "Forgot Password logged
+  // me in" report. AuthProvider also flags the path as a pending recovery,
+  // which renders the same page in place of the routes; either way the
+  // shell must not appear.
+  it('routes /reset-password to the reset page, never to a tab', async () => {
+    render(<App />, { initialEntries: ['/reset-password'] });
+    await waitFor(() => expect(screen.getByTestId('reset-password')).toBeInTheDocument());
     expect(screen.queryByTestId('shell')).not.toBeInTheDocument();
   });
 
