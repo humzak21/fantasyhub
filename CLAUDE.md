@@ -183,9 +183,8 @@ ESPN call: `pickems.ensurePickEmWeek` creates the `pick_em_weeks` row for the
 target week if none exists, through the same `create_pick_em_week` RPC the
 admin button uses, sending no timestamps so the database derives the window
 from the season's `pickem_*` columns. It runs first so an ESPN outage cannot
-cost the league its pick'ems, is a no-op when the row exists (so the Wednesday
-and Thursday roster refreshes double as a retry), and skips playoff weeks like
-the roster step. Before 2026-09-03 this was an admin pressing a button every
+cost the league its pick'ems, is a no-op when the row exists (so the daily
+refresh doubles as a retry), and skips playoff weeks like the roster step. Before 2026-09-03 this was an admin pressing a button every
 Tuesday morning. Note the window still *opens* at `pickem_open_time`
 (04:00 by default) while the row appears at the 05:00 run; nothing reads the
 row in that hour, but a season that wants the two to coincide sets the open
@@ -334,16 +333,21 @@ player added since the last week-stats write has instead of nothing. A starter
 with no figure still renders, with a dash; hiding them is how the stale view
 managed to look complete while being wrong.
 
-`.github/workflows/refresh-rosters.yml` is the other half. The weekly sync
-writes `rosters` once, Tuesday 05:00 ET, and waivers clear on Wednesday — in
-the middle of the pick'ems window — so a roster-only run goes out Wednesday and
-Thursday morning. It passes `--skip-scores --skip-player-stats
---skip-nfl-schedule --skip-nfl-ratings --skip-transactions --skip-snapshot`,
-which skips the matchup fetch entirely, and shares the `espn-write`
-concurrency group because the weekly sync's own roster step writes exactly
-what it writes. `pickEmWeek`, `finalizePrev` and `parlayGrades` are left
-running on purpose: all three are idempotent no-ops once Tuesday's run
-succeeded, and each is the retry if it did not.
+`.github/workflows/daily-refresh.yml` is the other half. The weekly sync
+writes `rosters` once, Tuesday 05:00 ET, but managers change lineups right up
+to kickoff and waivers clear on Wednesday, so a present-tense refresh runs
+**every day at 16:40 UTC** — 12:40 PM ET under daylight time, 11:40 AM ET
+after, never later than twenty minutes before the early Sunday kickoffs
+(twenty, not five, because GitHub cron starts late under load). It
+runs `pickEmWeek`, rosters, `parlayGrades` and **transactions**, and passes
+`--skip-scores --skip-player-stats --skip-finalize-prev --skip-nfl-schedule
+--skip-nfl-ratings --skip-snapshot`, which skips the matchup fetch entirely.
+**It never writes a result**: scores, the finished week's player stats and
+the ranking snapshot are weekly facts that standings, rankings and the parlay
+grader assume move once, on Tuesday. It shares the `espn-write` concurrency
+group because the weekly sync's own roster and transaction steps write
+exactly what it writes, and it passes `--manual` only on a button press so
+`sync_runs.trigger` tells a scheduled run from a person.
 
 Verified against the live league: this league starts QB/2RB/2WR/TE/FLEX/D/ST/K,
 which is what `OPTIMAL_LINEUP_TEMPLATE` encodes, and summing a team's starters

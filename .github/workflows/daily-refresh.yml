@@ -1,0 +1,83 @@
+name: Daily ESPN refresh
+
+# The present-tense half of the ESPN data, kept current every day.
+#
+# sync-week.yml runs once, Tuesday 05:00 ET, and is the only thing that writes
+# scores: the week's matchups, the finished week's results and player stats,
+# the ranking snapshot. Those are past-tense facts and the systems downstream
+# of them (standings, rankings, the parlay grader) assume they move once a
+# week. This job never touches them.
+#
+# What it refreshes is what managers change between Tuesdays: `rosters` (a
+# lineup set Sunday morning for a 1:00 kickoff, a waiver claim that cleared
+# Wednesday, a trade on Friday) and `transactions` (the season-to-date counts
+# those moves add up to). Both were once-a-week and the site was stale for six
+# days out of seven — the pick'ems research panel described rosters that
+# predated Wednesday's waivers, and the Teams tab showed lineups that had been
+# changed hours before Sunday's games.
+#
+# What runs: the pick'em-week check (a no-op once Tuesday created the row, and
+# the thing that creates it if Tuesday did not), rosters, parlay grades (a
+# pending pick whose stat line went official late lands the same day), and
+# transactions. What is skipped: scores, player stats, the previous-week
+# finalize, the NFL calendar, the FPI snapshot and the ranking snapshot — every
+# step that writes a result. The roster write is delete-then-insert per team,
+# so re-running is how you fix a failed run, same as everywhere else here.
+
+on:
+  schedule:
+    # 16:40 UTC every day = 12:40 PM ET while daylight time holds (through the
+    # first Sunday of November), 11:40 AM ET after. Cron is UTC only, so this
+    # is the hour that is never *later* than 12:40 ET — twenty minutes before
+    # the early Sunday kickoffs, which is the deadline the lineup changes this
+    # exists to catch are made against. Twenty rather than five because GitHub
+    # schedules are best-effort and start several minutes late under load; if
+    # the Sunday run still lands after 1:00, move it earlier, not later.
+    - cron: '40 16 * * *'
+  workflow_dispatch:
+
+concurrency:
+  # Shared with sync-week and sync-schedule. This does not write `games`, but
+  # the weekly sync's own roster and transaction steps write exactly what this
+  # does, and two of them interleaving would have one team's delete land inside
+  # another's insert.
+  group: espn-write
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Zero arguments, like the weekly job: the active season row supplies the
+      # season, the week and the ESPN league. `reasonToSkip` exits 0 outside the
+      # season, and the roster step skips itself once the playoffs start, so
+      # this stays quiet for most of the year without a condition here.
+      #
+      # `--manual` only on a button press, as in sync-week.yml, so the
+      # `sync_runs` log can tell a scheduled run from a person.
+      - name: Refresh rosters and transactions
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ESPN_S2: ${{ secrets.ESPN_S2 }}
+          ESPN_SWID: ${{ secrets.ESPN_SWID }}
+        run: |
+          node scripts/sync-week.js \
+            --skip-scores \
+            --skip-player-stats \
+            --skip-finalize-prev \
+            --skip-nfl-schedule \
+            --skip-nfl-ratings \
+            --skip-snapshot \
+            ${{ github.event_name == 'workflow_dispatch' && '--manual' || '' }}

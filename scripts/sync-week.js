@@ -543,7 +543,7 @@ export async function syncWeek(argv = []) {
     // ESPN: this needs only the database, and an ESPN outage must not cost
     // the league its picks for the week. Non-fatal for the same reason the
     // steps after it are — a missing pick'em row is one broken tab, and the
-    // Wednesday roster refresh runs this step again. Playoff weeks have no
+    // daily refresh runs this step again. Playoff weeks have no
     // pick'ems, the same boundary the roster step uses.
     if (options['skip-pick-em-week']) {
       steps.pickEmWeek = { skipped: 'flag' };
