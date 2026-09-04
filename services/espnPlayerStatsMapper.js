@@ -98,10 +98,46 @@ export function findStatBreakdown(player, week) {
   return Object.keys(breakdown).length > 0 ? breakdown : null;
 }
 
-/** The actual points a stat line records for this week, when the total is absent. */
-function findActualPoints(entry, player, week) {
-  // `appliedStatTotal` on the pool entry is ESPN's own answer and is what the
-  // matchup score is summed from, so it wins whenever it is present.
+/**
+ * Whether ESPN has settled this matchup.
+ *
+ * `espnWinner` is ESPN's own verdict, carried through by
+ * `services/espnScheduleFetcher.js::parseMatchupData` — 'HOME' | 'AWAY' |
+ * 'TIE' while the week is over, 'UNDECIDED' while any game in it is still to
+ * be played. A matchup with no verdict at all is treated as undecided, which
+ * is the conservative direction: see `findActualPoints`.
+ */
+export function isMatchupDecided(matchup) {
+  const winner = matchup?.espnWinner;
+  return typeof winner === 'string' && winner !== '' && winner !== 'UNDECIDED';
+}
+
+/**
+ * The points this player has actually scored this week — or null while the
+ * game has not been played.
+ *
+ * `appliedStatTotal` on the pool entry is ESPN's own answer and is what the
+ * matchup score is summed from, so it wins whenever it is present. But ESPN
+ * reports it as `0` for every player from the moment the week opens, days
+ * before kickoff, and a `0` written into `actual_points` is not "nothing has
+ * happened yet" — it is a result, and every reader treats it as one:
+ * `ui/player-points.jsx` shows a bare 0 instead of the labelled projection,
+ * and `utils/lineupTotals.js` calls the team's total final. On 2026-09-04,
+ * four days before the season started, that put "0.0" beside every starter on
+ * the Schedule tab and in the pick'ems research panel while the Teams tab,
+ * which reads `players.projected_points` alone, showed the projections.
+ *
+ * So the total is a result only when there is evidence a game was played:
+ * either ESPN has settled the matchup (`isMatchupDecided`), in which case a 0
+ * is a genuine 0 — the inactive starter, the kicker who never attempted — or
+ * ESPN has recorded a per-category stat line for the player (`findStatBreakdown`
+ * is non-null), which it does not before kickoff. Mid-week that is exactly the
+ * story the points column tells: the Thursday starter's actual is in, the
+ * Sunday starter's is still a projection.
+ */
+function findActualPoints(entry, player, week, { decided = false, breakdown = null } = {}) {
+  if (!decided && breakdown == null) return null;
+
   if (typeof entry?.playerPoolEntry?.appliedStatTotal === 'number') {
     return entry.playerPoolEntry.appliedStatTotal;
   }
@@ -118,7 +154,7 @@ function findActualPoints(entry, player, week) {
 }
 
 /** One roster entry → the facts worth storing about it. */
-function mapEntry(entry, espnTeamId, week) {
+function mapEntry(entry, espnTeamId, week, decided) {
   const pool = entry?.playerPoolEntry ?? {};
   const player = pool.player ?? {};
 
@@ -126,6 +162,7 @@ function mapEntry(entry, espnTeamId, week) {
   if (espnPlayerId == null) return null;
 
   const lineupSlotId = entry?.lineupSlotId ?? null;
+  const statBreakdown = findStatBreakdown(player, week);
 
   return {
     espnTeamId,
@@ -136,9 +173,9 @@ function mapEntry(entry, espnTeamId, week) {
     proTeamId: player.proTeamId ?? null,
     lineupSlotId,
     started: isStarterSlot(lineupSlotId),
-    actualPoints: findActualPoints(entry, player, week),
+    actualPoints: findActualPoints(entry, player, week, { decided, breakdown: statBreakdown }),
     projectedPoints: findProjectedPoints(player, week),
-    statBreakdown: findStatBreakdown(player, week),
+    statBreakdown,
     injuryStatus: player.injuryStatus ?? null
   };
 }
@@ -154,6 +191,8 @@ export function mapMatchupRosterEntries(matchups = [], week) {
   const rows = [];
 
   for (const matchup of matchups) {
+    const decided = isMatchupDecided(matchup);
+
     // A bye has one side; a matchup ESPN has not populated yet has neither.
     for (const side of [matchup?.homeTeam, matchup?.awayTeam]) {
       const espnTeamId = side?.teamId;
@@ -163,7 +202,7 @@ export function mapMatchupRosterEntries(matchups = [], week) {
       if (!Array.isArray(entries)) continue;
 
       for (const entry of entries) {
-        const mapped = mapEntry(entry, espnTeamId, week);
+        const mapped = mapEntry(entry, espnTeamId, week, decided);
         if (mapped) rows.push(mapped);
       }
     }

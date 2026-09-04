@@ -11,6 +11,7 @@ import {
   mapMatchupRosterEntries,
   findProjectedPoints,
   findStatBreakdown,
+  isMatchupDecided,
   mapDefaultPositionId
 } from '../espnPlayerStatsMapper.js';
 
@@ -57,7 +58,11 @@ const entry = ({
   }
 });
 
-const matchup = (homeTeamId, homeEntries, awayTeamId, awayEntries) => ({
+/**
+ * A finished week by default (`espnWinner: 'HOME'`), which is what most of
+ * these cases are about. Pass `{ winner: 'UNDECIDED' }` for a week in progress.
+ */
+const matchup = (homeTeamId, homeEntries, awayTeamId, awayEntries, { winner = 'HOME' } = {}) => ({
   homeTeam: {
     teamId: homeTeamId,
     rosterForCurrentScoringPeriod: { entries: homeEntries }
@@ -65,7 +70,17 @@ const matchup = (homeTeamId, homeEntries, awayTeamId, awayEntries) => ({
   awayTeam: {
     teamId: awayTeamId,
     rosterForCurrentScoringPeriod: { entries: awayEntries }
-  }
+  },
+  espnWinner: winner
+});
+
+/** A week-5 actual stat line, the evidence that a game was played. */
+const weekStatLine = (appliedTotal, stats = { 24: 40, 25: 0 }) => ({
+  scoringPeriodId: WEEK,
+  statSourceId: 0,
+  statSplitTypeId: 1,
+  appliedTotal,
+  stats
 });
 
 describe('mapDefaultPositionId', () => {
@@ -193,6 +208,71 @@ describe('mapMatchupRosterEntries', () => {
     expect(mapMatchupRosterEntries(undefined, WEEK)).toEqual([]);
   });
 
+  /**
+   * ESPN reports `appliedStatTotal: 0` for every player from the moment a week
+   * opens, days before kickoff, and a 0 stored as an actual is a result to
+   * every reader — a bare "0.0" where the projection should be, and a team
+   * total that calls itself final. This is the bug that put zeros beside every
+   * starter on Schedule and in the pick'ems research panel on 2026-09-04.
+   */
+  describe('while the matchup is undecided', () => {
+    const undecided = { winner: 'UNDECIDED' };
+
+    it('does not take a 0 total with no stat line as a result', () => {
+      const notYetPlayed = entry({ id: 30, name: 'Sunday Starter', positionId: 3, slot: 4, applied: 0, projected: 11.2 });
+
+      const [row] = mapMatchupRosterEntries([matchup(1, [notYetPlayed], 2, [], undecided)], WEEK);
+      expect(row.actualPoints).toBeNull();
+      expect(row.projectedPoints).toBe(11.2);
+      expect(row.statBreakdown).toBeNull();
+    });
+
+    it('takes the total once ESPN has a stat line for the player', () => {
+      // Thursday's game is over; ESPN has categories for him even though the
+      // matchup as a whole is still open.
+      const played = entry({
+        id: 31, name: 'Thursday Starter', positionId: 2, slot: 2,
+        applied: 14.2, projected: 12.0, extraStats: [weekStatLine(14.2, { 24: 88, 25: 1 })]
+      });
+
+      const [row] = mapMatchupRosterEntries([matchup(1, [played], 2, [], undecided)], WEEK);
+      expect(row.actualPoints).toBe(14.2);
+      expect(row.statBreakdown).toEqual({ 24: 88, 25: 1 });
+    });
+
+    it('takes a scored 0 that has a stat line behind it', () => {
+      // He played and did nothing. ESPN still lists his categories.
+      const blanked = entry({
+        id: 32, name: 'Blanked', positionId: 3, slot: 4,
+        applied: 0, projected: 9.0, extraStats: [weekStatLine(0, { 42: 0, 53: 0 })]
+      });
+
+      const [row] = mapMatchupRosterEntries([matchup(1, [blanked], 2, [], undecided)], WEEK);
+      expect(row.actualPoints).toBe(0);
+    });
+
+    it('treats a matchup with no verdict as undecided', () => {
+      const notYetPlayed = entry({ id: 33, name: 'No Verdict', positionId: 1, slot: 0, applied: 0, projected: 18.0 });
+      const noVerdict = { ...matchup(1, [notYetPlayed], 2, []), espnWinner: null };
+
+      const [row] = mapMatchupRosterEntries([noVerdict], WEEK);
+      expect(row.actualPoints).toBeNull();
+    });
+  });
+
+  describe('once the matchup is decided', () => {
+    it('keeps a 0 total with no stat line as a genuine 0', () => {
+      // The inactive starter after the week is over. ESPN's matchup score
+      // counted him as 0, and so must the lineup underneath it.
+      const inactive = entry({ id: 40, name: 'Inactive', positionId: 3, slot: 4, applied: 0, projected: 12.0, injury: 'OUT' });
+
+      for (const winner of ['HOME', 'AWAY', 'TIE']) {
+        const [row] = mapMatchupRosterEntries([matchup(1, [inactive], 2, [], { winner })], WEEK);
+        expect(row.actualPoints).toBe(0);
+      }
+    });
+  });
+
   it('handles a bye, where only one side exists', () => {
     const bye = {
       homeTeam: { teamId: 3, rosterForCurrentScoringPeriod: { entries: entries.slice(0, 2) } },
@@ -284,5 +364,20 @@ describe('findStatBreakdown', () => {
     );
 
     expect(rows[0].statBreakdown).toEqual({ 24: 88, 25: 1, 42: 31, 43: 1 });
+  });
+});
+
+describe('isMatchupDecided', () => {
+  it('is true for any of ESPN\'s three verdicts', () => {
+    expect(isMatchupDecided({ espnWinner: 'HOME' })).toBe(true);
+    expect(isMatchupDecided({ espnWinner: 'AWAY' })).toBe(true);
+    expect(isMatchupDecided({ espnWinner: 'TIE' })).toBe(true);
+  });
+
+  it('is false while undecided, and when there is no verdict to read', () => {
+    expect(isMatchupDecided({ espnWinner: 'UNDECIDED' })).toBe(false);
+    expect(isMatchupDecided({ espnWinner: null })).toBe(false);
+    expect(isMatchupDecided({})).toBe(false);
+    expect(isMatchupDecided(null)).toBe(false);
   });
 });
