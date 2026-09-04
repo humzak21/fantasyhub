@@ -528,22 +528,26 @@ backwards-compatible with the currently deployed bundle.
 
 ### Scheduled jobs
 
-Two workflows run outside the PR path and write to production directly:
+Three workflows run outside the PR path and write to production directly:
 
-- **`sync-week.yml`** — Tuesdays at 09:00 UTC (4am ET), after Monday night
-  football has settled. Also runnable by hand from the Actions tab, with
-  optional week and dry-run inputs.
-- **`refresh-rosters.yml`** — Wednesdays and Thursdays at 09:00 ET. Runs only
-  the roster step of the same script, so the pick'ems research panel reflects
-  Wednesday's waiver claims instead of Tuesday morning's rosters. It passes
-  `--skip-nfl-schedule` along with the other skips: the calendar does not
-  change on a waiver day.
+- **`sync-week.yml`** — Tuesdays at 10:00 UTC (5am ET standard, 6am daylight),
+  after Monday night football and any late waiver run have settled. The only
+  job that writes scores, the finished week's player stats and the ranking
+  snapshot; it also opens the week's pick'ems. Also runnable by hand from the
+  Actions tab, with optional week and dry-run inputs.
+- **`daily-refresh.yml`** — every day at 16:40 UTC (12:40pm ET daylight,
+  11:40am ET standard, so never later than twenty minutes before the early
+  Sunday kickoffs, with room for GitHub's scheduling delay). Runs the present-tense steps of the same script — rosters,
+  transactions, the pick'em-week check and parlay grades — and skips every
+  step that writes a result, so lineups set right before a game and Wednesday's
+  waiver claims reach the site the same day while scores still move once a
+  week.
 - **`sync-schedule.yml`** — manual only, for the start-of-season import.
 
-Both read `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ESPN_S2` and
-`ESPN_SWID` from repository secrets, and both share a concurrency group named
-`espn-write` so a schedule import and a score sync queue rather than race over
-the same `games` rows.
+All three read `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ESPN_S2` and
+`ESPN_SWID` from repository secrets, and all share a concurrency group named
+`espn-write` so a schedule import, a score sync and a roster refresh queue
+rather than race over the same rows.
 
 If a sync fails, re-run it. Every step is an idempotent upsert, so a re-run is
 the fix rather than a risk.

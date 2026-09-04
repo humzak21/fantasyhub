@@ -193,7 +193,7 @@ and never revisited would carry the wrong times by December, and a full re-upser
 is one round trip that removes the question of which weeks are stale.
 
 Non-fatal because the failure mode is a page with fewer chips, and failing the
-run would cost the week's ranking snapshot. `refresh-rosters.yml` passes
+run would cost the week's ranking snapshot. `daily-refresh.yml` (then `refresh-rosters.yml`) passes
 `--skip-nfl-schedule`: the calendar does not change on a waiver day.
 
 ### Backfill verification
@@ -249,7 +249,7 @@ plus tests for each.
 `db/playerWeekStats.js` (write + read the column), `db/espnMapping.js`
 (`ESPN_STAT_IDS`, the two TD helpers), `db/index.js`, `hooks/queries/keys.js`,
 `hooks/queries/index.js`, `scripts/sync-week.js`, `scripts/sync-schedule.js`,
-`.github/workflows/refresh-rosters.yml`, `package.json`,
+`.github/workflows/daily-refresh.yml` (then `refresh-rosters.yml`), `package.json`,
 `MatchupResearchSection.jsx`, `ParlayPickSection.jsx`, `PickEmsSubmission.jsx`,
 `espnRosterUpdater.js` (dropped a duplicate 32-team map), `types/supabase.ts`.
 
