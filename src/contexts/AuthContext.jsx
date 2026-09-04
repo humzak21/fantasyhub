@@ -2,8 +2,10 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../../services/supabaseClient.js'
 import { useIsAdmin } from '../utils/adminUtils'
 import { readAuthLinkError, describeMagicLinkError, describeEmailRateLimit } from '../utils/magicLink.js'
+import { RESET_PASSWORD_PATH, isRecoveryLanding } from '../utils/passwordReset.js'
 
 const AuthContext = createContext({})
+
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
@@ -21,6 +23,23 @@ export const AuthProvider = ({ children }) => {
   const [authLinkError, setAuthLinkError] = useState(() =>
     typeof window === 'undefined' ? null : readAuthLinkError(window.location.hash)
   )
+  /**
+   * True from a password-reset link until a new password has been saved.
+   *
+   * A recovery link is a login: Supabase hands the browser a full session the
+   * moment it is clicked, and before 2026-09-04 that was the end of the story
+   * — `/reset-password` had no route, the visitor bounced to the default tab
+   * signed in, and the password they had forgotten stayed forgotten. The
+   * audit log showed five such logins and not one password change after
+   * them, which is what the "I got in through Forgot Password" reports were.
+   *
+   * While this is true, App.jsx renders <ResetPasswordPage /> in place of the
+   * tabs. It is component state and nothing else: the session is a real one
+   * either way (the database cannot tell a recovery session from a password
+   * one), so a reload after abandoning the page leaves the visitor signed in
+   * exactly as the link did. The page offers "sign out instead" for that.
+   */
+  const [passwordRecoveryPending, setPasswordRecoveryPending] = useState(() => isRecoveryLanding())
 
   // Initialize auth state from Supabase
   useEffect(() => {
@@ -62,7 +81,13 @@ export const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setLoading(false)
-        
+
+        // The link's own announcement, for the case the path check above
+        // did not cover: a link opened while the app was already mounted.
+        if (event === 'PASSWORD_RECOVERY') {
+          setPasswordRecoveryPending(true)
+        }
+
         if (session?.user) {
           setUser(session.user)
         } else {
@@ -160,7 +185,7 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (email) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${window.location.origin}${RESET_PASSWORD_PATH}`,
       })
       
       if (error) {
@@ -210,6 +235,20 @@ export const AuthProvider = ({ children }) => {
 
   const clearAuthLinkError = () => setAuthLinkError(null)
 
+  /**
+   * Set a new password, and sign out every *other* session.
+   *
+   * Sessions here never expire on their own (the audit of 2026-09-04 found a
+   * live one from the previous September), so "I changed my password" has to
+   * be what ends a session on a lost phone or a shared laptop — nothing else
+   * will. `scope: 'others'` keeps this browser signed in; the revocation is
+   * best-effort, because a password that saved is a password that saved, and
+   * a blip on the follow-up call should not read as "try again" and send the
+   * member into a loop of resetting a password that already took.
+   *
+   * Also ends a pending recovery: setting the password is what the reset
+   * link was for.
+   */
   const updatePassword = async (newPassword) => {
     try {
       const { error } = await supabase.auth.updateUser({
@@ -220,10 +259,31 @@ export const AuthProvider = ({ children }) => {
         throw error
       }
 
-      return { success: true }
+      let othersSignedOut = true
+      try {
+        const { error: signOutError } = await supabase.auth.signOut({ scope: 'others' })
+        if (signOutError) othersSignedOut = false
+      } catch {
+        othersSignedOut = false
+      }
+
+      setPasswordRecoveryPending(false)
+      return { success: true, othersSignedOut }
     } catch (error) {
       return { success: false, error: error.message }
     }
+  }
+
+  /**
+   * Leave a recovery without setting a password. The only honest way to do
+   * that is to drop the session the link created: the alternative — staying
+   * signed in with the old, forgotten password — is the state this page
+   * exists to prevent. Wraps `signOut` so the page has one verb.
+   */
+  const abandonPasswordRecovery = async () => {
+    const result = await signOut()
+    setPasswordRecoveryPending(false)
+    return result
   }
 
   const updateProfile = async (profileData) => {
@@ -260,6 +320,8 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     updatePassword,
     updateProfile,
+    passwordRecoveryPending,
+    abandonPasswordRecovery,
   }
 
   return (

@@ -26,11 +26,6 @@ export const supabaseAdmin = getAdminClient();
 export const handleSupabaseError = (error, operation = 'Database operation') =>
   throwDbError(error, operation);
 
-/** Helper kept for callers that only need a presence check. */
-export const requireAuth = () => {
-  const user = supabase?.auth.getUser();
-  if (!user) {
-    throw new Error('Authentication required');
-  }
-  return user;
-};
+// `requireAuth` used to live here. It compared a *Promise* to null — so it
+// passed for everyone, signed in or not — and nothing called it. Removed in
+// the 2026-09-04 login audit so nobody reaches for a guard that guards nothing.

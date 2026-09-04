@@ -1182,10 +1182,78 @@ route, no migration. Rules that are load-bearing:
   limit for sending emails" above the built-in cap. Password-reset email goes
   through the same path and gains the same headroom.
 
-Known gap, unchanged here: `resetPassword` redirects to `/reset-password`,
-which has no route — it falls through `/:tab` and bounces to the default tab.
-The session is still recovered from the fragment on the way past, which is
-why nobody noticed. It is the same landing problem, and it wants its own page.
+### Password reset is a login, and the page makes it set a password
+
+A Supabase recovery link is not "prove it's you, then choose a password". It
+is a login: `/auth/v1/verify` redirects to
+`/reset-password#access_token=…&type=recovery`, `detectSessionInUrl` consumes
+it, and the browser holds a full session from that instant — the database
+cannot tell a recovery session from a password one. Until 2026-09-04 the
+path had no route, so the catch-all bounced the member to the default tab
+signed in, with the password they had just said they forgot still in force.
+`auth.audit_log_entries` showed five reset links used that way and not one
+`user_modified` after them. That is what the "Forgot Password skips the
+login" reports were; nothing was bypassed, and nothing had been built.
+
+- **`src/components/auth/ResetPasswordPage.jsx` is the landing page**, at
+  `RESET_PASSWORD_PATH` (`src/utils/passwordReset.js`). `AuthContext` sets
+  `passwordRecoveryPending` from the path at mount *and* from the
+  `PASSWORD_RECOVERY` event — the path because supabase-js announces the
+  event on a `setTimeout(0)` after consuming the fragment at client
+  construction, and the provider's subscription is not guaranteed to exist
+  by then; the event for a link opened into an already-mounted app. While it
+  is true `App.jsx` renders the page in place of the tabs, and
+  `DisplayNamePrompt` does not mount. The route covers a reload.
+- **The only ways off the page are a new password or sign out.** There is
+  no skip: a recovery session that keeps the old password is the state the
+  page exists to end. `abandonPasswordRecovery` is `signOut` plus clearing
+  the flag. The flag is component state, so a member who closes the tab and
+  comes back later is signed in as the link left them; that is Supabase's
+  design, not something a client can prevent.
+- **`updatePassword` signs out every other session** (`signOut({ scope:
+  'others' })`) and reports `othersSignedOut`. Sessions here never expire on
+  their own — the audit found a live one from the previous September — so a
+  password change is the only thing that ends a session on a lost phone.
+  The revocation is best-effort: a password that saved is a success, and the
+  page says when the other half did not happen.
+- **Settings → Profile has a Password card** on the same
+  `ChangePasswordForm`. Before it, the reset link was the only way to change
+  a password, and it offered nothing to change it with.
+- **The client floor is `MIN_PASSWORD_LENGTH` (8)**, checked by
+  `validateNewPassword`. Supabase's own minimum applies on top and its error
+  is shown as-is, so raising the dashboard setting needs no code change.
+- A failed link (`#error_code=otp_expired`) lands here signed out;
+  `authLinkError` is left in place so the login popover opens with the same
+  message when the member goes back.
+
+### Admin is the email claim, never the user's own metadata
+
+`public.is_admin()` reads `auth.jwt() ->> 'email'`. Nothing may decide
+"admin" from `auth.users.raw_user_meta_data`: that column is `user_metadata`,
+which `supabase.auth.updateUser({ data })` writes from any signed-in account
+with no confirmation — the app's own `updateProfile` forwards whatever object
+it is given. The baseline carried `"Admin write access"` policies keyed on
+`raw_user_meta_data ->> 'is_admin'` on `transactions` and `league_franchises`,
+survivors of the 2026-08-06 sweep, and permissive policies OR together, so
+each was a second door beside the `is_admin()` one.
+`20260904120000_drop_metadata_admin_policies.sql` drops every policy whose
+expression mentions the column and gives `league_franchises` the
+`is_admin()` write policy it never had. They were not exploitable on that
+day only because `authenticated` holds no SELECT on `auth.users` — the
+subquery raised instead of returning true (and would have refused the
+admin's own browser writes to those tables). That accident is not a rule.
+**A policy or function that reads `raw_user_meta_data` for anything but a
+display name is a bug.**
+
+Still owed from the 2026-09-04 audit, all dashboard settings that cannot be
+read from here: the redirect allowlist should be exactly the production
+origin as `https://<host>/**` plus `http://localhost:3000/**` (a broader
+wildcard lets a crafted reset request deliver a session to someone else's
+domain); OTP expiry at or under an hour; a minimum password length of at
+least 8 to match the client; leaked-password protection on; secure email
+change on. MFA for the admin account would turn the single email claim into
+something a phished password does not unlock — `is_admin()` could then also
+require `auth.jwt() ->> 'aal' = 'aal2'`.
 
 ## Development Notes
 

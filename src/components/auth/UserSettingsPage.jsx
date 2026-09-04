@@ -10,16 +10,17 @@ import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Badge } from '../ui/badge'
-import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck } from 'lucide-react'
+import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
 import MemberApprovalsManager from '../admin/MemberApprovalsManager.jsx'
 import ApprovalPendingNotice from './ApprovalPendingNotice.jsx'
+import ChangePasswordForm from './ChangePasswordForm.jsx'
 import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
 
 export const UserSettingsPage = () => {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, updatePassword } = useAuth()
   const navigate = useNavigate()
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
@@ -137,6 +138,22 @@ export const UserSettingsPage = () => {
 
   const handleBack = () => {
     navigate(-1)
+  }
+
+  // The password card reports through the same banner as the name form.
+  // `updatePassword` also signs out every other session, and says whether
+  // that half succeeded; a member who just lost a phone needs to know.
+  const handleChangePassword = async (password) => {
+    const result = await updatePassword(password)
+    if (result.success) {
+      setMessage({
+        type: 'success',
+        text: result.othersSignedOut
+          ? 'Password updated. Every other device has been signed out.'
+          : 'Password updated. Other devices could not be signed out just now.'
+      })
+    }
+    return result
   }
 
   // Trigger crash for testing error boundaries (admin only)
@@ -349,6 +366,30 @@ export const UserSettingsPage = () => {
                     )}
                   </div>
                 </form>
+              </CardContent>
+            </Card>
+
+            {/* Password. Before 2026-09-04 the only way to change one was
+                the reset link, which signed you in and then offered nothing
+                to change it with. */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5" />
+                  Password
+                </CardTitle>
+                <CardDescription>
+                  Choose a new password. Saving it signs out every other device
+                  you are logged in on, so this is also the fix for a lost phone.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ChangePasswordForm
+                  onSubmit={handleChangePassword}
+                  submitLabel="Update password"
+                  busyLabel="Updating…"
+                  className="max-w-md"
+                />
               </CardContent>
             </Card>
 

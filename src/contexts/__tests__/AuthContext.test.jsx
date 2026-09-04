@@ -11,7 +11,9 @@ const auth = vi.hoisted(() => ({
   onAuthStateChange: vi.fn(),
   signInWithOtp: vi.fn(),
   signUp: vi.fn(),
-  resetPasswordForEmail: vi.fn()
+  resetPasswordForEmail: vi.fn(),
+  updateUser: vi.fn(),
+  signOut: vi.fn()
 }));
 
 vi.mock('../../../services/supabaseClient.js', () => ({
@@ -33,6 +35,8 @@ beforeEach(() => {
   auth.signInWithOtp.mockReset();
   auth.signUp.mockReset();
   auth.resetPasswordForEmail.mockReset();
+  auth.updateUser.mockReset();
+  auth.signOut.mockReset();
   window.history.replaceState(null, '', '/pickems');
 });
 
@@ -180,5 +184,101 @@ describe('a failed magic link on the URL', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.authLinkError).toBeNull();
+  });
+});
+
+describe('password recovery', () => {
+  it('is pending from the moment the reset link lands, before any auth event', async () => {
+    window.history.replaceState(null, '', '/reset-password');
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    expect(result.current.passwordRecoveryPending).toBe(true);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.passwordRecoveryPending).toBe(true);
+  });
+
+  it('is not pending on any other page', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.passwordRecoveryPending).toBe(false);
+  });
+
+  it('becomes pending when Supabase announces PASSWORD_RECOVERY', async () => {
+    let listener;
+    auth.onAuthStateChange.mockImplementation((cb) => {
+      listener = cb;
+      return { data: { subscription: { unsubscribe: vi.fn() } } };
+    });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.passwordRecoveryPending).toBe(false);
+
+    await act(async () => {
+      await listener('PASSWORD_RECOVERY', { user: { id: 'u1', email: 'a@b.c' } });
+    });
+    expect(result.current.passwordRecoveryPending).toBe(true);
+    expect(result.current.user).toMatchObject({ id: 'u1' });
+  });
+
+  it('updatePassword saves, signs out every other session, and ends the recovery', async () => {
+    window.history.replaceState(null, '', '/reset-password');
+    auth.updateUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+    auth.signOut.mockResolvedValue({ error: null });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let outcome;
+    await act(async () => { outcome = await result.current.updatePassword('correct-horse-battery'); });
+
+    expect(outcome).toEqual({ success: true, othersSignedOut: true });
+    expect(auth.updateUser).toHaveBeenCalledWith({ password: 'correct-horse-battery' });
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: 'others' });
+    expect(result.current.passwordRecoveryPending).toBe(false);
+  });
+
+  it('a saved password is a success even if the other sessions could not be revoked', async () => {
+    auth.updateUser.mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
+    auth.signOut.mockRejectedValue(new Error('network'));
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let outcome;
+    await act(async () => { outcome = await result.current.updatePassword('correct-horse-battery'); });
+    expect(outcome).toEqual({ success: true, othersSignedOut: false });
+  });
+
+  it('a refused password stays pending and reports the reason', async () => {
+    window.history.replaceState(null, '', '/reset-password');
+    auth.updateUser.mockResolvedValue({ data: {}, error: { message: 'Password should be at least 6 characters.' } });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let outcome;
+    await act(async () => { outcome = await result.current.updatePassword('short'); });
+    expect(outcome).toEqual({ success: false, error: 'Password should be at least 6 characters.' });
+    expect(auth.signOut).not.toHaveBeenCalled();
+    expect(result.current.passwordRecoveryPending).toBe(true);
+  });
+
+  it('abandoning the recovery signs out and clears the flag', async () => {
+    window.history.replaceState(null, '', '/reset-password');
+    auth.signOut.mockResolvedValue({ error: null });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.abandonPasswordRecovery(); });
+    expect(auth.signOut).toHaveBeenCalledWith();
+    expect(result.current.passwordRecoveryPending).toBe(false);
+    expect(result.current.user).toBeNull();
+  });
+
+  it('the reset email points at the reset page', async () => {
+    auth.resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => { await result.current.resetPassword('a@b.c'); });
+    expect(auth.resetPasswordForEmail).toHaveBeenCalledWith('a@b.c', {
+      redirectTo: `${window.location.origin}/reset-password`
+    });
   });
 });
