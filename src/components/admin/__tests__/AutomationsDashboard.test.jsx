@@ -80,8 +80,14 @@ const syncRuns = {
   getAutomationHealth: vi.fn(async () => HEALTH)
 };
 
+// `getContext` is stubbed as well as `getDb`: `useActiveSeason` clears the
+// data layer's season memo through it before fetching, and the real one
+// builds a Supabase client from env vars the unit-test job does not have.
+// Without the stub the season query throws, the page reads "no active
+// season", and every assertion that needs the calendar fails on CI only.
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
+  getContext: () => ({ client: null, seasonsCache: new Map(), activeSeasonId: null }),
   getDb: () => ({
     syncRuns,
     seasons: { getActiveSeason: async () => SEASON },
