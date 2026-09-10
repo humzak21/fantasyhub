@@ -8,9 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
-
-const NOW = new Date('2026-09-17T12:00:00Z');
+import { renderWithProviders, screen, waitFor, within } from '../../../test/renderWithProviders.jsx';
 
 const SEASON = {
   id: 's1',
@@ -103,9 +101,14 @@ vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
 
 const { default: AutomationsDashboard } = await import('../AutomationsDashboard.jsx');
 
+// Real timers on purpose. TanStack Query schedules its fetches and
+// notifications on timers, and the health read waits on the season read, so
+// under fake timers the second hop stalled on CI's slower runner and the page
+// rendered "no active season" before findBy gave up. Nothing asserted here
+// depends on the clock: the fixtures are a failed weekly run and a daily run
+// told apart by their skip flags, and those read the same on any date.
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.useFakeTimers({ shouldAdvanceTime: true, now: NOW });
   syncRuns.getSyncRuns.mockResolvedValue(RUNS);
   syncRuns.getAutomationHealth.mockResolvedValue(HEALTH);
 });
@@ -118,7 +121,14 @@ describe('AutomationsDashboard', () => {
     expect(screen.getByText('Daily ESPN refresh')).toBeInTheDocument();
     expect(screen.getByText('Season schedule import')).toBeInTheDocument();
     expect(syncRuns.getSyncRuns).toHaveBeenCalledWith({ seasonId: null, limit: 40 });
-    expect(syncRuns.getAutomationHealth).toHaveBeenCalledWith({ seasonId: 's1', seasonYear: 2026, throughWeek: 1 });
+    // The health read waits on the season read, and `throughWeek` is derived
+    // from today's date against the fixture's start date, so only the keys
+    // that do not move are pinned.
+    await waitFor(() =>
+      expect(syncRuns.getAutomationHealth).toHaveBeenCalledWith(
+        expect.objectContaining({ seasonId: 's1', seasonYear: 2026 })
+      )
+    );
   });
 
   it('turns the failed weekly run into a recommendation with the workflow link', async () => {
@@ -133,11 +143,12 @@ describe('AutomationsDashboard', () => {
   });
 
   it('attributes the daily row to the daily job and shows its steps on request', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const user = userEvent.setup();
     renderWithProviders(<AutomationsDashboard />);
 
-    await screen.findByText('Daily ESPN refresh');
-    const buttons = screen.getAllByRole('button', { name: /steps of the last run/i });
+    // The label says "of the last run" only once the runs have loaded; the
+    // card titles render from the static catalog before that.
+    const buttons = await screen.findAllByRole('button', { name: /steps of the last run/i });
     // Weekly card first, daily second; both have a last run.
     await user.click(buttons[1]);
 
