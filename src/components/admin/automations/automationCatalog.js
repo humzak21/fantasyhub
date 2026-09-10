@@ -73,15 +73,21 @@ export const STEPS = {
       "ESPN outage cannot cost the league its picks. Skipped in playoff weeks."
   },
   rosters: {
-    label: 'Refresh rosters',
+    label: 'Refresh rosters and team names',
     fatal: true,
     espn: 'mRoster + mTeam (league-private, needs ESPN_S2/SWID)',
     reads: ['teams'],
-    writes: ['rosters (delete + reinsert per team)', 'players (projected_points, injury status)'],
+    writes: [
+      'teams (name, abbreviation; owner only when blank)',
+      'rosters (delete + reinsert per team)',
+      'players (projected_points, injury status)'
+    ],
     description:
-      "Rewrites every team's current roster and lineup slots from ESPN. This is the present-tense " +
-      "snapshot the pick'ems research panel, Teams tab and Schedule lineups read. Stops once the " +
-      "playoffs start so records stay frozen."
+      "Refreshes every team's name and abbreviation from ESPN, then rewrites its current roster " +
+      "and lineup slots. Managers rename their teams mid-season, and this is the step that picks " +
+      "the rename up; a stored owner is never overwritten, only reported. The roster is the " +
+      "present-tense snapshot the pick'ems research panel, Teams tab and Schedule lineups read. " +
+      "Stops once the playoffs start so records stay frozen."
   },
   scores: {
     label: 'Write matchup scores',
@@ -475,9 +481,17 @@ export function summarizeStep(name, result) {
     case 'pickEmWeek':
       text = result.created ? "created the week's pick'em row" : 'row already open';
       break;
-    case 'rosters':
-      text = 'rosters rewritten from ESPN';
+    case 'rosters': {
+      // Runs before 2026-09-10 recorded `{ ok: true }` and nothing else.
+      const teams = result.teams;
+      text = teams
+        ? `rosters rewritten · ${plural(teams.updated ?? 0, 'team name')} refreshed`
+        : 'rosters rewritten from ESPN';
+      issues.push(...errorIssues(teams?.errors, 'team identity: '));
+      issues.push(...(teams?.ownerConflicts ?? []).map((clash) =>
+        `owner differs for ${clash.team}: stored "${clash.stored}", ESPN "${clash.espn}" — not overwritten`));
       break;
+    }
     case 'scores':
       text = `${result.created ?? 0} created · ${result.updated ?? 0} updated · ${result.unchanged ?? 0} unchanged`;
       issues.push(...errorIssues(result.errors, 'unmatched: '));

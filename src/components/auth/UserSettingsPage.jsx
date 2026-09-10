@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import PageContainer from '../layout/PageContainer.jsx'
+import PageHeader from '../layout/PageHeader.jsx'
+import { EmptyState } from '../ui/empty-state'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { supabase } from '../../../services/supabaseClient.js'
 import { useSeasons, useActiveSeason, useLeagueMutations, useMemberApprovals, countPendingApprovals } from '../../../hooks/queries/index.js'
@@ -10,8 +11,7 @@ import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Badge } from '../ui/badge'
-import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow } from 'lucide-react'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
 import MemberApprovalsManager from '../admin/MemberApprovalsManager.jsx'
@@ -23,7 +23,6 @@ import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
 
 export const UserSettingsPage = () => {
   const { user, isAdmin, updatePassword } = useAuth()
-  const navigate = useNavigate()
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
@@ -143,10 +142,6 @@ export const UserSettingsPage = () => {
     }
   }
 
-  const handleBack = () => {
-    navigate(-1)
-  }
-
   // The password card reports through the same banner as the name form.
   // `updatePassword` also signs out every other session, and says whether
   // that half succeeded; a member who just lost a phone needs to know.
@@ -168,52 +163,48 @@ export const UserSettingsPage = () => {
     throw new Error('Admin triggered test error for error boundary verification')
   }
 
+  // The shell's route guard sends a signed-out viewer to the default tab
+  // before this renders, so this is a fallback for the moment a session
+  // ends while the page is open, not a page anyone is sent to.
   if (!user) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <p className="text-muted-foreground">Please sign in to access user settings.</p>
-            <Button onClick={handleBack} className="mt-4">
-              Go Back
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="p-0">
+          <EmptyState
+            icon={SettingsIcon}
+            title="Sign in to open settings"
+            description="Your profile and password live here once you are signed in."
+          />
+        </CardContent>
+      </Card>
     )
   }
 
+  // A tab, not a page. This used to mount outside the shell with its own
+  // header row and a Back button — leaving meant the browser's history, and
+  // the week control and nav were gone while you were here. The shell now
+  // supplies both, and this renders inside its `main` like every other tab.
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card border-b shadow-sm">
-        <PageContainer width="wide" className="max-w-4xl py-4">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBack}
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-            <div className="flex items-center gap-2">
-              <SettingsIcon className="h-6 w-6" />
-              <h1 className="text-2xl font-bold">Settings</h1>
-            </div>
-          </div>
-        </PageContainer>
-      </div>
+    <div>
+      <PageHeader
+        icon={SettingsIcon}
+        title="Settings"
+        description={
+          isAdmin
+            ? 'Your profile, and the controls that run the league.'
+            : 'Your profile and password.'
+        }
+      />
 
-      {/* Main Content */}
-      <PageContainer width="wide" className="max-w-4xl py-8">
-        <div className="grid gap-6 md:grid-cols-3">
+      {/* Section list on the left at a fixed width; the panel takes the
+          rest. A third-of-the-page sidebar read fine at the old 896px
+          cap but not across a full-width tab. */}
+      <div className="grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)]">
           {/* Sidebar Navigation */}
           <div className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Settings</CardTitle>
+                <CardTitle className="text-lg">Sections</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button
@@ -297,7 +288,7 @@ export const UserSettingsPage = () => {
           </div>
 
           {/* Main Settings Panel */}
-          <div className="md:col-span-2 space-y-6">
+          <div className="min-w-0 space-y-6">
             {/* Renders only for a signed-in account the admin has not approved. */}
             <ApprovalPendingNotice />
 
@@ -547,8 +538,7 @@ export const UserSettingsPage = () => {
               </Card>
             )}
           </div>
-        </div>
-      </PageContainer>
+      </div>
     </div>
   )
 }

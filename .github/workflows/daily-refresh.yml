@@ -17,9 +17,10 @@ name: Daily ESPN refresh
 # changed hours before Sunday's games.
 #
 # What runs: the pick'em-week check (a no-op once Tuesday created the row, and
-# the thing that creates it if Tuesday did not), rosters, parlay grades (a
-# pending pick whose stat line went official late lands the same day), and
-# transactions. What is skipped: scores, player stats, the previous-week
+# the thing that creates it if Tuesday did not), rosters — which also refreshes
+# every team's name and abbreviation from ESPN, so a manager's mid-season
+# rename shows up the same day — parlay grades (a pending pick whose stat line
+# went official late lands the same day), and transactions. What is skipped: scores, player stats, the previous-week
 # finalize, the NFL calendar, the FPI snapshot and the ranking snapshot — every
 # step that writes a result. The roster write is delete-then-insert per team,
 # so re-running is how you fix a failed run, same as everywhere else here.

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
+import { Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 /**
@@ -212,5 +213,36 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true }) =>
     </nav>
   );
 };
+
+/**
+ * The cog beside the account control. A `NavLink` to `/settings`, at every
+ * width, rendered by the shell next to `LoginDropdown` for a signed-in viewer.
+ *
+ * Settings used to be an item inside the avatar's dropdown — two clicks, and
+ * invisible until the first — and landed on a page outside the shell, with
+ * its own header and a Back button, so getting *out* was a third. It is a
+ * tab now (`FantasyFootballApp` renders it like any other), and this is its
+ * one entry point: not in the tab list, because it is a utility rather than
+ * a destination, but always on screen, in the corner where the account
+ * already lives. Same active treatment as the header nav so the two agree
+ * about what "you are here" looks like.
+ */
+export const SettingsLink = ({ active = false, className }) => (
+  <NavLink
+    to="/settings"
+    aria-label="Settings"
+    title="Settings"
+    className={cn(
+      'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors pointer-coarse:min-w-11',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+      active
+        ? 'bg-accent text-accent-foreground'
+        : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+      className
+    )}
+  >
+    <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
+  </NavLink>
+);
 
 export default HeaderNav;

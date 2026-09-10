@@ -167,7 +167,15 @@ Its steps are **pickEmWeek** → rosters → scores → playerStats →
 **finalizePrev** → nflSchedule → nflRatings → **parlayGrades** → transactions
 → snapshot. Scores
 and playerStats read **one** ESPN fetch between them, so do not re-fetch inside
-a step. The nflSchedule and nflRatings steps fetch separately and need no
+a step. **The rosters step also refreshes team identity** — `teams.name` and
+`abbreviation` — through `upsertTeamsFromESPN`, from the `mTeam` view the
+roster updater already fetches, before it writes a single roster. Managers
+rename their teams mid-season, and until 2026-09-10 the only writer of the
+name was the annual `sync-schedule`, so a week-3 rename stayed wrong on every
+page until the following August. Both crons run this step, so a rename lands
+by the daily refresh at the latest. `owner` is never overwritten there (see
+below); a disagreement comes back as `teams.ownerConflicts` on the step's
+`sync_runs` entry, which the Automations dashboard shows as a warning. The nflSchedule and nflRatings steps fetch separately and need no
 cookies; nflRatings runs before snapshot on purpose, so the week's snapshot
 ranks on fresh FPI. playerStats, finalizePrev, nflSchedule, nflRatings,
 parlayGrades and transactions are non-fatal: a failure is recorded in
@@ -513,6 +521,26 @@ any policy in the file, so no existing member ever saw a refusal.
   non-admin; both write RPCs raise 42501 for a non-admin; the delete refuses
   the admin's own id. Note that temp tables created before `set local role`
   need a `GRANT` to `authenticated` or the probe fails on its own scaffolding.
+
+### Settings is a tab, reached by the cog
+
+`/settings` is a tab in `FantasyFootballApp`'s `mainTabs` like every other —
+same route table, same route guard, rendered inside the shell's `main` with
+the header, week control and phone tab bar still in place. What makes it
+different is `inNav: false`: it appears in neither the header list nor the
+phone tab bar, and its one entry point is `SettingsLink`
+(`src/components/navigation/ResponsiveNavigation.jsx`), the cog the shell
+renders beside `LoginDropdown` for a signed-in viewer at every width. Access
+is `customAccess: isAuthenticated` — approved or not, Profile is theirs.
+
+Before 2026-09-10 it was a static `/settings` route in `App.jsx` to a page
+mounted *outside* the shell, with its own header row and a Back button that
+called `navigate(-1)`, reachable only through an item in the avatar's
+dropdown. Getting there was two clicks and getting out was the browser's
+history; the nav and week control vanished while you were on it. Do not put
+it back in the dropdown, and do not give it a header of its own —
+`UserSettingsPage` uses `PageHeader` like every tab. `App.jsx` still skips
+`DisplayNamePrompt` on that path, because the page already offers the field.
 
 ### The automation dashboard watches; it cannot run anything
 

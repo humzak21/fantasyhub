@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings } from 'lucide-react';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -27,7 +27,7 @@ import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTab
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
 
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
-import { HeaderNav, MobileTabBar } from './src/components/navigation/ResponsiveNavigation.jsx';
+import { HeaderNav, MobileTabBar, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
@@ -45,6 +45,9 @@ const AwardsManager = lazy(() => import('./src/components/awards/AwardsManager.j
 const PlayoffsBracketManager = lazy(() => import('./src/components/playoffs/PlayoffsBracketManager.jsx'));
 const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueHistoryManager.jsx'));
 const TakesManager = lazy(() => import('./src/components/takes/TakesManager.jsx'));
+const UserSettingsPage = lazy(() =>
+  import('./src/components/auth/UserSettingsPage.jsx').then((m) => ({ default: m.UserSettingsPage }))
+);
 
 /** The tab `/` resolves to. Also where an unknown or forbidden tab lands. */
 const DEFAULT_TAB = 'rankings';
@@ -189,9 +192,17 @@ const FantasyFootballApp = () => {
       // lives inside Pick'ems, next to Submissions, beside the form the picks
       // it reports on are entered in — two people can open it, which is thin
       // grounds for a nav item every other layout has to make room for.
-      { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible }
+      { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible },
+      // Settings is a tab — same route table, same guard, same shell — but
+      // not a nav item: `inNav: false` keeps it out of the header list and
+      // the phone tab bar, and the cog beside the account control
+      // (`SettingsLink`) is its one entry point. It used to be a separate
+      // page mounted outside the shell, with its own header and a Back
+      // button; it acts like every other tab now. Any signed-in account,
+      // approved or not: Profile (name, password) is theirs regardless.
+      { id: 'settings', label: 'Settings', icon: Settings, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false }
     ];
-  }, [isApproved, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults]);
+  }, [isApproved, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults, isAuthenticated]);
 
   // One definition of "may this viewer see this tab", shared by the nav and by
   // the route guard below — they must not be able to disagree.
@@ -219,10 +230,12 @@ const FantasyFootballApp = () => {
     isApproved && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
   const navTabs = useMemo(
     () =>
-      mainTabs.map((tab) => ({
-        ...tab,
-        showNotification: tab.id === 'pickems' && needsPicks,
-      })),
+      mainTabs
+        .filter((tab) => tab.inNav !== false)
+        .map((tab) => ({
+          ...tab,
+          showNotification: tab.id === 'pickems' && needsPicks,
+        })),
     [mainTabs, needsPicks]
   );
 
@@ -363,7 +376,10 @@ const FantasyFootballApp = () => {
                 />
               </div>
 
-              <div className="flex shrink-0 items-center">
+              {/* The cog sits beside the account it belongs to, at every
+                  width. Signed out there is nothing to set. */}
+              <div className="flex shrink-0 items-center gap-1">
+                {isAuthenticated && <SettingsLink active={activeTab === 'settings'} />}
                 <LoginDropdown />
               </div>
             </div>
@@ -550,6 +566,12 @@ const FantasyFootballApp = () => {
                     activeSeason={activeSeason}
                   />
                 </div>
+              </ErrorBoundary>
+            )}
+
+            {activeTab === 'settings' && (
+              <ErrorBoundary key="settings-error-boundary">
+                <UserSettingsPage />
               </ErrorBoundary>
             )}
             </Suspense>

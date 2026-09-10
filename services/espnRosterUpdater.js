@@ -1,5 +1,7 @@
 import { getDb } from './db/index.js';
 import { getNFLTeamAbbreviation } from './db/espnMapping.js';
+import { buildTeamIndex } from './espnGameMapper.js';
+import { espnTeamName } from './espnScheduleFetcher.js';
 import { extractOwnerInfo, findMatchingTeam } from '../utils/ownerUtils.js';
 
 export class ESPNRosterUpdater {
@@ -55,8 +57,8 @@ export class ESPNRosterUpdater {
   }
 
   parseTeamData(espnTeamData, members = []) {
-    // Use abbreviation as team name since that's what ESPN returns
-    const teamName = espnTeamData.abbrev || `Team ${espnTeamData.id}`;
+    // ESPN's `name`, not `abbrev` — the same rule the schedule import uses.
+    const teamName = espnTeamName(espnTeamData, espnTeamData.id);
     
     // Use enhanced owner extraction with cross-season fallback
     const { ownerId, ownerName } = extractOwnerInfo(espnTeamData, members);
@@ -75,6 +77,25 @@ export class ESPNRosterUpdater {
       pointsFor: espnTeamData.record?.overall?.pointsFor || 0,
       pointsAgainst: espnTeamData.record?.overall?.pointsAgainst || 0
     };
+  }
+
+  /**
+   * The league's teams as `upsertTeamsFromESPN` wants them.
+   *
+   * Same shape `getFullSeasonSchedule().teams` produces — id, name,
+   * abbreviation, owner — read from the `mTeam` view this class already
+   * fetches for the rosters. Managers rename their teams mid-season, and
+   * until this existed the only writer of `teams.name` was the annual
+   * schedule import, so a September rename sat wrong until the next August.
+   */
+  parseTeamIdentities(leagueData) {
+    const members = leagueData?.members || [];
+    return (leagueData?.teams || []).map((team) => ({
+      teamId: team.id,
+      teamName: espnTeamName(team, team.id),
+      abbreviation: team.abbrev ?? null,
+      ownerName: extractOwnerInfo(team, members).ownerName
+    }));
   }
 
   parseRosterData(rosterData) {
@@ -192,13 +213,37 @@ export class ESPNRosterUpdater {
       if (!activeSeason) {
         throw new Error('No active season found. Please create a season first.');
       }
-      
-      console.log('Active season teams count:', activeSeason.teams?.length || 0);
+
+      // Team identity first, from the same payload. `upsertTeamsFromESPN` is
+      // the one writer of `teams.name`/`abbreviation`; it matches by ESPN id,
+      // fills a blank owner and never overwrites a stored one (see
+      // services/db/teams.js). Running it here, on every roster refresh, is
+      // what makes a mid-season rename show up the same day instead of at
+      // the next annual schedule import.
+      const identities = this.parseTeamIdentities(leagueData);
+      const teamResult = await this.db.teams.upsertTeamsFromESPN(activeSeason.id, identities);
+      console.log(
+        `Team identity: ${teamResult.updated} updated, ${teamResult.unchanged} unchanged, ` +
+        `${teamResult.inserted} added`
+      );
+      for (const clash of teamResult.ownerConflicts ?? []) {
+        console.warn(
+          `⚠ owner differs for "${clash.team}" (ESPN team ${clash.espnTeamId}): ` +
+          `stored "${clash.stored}", ESPN "${clash.espn}" — not overwritten`
+        );
+      }
+
+      // Re-read after the refresh so a renamed team is matched under its new
+      // name rather than the one the season cache was holding.
+      const teams = await this.db.teams.getTeamsForSeason(activeSeason.id);
+      const index = buildTeamIndex(teams);
+      console.log('Active season teams count:', teams.length);
 
       const updateResults = {
         updated: [],
         notFound: [],
-        errors: []
+        errors: [],
+        teams: teamResult
       };
 
       const members = leagueData.members || [];
@@ -207,12 +252,16 @@ export class ESPNRosterUpdater {
         try {
           const parsedTeam = this.parseTeamData(espnTeam, members);
           
-          // Use team matching with confidence scoring
-          console.log('Teams available for matching:', activeSeason.teams?.length || 0);
-          const matchResult = findMatchingTeam(espnTeam, activeSeason.teams, members);
+          // ESPN id first — the same key the identity refresh above matched
+          // on, so the two cannot disagree about which row a team is. The
+          // fuzzy owner/name matcher remains as a fallback for a row that
+          // somehow has no ESPN id.
+          const existingTeam =
+            index.find(espnTeam.id, parsedTeam.ownerName) ??
+            findMatchingTeam(espnTeam, teams, members)?.team ??
+            null;
           
-          if (matchResult && matchResult.team) {
-            const existingTeam = matchResult.team;
+          if (existingTeam) {
             const rosterUpdate = {
               roster: parsedTeam.roster,
               espnTeamId: parsedTeam.espnTeamId,
