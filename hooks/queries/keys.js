@@ -213,6 +213,19 @@ export const qk = {
     franchiseTransactions: (franchiseId) => ['history', 'transactions', franchiseId]
   },
 
+  /**
+   * The automation dashboard. `runs` is the `sync_runs` log; `health` is what
+   * the jobs left in the tables they own. Both are admin reads of data the
+   * cron writes out of process, so nothing in the app invalidates them —
+   * they refetch on focus and on a timer instead.
+   */
+  automations: {
+    all: ['automations'],
+    runs: (seasonId = null, limit = 40) => ['automations', 'runs', seasonId, limit],
+    health: (seasonId, seasonYear, throughWeek) =>
+      ['automations', 'health', seasonId, seasonYear, throughWeek]
+  },
+
   schedule: {
     all: ['schedule'],
     /** The ESPN import log. Written by scripts, read-only in the app. */
