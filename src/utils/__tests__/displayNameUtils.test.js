@@ -79,6 +79,15 @@ describe('isUserATeamOwner', () => {
     expect(isUserATeamOwner(userWith({}), owners)).toBe(false);
   });
 
+  it('unmasks a member who types the spelling ESPN has for them', () => {
+    // `utils/ownerAliases.js`: "Aashish Gatmaneni" is ESPN's misspelling of
+    // the league's "Aashish Gatamaneni". A member copying their ESPN profile
+    // into the display-name prompt must still match their own team.
+    const aliased = getTeamOwnerNames([{ id: 't', name: 'INOVA', owner: 'Aashish Gatamaneni' }]);
+    expect(isUserATeamOwner(userWith({ full_name: 'Aashish Gatmaneni' }), aliased)).toBe(true);
+    expect(matchesTeamOwner('aashish gatmaneni', aliased)).toBe(true);
+  });
+
   it('rejects a user whose only name is under display_name, which nothing writes', () => {
     expect(isUserATeamOwner(userWith({ display_name: 'Humza Khalil' }), owners)).toBe(false);
   });

@@ -247,6 +247,19 @@ manager types however they like: on 2026-09-01 it carried "Aashish Gatmaneni"
 against the league's corrected "Aashish Gatamaneni", and the annual run would
 have put the misspelling back with nothing in the log to say so.
 
+**Known misspellings are resolved before any of that, in one place.**
+`utils/ownerAliases.js` holds `OWNER_ALIASES` (ESPN spelling → league
+spelling; today the one entry is "Aashish Gatmaneni" → "Aashish
+Gatamaneni"). `extractOwnerInfo` in `utils/ownerUtils.js` — the single
+function every ESPN reader gets an owner name from — returns
+`canonicalOwnerName`, so the misspelling never reaches a table; and every
+comparison (`buildTeamIndex`, `sameOwner`, the client's
+`normalizeOwnerName`, `findMatchingTeam`) compares on `ownerKey`, so a
+misspelling already stored or typed as a display name still matches. The
+transactions rows that carried the ESPN spelling for 2020-26 were repaired by
+`20260910160000_owner_alias_gatamaneni.sql`. A new alias is one line in the
+map; never special-case a name anywhere else.
+
 A *blank* stored owner is still filled — a gap, not a disagreement, the same
 rule as the `espn_team_id` backfill beside it. A real divergence comes back as
 `ownerConflicts` and `sync-schedule` prints both spellings, exactly as it does
@@ -577,6 +590,13 @@ Rules that are load-bearing:
   a cron run more than an hour past its slot is *late*, and a daily refresh
   that late is a warning because it lands after the Sunday kickoffs it
   exists to precede.
+- **The week strip is the same schedule, projected.** `upcomingSchedule`
+  lays the next seven *local* calendar days out, today first, with every
+  cron slot on each in the viewer's zone, labelled with the automation's
+  own `name` so the strip and the cards agree. Today's elapsed slots are
+  marked from the log (ran / due / missed / idle); nothing is fetched for
+  it. A new scheduled job appears there by being added to `AUTOMATIONS`
+  with a `schedule.cron`, not by editing the strip.
 - **The rules are pure and tested** in
   `src/components/admin/automations/automationCatalog.js` — the same
   decide/execute split as the grader and the game mapper. The component

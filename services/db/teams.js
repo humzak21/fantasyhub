@@ -8,6 +8,7 @@
  */
 
 import { buildTeamIndex } from '../espnGameMapper.js';
+import { canonicalOwnerName, sameOwnerName } from '../../utils/ownerAliases.js';
 import { formatForDatabase, formatFromDatabase } from './caseMap.js';
 import { throwDbError } from './errors.js';
 import { syncTeamRosterFromESPN } from './rosters.js';
@@ -93,13 +94,13 @@ export async function addTeamToSeason(ctx, seasonId, name, owner = '') {
 /**
  * Are these two spellings of an owner the same name?
  *
- * Trim-and-case-fold, matching `buildTeamIndex`'s own key exactly — a
+ * `ownerKey` from `utils/ownerAliases.js`, matching `buildTeamIndex`'s own key
+ * exactly, and resolving the known ESPN misspellings first — a
  * disagreement it would not notice is not one worth reporting, and reporting it
  * would put "  Humza Khalil" against "Humza Khalil" in front of a person every
  * September.
  */
-const sameOwner = (a, b) =>
-  String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+const sameOwner = (a, b) => sameOwnerName(a, b);
 
 /**
  * Refresh team identity from ESPN.
@@ -162,7 +163,10 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
       // These were the same value until the fetcher was fixed, which would have
       // renamed every team to "LE", "msh" and friends on the first sync.
       const name = espnTeam.teamName?.trim();
-      const owner = espnTeam.ownerName?.trim() || '';
+      // Canonical even here: the fetchers already resolve aliases, but this is
+      // the write of the league's identity key, so a caller that bypassed
+      // them still cannot store an ESPN misspelling.
+      const owner = canonicalOwnerName(espnTeam.ownerName);
       const abbreviation = espnTeam.abbreviation?.trim() || null;
 
       if (!name) {
