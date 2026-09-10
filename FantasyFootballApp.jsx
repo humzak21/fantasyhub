@@ -169,12 +169,15 @@ const FantasyFootballApp = () => {
 
     return [
       // `shortLabel` is what the phone tab bar shows. A 72px tab cannot hold
-      // "Power Rankings", and a truncated label — "Power Ran…" — is a worse
-      // affordance than the icon alone.
-      { id: 'rankings', label: 'Power Rankings', shortLabel: 'Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
+      // "Statistics", and a truncated label — "Statist…" — is a worse
+      // affordance than the icon alone. Rankings and Teams carry their short
+      // names at every width; "Power Rankings" and "Teams & Rosters" were
+      // dropped on 2026-09-10 because the nav is not where the page explains
+      // itself.
+      { id: 'rankings', label: 'Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
       { id: 'statistics', label: 'Statistics', shortLabel: 'Stats', icon: BarChart3, requiresSeason: true, requiresAuth: false },
       { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
-      { id: 'teams', label: 'Teams & Rosters', shortLabel: 'Teams', icon: Users, requiresSeason: true, requiresAuth: false },
+      { id: 'teams', label: 'Teams', icon: Users, requiresSeason: true, requiresAuth: false },
       // The admin is let through explicitly, the way every `getMasked*` helper
       // already treats them — owning a team is not a prerequisite for running
       // the league.

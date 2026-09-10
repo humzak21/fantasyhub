@@ -91,7 +91,7 @@ const DesktopNav = ({ tabs, activeTab }) => (
               Eight full labels come to ~920px, which at 1280 leaves nothing
               for the brand, the week control and the account — that shortfall
               is what the old icon-only tier was papering over. Shortening the
-              three long ones ("Power Rankings" → "Rankings") buys ~165px and
+              long ones ("Statistics" → "Stats") buys room and
               costs nothing: the full label stays the accessible name, so
               nothing is hidden from a screen reader, and it returns in full
               at 2xl where the row can hold it. */}
@@ -192,7 +192,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true }) =>
               </span>
               {/* Drawn: the short label. Announced: the full one. The visible
                   text is hidden from assistive tech rather than added to it,
-                  or the accessible name would read "Rankings Power Rankings". */}
+                  or the accessible name would read "Stats Statistics". */}
               <span
                 aria-hidden="true"
                 className="w-full truncate text-center text-[10px] font-medium leading-tight"
