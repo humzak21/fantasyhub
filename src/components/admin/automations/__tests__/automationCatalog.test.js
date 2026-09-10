@@ -23,7 +23,8 @@ import {
   seasonState,
   summarizeAutomation,
   summarizeRunSteps,
-  summarizeStep
+  summarizeStep,
+  upcomingSchedule
 } from '../automationCatalog.js';
 
 const weekly = AUTOMATIONS.find((a) => a.id === 'weekly-sync');
@@ -310,5 +311,45 @@ describe('buildRecommendations', () => {
     const rec = recs.find((r) => r.id === 'daily-refresh-late');
     expect(rec.severity).toBe('warning');
     expect(rec.title).toMatch(/167 minutes/);
+  });
+});
+
+describe('upcomingSchedule', () => {
+  it('lays the next seven local days out, today first, with every cron slot on each', () => {
+    const days = upcomingSchedule({ now: NOW, runs: [], state: 'in-season' });
+    expect(days).toHaveLength(7);
+    expect(days[0].isToday).toBe(true);
+    // Seven daily refreshes and one weekly sync (Tue 2026-09-22 10:00 UTC).
+    const all = days.flatMap((day) => day.occurrences);
+    expect(all.filter((o) => o.automationId === 'daily-refresh')).toHaveLength(7);
+    const weeklySlots = all.filter((o) => o.automationId === 'weekly-sync').map((o) => o.at.toISOString());
+    expect(weeklySlots).toEqual(['2026-09-22T10:00:00.000Z']);
+    // Labels are the automations' own names, so the strip matches the cards.
+    expect(new Set(all.map((o) => o.name))).toEqual(new Set([weekly.name, daily.name]));
+    // Occurrences sort by time within a day.
+    for (const day of days) {
+      const times = day.occurrences.map((o) => o.at.getTime());
+      expect(times).toEqual([...times].sort((a, b) => a - b));
+    }
+  });
+
+  it("marks today's elapsed slots by what the log says", () => {
+    // Thursday 17:30 UTC: the 16:40 daily slot is 50 minutes behind us.
+    const now = new Date('2026-09-17T17:30:00Z');
+    const todaySlot = (days) =>
+      days[0].occurrences.find((o) => o.automationId === 'daily-refresh' && o.at.toISOString() === '2026-09-17T16:40:00.000Z');
+
+    const ranRun = run({ id: 'd', steps: DAILY_STEPS, startedAt: '2026-09-17T16:52:00Z' });
+    expect(todaySlot(upcomingSchedule({ now, runs: [ranRun], state: 'in-season' })).status).toBe('ran');
+    expect(todaySlot(upcomingSchedule({ now, runs: [], state: 'in-season' })).status).toBe('due');
+    expect(todaySlot(upcomingSchedule({ now: new Date('2026-09-17T21:00:00Z'), runs: [], state: 'in-season' })).status).toBe('missed');
+    expect(todaySlot(upcomingSchedule({ now, runs: [], state: 'not-started' })).status).toBe('idle');
+  });
+
+  it('leaves future slots upcoming in season and idle out of it', () => {
+    const inSeason = upcomingSchedule({ now: NOW, runs: [], state: 'in-season' });
+    expect(inSeason[3].occurrences.every((o) => o.status === 'upcoming')).toBe(true);
+    const off = upcomingSchedule({ now: NOW, runs: [], state: 'completed' });
+    expect(off[3].occurrences.every((o) => o.status === 'idle')).toBe(true);
   });
 });

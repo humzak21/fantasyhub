@@ -105,7 +105,7 @@ vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
   })
 }));
 
-const { default: AutomationsDashboard } = await import('../AutomationsDashboard.jsx');
+const { default: AutomationsDashboard, ColourKey } = await import('../AutomationsDashboard.jsx');
 
 // Real timers on purpose. TanStack Query schedules its fetches and
 // notifications on timers, and the health read waits on the season read, so
@@ -123,8 +123,9 @@ describe('AutomationsDashboard', () => {
   it('lists every automation and reads the log through the db layer', async () => {
     renderWithProviders(<AutomationsDashboard />);
 
-    expect(await screen.findByText('Weekly ESPN sync')).toBeInTheDocument();
-    expect(screen.getByText('Daily ESPN refresh')).toBeInTheDocument();
+    // Each job's name appears on its card and again in the week strip.
+    expect((await screen.findAllByText('Weekly ESPN sync')).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Daily ESPN refresh').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Season schedule import')).toBeInTheDocument();
     expect(syncRuns.getSyncRuns).toHaveBeenCalledWith({ seasonId: null, limit: 40 });
     // The health read waits on the season read, and `throughWeek` is derived
@@ -161,6 +162,44 @@ describe('AutomationsDashboard', () => {
     expect(screen.getByText('rosters rewritten from ESPN')).toBeInTheDocument();
     expect(screen.getByText('14 teams updated')).toBeInTheDocument();
     expect(screen.queryByText('skipped by flag')).not.toBeInTheDocument();
+  });
+
+  it('opens with the next seven days and names the jobs as the cards do', async () => {
+    renderWithProviders(<AutomationsDashboard />);
+
+    const strip = await screen.findByRole('list', { name: /upcoming runs/i });
+    expect(within(strip).getByText('Today')).toBeInTheDocument();
+    expect(within(strip).getAllByText(/^(Today|Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/)).toHaveLength(7);
+    // Seven daily refreshes over seven days, labelled with the card's name.
+    expect(within(strip).getAllByText('Daily ESPN refresh')).toHaveLength(7);
+    expect(within(strip).getAllByText('Weekly ESPN sync')).toHaveLength(1);
+    // The strip sits above the Automations card, whose header holds Refresh.
+    const refresh = screen.getByRole('button', { name: /refresh/i });
+    expect(strip.compareDocumentPosition(refresh) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('does not render the colour key itself; the settings sidebar does', async () => {
+    renderWithProviders(<AutomationsDashboard />);
+    await screen.findByRole('list', { name: /upcoming runs/i });
+    expect(screen.queryByLabelText('Colour key')).not.toBeInTheDocument();
+  });
+
+  it('exports a colour key built from the same states the page renders, stacked in one column', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ColourKey />);
+
+    const key = screen.getByLabelText('Colour key');
+    expect(key.className).not.toMatch(/grid-cols/);
+    for (const label of ['Healthy', 'Ran late', 'Check issues', 'Step failed', 'Missed', 'Failed', 'Never finished', 'Idle (off-season)', 'No runs yet']) {
+      expect(within(key).getAllByText(label).length).toBeGreaterThanOrEqual(1);
+    }
+    expect(within(key).getAllByText('not run yet').length).toBeGreaterThanOrEqual(1);
+    expect(within(key).getByText('Not reached')).toBeInTheDocument();
+    expect(within(key).getByText('Behind')).toBeInTheDocument();
+
+    // It folds away, and comes back.
+    await user.click(screen.getByRole('button', { name: /colour key/i }));
+    expect(screen.queryByLabelText('Colour key')).not.toBeInTheDocument();
   });
 
   it('shows what the tables say', async () => {
