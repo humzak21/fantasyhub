@@ -514,6 +514,49 @@ any policy in the file, so no existing member ever saw a refusal.
   the admin's own id. Note that temp tables created before `set local role`
   need a `GRANT` to `authenticated` or the probe fails on its own scaffolding.
 
+### The automation dashboard watches; it cannot run anything
+
+**Settings → Automations** (`src/components/admin/AutomationsDashboard.jsx`)
+is the inventory of every job that runs without a person: the three GitHub
+Actions workflows, the database triggers, CI and Dependabot — what each
+pulls, what it writes, its last run, and what to do when it did not run.
+Rules that are load-bearing:
+
+- **Read-only by construction.** The jobs hold the service-role key and the
+  ESPN cookies; the browser holds neither. The page reads `sync_runs` and
+  the tables the steps own (`services/db/syncRuns.js`) and links to the
+  workflow's *Run workflow* button. There is no mutation and no query key to
+  invalidate; the hooks refetch on focus and once a minute.
+- **Which workflow wrote a `sync_runs` row is derived from its steps.**
+  Both scheduled jobs run `scripts/sync-week.js`; the daily refresh is the
+  same script with six `--skip-*` flags, so `classifyRun` attributes a row
+  to the daily refresh when `scores` *and* `snapshot` read `skipped: 'flag'`.
+  A row with no steps yet is attributed by proximity to a cron slot. Adding
+  a skip flag to `daily-refresh.yml` means updating `skips` in
+  `automationCatalog.js`, or the row is filed under the weekly sync.
+- **A string `skipped` is a skip; an object is not.** The parlay step
+  reports `skipped` as a map of reason → count for picks it left pending,
+  which is the step *running*. `summarizeStep` checks the type.
+- **"Success" is not "current".** A run can report success on Tuesday and
+  the week's snapshot can still be missing on Thursday. The recommendations
+  read `getAutomationHealth` — newest snapshot week, newest player-stats
+  week, roster and transaction timestamps, NFL calendar rows, FPI week,
+  which `pick_em_weeks` exist, pending parlay grades — against the calendar
+  week, and say so per table.
+- **A slot is missed only in season, and only after three hours' grace.**
+  Out of season the script exits before opening a row by design, so "no run
+  this week" is *idle*, not a failure. GitHub cron starts late under load;
+  a cron run more than an hour past its slot is *late*, and a daily refresh
+  that late is a warning because it lands after the Sunday kickoffs it
+  exists to precede.
+- **The rules are pure and tested** in
+  `src/components/admin/automations/automationCatalog.js` — the same
+  decide/execute split as the grader and the game mapper. The component
+  renders their output and nothing else.
+- `sync_runs` stays public-read like every league table; the `isAdmin`
+  gate on the settings tab is an affordance, and the hooks are disabled for
+  anyone else so a member's browser never issues the reads.
+
 ### Seasons end explicitly
 `public.finalize_season(season_id, dry_run)` derives a season's final placements
 from its games and writes `teams.made_playoffs/playoff_seed/playoff_wins/

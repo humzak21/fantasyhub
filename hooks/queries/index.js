@@ -100,6 +100,8 @@ export {
 
 export { useTakesBoard, useTakeActivity, useTakesMutations } from './useTakes.js';
 
+export { useSyncRuns, useAutomationHealth } from './useAutomations.js';
+
 export {
   useHistoryTimeline,
   useHistoryFranchises,

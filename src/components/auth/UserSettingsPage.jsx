@@ -10,11 +10,13 @@ import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Badge } from '../ui/badge'
-import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound } from 'lucide-react'
+import { User, Save, CheckCircle, AlertCircle, ArrowLeft, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
 import MemberApprovalsManager from '../admin/MemberApprovalsManager.jsx'
+import AutomationsDashboard from '../admin/AutomationsDashboard.jsx'
+import { useAutomationReport } from '../admin/automations/useAutomationReport.js'
 import ApprovalPendingNotice from './ApprovalPendingNotice.jsx'
 import ChangePasswordForm from './ChangePasswordForm.jsx'
 import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
@@ -38,6 +40,11 @@ export const UserSettingsPage = () => {
   // nothing extra; disabled (and empty) for anyone but the admin.
   const { data: approvalRows = [] } = useMemberApprovals({ enabled: isAdmin })
   const pendingApprovals = countPendingApprovals(approvalRows)
+
+  // The Automations badge: how many recommendations need a person. Same
+  // queries the panel reads, so opening it costs nothing extra; disabled for
+  // anyone but the admin.
+  const { attention: automationAttention } = useAutomationReport({ enabled: isAdmin })
 
   const dataLoading =
     seasonsLoading ||
@@ -262,6 +269,20 @@ export const UserSettingsPage = () => {
                     </Button>
 
                     <Button
+                      variant={activeSettingsTab === 'automations' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('automations')}
+                    >
+                      <Workflow className="mr-2 h-4 w-4" />
+                      Automations
+                      {automationAttention > 0 && (
+                        <Badge variant="warning" className="ml-auto">
+                          {automationAttention}
+                        </Badge>
+                      )}
+                    </Button>
+
+                    <Button
                       variant={activeSettingsTab === 'testing' ? 'default' : 'ghost'}
                       className="w-full justify-start"
                       onClick={() => setActiveSettingsTab('testing')}
@@ -458,6 +479,13 @@ export const UserSettingsPage = () => {
                 `set_member_approval()` and `delete_member_account()`. */}
             {activeSettingsTab === 'approvals' && isAdmin && (
               <MemberApprovalsManager />
+            )}
+
+            {/* The automation dashboard. `isAdmin` is the affordance; the
+                hooks behind it are disabled for anyone else, and the log it
+                reads is written only by the GitHub Actions jobs. */}
+            {activeSettingsTab === 'automations' && isAdmin && (
+              <AutomationsDashboard />
             )}
 
             {/* Testing Tools - Admin Only */}

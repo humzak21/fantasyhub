@@ -1,0 +1,156 @@
+/**
+ * The automation dashboard on the settings page.
+ *
+ * Worth pinning: it reads through `getDb().syncRuns`, attributes rows to the
+ * right job, surfaces a failure as a recommendation with the workflow link,
+ * and shows the per-step results of the last run when asked.
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
+
+const NOW = new Date('2026-09-17T12:00:00Z');
+
+const SEASON = {
+  id: 's1',
+  year: 2026,
+  isActive: true,
+  isCompleted: false,
+  startDate: '2026-09-08',
+  timezone: 'America/New_York',
+  regularSeasonWeeks: 14,
+  playoffWeeks: 3,
+  weekCount: 17,
+  espnSeasonYear: 2026,
+  espnLeagueId: '12345',
+  teams: []
+};
+
+const RUNS = [
+  {
+    id: 'daily-1',
+    seasonId: 's1',
+    weekNumber: 2,
+    status: 'success',
+    trigger: 'cron',
+    startedAt: '2026-09-16T16:41:00Z',
+    finishedAt: '2026-09-16T16:41:20Z',
+    durationMs: 20_000,
+    error: null,
+    steps: {
+      scores: { skipped: 'flag' },
+      rosters: { ok: true },
+      snapshot: { skipped: 'flag' },
+      nflRatings: { skipped: 'flag' },
+      pickEmWeek: { id: 'pw', created: false },
+      nflSchedule: { skipped: 'flag' },
+      playerStats: { skipped: 'flag' },
+      finalizePrev: { skipped: 'flag' },
+      parlayGrades: { tds: 0, noTds: 0, graded: 0, skipped: {}, konaRecovered: 0 },
+      transactions: { errors: [], updated: 14 }
+    }
+  },
+  {
+    id: 'weekly-1',
+    seasonId: 's1',
+    weekNumber: 2,
+    status: 'failed',
+    trigger: 'cron',
+    startedAt: '2026-09-15T10:02:00Z',
+    finishedAt: '2026-09-15T10:02:05Z',
+    durationMs: 5_000,
+    error: 'ESPN responded 401 Unauthorized',
+    steps: { pickEmWeek: { id: 'pw', created: true } }
+  }
+];
+
+const HEALTH = {
+  snapshot: { week: 2, at: '2026-09-15T10:03:20Z' },
+  playerStats: { week: 2, at: '2026-09-15T10:03:10Z' },
+  rosters: { at: '2026-09-16T16:41:10Z' },
+  transactions: { at: '2026-09-16T16:41:15Z' },
+  nflSchedule: { rows: 576, at: '2026-09-15T10:03:15Z' },
+  nflRatings: { week: 2, at: '2026-09-15T10:03:16Z' },
+  pickEmWeeks: [1, 2],
+  pendingParlayGrades: 0,
+  scheduleImport: { at: '2026-08-20T14:00:00Z', summary: 'teams: 0 added / 14 updated · games: 98 added' }
+};
+
+const syncRuns = {
+  getSyncRuns: vi.fn(async () => RUNS),
+  getAutomationHealth: vi.fn(async () => HEALTH)
+};
+
+vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getDb: () => ({
+    syncRuns,
+    seasons: { getActiveSeason: async () => SEASON },
+    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true }
+  })
+}));
+
+vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useAuth: () => ({
+    user: { id: 'admin-1', user_metadata: { name: 'Humza Khalil' } },
+    isAuthenticated: true,
+    isAdmin: true,
+    loading: false
+  })
+}));
+
+const { default: AutomationsDashboard } = await import('../AutomationsDashboard.jsx');
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.useFakeTimers({ shouldAdvanceTime: true, now: NOW });
+  syncRuns.getSyncRuns.mockResolvedValue(RUNS);
+  syncRuns.getAutomationHealth.mockResolvedValue(HEALTH);
+});
+
+describe('AutomationsDashboard', () => {
+  it('lists every automation and reads the log through the db layer', async () => {
+    renderWithProviders(<AutomationsDashboard />);
+
+    expect(await screen.findByText('Weekly ESPN sync')).toBeInTheDocument();
+    expect(screen.getByText('Daily ESPN refresh')).toBeInTheDocument();
+    expect(screen.getByText('Season schedule import')).toBeInTheDocument();
+    expect(syncRuns.getSyncRuns).toHaveBeenCalledWith({ seasonId: null, limit: 40 });
+    expect(syncRuns.getAutomationHealth).toHaveBeenCalledWith({ seasonId: 's1', seasonYear: 2026, throughWeek: 1 });
+  });
+
+  it('turns the failed weekly run into a recommendation with the workflow link', async () => {
+    renderWithProviders(<AutomationsDashboard />);
+
+    const recs = await screen.findByRole('region', { name: /recommendations/i });
+    expect(within(recs).getByText(/Weekly ESPN sync failed: ESPN rejected the league credentials/)).toBeInTheDocument();
+    expect(within(recs).getByRole('link', { name: /run weekly espn sync/i }))
+      .toHaveAttribute('href', 'https://github.com/humzak21/fantasyhub/actions/workflows/sync-week.yml');
+    expect(within(recs).getByRole('link', { name: /update repository secrets/i })).toBeInTheDocument();
+    expect(within(recs).getByText('npm run sync-week')).toBeInTheDocument();
+  });
+
+  it('attributes the daily row to the daily job and shows its steps on request', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithProviders(<AutomationsDashboard />);
+
+    await screen.findByText('Daily ESPN refresh');
+    const buttons = screen.getAllByRole('button', { name: /steps of the last run/i });
+    // Weekly card first, daily second; both have a last run.
+    await user.click(buttons[1]);
+
+    expect(screen.getByText('rosters rewritten from ESPN')).toBeInTheDocument();
+    expect(screen.getByText('14 teams updated')).toBeInTheDocument();
+    expect(screen.queryByText('skipped by flag')).not.toBeInTheDocument();
+  });
+
+  it('shows what the tables say', async () => {
+    renderWithProviders(<AutomationsDashboard />);
+
+    expect(await screen.findByText('What the tables say')).toBeInTheDocument();
+    expect(screen.getByText('576 team-weeks')).toBeInTheDocument();
+    expect(screen.getByText('Power ranking snapshot')).toBeInTheDocument();
+  });
+});
