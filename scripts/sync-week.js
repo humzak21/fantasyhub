@@ -560,6 +560,13 @@ export async function syncWeek(argv = []) {
       }
     }
 
+    // The roster step also refreshes team identity — name and abbreviation —
+    // from the `mTeam` view it fetches anyway. Managers rename their teams
+    // mid-season, and before 2026-09-10 the only writer of `teams.name` was
+    // the annual schedule import, so a rename made in September was wrong on
+    // every page until the following August. `owner` is never overwritten
+    // (see `upsertTeamsFromESPN`); a disagreement is printed, like
+    // `sync-schedule` does, for a person to settle.
     if (options['skip-rosters'] || isPlayoffWeek) {
       steps.rosters = { skipped: isPlayoffWeek ? 'playoff week' : 'flag' };
       console.log(`📋 rosters: skipped (${steps.rosters.skipped})`);
@@ -567,9 +574,34 @@ export async function syncWeek(argv = []) {
       const rosterScript = await createRosterUpdateScript(
         espn.leagueId, espn.seasonYear, espn.espnS2, espn.swid
       );
-      await rosterScript.runWeeklyUpdate();
-      steps.rosters = { ok: true };
-      console.log('📋 rosters: synced');
+      const rosterResult = await rosterScript.runWeeklyUpdate(seasonId);
+      const teamResult = rosterResult?.teams ?? null;
+      steps.rosters = {
+        ok: true,
+        updated: rosterResult?.updated?.length ?? 0,
+        notFound: rosterResult?.notFound?.length ?? 0,
+        teams: teamResult && {
+          updated: teamResult.updated,
+          unchanged: teamResult.unchanged,
+          inserted: teamResult.inserted,
+          errors: teamResult.errors ?? [],
+          ownerConflicts: teamResult.ownerConflicts ?? []
+        }
+      };
+      console.log(
+        `📋 rosters: synced · team names: ${teamResult?.updated ?? 0} updated, ` +
+        `${teamResult?.unchanged ?? 0} unchanged`
+      );
+      for (const miss of teamResult?.errors ?? []) {
+        console.warn(`⚠️  team identity: ${miss.team ?? miss.espnTeamId ?? '?'}: ${miss.error}`);
+      }
+      for (const clash of teamResult?.ownerConflicts ?? []) {
+        console.warn(
+          `⚠️  owner differs for "${clash.team}" (ESPN team ${clash.espnTeamId}): ` +
+          `stored "${clash.stored}", ESPN "${clash.espn}" — not overwritten. ` +
+          'Edit teams.owner if the franchise actually changed hands.'
+        );
+      }
     }
 
     // Scores and player stats are two readings of the same ESPN payload — the

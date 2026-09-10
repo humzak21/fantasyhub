@@ -1,7 +1,8 @@
 /**
  * Tabs are routes (Phase 2a). These assert the parts of that which are real
  * behaviour and therefore observable in jsdom: which tab a URL selects, what
- * an unknown tab does, and that /settings still wins over /:tab.
+ * an unknown tab does, and that /settings reaches the shell as a tab rather
+ * than a page of its own.
  *
  * What is deliberately *not* here: anything about viewport width. jsdom has no
  * layout engine, so a test that "renders at 375px" renders at no width at all.
@@ -24,12 +25,6 @@ vi.mock('../../FantasyFootballApp.jsx', async () => {
     },
   };
 });
-
-vi.mock('../components/auth/UserSettingsPage.jsx', () => ({
-  UserSettingsPage: function SettingsStub() {
-    return <div data-testid="settings" />;
-  },
-}));
 
 vi.mock('../components/auth/ResetPasswordPage.jsx', () => ({
   default: function ResetPasswordStub() {
@@ -69,10 +64,12 @@ describe('tab routing', () => {
     }
   );
 
-  it('routes /settings to the settings page, not to a tab named "settings"', async () => {
+  // Settings used to be a static route to a page outside the shell — its own
+  // header, a Back button, no week control or nav. It is a tab now, reached by
+  // the cog beside the account control, and the shell decides who may open it.
+  it('routes /settings into the shell as a tab, not to a page of its own', async () => {
     render(<App />, { initialEntries: ['/settings'] });
-    await waitFor(() => expect(screen.getByTestId('settings')).toBeInTheDocument());
-    expect(screen.queryByTestId('shell')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:settings'));
   });
 
   // The reset link's landing page. It used to fall through to the catch-all

@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../../src/contexts/AuthContext.jsx'
-import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
@@ -8,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Avatar, AvatarFallback } from '../ui/avatar'
-import { User, LogIn, LogOut, Mail, Lock, CheckCircle, Settings, Wand2 } from 'lucide-react'
+import { User, LogIn, LogOut, Mail, Lock, CheckCircle, Wand2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 /**
@@ -87,7 +86,6 @@ export const LoginDropdown = () => {
     user, signIn, signUp, signOut, resetPassword,
     signInWithMagicLink, authLinkError, clearAuthLinkError,
   } = useAuth()
-  const navigate = useNavigate()
   const [showLoginForm, setShowLoginForm] = useState(false)
   const [mode, setMode] = useState('signIn')
   const [formData, setFormData] = useState(EMPTY_FORM)
@@ -372,11 +370,11 @@ export const LoginDropdown = () => {
                 "Dark", already selected, calling a function whose body was a
                 comment — beside two more that were commented out. A menu with
                 one inert choice is not a setting; the app is dark by design.
-                See src/contexts/DarkModeContext.jsx. */}
-            <DropdownMenuItem onClick={() => navigate('/settings')}>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-            </DropdownMenuItem>
+                See src/contexts/DarkModeContext.jsx.
+
+                Settings is gone from here too: it is the cog beside this
+                avatar (`SettingsLink`), on screen at all times rather than
+                behind a click. */}
             <DropdownMenuItem onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>

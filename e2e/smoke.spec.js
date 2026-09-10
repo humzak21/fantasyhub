@@ -39,8 +39,8 @@ test.describe('smoke', () => {
       // boundary; wait for something real rather than for a fixed delay.
       // Not `networkidle` — the app polls, so idle may never arrive, and
       // waiting for it took this suite from seconds to minutes.
-      // Not every route renders a <header>/<main> — the settings page is plain
-      // divs — so wait on the root having painted something instead.
+      // Wait on the root having painted something rather than on a specific
+      // landmark, so the check reads the same for every route.
       await expect(page.locator('#root')).not.toBeEmpty()
       await page.waitForFunction(() => document.querySelector('#root')?.clientHeight > 100)
 

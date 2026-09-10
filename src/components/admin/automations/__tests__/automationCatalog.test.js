@@ -143,6 +143,20 @@ describe('summarizeStep', () => {
   it('distinguishes failed, skipped and never-reached', () => {
     expect(summarizeStep('transactions', { failed: 'ESPN returned no transaction data' })).toMatchObject({ state: 'failed' });
     expect(summarizeStep('rosters', { skipped: 'playoff week' })).toMatchObject({ state: 'skipped', text: 'skipped — playoff week' });
+    // The roster step refreshes team names too. A rename is a count; an owner
+    // ESPN spells differently is reported, never written, and needs a person.
+    expect(summarizeStep('rosters', { ok: true })).toMatchObject({ state: 'ok' });
+    expect(summarizeStep('rosters', {
+      ok: true,
+      teams: { updated: 2, unchanged: 12, inserted: 0, errors: [], ownerConflicts: [] }
+    })).toMatchObject({ state: 'ok', text: 'rosters rewritten · 2 team names refreshed' });
+    expect(summarizeStep('rosters', {
+      ok: true,
+      teams: {
+        updated: 0, unchanged: 14, inserted: 0, errors: [],
+        ownerConflicts: [{ team: 'INOVA', stored: 'Aashish Gatamaneni', espn: 'Aashish Gatmaneni' }]
+      }
+    })).toMatchObject({ state: 'warning', issues: [expect.stringContaining('owner differs for INOVA')] });
     expect(summarizeStep('snapshot', undefined)).toMatchObject({ state: 'missing' });
   });
 

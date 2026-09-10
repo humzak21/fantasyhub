@@ -16,8 +16,11 @@ import { extractOwnerInfo } from '../utils/ownerUtils.js';
  * `abbrev || location`, so every team name coming out of an import was the
  * abbreviation — harmless while imports only ever created teams that already
  * existed, and a league-wide rename the moment they started refreshing names.
+ *
+ * Exported because the roster updater reads the same `mTeam` payload and used
+ * to keep its own copy of this rule — the `abbrev` version.
  */
-function espnTeamName(team, espnTeamId) {
+export function espnTeamName(team, espnTeamId) {
   const composed = [team?.location, team?.nickname].filter(Boolean).join(' ').trim();
   return team?.name?.trim() || composed || team?.abbrev || `Team ${espnTeamId}`;
 }

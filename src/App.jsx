@@ -1,7 +1,6 @@
 import React from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import FantasyFootballApp from '../FantasyFootballApp.jsx'
-import { UserSettingsPage } from './components/auth/UserSettingsPage.jsx'
 import ResetPasswordPage from './components/auth/ResetPasswordPage.jsx'
 import DisplayNamePrompt from './components/auth/DisplayNamePrompt.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
@@ -72,22 +71,14 @@ function App() {
           }
         />
         {/* Tabs are routes. React Router ranks static segments above the
-            dynamic one, so /settings and the legacy redirects below win over
-            /:tab without depending on declaration order. The shell validates
-            :tab against the viewer's own tab list and redirects if it is
-            unknown or forbidden. */}
+            dynamic one, so the reset page and the legacy redirects below win
+            over /:tab without depending on declaration order. The shell
+            validates :tab against the viewer's own tab list and redirects if
+            it is unknown or forbidden. /settings is one of those tabs now —
+            it used to be a static route to a page outside the shell, with
+            its own header and a Back button. */}
         <Route path="/" element={<FantasyFootballApp />} />
         <Route path="/:tab" element={<FantasyFootballApp />} />
-
-        {/* User Settings Page */}
-        <Route
-          path="/settings"
-          element={
-            <ErrorBoundary key="settings-error-boundary">
-              <UserSettingsPage />
-            </ErrorBoundary>
-          }
-        />
 
         {/* Legacy routes - redirect to main */}
         <Route
