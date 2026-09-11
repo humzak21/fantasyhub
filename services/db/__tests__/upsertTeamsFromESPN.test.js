@@ -25,11 +25,17 @@ const STORED = {
   abbreviation: 'INV'
 };
 
-/** As ESPN sends it: still misspelled, and a new team name for the year. */
+/**
+ * As ESPN sends it: a genuinely different owner name. This used to be
+ * ESPN's real misspelling, "Aashish Gatmaneni" — which is now an alias in
+ * `utils/ownerAliases.js` and so no longer a disagreement at all (see the
+ * last block). A real divergence has to be something the alias table does
+ * not know.
+ */
 const FROM_ESPN = {
   teamId: 10,
   teamName: 'INOVA',
-  ownerName: 'Aashish Gatmaneni',
+  ownerName: 'A. Gatamaneni',
   abbreviation: 'INV'
 };
 
@@ -63,7 +69,7 @@ describe('upsertTeamsFromESPN · owner', () => {
         team: 'INOVA',
         espnTeamId: 10,
         stored: 'Aashish Gatamaneni',
-        espn: 'Aashish Gatmaneni'
+        espn: 'A. Gatamaneni'
       }
     ]);
   });
@@ -89,7 +95,7 @@ describe('upsertTeamsFromESPN · owner', () => {
 
     expect(result.inserted).toBe(1);
     expect(ctx.client.callsFor('teams', 'insert')[0].payload).toMatchObject({
-      owner: 'Aashish Gatmaneni'
+      owner: 'A. Gatamaneni'
     });
   });
 
@@ -101,7 +107,7 @@ describe('upsertTeamsFromESPN · owner', () => {
     expect(result.updated).toBe(1);
     expect(result.ownerConflicts).toEqual([]);
     expect(ctx.client.callsFor('teams', 'update')[0].payload).toEqual({
-      owner: 'Aashish Gatmaneni'
+      owner: 'A. Gatamaneni'
     });
   });
 
@@ -129,6 +135,54 @@ describe('upsertTeamsFromESPN · owner', () => {
     ]);
 
     expect(result.updated).toBe(1);
+    expect(ctx.client.callsFor('teams', 'update')[0].payload).toEqual({ espn_team_id: 10 });
+  });
+});
+
+describe('upsertTeamsFromESPN · owner aliases', () => {
+  // ESPN really does carry "Aashish Gatmaneni" for the league's "Aashish
+  // Gatamaneni". `utils/ownerAliases.js` says they are one person, and this
+  // is what that has to mean here: no conflict, and never the ESPN spelling
+  // in `teams.owner`.
+  const MISSPELLED = { ...FROM_ESPN, ownerName: 'Aashish Gatmaneni' };
+
+  it('does not report the known ESPN misspelling as a disagreement', async () => {
+    const ctx = makeCtx(handlers());
+
+    const result = await upsertTeamsFromESPN(ctx, SEASON_ID, [MISSPELLED]);
+
+    expect(result.ownerConflicts).toEqual([]);
+    expect(result.unchanged).toBe(1);
+    expect(ctx.client.callsFor('teams', 'update')).toHaveLength(0);
+  });
+
+  it('stores the league spelling when inserting a team ESPN misspells', async () => {
+    const ctx = makeCtx(handlers([]));
+
+    await upsertTeamsFromESPN(ctx, SEASON_ID, [MISSPELLED]);
+
+    expect(ctx.client.callsFor('teams', 'insert')[0].payload).toMatchObject({
+      owner: 'Aashish Gatamaneni'
+    });
+  });
+
+  it('fills a blank owner with the league spelling', async () => {
+    const ctx = makeCtx(handlers([{ ...STORED, owner: '' }]));
+
+    await upsertTeamsFromESPN(ctx, SEASON_ID, [MISSPELLED]);
+
+    expect(ctx.client.callsFor('teams', 'update')[0].payload).toEqual({
+      owner: 'Aashish Gatamaneni'
+    });
+  });
+
+  it('matches by the owner fallback across the two spellings', async () => {
+    const ctx = makeCtx(handlers([{ ...STORED, espn_team_id: null }]));
+
+    const result = await upsertTeamsFromESPN(ctx, SEASON_ID, [MISSPELLED]);
+
+    // Found, not inserted twice: the index keys on `ownerKey`.
+    expect(result.inserted).toBe(0);
     expect(ctx.client.callsFor('teams', 'update')[0].payload).toEqual({ espn_team_id: 10 });
   });
 });

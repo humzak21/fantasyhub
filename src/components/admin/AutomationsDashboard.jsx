@@ -17,7 +17,8 @@ import {
   Loader2,
   AlertCircle,
   ShieldCheck,
-  Zap
+  Zap,
+  CalendarClock
 } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
@@ -33,6 +34,7 @@ import {
   summarizeRunSteps,
   runOutcome,
   scheduleLagMinutes,
+  upcomingSchedule,
   workflowUrl
 } from './automations/automationCatalog.js';
 
@@ -52,39 +54,42 @@ import {
  * which is pure and tested. This file only renders its output.
  */
 
+// Every state map below carries a `meaning`: the colour key at the top of
+// the page is built from these same objects, so a badge and its legend entry
+// cannot disagree.
 const STATUS = {
-  healthy: { label: 'Healthy', variant: 'success', Icon: CheckCircle2 },
-  running: { label: 'Running', variant: 'info', Icon: Loader2 },
-  late: { label: 'Ran late', variant: 'info', Icon: Clock },
-  attention: { label: 'Check issues', variant: 'warning', Icon: AlertTriangle },
-  partial: { label: 'Step failed', variant: 'warning', Icon: AlertTriangle },
-  missed: { label: 'Missed', variant: 'destructive', Icon: XCircle },
-  failed: { label: 'Failed', variant: 'destructive', Icon: XCircle },
-  stalled: { label: 'Never finished', variant: 'destructive', Icon: Hourglass },
-  idle: { label: 'Idle (off-season)', variant: 'secondary', Icon: Clock },
-  'no-runs': { label: 'No runs yet', variant: 'secondary', Icon: Clock }
+  healthy: { label: 'Healthy', variant: 'success', Icon: CheckCircle2, meaning: 'Last run succeeded on schedule with nothing to report.' },
+  running: { label: 'Running', variant: 'info', Icon: Loader2, meaning: 'A run is in progress right now.' },
+  late: { label: 'Ran late', variant: 'info', Icon: Clock, meaning: 'Ran, but started more than an hour after its cron slot.' },
+  attention: { label: 'Check issues', variant: 'warning', Icon: AlertTriangle, meaning: 'Ran, but a step reported errors or conflicts alongside its counts.' },
+  partial: { label: 'Step failed', variant: 'warning', Icon: AlertTriangle, meaning: 'Ran to the end, but a non-fatal step failed and was skipped over.' },
+  missed: { label: 'Missed', variant: 'destructive', Icon: XCircle, meaning: 'In season, and no scheduled run landed for the last slot.' },
+  failed: { label: 'Failed', variant: 'destructive', Icon: XCircle, meaning: 'The last run stopped with an error.' },
+  stalled: { label: 'Never finished', variant: 'destructive', Icon: Hourglass, meaning: 'A run is still marked running past the job timeout; the runner died.' },
+  idle: { label: 'Idle (off-season)', variant: 'secondary', Icon: Clock, meaning: 'Out of season: the cron fires and the script exits without writing.' },
+  'no-runs': { label: 'No runs yet', variant: 'secondary', Icon: Clock, meaning: 'Nothing in the log for this job yet.' }
 };
 
 const RUN_STATUS = {
-  success: { label: 'Success', variant: 'success' },
-  partial: { label: 'Partial', variant: 'warning' },
-  failed: { label: 'Failed', variant: 'destructive' },
-  running: { label: 'Running', variant: 'info' },
-  stalled: { label: 'Never finished', variant: 'destructive' }
+  success: { label: 'Success', variant: 'success', meaning: 'Every step finished.' },
+  partial: { label: 'Partial', variant: 'warning', meaning: 'Finished, but a non-fatal step failed inside it.' },
+  failed: { label: 'Failed', variant: 'destructive', meaning: 'Stopped with an error; later steps never ran.' },
+  running: { label: 'Running', variant: 'info', meaning: 'Still in progress.' },
+  stalled: { label: 'Never finished', variant: 'destructive', meaning: 'Never closed its row; the job was killed.' }
 };
 
 const STEP_STATE = {
-  ok: { Icon: CheckCircle2, className: 'text-success' },
-  warning: { Icon: AlertTriangle, className: 'text-warning' },
-  failed: { Icon: XCircle, className: 'text-destructive' },
-  skipped: { Icon: SkipForward, className: 'text-muted-foreground' },
-  missing: { Icon: Hourglass, className: 'text-muted-foreground' }
+  ok: { Icon: CheckCircle2, className: 'text-success', label: 'Ran', meaning: 'The step ran and reported no problems.' },
+  warning: { Icon: AlertTriangle, className: 'text-warning', label: 'Ran with issues', meaning: 'The step ran but listed errors or conflicts.' },
+  failed: { Icon: XCircle, className: 'text-destructive', label: 'Failed', meaning: 'The step threw; a non-fatal step lets the run continue.' },
+  skipped: { Icon: SkipForward, className: 'text-muted-foreground', label: 'Skipped', meaning: 'Skipped by a flag, the playoff boundary, or the week rule.' },
+  missing: { Icon: Hourglass, className: 'text-muted-foreground', label: 'Not reached', meaning: 'The run stopped before this step, or the row predates it.' }
 };
 
 const SEVERITY = {
-  error: { Icon: XCircle, className: 'border-destructive/40 bg-destructive/10', iconClass: 'text-destructive' },
-  warning: { Icon: AlertTriangle, className: 'border-warning/40 bg-warning/10', iconClass: 'text-warning' },
-  info: { Icon: Info, className: 'border-info/30 bg-info/10', iconClass: 'text-info' }
+  error: { Icon: XCircle, className: 'border-destructive/40 bg-destructive/10', iconClass: 'text-destructive', label: 'Error', meaning: 'Something a person has to fix; data is missing or wrong.' },
+  warning: { Icon: AlertTriangle, className: 'border-warning/40 bg-warning/10', iconClass: 'text-warning', label: 'Warning', meaning: 'Worth a look; a step or table is behind.' },
+  info: { Icon: Info, className: 'border-info/30 bg-info/10', iconClass: 'text-info', label: 'Info', meaning: 'Explains a state; usually nothing to do.' }
 };
 
 const SEASON_STATE_COPY = {
@@ -484,15 +489,11 @@ const AutomationCard = ({ summary, now, seasonNames, health }) => {
   );
 };
 
-const FreshnessRow = ({ label, value, at, ok, note, now }) => (
+const FreshnessRow = ({ label, value, at, ok, note, now }) => {
+  const meta = ok === null ? FRESHNESS.neutral : ok ? FRESHNESS.current : FRESHNESS.stale;
+  return (
   <li className="flex items-start gap-2 py-2">
-    {ok === null ? (
-      <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-    ) : ok ? (
-      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
-    ) : (
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-    )}
+    <meta.Icon className={cn('mt-0.5 h-4 w-4 shrink-0', meta.className)} aria-hidden="true" />
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <span className="text-sm font-medium">{label}</span>
@@ -504,7 +505,8 @@ const FreshnessRow = ({ label, value, at, ok, note, now }) => (
       </p>
     </div>
   </li>
-);
+  );
+};
 
 const Freshness = ({ health, actualWeek, config, now }) => {
   if (!health) return null;
@@ -635,9 +637,216 @@ const PassiveList = () => (
   </Card>
 );
 
+
+const OCCURRENCE = {
+  ran: { label: 'ran', className: 'border-success/30 bg-success/10', dot: 'bg-success', meaning: 'A scheduled run started within six hours of this slot.' },
+  due: { label: 'due', className: 'border-info/30 bg-info/10', dot: 'bg-info', meaning: 'The slot has passed; the run is still inside its three-hour grace.' },
+  missed: { label: 'missed', className: 'border-destructive/40 bg-destructive/10', dot: 'bg-destructive', meaning: 'Grace is up and no run landed.' },
+  idle: { label: 'exits quietly', className: 'border-border bg-muted/40', dot: 'bg-muted-foreground', meaning: 'Out of season: the cron fires, the script exits without writing.' },
+  upcoming: { label: null, keyLabel: 'not run yet', className: 'border-primary/30 bg-primary/10', dot: 'bg-primary', meaning: 'Scheduled and still ahead.' }
+};
+
+const FRESHNESS = {
+  current: { Icon: CheckCircle2, className: 'text-success', label: 'Current', meaning: 'The table is as up to date as the calendar week says it should be.' },
+  stale: { Icon: AlertTriangle, className: 'text-warning', label: 'Behind', meaning: 'The newest row is older than the calendar expects.' },
+  neutral: { Icon: Info, className: 'text-muted-foreground', label: 'Informational', meaning: 'No expectation applies right now (off-season, playoffs, or a count).' }
+};
+
+const dayLabel = (date) => new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(date);
+const dayNumber = (date) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+const clock = (date) => new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date);
+
+/**
+ * The next seven days, today first, with every scheduled run on each. Times
+ * are the viewer's clock; the labels are the automations' own names so a
+ * reader can find the card below.
+ */
+const WeekView = ({ days, now }) => {
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <CalendarClock className="h-4 w-4" aria-hidden="true" />
+          Next 7 days
+        </CardTitle>
+        <CardDescription>
+          What is scheduled to run and when, in your time zone ({zone}). Runs already behind us today are
+          marked by what the log says about them.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ol className="grid gap-2 md:grid-cols-7" aria-label="Upcoming runs">
+          {days.map((day) => (
+            <li
+              key={day.date.toISOString()}
+              className={cn(
+                'rounded-lg border p-2',
+                day.isToday ? 'border-primary/50 bg-primary/5' : 'border-border'
+              )}
+              aria-current={day.isToday ? 'date' : undefined}
+            >
+              <div className="flex items-baseline justify-between gap-2 md:block">
+                <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                  {day.isToday ? 'Today' : dayLabel(day.date)}
+                </p>
+                <p className="text-sm font-medium tabular">{dayNumber(day.date)}</p>
+              </div>
+              {day.occurrences.length === 0 ? (
+                <p className="mt-2 text-xs text-muted-foreground">Nothing scheduled</p>
+              ) : (
+                <ul className="mt-2 space-y-1.5">
+                  {day.occurrences.map((occurrence) => {
+                    const meta = OCCURRENCE[occurrence.status] ?? OCCURRENCE.upcoming;
+                    const past = occurrence.at <= now;
+                    return (
+                      <li
+                        key={`${occurrence.automationId}-${occurrence.at.toISOString()}`}
+                        className={cn('rounded-md border px-2 py-1.5 text-xs', meta.className)}
+                        title={`${occurrence.name} · ${occurrence.at.toUTCString()}`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', meta.dot)} aria-hidden="true" />
+                          <span className="tabular">{clock(occurrence.at)}</span>
+                          {meta.label && (
+                            <span className={cn('ml-auto', past ? 'text-muted-foreground' : '')}>{meta.label}</span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 leading-snug text-foreground">{occurrence.name}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  );
+};
+
+const KeyRow = ({ swatch, label, meaning }) => (
+  <li className="flex items-start gap-2 py-1">
+    <span className="flex w-28 shrink-0 items-center">{swatch}</span>
+    <div className="min-w-0">
+      <span className="text-xs font-medium text-foreground">{label}</span>
+      <p className="text-xs text-muted-foreground">{meaning}</p>
+    </div>
+  </li>
+);
+
+const KeyGroup = ({ title, children }) => (
+  <section>
+    <h3 className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{title}</h3>
+    <ul className="mt-1 divide-y divide-border/60">{children}</ul>
+  </section>
+);
+
+/**
+ * What every colour on the page means, built from the maps the page renders
+ * with. Swatches are the real badge, dot or icon, not a repainted copy.
+ *
+ * Rendered by the settings page in its sidebar, under the section list,
+ * while this dashboard is open — not by the dashboard itself — so the key
+ * sits beside the page rather than pushing the first card down.
+ */
+export const ColourKey = () => {
+  const [open, setOpen] = useState(true);
+  const Chevron = open ? ChevronDown : ChevronRight;
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <button
+          type="button"
+          onClick={() => setOpen((was) => !was)}
+          aria-expanded={open}
+          className="flex w-full items-center gap-2 text-left"
+        >
+          <Chevron className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <CardTitle className="text-base">Colour key</CardTitle>
+        </button>
+        {open && (
+          <CardDescription>
+            Green is done and right, blue is in motion or merely late, amber needs a look, red needs a
+            person, grey is nothing to expect, and orange is not run yet.
+          </CardDescription>
+        )}
+      </CardHeader>
+      {open && (
+        <CardContent>
+          <div className="space-y-5" aria-label="Colour key">
+            <KeyGroup title="Job status">
+              {Object.entries(STATUS).map(([key, meta]) => (
+                <KeyRow key={key} swatch={<StatusBadge status={key} />} label={meta.label} meaning={meta.meaning} />
+              ))}
+            </KeyGroup>
+            <KeyGroup title="Run outcome">
+              {Object.entries(RUN_STATUS).map(([key, meta]) => (
+                <KeyRow key={key} swatch={<Badge variant={meta.variant}>{meta.label}</Badge>} label={meta.label} meaning={meta.meaning} />
+              ))}
+            </KeyGroup>
+            <KeyGroup title="Step result">
+              {Object.entries(STEP_STATE).map(([key, meta]) => (
+                <KeyRow
+                  key={key}
+                  swatch={<meta.Icon className={cn('h-4 w-4', meta.className)} aria-hidden="true" />}
+                  label={meta.label}
+                  meaning={meta.meaning}
+                />
+              ))}
+            </KeyGroup>
+            <KeyGroup title="Week strip">
+              {Object.entries(OCCURRENCE).map(([key, meta]) => (
+                <KeyRow
+                  key={key}
+                  swatch={
+                    <span className={cn('flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px]', meta.className)}>
+                      <span className={cn('h-1.5 w-1.5 rounded-full', meta.dot)} aria-hidden="true" />
+                      {meta.label ?? meta.keyLabel}
+                    </span>
+                  }
+                  label={meta.label ?? meta.keyLabel}
+                  meaning={meta.meaning}
+                />
+              ))}
+            </KeyGroup>
+            <KeyGroup title="Recommendation">
+              {Object.entries(SEVERITY).map(([key, meta]) => (
+                <KeyRow
+                  key={key}
+                  swatch={
+                    <span className={cn('flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px]', meta.className)}>
+                      <meta.Icon className={cn('h-3 w-3', meta.iconClass)} aria-hidden="true" />
+                      {meta.label}
+                    </span>
+                  }
+                  label={meta.label}
+                  meaning={meta.meaning}
+                />
+              ))}
+            </KeyGroup>
+            <KeyGroup title="Data freshness">
+              {Object.entries(FRESHNESS).map(([key, meta]) => (
+                <KeyRow
+                  key={key}
+                  swatch={<meta.Icon className={cn('h-4 w-4', meta.className)} aria-hidden="true" />}
+                  label={meta.label}
+                  meaning={meta.meaning}
+                />
+              ))}
+            </KeyGroup>
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+};
+
 const AutomationsDashboard = () => {
   const report = useAutomationReport();
-  const { summaries, recommendations, health, state, actualWeek, config, now, isLoading, error, season } = report;
+  const { summaries, recommendations, health, state, actualWeek, config, now, isLoading, error, season, runs } = report;
+  const week = upcomingSchedule({ now, days: 7, runs, state });
 
   const seasonNames = season ? { [season.id]: `${season.year}` } : {};
   const counts = summaries.reduce((acc, summary) => {
@@ -649,6 +858,8 @@ const AutomationsDashboard = () => {
 
   return (
     <div className="space-y-6">
+      <WeekView days={week} now={now} />
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-2">

@@ -1,3 +1,4 @@
+import { ownerKey } from '../../utils/ownerAliases.js';
 /**
  * Get truncated UUID for masked display (first 8 characters)
  */
@@ -83,11 +84,14 @@ export const getTeamOwnerNames = (teamsOrSeason) => {
  * normalization there would put somebody in the wrong column rather than fail
  * loudly. One definition, as `matchesTeamOwner` below already claimed.
  *
+ * Delegates to `ownerKey` in `utils/ownerAliases.js`, which is also what the
+ * sync's matchers compare on — so a member whose ESPN profile misspells their
+ * name matches their team whichever spelling reaches this side.
+ *
  * @param {string} name
  * @returns {string} the normalized name, or '' for anything unusable
  */
-export const normalizeOwnerName = (name) =>
-  typeof name === 'string' ? name.trim().toLowerCase() : '';
+export const normalizeOwnerName = (name) => ownerKey(name);
 
 /**
  * Does a name match one of the league's team owners?

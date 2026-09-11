@@ -1,5 +1,12 @@
+import { canonicalOwnerName, ownerKey } from './ownerAliases.js';
+
 /**
- * Extract owner name from ESPN team data with fallback logic
+ * Extract owner name from ESPN team data with fallback logic.
+ *
+ * Every ESPN reader — rosters, schedule, transactions — gets the owner's name
+ * from here, so this is where ESPN's spelling becomes the league's: the name
+ * is passed through `canonicalOwnerName` before it is returned, and no caller
+ * has to remember the alias table exists.
  * @param {Object} espnTeamData - ESPN team data object
  * @param {Array} members - Current season members array
  * @param {Object} allSeasonMembers - All season members for fallback lookup
@@ -25,7 +32,7 @@ export function extractOwnerInfo(espnTeamData, members = []) {
     
     return {
         ownerId,
-        ownerName
+        ownerName: canonicalOwnerName(ownerName)
     };
 }
 
@@ -50,8 +57,8 @@ export function findMatchingTeam(espnTeam, existingTeams, members = []) {
     // Prioritize owner name matching since it's more reliable than ESPN team IDs
     const matchingStrategies = [
         // 1. Exact owner name match (most reliable)
-        (team) => ownerName && team.owner && 
-                 team.owner.toLowerCase() === ownerName.toLowerCase(),
+        (team) => ownerName && team.owner &&
+                 ownerKey(team.owner) === ownerKey(ownerName),
         
         // 2. Owner name contains match (handles nicknames, etc.)
         (team) => ownerName && team.owner && 

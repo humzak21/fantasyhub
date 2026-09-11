@@ -15,7 +15,7 @@ import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Databas
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
 import MemberApprovalsManager from '../admin/MemberApprovalsManager.jsx'
-import AutomationsDashboard from '../admin/AutomationsDashboard.jsx'
+import AutomationsDashboard, { ColourKey } from '../admin/AutomationsDashboard.jsx'
 import { useAutomationReport } from '../admin/automations/useAutomationReport.js'
 import ApprovalPendingNotice from './ApprovalPendingNotice.jsx'
 import ChangePasswordForm from './ChangePasswordForm.jsx'
@@ -285,6 +285,11 @@ export const UserSettingsPage = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* The automation dashboard's colour key lives beside it, under
+                the section list, so the legend is in view while reading the
+                page without taking the first card's place. */}
+            {activeSettingsTab === 'automations' && isAdmin && <ColourKey />}
           </div>
 
           {/* Main Settings Panel */}

@@ -1,3 +1,4 @@
+import { ownerKey } from '../utils/ownerAliases.js';
 /**
  * ESPN matchup → `games` row, as pure functions.
  *
@@ -64,7 +65,7 @@ export function buildTeamIndex(teams = []) {
     const owner = team.owner ?? team.ownerName ?? team.owner_name;
 
     if (espnTeamId != null) byEspnId.set(String(espnTeamId), team);
-    if (owner) byOwner.set(String(owner).trim().toLowerCase(), team);
+    if (owner) byOwner.set(ownerKey(owner), team);
   }
 
   return {
@@ -76,7 +77,7 @@ export function buildTeamIndex(teams = []) {
         return byEspnId.get(String(espnTeamId));
       }
       if (ownerName) {
-        return byOwner.get(String(ownerName).trim().toLowerCase()) ?? null;
+        return byOwner.get(ownerKey(ownerName)) ?? null;
       }
       return null;
     }

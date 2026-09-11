@@ -328,6 +328,18 @@ export const PASSIVE_AUTOMATIONS = [
     verify: 'An edit with no matching take_events row.'
   },
   {
+    id: 'owner-aliases',
+    name: 'Owner-name aliases',
+    where: 'App · utils/ownerAliases.js',
+    fires: 'On every ESPN read and every owner-name comparison',
+    does:
+      "Maps ESPN's spelling of an owner to the league's. ESPN carries \"Aashish Gatmaneni\" against the " +
+      'league\'s "Aashish Gatamaneni"; extractOwnerInfo canonicalises what the fetchers return, and every ' +
+      'matcher (buildTeamIndex, the owner-conflict check, the client\'s normalizeOwnerName) compares on ownerKey, ' +
+      'so both spellings are one person. Add an alias by adding one line to OWNER_ALIASES.',
+    verify: 'A transactions row or an ownerConflicts entry naming the ESPN spelling means a reader bypassed extractOwnerInfo.'
+  },
+  {
     id: 'finalize-on-activate',
     name: 'Finalize the previous season on activation',
     where: 'App · seasons.setActiveSeason',
@@ -386,6 +398,73 @@ export function nextScheduledSlot(schedule, at = new Date()) {
   const next = new Date(last);
   next.setUTCDate(next.getUTCDate() + (schedule.dow != null ? 7 : 1));
   return next;
+}
+
+/** Local-calendar key for a Date, so occurrences group by the viewer's day. */
+const localDayKey = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+/**
+ * The next `days` local calendar days, today first, each with every cron
+ * occurrence that falls on it — the week strip above the dashboard.
+ *
+ * Occurrences are the automations' UTC slots projected onto the viewer's
+ * calendar, so a 16:40 UTC daily refresh lands on the day and time the
+ * reader's clock shows. Today includes the slots already behind us, each
+ * marked by what the log says about it:
+ *
+ *   ran       a cron run for that automation started within six hours of it
+ *   due       the slot has passed but is still inside the miss grace
+ *   missed    grace is up, no run landed, and the season is live
+ *   idle      out of season, so the slot fires and the script exits quietly
+ *   upcoming  still ahead
+ */
+export function upcomingSchedule({ now = new Date(), days = 7, runs = [], state = 'in-season' } = {}) {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(start);
+  end.setDate(end.getDate() + days);
+
+  const occurrences = [];
+  for (const automation of AUTOMATIONS) {
+    if (!automation.schedule?.cron) continue;
+    const own = runs.filter((run) => run.trigger === 'cron' && classifyRun(run) === automation.id);
+
+    let slot = lastScheduledSlot(automation.schedule, start);
+    if (slot < start) slot = nextScheduledSlot(automation.schedule, slot);
+    while (slot && slot < end) {
+      const at = slot;
+      const ran = own.some((run) => {
+        const started = new Date(run.startedAt);
+        return started >= at && started - at <= 6 * HOUR;
+      });
+
+      let status = 'upcoming';
+      if (at <= now) {
+        if (ran) status = 'ran';
+        else if (state !== 'in-season') status = 'idle';
+        else if (now - at > MISSED_GRACE_MS) status = 'missed';
+        else status = 'due';
+      } else if (state !== 'in-season') {
+        status = 'idle';
+      }
+
+      occurrences.push({ automationId: automation.id, name: automation.name, at, status });
+      slot = nextScheduledSlot(automation.schedule, slot);
+    }
+  }
+
+  const byDay = new Map();
+  for (let offset = 0; offset < days; offset += 1) {
+    const date = new Date(start);
+    date.setDate(date.getDate() + offset);
+    byDay.set(localDayKey(date), { date, isToday: offset === 0, occurrences: [] });
+  }
+  for (const occurrence of occurrences) {
+    byDay.get(localDayKey(occurrence.at))?.occurrences.push(occurrence);
+  }
+  for (const day of byDay.values()) day.occurrences.sort((a, b) => a.at - b.at);
+
+  return [...byDay.values()];
 }
 
 /**

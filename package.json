@@ -6,7 +6,7 @@
   "scripts": {
     "prepare": "test -f scripts/setup-git-merge-driver.sh && sh scripts/setup-git-merge-driver.sh || true",
     "dev": "vite",
-    "build": "npm config set cache /tmp/.npm-cache && rm -rf node_modules/.vite && vite build",
+    "build": "npm config set cache /tmp/.npm-cache && vite build",
     "preview": "vite preview",
     "start": "serve -s dist -l ${PORT:-3000}",
     "test": "vitest",

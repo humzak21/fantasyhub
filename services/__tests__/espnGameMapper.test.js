@@ -69,6 +69,16 @@ describe('buildTeamIndex', () => {
   it('returns null rather than a wrong team when nothing matches', () => {
     expect(buildTeamIndex(TEAMS).find(404, 'Nobody At All')).toBeNull();
   });
+
+  it('resolves the known ESPN misspelling through the owner fallback', () => {
+    // `utils/ownerAliases.js`: ESPN's "Aashish Gatmaneni" is the league's
+    // "Aashish Gatamaneni". Either spelling on either side finds the team.
+    const stored = buildTeamIndex([{ id: 'team-aashish', owner: 'Aashish Gatamaneni', espn_team_id: null }]);
+    expect(stored.find(999, 'Aashish Gatmaneni')?.id).toBe('team-aashish');
+
+    const misspelledRow = buildTeamIndex([{ id: 'team-aashish', owner: 'Aashish Gatmaneni', espn_team_id: null }]);
+    expect(misspelledRow.find(999, 'Aashish Gatamaneni')?.id).toBe('team-aashish');
+  });
 });
 
 describe('resolveGameType', () => {

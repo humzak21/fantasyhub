@@ -48,6 +48,7 @@ import { getDb, getContext } from '../services/db/index.js';
 import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
 import { deriveCurrentWeek, deriveWeekStart, toSeasonConfig } from '../utils/seasonConfig.js';
+import { canonicalOwnerName } from '../utils/ownerAliases.js';
 
 /**
  * Reasons to do nothing, and the one reason to shout.
@@ -422,7 +423,7 @@ async function syncTransactions(seasonId, espn) {
       season_id: seasonId,
       franchise_id: franchiseId,
       team_id: team.id,
-      owner_name: entry.ownerName,
+      owner_name: canonicalOwnerName(entry.ownerName),
       espn_team_id: entry.espnTeamId,
       free_agent_adds: entry.free_agent_adds,
       waiver_claims: entry.waiver_claims,
