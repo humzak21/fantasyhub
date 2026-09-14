@@ -36,7 +36,8 @@ const mapped = (overrides = {}) => ({
 /** Every player already exists, so no `players` write is expected. */
 const existingPlayers = (rows) => ({
   'players.select': () => rows,
-  'player_week_stats.upsert': () => []
+  'player_week_stats.upsert': () => [],
+  'team_week_lineups.upsert': () => []
 });
 
 describe('upsertPlayerWeekStats', () => {
@@ -115,7 +116,8 @@ describe('upsertPlayerWeekStats', () => {
           espn_player_id: row.espn_player_id
         }));
       },
-      'player_week_stats.upsert': () => []
+      'player_week_stats.upsert': () => [],
+  'team_week_lineups.upsert': () => []
     });
 
     const result = await upsertPlayerWeekStats(
@@ -147,7 +149,8 @@ describe('upsertPlayerWeekStats', () => {
     // would either fail the whole batch or store a lie.
     const ctx = makeCtx({
       'players.select': () => [],
-      'player_week_stats.upsert': () => []
+      'player_week_stats.upsert': () => [],
+  'team_week_lineups.upsert': () => []
     });
 
     const result = await upsertPlayerWeekStats(
@@ -189,6 +192,37 @@ describe('upsertPlayerWeekStats', () => {
 
     const [{ payload }] = ctx.client.callsFor('player_week_stats', 'upsert');
     expect(payload[0].injury_status).toBeNull();
+  });
+});
+
+describe('upsertPlayerWeekStats · team_week_lineups', () => {
+  it('stores each settled team week beside its player rows, and skips an unsettled one', async () => {
+    const ctx = makeCtx(existingPlayers([
+      { id: 'player-1', espn_player_id: 101 },
+      { id: 'player-2', espn_player_id: 102 },
+      { id: 'player-3', espn_player_id: 103 }
+    ]));
+
+    await upsertPlayerWeekStats(ctx, SEASON, WEEK, [
+      // Team A started a 20-point quarterback over a 25-point one on the bench.
+      mapped({ espnPlayerId: 101, actualPoints: 20 }),
+      mapped({ espnPlayerId: 102, lineupSlotId: 20, started: false, actualPoints: 25 }),
+      // Team B's starter has not played yet: a projection is not a lineup result.
+      mapped({ espnTeamId: 2, espnPlayerId: 103, actualPoints: null })
+    ], teams);
+
+    const [{ payload, options }] = ctx.client.callsFor('team_week_lineups', 'upsert');
+    expect(options.onConflict).toBe('season_id,week,team_id');
+    expect(payload).toEqual([
+      expect.objectContaining({
+        season_id: SEASON,
+        week: WEEK,
+        team_id: 'team-a',
+        starter_points: 20,
+        optimal_points: 25,
+        starters_scoring: 1
+      })
+    ]);
   });
 });
 

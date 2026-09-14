@@ -231,8 +231,9 @@ function useInvalidators() {
         ]);
       },
       /**
-       * A season was finished: its teams gained placements, its awards were
-       * computed, and every History view is derived from both. Activating a
+       * A season was finished: its teams gained placements, and every History
+       * view — the record book included — is derived from them. Finishing
+       * writes no awards (the stat awards are records now). Activating a
        * season can finalize the outgoing one, so it invalidates this too.
        */
       finalization: async (seasonId) => {
@@ -240,7 +241,6 @@ function useInvalidators() {
         await Promise.all([
           invalidate(qk.seasons.all),
           invalidate(qk.teams.all),
-          invalidate(qk.awards.all),
           invalidate(qk.history.all)
         ]);
       },
@@ -291,7 +291,7 @@ export function useLeagueMutations(seasonId) {
   });
 
   // Activating a season finishes the one it replaces, so this invalidates the
-  // placements and awards that finishing writes as well as the season rows.
+  // placements that finishing writes as well as the season rows.
   const setActiveSeason = useMutation({
     mutationFn: (id) => db().seasons.setActiveSeason(id),
     onSuccess: (_season, id) =>
@@ -299,7 +299,7 @@ export function useLeagueMutations(seasonId) {
   });
 
   /**
-   * Derive a season's final placements and awards.
+   * Derive a season's final placements.
    *
    * A dry run writes nothing and invalidates nothing — it exists so the admin
    * can read the podium before agreeing to it.

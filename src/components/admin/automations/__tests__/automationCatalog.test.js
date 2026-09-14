@@ -124,6 +124,13 @@ describe('classifyRun', () => {
       .toBe('weekly-sync');
   });
 
+  it('still reads a postseason daily refresh as the daily refresh', () => {
+    const steps = { ...DAILY_STEPS, postseasonGames: { created: 2, updated: 0, unchanged: 0, untyped: [] } };
+    expect(classifyRun(run({ steps }))).toBe('daily-refresh');
+    expect(classifyRun(run({ steps: { ...WEEKLY_STEPS, postseasonGames: { skipped: 'written by scores' } } })))
+      .toBe('weekly-sync');
+  });
+
   it('attributes an empty running row by proximity to a slot', () => {
     expect(classifyRun(run({ status: 'running', steps: {}, startedAt: '2026-09-15T10:04:00Z' }))).toBe('weekly-sync');
     expect(classifyRun(run({ status: 'running', steps: {}, startedAt: '2026-09-16T16:50:00Z' }))).toBe('daily-refresh');
@@ -159,6 +166,26 @@ describe('summarizeStep', () => {
       }
     })).toMatchObject({ state: 'warning', issues: [expect.stringContaining('owner differs for INOVA')] });
     expect(summarizeStep('snapshot', undefined)).toMatchObject({ state: 'missing' });
+  });
+
+  it('shows what the postseason writers held back and what the bracket is missing', () => {
+    const summary = summarizeStep('postseasonGames', {
+      created: 1,
+      updated: 0,
+      unchanged: 1,
+      errors: [],
+      conflicts: [],
+      untyped: [{ matchupId: 7, week: 16, reason: 'ESPN has not placed this postseason matchup in a bracket yet' }],
+      bracketIssues: ['week 16: 1 semifinals, expected 2']
+    });
+
+    expect(summary.state).toBe('warning');
+    expect(summary.issues).toEqual([
+      'held back: week 16 matchup 7 — ESPN has not placed this postseason matchup in a bracket yet',
+      'bracket: week 16: 1 semifinals, expected 2'
+    ]);
+    expect(summarizeStep('postseasonGames', { skipped: 'written by scores' }).text).toMatch(/scores step/);
+    expect(summarizeStep('postseasonGames', { skipped: 'regular season' }).state).toBe('skipped');
   });
 
   it('flags a step that ran but reported problems', () => {
@@ -294,6 +321,22 @@ describe('buildRecommendations', () => {
     const health = { ...HEALTHY, pickEmWeeks: [1, 2], snapshot: { week: 15 }, playerStats: { week: 14 }, nflRatings: { week: 15 } };
     const recs = buildRecommendations({ summaries: summaries(healthyRuns), health, config: CONFIG, state: 'in-season', actualWeek: 15, now: NOW });
     expect(recs.map((r) => r.id)).not.toContain('pickem-week-missing');
+  });
+
+  it('warns about a postseason week that is not a bracket round, with the daily refresh as the fix', () => {
+    const health = {
+      ...HEALTHY,
+      snapshot: { week: 16 },
+      playerStats: { week: 15 },
+      nflRatings: { week: 16 },
+      postseason: [{ week: 15, issues: ['week 15: 1 first-round games, expected 2'] }]
+    };
+    const recs = buildRecommendations({ summaries: summaries(healthyRuns), health, config: CONFIG, state: 'in-season', actualWeek: 16, now: NOW });
+    const rec = recs.find((r) => r.id === 'postseason-week-15');
+
+    expect(rec.severity).toBe('warning');
+    expect(rec.detail).toMatch(/1 first-round games, expected 2/);
+    expect(rec.actions.find((a) => a.command).command).toBe(daily.command);
   });
 
   it('explains the quiet exits out of season instead of calling them missed', () => {

@@ -387,38 +387,6 @@ export const transformChampionshipsForPieChart = (championships, getFranchiseNam
 };
 
 /**
- * Transform awards data for stacked bar chart
- * @param {Array} franchises - Array of franchise objects
- * @param {Object} awardsByFranchise - Object keyed by franchiseId with awards arrays
- * @param {Function} getFranchiseName - Function to get franchise display name
- * @returns {Array} - Transformed data for stacked bar chart
- */
-export const transformAwardsForBarChart = (franchises, awardsByFranchise, getFranchiseName) => {
-  if (!franchises || !Array.isArray(franchises)) return [];
-
-  return franchises.map((franchise, index) => {
-    const awards = awardsByFranchise[franchise.id] || [];
-
-    // Count by category
-    const standard = awards.filter(a => a.award_category === 'STANDARD').length;
-    const regularSeason = awards.filter(a => a.award_category === 'REGULAR_SEASON').length;
-    const dubious = awards.filter(a => a.award_category === 'DUBIOUS').length;
-    const advanced = awards.filter(a => a.award_category === 'ADVANCED').length;
-
-    return {
-      franchise: getFranchiseName(franchise.id),
-      franchiseId: franchise.id,
-      standard,
-      regularSeason,
-      dubious,
-      advanced,
-      total: standard + regularSeason + dubious + advanced,
-      color: getFranchiseColor(index)
-    };
-  }).filter(d => d.total > 0); // Only include franchises with awards
-};
-
-/**
  * Get responsive chart height based on screen width
  * @param {number} screenWidth - Screen width in pixels
  * @returns {number} - Chart height in pixels

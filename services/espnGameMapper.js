@@ -1,4 +1,5 @@
 import { ownerKey } from '../utils/ownerAliases.js';
+import { PLAYOFF_RESEED_YEAR } from '../utils/playoffSeeding.js';
 /**
  * ESPN matchup → `games` row, as pure functions.
  *
@@ -16,9 +17,13 @@ import { ownerKey } from '../utils/ownerAliases.js';
  * Three rules run through the whole file:
  *
  *   1. **`type` is written on insert and never on update.** The 2025 postseason
- *      types were corrected by hand (migration 20260805100000) and an ESPN sync
- *      must never undo that — the same promise `sync-week.js` has always made
- *      about scores.
+ *      types were corrected by hand (migration 20260805100000), 2020-24's were
+ *      derived from the bracket (20260915120000), and an ESPN sync must never
+ *      undo either — the same promise `sync-week.js` has always made about
+ *      scores. The one exception is a postseason row typed `regular`, which is
+ *      only ever the residue of a matchup imported before ESPN tiered it; see
+ *      `planGameWrites`. And a postseason matchup ESPN has not tiered yet is
+ *      not inserted at all, so that residue is not created in the first place.
  *   2. **Derived columns are never written.** The `before_game_update` trigger
  *      computes `point_differential`, `is_blowout`, `is_close`, `is_tie`,
  *      `winner_team_id`, `loser_team_id` and `completed_at` on every write, and
@@ -108,8 +113,11 @@ export function buildTeamIndex(teams = []) {
 export function resolveGameType(matchup, { isBye, playoffIndex }) {
   if (isBye) return 'bye';
 
+  // No tier in a postseason week is not a regular-season game; it is a matchup
+  // ESPN has not placed in a bracket yet. `null` means "unresolved" — the
+  // planner holds it back rather than write a type it could never correct.
   const tier = matchup.playoffTierType;
-  if (!tier || tier === 'NONE') return 'regular';
+  if (!tier || tier === 'NONE') return playoffIndex > 0 ? null : 'regular';
 
   const winners = ['playoff_first_round', 'playoff_semifinals', 'playoff_championship'];
   const consolation = [
@@ -250,7 +258,10 @@ function findExistingGame(existingGames, { matchup, week, team1, team2, isBye })
  * @param {number} [options.currentScoringPeriod]
  * @param {string} [options.userId]      stamped on inserts only
  * @param {number} [options.week]        only consider this week
- * @returns {{inserts: Array, updates: Array, unchanged: number, unmatched: Array, conflicts: Array}}
+ * @param {boolean} [options.withholdResults] write rows and types, never a
+ *   score — the daily refresh's postseason pass, which must not write results
+ * @returns {{inserts: Array, updates: Array, unchanged: number, unmatched: Array,
+ *   conflicts: Array, untyped: Array, handEntered: Array}}
  */
 export function planGameWrites({
   seasonId,
@@ -260,12 +271,15 @@ export function planGameWrites({
   regularSeasonWeeks = 14,
   currentScoringPeriod = null,
   userId = null,
-  week = null
+  week = null,
+  withholdResults = false
 }) {
   const inserts = [];
   const updates = [];
   const unmatched = [];
   const conflicts = [];
+  const untyped = [];
+  const handEntered = [];
   let unchanged = 0;
 
   // Rows this plan has already claimed, so two matchups cannot both adopt the
@@ -294,11 +308,25 @@ export function planGameWrites({
       { matchup, week: matchupWeek, team1, team2, isBye }
     );
 
-    const played = !isBye && hasFinalScore(matchup, { currentScoringPeriod });
+    const played = !withholdResults && !isBye && hasFinalScore(matchup, { currentScoringPeriod });
     const homeScore = matchup.homeTeam?.score ?? null;
     const awayScore = matchup.awayTeam?.score ?? null;
+    const playoffIndex = matchupWeek - regularSeasonWeeks;
 
     if (!existing) {
+      const type = resolveGameType(matchup, { isBye, playoffIndex });
+
+      // A postseason matchup ESPN has not tiered. Inserting it would type it
+      // `regular`, so it waits: the next run sees the tier and inserts it right.
+      if (type === null) {
+        untyped.push({
+          matchupId: matchup.matchupId ?? null,
+          week: matchupWeek,
+          reason: 'ESPN has not placed this postseason matchup in a bracket yet'
+        });
+        continue;
+      }
+
       inserts.push({
         season_id: seasonId,
         week: matchupWeek,
@@ -306,10 +334,7 @@ export function planGameWrites({
         team2_id: team2?.id ?? null,
         team1_score: played ? homeScore : null,
         team2_score: played ? awayScore : null,
-        type: resolveGameType(matchup, {
-          isBye,
-          playoffIndex: matchupWeek - regularSeasonWeeks
-        }),
+        type,
         espn_matchup_id: matchup.matchupId ?? null,
         espn_scoring_period_id: matchup.scoringPeriodId ?? null,
         ...(userId ? { user_id: userId } : {})
@@ -320,6 +345,17 @@ export function planGameWrites({
     claimed.add(existing.row.id);
     const row = existing.row;
     const patch = {};
+
+    // A hand-entered result is the league's own record of a game ESPN does not
+    // have — 2024 week 1 was played before the league was wiped and restarted,
+    // so whatever ESPN reports for that week describes a different league.
+    // Nothing on the row is patched: not the scores, the pairing, the week or
+    // the ESPN ids. Claimed above all the same, so no other matchup adopts it.
+    if (row.hand_entered) {
+      handEntered.push({ id: row.id, matchupId: matchup.matchupId ?? null, week: matchupWeek });
+      unchanged += 1;
+      continue;
+    }
 
     // Does the stored row still describe the fixture ESPN is reporting?
     //
@@ -389,6 +425,15 @@ export function planGameWrites({
       patch.espn_scoring_period_id = matchup.scoringPeriodId;
     }
 
+    // The one stored type the sync corrects: a postseason row typed `regular`.
+    // That value is only ever what an untiered matchup was given before this
+    // planner held them back — no hand correction and no derived type is
+    // `regular` in a postseason week — so replacing it undoes nobody's work.
+    if (row.type === 'regular' && playoffIndex > 0) {
+      const resolved = resolveGameType(matchup, { isBye, playoffIndex });
+      if (resolved && resolved !== 'regular') patch.type = resolved;
+    }
+
     if (Object.keys(patch).length === 0) {
       unchanged += 1;
       continue;
@@ -397,5 +442,61 @@ export function planGameWrites({
     updates.push({ id: row.id, patch, matchedBy: existing.matchedBy, week: matchupWeek });
   }
 
-  return { inserts, updates, unchanged, unmatched, conflicts };
+  return { inserts, updates, unchanged, unmatched, conflicts, untyped, handEntered };
+}
+
+/**
+ * Does one stored postseason week have the shape the bracket requires?
+ *
+ * Pure, over the `games` rows of a single week. The sync runs it after writing
+ * a postseason week and the Automations dashboard runs it over every elapsed
+ * one, so the two cannot disagree about what a correct bracket week is. Each
+ * string returned is one thing a person should look at; an empty list is a
+ * correct week.
+ *
+ *   round 1  two first-round games — and from 2026, the two bye rows that
+ *            `finalize_season` refuses to run without
+ *   round 2  two semifinals
+ *   round 3  one championship
+ *   always   no postseason game typed `regular`
+ *
+ * Consolation and placement games are not counted: their number follows the
+ * league size and ESPN's ladder settings, and neither decides the title.
+ *
+ * `complete: false` is for the week in progress, where ESPN may not have drawn
+ * the round yet: only a game typed `regular` is reported, since that is wrong
+ * the moment it is written.
+ */
+export function validatePostseasonWeek(
+  games = [],
+  { week, regularSeasonWeeks = 14, year = null, complete = true } = {}
+) {
+  const round = week - regularSeasonWeeks;
+  if (!(round >= 1)) return [];
+
+  const count = (type) => games.filter((game) => game.type === type).length;
+  const issues = [];
+
+  const expectCount = (type, expected, label) => {
+    const found = count(type);
+    if (found !== expected) issues.push(`week ${week}: ${found} ${label}, expected ${expected}`);
+  };
+
+  const regular = count('regular');
+  if (regular > 0) {
+    issues.push(`week ${week}: ${regular} postseason ${regular === 1 ? 'game' : 'games'} typed regular`);
+  }
+
+  if (!complete) return issues;
+
+  if (round === 1) {
+    expectCount('playoff_first_round', 2, 'first-round games');
+    if (year != null && year >= PLAYOFF_RESEED_YEAR) expectCount('bye', 2, 'bye rows');
+  } else if (round === 2) {
+    expectCount('playoff_semifinals', 2, 'semifinals');
+  } else if (round === 3) {
+    expectCount('playoff_championship', 1, 'championship games');
+  }
+
+  return issues;
 }

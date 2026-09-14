@@ -49,6 +49,14 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
   `nfl_team_ratings` for the current week. `[week]`, `--dry-run`. No
   `--backfill` — ESPN serves current FPI only, which is why the weekly
   snapshots exist. The weekly sync runs it as its `nflRatings` step.
+- `npm run backfill-transactions` - Store every executed transaction
+  (`transaction_events`) and re-derive the counts (`transactions`) for past
+  seasons, through the sync's own `syncTransactions`. `[year]`, `--dry-run`;
+  default is every completed season from 2020. Run once on 2026-09-15.
+- `npm run backfill-player-week-stats` - Store past weeks' `player_week_stats`
+  and `team_week_lineups` through the sync's own `syncPlayerStats`.
+  `[year] [week]`, `--dry-run`. Run once on 2026-09-15; see "Lineups and
+  transactions go back to 2020".
 
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
@@ -163,9 +171,9 @@ season row supplies the season, week, playoff boundary and ESPN league. Every
 step is an idempotent upsert against ESPN, so re-running a failed sync is the
 fix. Each run writes a `sync_runs` row.
 
-Its steps are **pickEmWeek** → rosters → scores → playerStats →
-**finalizePrev** → nflSchedule → nflRatings → **parlayGrades** → transactions
-→ snapshot. Scores
+Its steps are **pickEmWeek** → rosters → **postseasonGames** → scores →
+playerStats → **finalizePrev** → nflSchedule → nflRatings → **parlayGrades** →
+transactions → snapshot. Scores
 and playerStats read **one** ESPN fetch between them, so do not re-fetch inside
 a step. **The rosters step also refreshes team identity** — `teams.name` and
 `abbreviation` — through `upsertTeamsFromESPN`, from the `mTeam` view the
@@ -182,9 +190,24 @@ parlayGrades and transactions are non-fatal: a failure is recorded in
 `sync_runs.steps` and the run continues, because losing the week's snapshot to
 a player-data hiccup costs more than the missing rows.
 Skip flags:
-`--skip-pick-em-week --skip-rosters --skip-scores --skip-player-stats
---skip-finalize-prev --skip-nfl-schedule --skip-nfl-ratings
+`--skip-pick-em-week --skip-rosters --skip-postseason-games --skip-scores
+--skip-player-stats --skip-finalize-prev --skip-nfl-schedule --skip-nfl-ratings
 --skip-parlay-grades --skip-transactions --skip-snapshot`, plus `--dry-run`.
+
+**`postseasonGames` is the daily refresh's bracket pass.** ESPN draws each
+postseason round after the previous one ends, which can be after Tuesday's run,
+and the daily refresh skips `scores`. So in a postseason week, and only when
+`scores` is skipped, this step runs the same `upsertEspnGames` with
+`withholdResults: true` — rows and their types, never a score — and the
+semifinal and final rows land the same day. It is non-fatal, and in the weekly
+run it records `skipped: 'written by scores'`. Both it and `scores` read the
+stored week back through `validatePostseasonWeek` and report what is missing;
+see "A playoff game is a bracket game" below.
+
+**Two writers ride along on existing steps.** `playerStats` (and so
+`finalizePrev`) also writes the week's `team_week_lineups`, and `transactions`
+also writes `transaction_events` from the same fetch. See "Lineups and
+transactions go back to 2020".
 
 **`pickEmWeek` opens the week's pick'ems.** It is the first step and needs no
 ESPN call: `pickems.ensurePickEmWeek` creates the `pick_em_weeks` row for the
@@ -228,12 +251,54 @@ The planning is pure and lives in `services/espnGameMapper.js`. Two rules it
 enforces, both load-bearing:
 
 - **`type` is written on insert and never on update**, so the hand-corrected
-  2025 postseason types survive every sync.
+  2025 postseason types, and the 2020-24 types derived from the bracket, survive
+  every sync. Two narrow exceptions, both in the planner: a postseason matchup
+  ESPN has not tiered yet (`playoffTierType` NONE in a week after the regular
+  season) is **held back** — reported as `untyped`, inserted by the next run —
+  rather than inserted as `regular`, which it could never leave; and a stored
+  row typed `regular` in a postseason week is corrected once ESPN tiers it. No
+  hand correction is ever `regular` in a postseason week, so neither can undo
+  one.
+- **A `hand_entered` row is never patched.** `games.hand_entered` marks the
+  league's own result for a game ESPN does not have — today exactly 2024 week
+  1, played before the league was wiped and restarted on ESPN, so the
+  restarted league's week 1 describes different matchups. The planner claims
+  the row and changes nothing on it: no score, pairing, week or ESPN id. The
+  seven results are written out in
+  `20260915160000_hand_entered_2024_week1.sql`, which restores them if
+  re-applied and raises unless all seven are present.
 - **Derived columns are never written.** The `before_game_update` trigger
   computes `winner_team_id`, `loser_team_id`, `is_tie`, `point_differential`,
   `is_blowout`, `is_close` and `completed_at`; `is_completed` is generated.
   Sending `completed_at: null` would make the trigger re-stamp it with the
   import time.
+
+**A playoff game is a bracket game.** Every postseason game is typed in 2025's
+vocabulary: `playoff_first_round`, `playoff_semifinals`, `playoff_championship`,
+flat `playoff` for placement games between bracket teams (3rd, 5th), and
+`playoff_consolation_*` for everything else. `v_game_results.is_playoff` is
+`playoff%` but not `playoff_consolation%`, and `is_consolation` is the rest —
+so `v_team_standings.playoff_*_played`, `v_head_to_head.playoff_*`,
+`finalize_season`'s playoff W/L and the record book all count bracket games
+only. Before `20260915120000_postseason_bracket_repair.sql` every pre-2025
+postseason game was flat `playoff`, a consolation win read as a playoff win,
+and the 2021 and 2024 brackets were flagged wrong (six teams in each were in or
+out of the bracket against the games they played). That migration derived the
+bracket from the game graph — finalists from `playoff_finish`, semifinalists as
+whoever a finalist met the week before, round-1 losers as whoever a
+semifinalist beat before that — retyped 2020-24, fixed the flags and finishes,
+and refuses to commit unless every completed season has a six-team bracket with
+balanced W/L.
+
+Going forward `resolveGameType` does the typing from ESPN's tier, and
+`validatePostseasonWeek` (`services/espnGameMapper.js`) checks each stored
+week's shape: round 1 has two first-round games (and from 2026 two `bye` rows),
+round 2 two semifinals, round 3 one championship, and no postseason game is
+`regular`. The sync reports it per run and `getAutomationHealth` runs it over
+every elapsed postseason week (the week in progress only for `regular`), which
+is what raises the Automations dashboard's `postseason-week-N` warning.
+`PlayoffsBracketAdmin` finds the first postseason week from
+`regularSeasonWeeks`, not a hardcoded 15.
 
 **`teams.owner` follows the same insert-only rule**, in
 `services/db/teams.js::upsertTeamsFromESPN`. ESPN owns a team's *name* and
@@ -609,8 +674,13 @@ Rules that are load-bearing:
 `public.finalize_season(season_id, dry_run)` derives a season's final placements
 from its games and writes `teams.made_playoffs/playoff_seed/playoff_wins/
 playoff_losses/playoff_finish/final_rank` plus `seasons.is_completed/
-completed_at`. `public.compute_season_awards(season_id)` then upserts the eleven
-computed awards. Both are idempotent, both guarded by `can_write_league()`.
+completed_at`. It is idempotent and guarded by `can_write_league()`. It used
+to be followed by `compute_season_awards`, which wrote eleven stat awards; those
+are records in the record book now, `finalizeSeason` no longer calls it, and
+`20260915150000_retire_computed_awards.sql` deletes the rows and drops the
+function and `v_record_book` — **apply that migration with the deploy of this
+client, not before**, since the previous client reads the view. Playoff W/L
+counts bracket games only (`v_game_results.is_playoff`).
 Rules that are load-bearing:
 
 - **It raises rather than guessing.** An incomplete game, no championship game,
@@ -625,9 +695,9 @@ Rules that are load-bearing:
   stored, and there is a probe that asserts it. `utils/playoffSeeding.js` is the
   client-side mirror of the same rule, and `get_standings_by_division` its
   live-standings mirror; changing one means changing all three.
-- **`teams.playoff_finish` is the fact; the award is a description of it.**
-  `getChampionships` and `v_franchise_career` read the placement, not the award,
-  so a season with no awards still has a champion.
+- **`teams.playoff_finish` is the fact.** `getChampionships`,
+  `v_franchise_career` and the record book read the placement; no award has
+  ever been the source of a champion.
 - The vocabulary is `champion/2nd/3rd/4th/5th/6th/none`, matching 2020-24.
   Consolation finishers get `none` and a `final_rank` of 7..N.
 - **`setActiveSeason` finalizes the season it replaces**, non-fatally, in the
@@ -645,8 +715,9 @@ Rules that are load-bearing:
 ### League History reads the live schema
 `services/db/history.js` + `hooks/queries/useLeagueHistory.js` are the whole of
 the History tab. They read the unified views — `v_team_standings`,
-`v_game_results`, `v_head_to_head`, `v_franchise_career`, `v_record_book` — so a
-season becomes history the moment `finalize_season` runs, with no import step.
+`v_game_results`, `v_head_to_head`, `v_franchise_career` — and, for the record
+book, the tables themselves, so a season becomes history the moment
+`finalize_season` runs, with no import step.
 
 The `historical_seasons/_teams/_games`, `season_awards`, `head_to_head_records`,
 `franchise_records` tables and the `mv_*` views are the **dead** pre-2026 path:
@@ -658,6 +729,98 @@ double-counted every 2020-24 matchup.
 `transactions` is season-keyed; read it directly. `transactions_2025` is a view
 over the *active* season, not over 2025 — it is what labelled 2026's numbers
 "2025".
+
+### The record book is computed on read
+
+History → Records is every record as a leaderboard — top 5, opening to 20 (10
+with one season picked) — on two tabs: **All-Time** (careers, and streaks that
+cross seasons) and **Single Season** (team-seasons, single games, in-season
+streaks, with a season picker). It replaced `v_record_book` and the helpers that
+named one winner per question. Three layers, each with one job:
+
+- `services/db/history.js::getRecordBookSource` reads seasons, teams, games
+  (with `is_blowout`/`is_close`), `transactions`, trades and winning bids from
+  `transaction_events`, and `team_week_lineups`. **Everything that can pass
+  PostgREST's silent 1,000-row cap goes through `services/db/paging.js::selectAll`**
+  — `v_game_results` passed it in 2026, and a plain select returns the first
+  thousand with no error.
+- `utils/recordBook/` is pure and computes raw rows (`book.career[key]`,
+  `book.season[key]`); `rankRows` ranks them at render time with competition
+  ranking (1, 2, 2, 4), because one row set serves a record and its opposite and
+  the season filter should cost nothing. `useRecordBook` runs `buildRecordBook`
+  in `select`, so the book is computed once per fetch.
+- `src/components/history/records/recordCatalog.js` names every record, its
+  section, direction and format, in display order. Opposites sit together;
+  there is no best/dubious split.
+
+Rules that are load-bearing:
+
+- **Records are regular-season games.** Game records carry `phase` and the card
+  offers a Regular / Playoffs toggle; consolation games are in neither.
+- **Season totals are completed seasons only**, or two weeks of an active
+  season hold every "fewest" record. Games and streaks include the season in
+  progress.
+- **Blowout and narrow are the trigger's flags** (≥30, ≤5), and
+  `THRESHOLDS.blowout/close` in `types/index.js` equal them. They were 25/7, so
+  the ranking and the stored flags disagreed.
+- **A rate needs a sample:** career win %, PPG and per-game PA/diff need 28
+  games; season lineup rates 7 settled weeks, career 28. Below the line there is
+  no row.
+- **Unknown is absent, never zero**, the power ranking's rule again: a season
+  with no lineup data has no lineup rows. Counts ranked high-to-low hide zeros
+  (`hidesZero`).
+- **Luck** is wins minus all-play expected wins (all-play win share × games);
+  **schedule strength** is the opponents' season PPG; a streak across seasons
+  breaks on a season the franchise sat out.
+- Masking goes through `getMaskedFranchiseName`/`canViewFullData`, and a masked
+  viewer's avatar is keyed on the masked name, since initials come from owners.
+
+**History → Awards is league-voted awards only.** `shapeAwards` keeps
+`source = 'ballot' and category = 'voted'`, so the gallery, a season and a
+franchise profile agree, and "Most decorated" counts only what a ballot
+decided. The admin's hand-entered stat awards (`category = 'non-voted'`, e.g.
+"Survivor (lowest PA)") stay in the table for the Awards tab; each has a record
+now. Three have no data to become one: injuries ("INOVA"), and the Monday-night
+comeback and collapse awards, which need intra-week scoring.
+
+**Head-to-head detail** is `headtohead/matchupSummary.js` (pure, tested) over
+`getMatchupHistory`, which now reports `isRegular`/`isConsolation`: series,
+record by phase, win %, points, average and highest scores, biggest win,
+longest win streak, the notable games, the last five meetings and every
+meeting.
+
+### Lineups and transactions go back to 2020
+
+Two tables the record book needs, both written beside rows the sync already
+writes, both backfilled for 2020-25:
+
+- **`team_week_lineups`** — per team per settled week: starter points, optimal
+  points (`optimalLineupPoints`, the single definition, via
+  `services/lineupSummary.js`), generated `bench_points`, and starters who
+  scored. Written by `upsertPlayerWeekStats` in the same call as
+  `player_week_stats`, and only when every starter is a result.
+- **`transaction_events`** — each executed free-agent add, waiver claim and
+  accepted trade, with its bid and every franchise it moved a player between.
+  Written by `services/db/transactionEvents.js` from the same `mTransactions2`
+  fetch that `syncTransactions` counts into `transactions`, by the same
+  EXECUTED / TRADE_ACCEPT predicates, so the counts and the detail agree —
+  verified: event-derived trades equal `transactions.trades` for every team
+  2020-25, and bids sum to `faab_spent` every season.
+
+`scripts/backfill-transactions.js` and `scripts/backfill-player-week-stats.js`
+run the sync's own `syncTransactions` / `syncPlayerStats` over past seasons
+(`[year] [week] --dry-run`). What the 2026-09-15 backfill left: **2024 week 1
+has no lineups and never will** — the league was wiped and restarted on ESPN
+after that week was played, so ESPN has no rosters for it (14 team-weeks). Its
+scores are the hand-entered results confirmed by the admin (see the
+`hand_entered` rule under "One path from ESPN into `games`"), so every
+game-based record, standing and head-to-head count includes the week, and only
+the lineup records do not. In four
+team-weeks (2020 wk3, wk5; 2023 wk14 ×2) the starters sum 2–3.4 below the final
+score — a stat correction applied to the matchup and not the player lines.
+Backfilling `player_week_stats` also means a live power-ranking view of a
+2020-25 week now has the roster components it used to drop as unknown; stored
+snapshots are untouched.
 
 ### The TD parlay is one row per member per week
 

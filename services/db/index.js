@@ -36,13 +36,14 @@ import * as seasons from './seasons.js';
 import * as syncRuns from './syncRuns.js';
 import * as takes from './takes.js';
 import * as teams from './teams.js';
+import * as transactionEvents from './transactionEvents.js';
 import * as transactions from './transactions.js';
 import * as users from './users.js';
 
 export {
   awards, divisions, espnMapping, games, history, nflSchedule, nflTeamRatings, parlay, players,
   playerWeekStats, pickems, playoffs, rankings, rosters, schedule, seasons, syncRuns, takes,
-  teams, transactions, users
+  teams, transactionEvents, transactions, users
 };
 
 export { createContext, getContext } from './context.js';
@@ -55,7 +56,7 @@ export { createLogger } from './logger.js';
 const CTX_MODULES = {
   awards, divisions, games, history, nflSchedule, nflTeamRatings, parlay, players,
   playerWeekStats, pickems, playoffs, rankings, rosters, schedule, seasons, syncRuns, takes,
-  teams, transactions, users
+  teams, transactionEvents, transactions, users
 };
 
 /** Pre-apply `ctx` to every exported function of a module. */

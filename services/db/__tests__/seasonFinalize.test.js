@@ -2,9 +2,10 @@
  * Finishing a season.
  *
  * The derivation itself is SQL (`finalize_season`); what is worth pinning down
- * here is the contract around it — that a dry run writes nothing, that awards
- * follow placements, and that activating next season finishes the last one
- * without ever putting the activation itself at risk.
+ * here is the contract around it — that a dry run writes nothing, that finishing
+ * a season writes placements and no awards (the stat awards are records now),
+ * and that activating next season finishes the last one without ever putting
+ * the activation itself at risk.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -23,7 +24,7 @@ const rpcCalls = (ctx, name) =>
   ctx.client.calls.filter((call) => call.table === 'rpc' && call.op === name);
 
 describe('finalizeSeason', () => {
-  it('returns the derived placements without computing awards on a dry run', async () => {
+  it('returns the derived placements on a dry run', async () => {
     const ctx = makeCtx({
       'rpc.finalize_season': () => DRY_RUN_RESULT
     });
@@ -35,30 +36,24 @@ describe('finalizeSeason', () => {
       p_season_id: 'season-2025',
       p_dry_run: true
     });
-    // Awards describe a finished season. There is no such thing as a dry-run
-    // award, and computing them would be a write the caller did not ask for.
-    expect(rpcCalls(ctx, 'compute_season_awards')).toHaveLength(0);
   });
 
-  it('computes the awards after the placements they depend on', async () => {
+  it('writes placements and nothing else — the stat awards are records now', async () => {
     const ctx = makeCtx({
-      'rpc.finalize_season': () => ({ ...DRY_RUN_RESULT, dry_run: false }),
-      'rpc.compute_season_awards': () => ({ awards: [{ award_type: 'champion' }] })
+      'rpc.finalize_season': () => ({ ...DRY_RUN_RESULT, dry_run: false })
     });
 
     const result = await finalizeSeason(ctx, 'season-2025');
 
     expect(result.year).toBe(2025);
-    expect(result.awards).toEqual({ awards: [{ award_type: 'champion' }] });
-
-    const order = ctx.client.calls.filter((call) => call.table === 'rpc').map((call) => call.op);
-    expect(order).toEqual(['finalize_season', 'compute_season_awards']);
+    expect(result).not.toHaveProperty('awards');
+    expect(ctx.client.calls.filter((call) => call.table === 'rpc').map((call) => call.op))
+      .toEqual(['finalize_season']);
   });
 
   it('drops the cached season, which still says the season is unfinished', async () => {
     const ctx = makeCtx({
-      'rpc.finalize_season': () => ({ ...DRY_RUN_RESULT, dry_run: false }),
-      'rpc.compute_season_awards': () => ({})
+      'rpc.finalize_season': () => ({ ...DRY_RUN_RESULT, dry_run: false })
     });
     ctx.seasonsCache.set('season-2025', { id: 'season-2025', isCompleted: false });
 
@@ -86,7 +81,6 @@ describe('setActiveSeason finishing the season it replaces', () => {
       'games.select': () => [],
       'seasons.update': () => ({ id: 'season-2026', year: 2026, is_active: true }),
       'rpc.finalize_season': () => ({ season_id: 'season-2025', year: 2025, dry_run: false }),
-      'rpc.compute_season_awards': () => ({}),
       ...overrides
     };
   }

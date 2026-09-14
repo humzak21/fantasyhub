@@ -21,7 +21,11 @@ import { describe, it, expect } from 'vitest';
 // jsdom and cannot be resolved to a path.
 const repoRoot = resolve(process.cwd()) + '/';
 
-/** Names that only ever appear in the pre-2026 history path. */
+/**
+ * Names that only ever appear in the pre-2026 history path — and in the
+ * one-winner records the record book replaced: `v_record_book`, the computed
+ * stat awards, and the three readers that answered "who is first".
+ */
 const RETIRED = [
   'leagueHistoryManager',
   'historical_seasons',
@@ -34,7 +38,12 @@ const RETIRED = [
   'mv_season_leaderboards',
   'mv_transaction_leaderboards',
   'transactions_2025',
-  'team_transactions'
+  'team_transactions',
+  'v_record_book',
+  'compute_season_awards',
+  'getRecordBook',
+  'getSingleSeasonRecords',
+  'getAllTimeLeaderboards'
 ];
 
 const SEARCH_ROOTS = ['src', 'hooks', 'services', 'scripts', 'utils'];

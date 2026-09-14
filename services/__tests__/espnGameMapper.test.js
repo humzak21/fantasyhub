@@ -14,7 +14,8 @@ import {
   hasFinalScore,
   planGameWrites,
   resolveGameType,
-  TRIGGER_OWNED_COLUMNS
+  TRIGGER_OWNED_COLUMNS,
+  validatePostseasonWeek
 } from '../espnGameMapper.js';
 
 const SEASON_ID = 'season-2026';
@@ -118,6 +119,59 @@ describe('resolveGameType', () => {
     expect(resolveGameType({ playoffTierType: 'NONE' }, { playoffIndex: 0 })).toBe('regular');
     expect(resolveGameType({ playoffTierType: 'WINNERS_BRACKET' }, { isBye: true, playoffIndex: 1 }))
       .toBe('bye');
+  });
+
+  it('calls an untiered postseason matchup unresolved, never regular', () => {
+    // `type` is insert-only, so `regular` here would be permanent.
+    expect(resolveGameType({ playoffTierType: 'NONE' }, { playoffIndex: 1 })).toBeNull();
+    expect(resolveGameType({}, { playoffIndex: 3 })).toBeNull();
+    expect(resolveGameType({}, { playoffIndex: 1, isBye: true })).toBe('bye');
+  });
+});
+
+describe('validatePostseasonWeek', () => {
+  const rows = (...types) => types.map((type) => ({ type }));
+  const week = (n, year = 2026) => ({ week: n, regularSeasonWeeks: 14, year });
+
+  it('accepts every round of a correct bracket', () => {
+    expect(validatePostseasonWeek(
+      rows('playoff_first_round', 'playoff_first_round', 'bye', 'bye', 'playoff_consolation_quarterfinals'),
+      week(15)
+    )).toEqual([]);
+    expect(validatePostseasonWeek(rows('playoff_semifinals', 'playoff_semifinals', 'playoff'), week(16)))
+      .toEqual([]);
+    expect(validatePostseasonWeek(rows('playoff_championship', 'playoff', 'playoff'), week(17)))
+      .toEqual([]);
+  });
+
+  it('names a postseason game typed regular and a round that is short', () => {
+    const issues = validatePostseasonWeek(rows('playoff_semifinals', 'regular'), week(16));
+
+    expect(issues).toEqual([
+      'week 16: 1 postseason game typed regular',
+      'week 16: 1 semifinals, expected 2'
+    ]);
+  });
+
+  it('asks for bye rows only from the 2026 format on', () => {
+    const firstRound = rows('playoff_first_round', 'playoff_first_round');
+
+    expect(validatePostseasonWeek(firstRound, week(15, 2025))).toEqual([]);
+    expect(validatePostseasonWeek(firstRound, week(15, 2026))).toEqual(['week 15: 0 bye rows, expected 2']);
+  });
+
+  it('has nothing to say about a regular-season week', () => {
+    expect(validatePostseasonWeek(rows('regular', 'regular'), week(14))).toEqual([]);
+  });
+
+  it('checks a week in progress only for games typed regular', () => {
+    // ESPN draws the semis after round one ends; an empty week 16 on Tuesday
+    // morning is the calendar, not a fault.
+    const inProgress = { ...week(16), complete: false };
+
+    expect(validatePostseasonWeek([], inProgress)).toEqual([]);
+    expect(validatePostseasonWeek(rows('regular'), inProgress))
+      .toEqual(['week 16: 1 postseason game typed regular']);
   });
 });
 
@@ -391,6 +445,133 @@ describe('planGameWrites', () => {
       });
 
       expect(inserts[0].type).toBe('playoff_semifinals');
+    });
+
+    it('holds back a postseason matchup ESPN has not tiered yet', () => {
+      const { inserts, untyped } = plan({
+        matchups: [matchup({ week: 15, playoffTierType: 'NONE', espnWinner: 'UNDECIDED' })]
+      });
+
+      expect(inserts).toHaveLength(0);
+      expect(untyped).toEqual([expect.objectContaining({ matchupId: 101, week: 15 })]);
+    });
+
+    describe('a postseason row stuck at regular', () => {
+      const stored = (type, week = 15) => ({
+        id: 'game-1',
+        week,
+        team1_id: 'team-humza',
+        team2_id: 'team-rohit',
+        team1_score: null,
+        team2_score: null,
+        type,
+        espn_matchup_id: 101,
+        espn_scoring_period_id: week
+      });
+      const espnMatchup = (overrides) =>
+        matchup({ week: 15, scoringPeriodId: 15, espnWinner: 'UNDECIDED', ...overrides });
+
+      it('is corrected to the tier ESPN now reports', () => {
+        const { updates } = plan({
+          matchups: [espnMatchup({ playoffTierType: 'WINNERS_BRACKET' })],
+          existingGames: [stored('regular')]
+        });
+
+        expect(updates).toHaveLength(1);
+        expect(updates[0].patch).toEqual({ type: 'playoff_first_round' });
+      });
+
+      it('waits, unchanged, while ESPN still has no tier', () => {
+        const { updates, unchanged } = plan({
+          matchups: [espnMatchup({ playoffTierType: 'NONE' })],
+          existingGames: [stored('regular')]
+        });
+
+        expect(updates).toHaveLength(0);
+        expect(unchanged).toBe(1);
+      });
+
+      it('leaves every other stored type alone, including a hand correction', () => {
+        const { updates, unchanged } = plan({
+          matchups: [espnMatchup({ playoffTierType: 'WINNERS_BRACKET' })],
+          existingGames: [stored('playoff_consolation_quarterfinals')]
+        });
+
+        expect(updates).toHaveLength(0);
+        expect(unchanged).toBe(1);
+      });
+
+      it('does not touch a regular-season row', () => {
+        const { updates } = plan({
+          matchups: [matchup({ week: 3, scoringPeriodId: 3, espnWinner: 'UNDECIDED' })],
+          existingGames: [stored('regular', 3)]
+        });
+
+        expect(updates).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('a hand-entered result', () => {
+    it('is left exactly as it is, whatever ESPN reports for that week', () => {
+      // 2024 week 1 was played before the league was restarted on ESPN.
+      const stored = {
+        id: 'game-2024-1',
+        week: 1,
+        team1_id: 'team-humza',
+        team2_id: 'team-rohit',
+        team1_score: 103.76,
+        team2_score: 107.28,
+        type: 'regular',
+        espn_matchup_id: 101,
+        espn_scoring_period_id: 1,
+        hand_entered: true
+      };
+
+      const { updates, inserts, conflicts, unchanged, handEntered } = plan({
+        matchups: [
+          matchup({ week: 1, scoringPeriodId: 1, espnWinner: 'HOME', homeTeam: { teamId: 1, score: 0 }, awayTeam: { teamId: 9, score: 0 } })
+        ],
+        existingGames: [stored]
+      });
+
+      expect(updates).toEqual([]);
+      expect(inserts).toEqual([]);
+      expect(conflicts).toEqual([]);
+      expect(unchanged).toBe(1);
+      expect(handEntered).toEqual([{ id: 'game-2024-1', matchupId: 101, week: 1 }]);
+    });
+  });
+
+  describe('withholding results', () => {
+    it('writes the row and its type but never a score', () => {
+      const { inserts } = plan({
+        withholdResults: true,
+        matchups: [matchup({ week: 16, playoffTierType: 'WINNERS_BRACKET', espnWinner: 'HOME' })]
+      });
+
+      expect(inserts[0]).toMatchObject({ type: 'playoff_semifinals', team1_score: null, team2_score: null });
+    });
+
+    it('leaves a scoreless stored row scoreless even when ESPN has decided it', () => {
+      const { updates, unchanged } = plan({
+        withholdResults: true,
+        matchups: [matchup({ espnWinner: 'HOME' })],
+        existingGames: [{
+          id: 'game-1',
+          week: 3,
+          team1_id: 'team-humza',
+          team2_id: 'team-rohit',
+          team1_score: null,
+          team2_score: null,
+          type: 'regular',
+          espn_matchup_id: 101,
+          espn_scoring_period_id: 3
+        }]
+      });
+
+      expect(updates).toHaveLength(0);
+      expect(unchanged).toBe(1);
     });
   });
 

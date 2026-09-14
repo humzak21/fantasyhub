@@ -141,7 +141,7 @@ const SeasonManager = ({
       setPendingFinalize(null);
       setNotice({
         type: 'success',
-        text: `${season.year} is finalized. Its standings, awards and League History are up to date.`
+        text: `${season.year} is finalized. Its standings, record book and League History are up to date.`
       });
     } catch (error) {
       setNotice({ type: 'warning', text: `Could not finalize ${season.year}: ${error.message}` });
@@ -418,7 +418,7 @@ const SeasonManager = ({
             <DialogTitle>Finalize {pendingFinalize?.season.year}?</DialogTitle>
             <DialogDescription>
               These placements were derived from the season&apos;s games. Applying them marks
-              the season completed, computes its awards, and publishes it to League History.
+              the season completed and publishes it to League History and its record book.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -533,7 +533,7 @@ const SeasonManager = ({
                         onClick={() => handleFinalizePreview(season)}
                         disabled={finalizing}
                         className="flex items-center gap-1 px-3 py-2 bg-amber-100 text-amber-800 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50"
-                        title="Derive the final standings and awards from this season's games"
+                        title="Derive the final standings from this season's games"
                       >
                         <Flag size={16} />
                         Finalize

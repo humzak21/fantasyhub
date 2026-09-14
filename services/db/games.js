@@ -90,7 +90,8 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
     currentScoringPeriod = null,
     regularSeasonWeeks = 14,
     userId = null,
-    dryRun = false
+    dryRun = false,
+    withholdResults = false
   } = options;
 
   try {
@@ -98,7 +99,7 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
 
     let query = ctx.client
       .from('games')
-      .select('id, week, team1_id, team2_id, team1_score, team2_score, type, is_completed, espn_matchup_id, espn_scoring_period_id')
+      .select('id, week, team1_id, team2_id, team1_score, team2_score, type, is_completed, espn_matchup_id, espn_scoring_period_id, hand_entered')
       .eq('season_id', seasonId);
     if (week != null) query = query.eq('week', week);
 
@@ -113,7 +114,8 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
       regularSeasonWeeks,
       currentScoringPeriod,
       userId,
-      week
+      week,
+      withholdResults
     });
 
     // A dry run reports the writes it *would* make — counting them as zero
@@ -125,6 +127,7 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
         unchanged: plan.unchanged,
         unmatched: plan.unmatched,
         conflicts: plan.conflicts,
+        untyped: plan.untyped,
         plan,
         dryRun: true
       };
@@ -156,8 +159,13 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
     log.info(
       `espn games: ${plan.inserts.length} inserted, ${plan.updates.length} updated, ` +
       `${plan.unchanged} unchanged, ${plan.unmatched.length} unmatched, ` +
-      `${plan.conflicts.length} conflicted`
+      `${plan.conflicts.length} conflicted, ${plan.untyped.length} held back untyped`
     );
+
+    // Held back, not lost: the next run inserts them once ESPN tiers them.
+    for (const miss of plan.untyped) {
+      log.warn(`ESPN matchup ${miss.matchupId} (week ${miss.week}): ${miss.reason}`);
+    }
 
     // A conflict is a row ESPN disagrees with that this function refused to
     // rewrite because it already has a result. Silence here would be the same
@@ -174,6 +182,8 @@ export async function upsertEspnGames(ctx, seasonId, matchups, options = {}) {
       unchanged: plan.unchanged,
       unmatched: plan.unmatched,
       conflicts: plan.conflicts,
+      untyped: plan.untyped,
+      handEntered: plan.handEntered,
       plan
     };
   } catch (error) {

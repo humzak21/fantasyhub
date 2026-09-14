@@ -510,20 +510,20 @@ const FranchiseProfile = ({
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Award className="h-5 w-5" />
-              Awards & Honors
+              League awards
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* League-voted awards only; this franchise's stat records are in
+                the record book (History → Records). */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {awards.map((award, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div>
                     <p className="font-semibold">{award.award_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {award.season?.year} • {award.value_label}
-                    </p>
+                    <p className="text-sm text-muted-foreground">{award.season?.year}</p>
                   </div>
-                  <Badge variant="outline">{award.award_category}</Badge>
+                  <Badge variant="outline">Voted</Badge>
                 </div>
               ))}
             </div>
