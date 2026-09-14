@@ -59,19 +59,26 @@ update public.games g
    and ((t1.owner = r.owner1 and t2.owner = r.owner2)
      or (t1.owner = r.owner2 and t2.owner = r.owner1));
 
+-- Refuse to commit a half-marked week. A database with no 2024 week 1 at all —
+-- CI's fresh local stack, which applies every migration to an empty schema —
+-- has nothing to mark and nothing to check.
 do $$
 declare
+  week_games integer;
   confirmed integer;
 begin
-  select count(*) into confirmed
+  select count(*) filter (where true),
+         count(*) filter (where g.hand_entered
+                            and g.type = 'regular'
+                            and g.team1_score is not null
+                            and g.team2_score is not null)
+    into week_games, confirmed
     from public.games g
     join public.seasons s on s.id = g.season_id
-   where s.year = 2024 and g.week = 1 and g.hand_entered
-     and g.type = 'regular'
-     and g.team1_score is not null and g.team2_score is not null;
+   where s.year = 2024 and g.week = 1;
 
-  if confirmed <> 7 then
-    raise exception '2024 week 1: expected 7 hand-entered results, found %', confirmed;
+  if week_games > 0 and confirmed <> 7 then
+    raise exception '2024 week 1: expected 7 hand-entered results, found % of % games', confirmed, week_games;
   end if;
 end
 $$;

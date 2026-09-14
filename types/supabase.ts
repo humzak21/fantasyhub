@@ -3754,21 +3754,6 @@ export type Database = {
           },
         ]
       }
-      v_record_book: {
-        Row: {
-          franchise_id: string | null
-          game_id: string | null
-          owner_name: string | null
-          record_type: string | null
-          scope: string | null
-          season_id: string | null
-          season_year: number | null
-          value: number | null
-          value_label: string | null
-          week: number | null
-        }
-        Relationships: []
-      }
       v_team_standings: {
         Row: {
           average_points_against: number | null
@@ -3908,7 +3893,6 @@ export type Database = {
           week2_rank: number
         }[]
       }
-      compute_season_awards: { Args: { p_season_id: string }; Returns: Json }
       create_pick_em_week: {
         Args: {
           p_results_reveal_at?: string

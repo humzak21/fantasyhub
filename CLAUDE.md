@@ -677,10 +677,9 @@ playoff_losses/playoff_finish/final_rank` plus `seasons.is_completed/
 completed_at`. It is idempotent and guarded by `can_write_league()`. It used
 to be followed by `compute_season_awards`, which wrote eleven stat awards; those
 are records in the record book now, `finalizeSeason` no longer calls it, and
-`20260915150000_retire_computed_awards.sql` deletes the rows and drops the
-function and `v_record_book` — **apply that migration with the deploy of this
-client, not before**, since the previous client reads the view. Playoff W/L
-counts bracket games only (`v_game_results.is_playoff`).
+`20260915150000_retire_computed_awards.sql` deleted the rows and dropped the
+function and `v_record_book` (applied 2026-09-15). Playoff W/L counts bracket
+games only (`v_game_results.is_playoff`).
 Rules that are load-bearing:
 
 - **It raises rather than guessing.** An incomplete game, no championship game,
