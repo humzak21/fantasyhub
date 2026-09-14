@@ -762,9 +762,16 @@ Rules that are load-bearing:
 - **Blowout and narrow are the trigger's flags** (≥30, ≤5), and
   `THRESHOLDS.blowout/close` in `types/index.js` equal them. They were 25/7, so
   the ranking and the stored flags disagreed.
-- **A rate needs a sample:** career win %, PPG and per-game PA/diff need 28
-  games; season lineup rates 7 settled weeks, career 28. Below the line there is
-  no row.
+- **Every franchise ranks, whatever its sample.** No record has a minimum
+  games or weeks played — the league asked for that over a board that hides
+  whoever has played least, so a one-season franchise sits on the career win %
+  board. And because the league has fewer franchises than an opened list
+  shows, All-Time rate records are one neutral list ("Win %", "Points per
+  game", "Lineup efficiency") rather than a best and a worst; Single Season
+  keeps both ends, since its ~100 team-seasons never reach the bottom in 20.
+- **"Most trades" carries a note** (`note` in the catalog, rendered under the
+  blurb): the commissioner's count is inflated, because trades the
+  commissioner executes for other managers go through their own account.
 - **Unknown is absent, never zero**, the power ranking's rule again: a season
   with no lineup data has no lineup rows. Counts ranked high-to-low hide zeros
   (`hidesZero`).

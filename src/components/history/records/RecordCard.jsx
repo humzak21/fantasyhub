@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { RankBadge } from '../../ui/rank-badge';
@@ -174,6 +174,12 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
           )}
         </div>
         <p className="text-[11px] leading-snug text-muted-foreground">{record.blurb}</p>
+        {record.note && (
+          <p className="flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
+            <Info className="mt-px h-3 w-3 shrink-0 text-info" aria-hidden="true" />
+            <span>{record.note}</span>
+          </p>
+        )}
       </CardHeader>
 
       <CardContent className="flex flex-1 flex-col">

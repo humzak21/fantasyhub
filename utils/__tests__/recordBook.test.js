@@ -198,9 +198,15 @@ describe('buildRecordBook', () => {
     expect(career('finals', 'fB')).toBe(1);
   });
 
-  it('holds back a career rate until there is a sample for it', () => {
-    expect(recordRows(book, 'career', 'winPct')).toEqual([]);
-    expect(recordRows(book, 'season', 'lineupEfficiency')).toEqual([]);
+  it('ranks every franchise on a rate, however few games or weeks it has', () => {
+    // A: 2-0-1 in 2024 and a loss in 2025 — four games, no minimum to clear.
+    expect(recordRows(book, 'career', 'winPct')).toHaveLength(4);
+    expect(valueOf(recordRows(book, 'career', 'winPct'), 'fA')).toBeCloseTo(62.5, 4);
+
+    // Two settled weeks of lineups are enough for B: 210 of a possible 237.
+    const efficiency = recordRows(book, 'season', 'lineupEfficiency');
+    expect(efficiency).toHaveLength(2);
+    expect(valueOf(efficiency, 'fB')).toBeCloseTo((210 / 237) * 100, 4);
   });
 
   it('reads lineups for avoidable losses and short-handed wins', () => {

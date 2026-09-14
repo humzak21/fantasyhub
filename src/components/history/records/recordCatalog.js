@@ -19,6 +19,8 @@
  *   format     how the value reads; see `formatRecordValue`
  *   kind       how a row is identified; see RecordCard
  *   phases     game records: offer the regular-season / playoffs toggle
+ *   note       a caveat shown under the blurb, for a record the data is
+ *              known to distort
  *   hideZero   drop zero values; defaults on for counts ranked high-to-low,
  *              where zero means "never"
  */
@@ -36,8 +38,9 @@ export const SECTIONS = [
   { id: 'transactions', label: 'Transactions' }
 ];
 
-const MIN_GAMES = 'Minimum 28 games.';
 const LINEUP_NOTE = 'Built from ESPN lineups, back to 2020.';
+const COMMISSIONER_TRADES_NOTE =
+  "The commissioner's count is inflated: trades the commissioner executes for other managers go through the commissioner's own account.";
 
 const career = (entry) => ({ scope: 'career', kind: 'franchise', direction: 'desc', ...entry });
 const season = (entry) => ({ scope: 'season', kind: 'teamSeason', direction: 'desc', ...entry });
@@ -49,8 +52,9 @@ export const RECORDS = [
   // -------------------------------------------------------------------------
   career({ id: 'career-wins', section: 'winning', data: 'wins', title: 'Most wins', blurb: 'Regular-season wins.', format: 'int', detail: 'record' }),
   career({ id: 'career-losses', section: 'winning', data: 'losses', title: 'Most losses', blurb: 'Regular-season losses.', format: 'int', detail: 'record' }),
-  career({ id: 'career-win-pct-best', section: 'winning', data: 'winPct', title: 'Best win %', blurb: `Regular season. ${MIN_GAMES}`, format: 'pct', detail: 'record' }),
-  career({ id: 'career-win-pct-worst', section: 'winning', data: 'winPct', direction: 'asc', title: 'Worst win %', blurb: `Regular season. ${MIN_GAMES}`, format: 'pct', detail: 'record' }),
+  // All-Time rate records are one list, not a best and a worst: the league has
+  // fewer franchises than an opened list shows, so the bottom is already there.
+  career({ id: 'career-win-pct', section: 'winning', data: 'winPct', title: 'Win %', blurb: 'Regular season.', format: 'pct', detail: 'record' }),
   career({ id: 'career-all-play-wins', section: 'winning', data: 'allPlayWins', title: 'Most all-play wins', blurb: 'Every week, a win for each team outscored.', format: 'half' }),
   career({ id: 'career-all-play-losses', section: 'winning', data: 'allPlayLosses', title: 'Most all-play losses', blurb: 'Every week, a loss for each team that outscored them.', format: 'half' }),
   career({ id: 'career-blowout-wins', section: 'winning', data: 'blowoutWins', title: 'Most blowout wins', blurb: 'Won by 30 or more.', format: 'int' }),
@@ -62,12 +66,9 @@ export const RECORDS = [
   career({ id: 'career-last-places', section: 'winning', data: 'lastPlaces', title: 'Last-place finishes', blurb: 'Finished the season dead last. The punishee.', format: 'int', detail: 'seasons' }),
 
   career({ id: 'career-points', section: 'scoring', data: 'pointsFor', title: 'Most points', blurb: 'Regular-season points for.', format: 'points', detail: 'seasons' }),
-  career({ id: 'career-ppg-high', section: 'scoring', data: 'ppg', title: 'Highest points per game', blurb: MIN_GAMES, format: 'points', detail: 'seasons' }),
-  career({ id: 'career-ppg-low', section: 'scoring', data: 'ppg', direction: 'asc', title: 'Lowest points per game', blurb: MIN_GAMES, format: 'points', detail: 'seasons' }),
-  career({ id: 'career-pa-high', section: 'scoring', data: 'paPerGame', title: 'Most points against per game', blurb: `Swiss cheese defence. ${MIN_GAMES}`, format: 'points', detail: 'seasons' }),
-  career({ id: 'career-pa-low', section: 'scoring', data: 'paPerGame', direction: 'asc', title: 'Fewest points against per game', blurb: `The survivors. ${MIN_GAMES}`, format: 'points', detail: 'seasons' }),
-  career({ id: 'career-diff-best', section: 'scoring', data: 'diffPerGame', title: 'Best point differential per game', blurb: MIN_GAMES, format: 'signed', detail: 'seasons' }),
-  career({ id: 'career-diff-worst', section: 'scoring', data: 'diffPerGame', direction: 'asc', title: 'Worst point differential per game', blurb: MIN_GAMES, format: 'signed', detail: 'seasons' }),
+  career({ id: 'career-ppg', section: 'scoring', data: 'ppg', title: 'Points per game', blurb: 'Regular-season points for, per game.', format: 'points', detail: 'seasons' }),
+  career({ id: 'career-pa', section: 'scoring', data: 'paPerGame', title: 'Points against per game', blurb: 'Regular-season points scored against them, per game.', format: 'points', detail: 'seasons' }),
+  career({ id: 'career-diff', section: 'scoring', data: 'diffPerGame', title: 'Point differential per game', blurb: 'Points for minus points against, per game.', format: 'signed', detail: 'seasons' }),
   career({ id: 'career-weekly-highs', section: 'scoring', data: 'weeklyHighs', title: 'Most weekly high scores', blurb: "Weeks with the league's top score.", format: 'int' }),
   career({ id: 'career-scoring-titles', section: 'scoring', data: 'scoringTitles', title: 'Most scoring titles', blurb: 'Seasons leading the league in points.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-faced-top', section: 'scoring', data: 'facedTop', title: "Most times facing the week's top score", blurb: 'The guy everyone shot at.', format: 'int' }),
@@ -82,9 +83,8 @@ export const RECORDS = [
   career({ id: 'career-luck-best', section: 'luck', data: 'luck', title: 'Luckiest career', blurb: 'Wins above what their scoring earned against the whole league.', format: 'wins' }),
   career({ id: 'career-luck-worst', section: 'luck', data: 'luck', direction: 'asc', title: 'Unluckiest career', blurb: 'Wins below what their scoring earned against the whole league.', format: 'wins' }),
 
-  career({ id: 'career-efficiency-best', section: 'lineups', data: 'lineupEfficiency', title: 'Best lineup efficiency', blurb: `Starter points as a share of the best possible lineup. Minimum 28 weeks. ${LINEUP_NOTE}`, format: 'pct' }),
-  career({ id: 'career-efficiency-worst', section: 'lineups', data: 'lineupEfficiency', direction: 'asc', title: 'Worst lineup efficiency', blurb: `Minimum 28 weeks. ${LINEUP_NOTE}`, format: 'pct' }),
-  career({ id: 'career-perfect-rate', section: 'lineups', data: 'perfectRate', title: 'Perfect-lineup rate', blurb: 'Share of weeks the starters were the best lineup available. Minimum 28 weeks.', format: 'pct' }),
+  career({ id: 'career-efficiency', section: 'lineups', data: 'lineupEfficiency', title: 'Lineup efficiency', blurb: `Starter points as a share of the best possible lineup. ${LINEUP_NOTE}`, format: 'pct' }),
+  career({ id: 'career-perfect-rate', section: 'lineups', data: 'perfectRate', title: 'Perfect-lineup rate', blurb: 'Share of weeks the starters were the best lineup available.', format: 'pct' }),
   career({ id: 'career-bench-points', section: 'lineups', data: 'benchPoints', title: 'Most points left on the bench', blurb: 'Best possible lineup minus the one started. The benchwarmer.', format: 'points' }),
   career({ id: 'career-avoidable-losses', section: 'lineups', data: 'avoidableLosses', title: 'Most avoidable losses', blurb: 'Lost, but the best lineup on the roster would have won.', format: 'int' }),
   career({ id: 'career-short-handed-wins', section: 'lineups', data: 'shortHandedWins', title: 'Most short-handed wins', blurb: 'Won with fewer than nine starters scoring.', format: 'int' }),
@@ -97,7 +97,7 @@ export const RECORDS = [
   career({ id: 'career-playoff-streak', section: 'streaks', kind: 'seasonStreak', data: 'playoffStreak', title: 'Playoff-appearance streak', blurb: 'Consecutive seasons in the bracket.', format: 'int', unit: 'seasons' }),
   career({ id: 'career-finals-streak', section: 'streaks', kind: 'seasonStreak', data: 'finalsStreak', title: 'Finals-appearance streak', blurb: 'Consecutive championship-game appearances.', format: 'int', unit: 'seasons' }),
 
-  career({ id: 'career-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', format: 'int' }),
+  career({ id: 'career-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', note: COMMISSIONER_TRADES_NOTE, format: 'int' }),
   career({ id: 'career-roster-moves', section: 'transactions', data: 'rosterMoves', title: 'Most roster moves', blurb: 'Free-agent adds, waiver claims and drops.', format: 'int' }),
   career({ id: 'career-waiver-claims', section: 'transactions', data: 'waiverClaims', title: 'Most waiver claims', blurb: 'The waiver-wire merchant.', format: 'int' }),
   career({ id: 'career-faab-spent', section: 'transactions', data: 'faabSpent', title: 'Most FAAB spent', blurb: 'Waiver budget spent on winning claims.', format: 'money' }),
@@ -159,7 +159,7 @@ export const RECORDS = [
   season({ id: 'season-high-score-streak', section: 'streaks', kind: 'streak', data: 'highScoreStreak', title: 'Longest high-score streak', blurb: "Consecutive weeks with the league's top score.", format: 'int', unit: 'weeks' }),
   season({ id: 'season-high-score-drought', section: 'streaks', kind: 'streak', data: 'highScoreDrought', title: 'Longest high-score drought', blurb: "Consecutive weeks without the league's top score.", format: 'int', unit: 'weeks' }),
 
-  season({ id: 'season-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', format: 'int' }),
+  season({ id: 'season-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', note: COMMISSIONER_TRADES_NOTE, format: 'int' }),
   season({ id: 'season-roster-moves-most', section: 'transactions', data: 'rosterMoves', title: 'Most roster moves', blurb: 'Free-agent adds, waiver claims and drops.', format: 'int' }),
   season({ id: 'season-roster-moves-fewest', section: 'transactions', data: 'rosterMoves', direction: 'asc', title: 'Fewest roster moves', blurb: "My draft was fire, I don't need the wire.", format: 'int' }),
   season({ id: 'season-waiver-claims', section: 'transactions', data: 'waiverClaims', title: 'Most waiver claims', blurb: 'The waiver-wire merchant.', format: 'int' }),
