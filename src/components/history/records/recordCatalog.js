@@ -25,7 +25,7 @@
  *              where zero means "never"
  */
 
-import { formatDelta, formatPct, formatPoints } from '../../../utils/format';
+import { SCORE_DECIMALS, formatDelta, formatPct, formatScore } from '../../../utils/format';
 
 export const SECTIONS = [
   { id: 'winning', label: 'Winning' },
@@ -181,14 +181,16 @@ export function formatRecordValue(record, value) {
       return Number.isInteger(value) ? String(value) : value.toFixed(1);
     case 'pct':
       return formatPct(value);
+    // Points and point differentials read to the hundredth, as they are scored:
+    // a 0.04-point margin must not print as 0.0.
     case 'signed':
-      return formatDelta(value);
+      return formatDelta(value, SCORE_DECIMALS);
     case 'wins':
       return formatDelta(value, 2);
     case 'money':
       return `$${Math.round(value).toLocaleString('en-US')}`;
     case 'points':
     default:
-      return formatPoints(value);
+      return formatScore(value);
   }
 }

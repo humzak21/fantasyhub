@@ -9,6 +9,7 @@ import {
   formatPerGame,
   formatPoints,
   formatRecord,
+  formatScore,
   parseStreak,
 } from '../format';
 
@@ -32,6 +33,25 @@ describe('formatPoints', () => {
 
   it('keeps zero, which is a real score', () => {
     expect(formatPoints(0)).toBe('0.0');
+  });
+});
+
+describe('formatScore', () => {
+  it('reads a score to the hundredth, as ESPN records it', () => {
+    // A passing yard is 0.04 points; one decimal would call this margin 0.0.
+    expect(formatScore(0.04)).toBe('0.04');
+    expect(formatScore(103.76)).toBe('103.76');
+    expect(formatScore(1931.36)).toBe('1,931.36');
+  });
+
+  it('pads to two places so a column of scores lines up', () => {
+    expect(formatScore(110)).toBe('110.00');
+    expect(formatScore(92.8)).toBe('92.80');
+  });
+
+  it('is an em dash when missing, and keeps a real zero', () => {
+    expect(formatScore(null)).toBe(EMPTY);
+    expect(formatScore(0)).toBe('0.00');
   });
 });
 

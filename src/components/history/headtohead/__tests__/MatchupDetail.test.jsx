@@ -34,7 +34,7 @@ const meeting = (id, year, week, team1Score, team2Score, phase = 'regular') => (
 
 const MEETINGS = [
   meeting('g1', 2023, 3, 120, 100),
-  meeting('g2', 2023, 10, 110, 111),
+  meeting('g2', 2023, 10, 110.96, 111),
   meeting('g3', 2024, 2, 130, 90),
   meeting('g4', 2024, 16, 140, 135, 'playoff'),
   meeting('g5', 2025, 15, 99, 101, 'consolation')
@@ -76,6 +76,18 @@ describe('MatchupDetail', () => {
 
     expect(screen.getAllByText('Playoffs', { selector: '[class*="badge"], span, div' }).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Consol.').length).toBeGreaterThan(0);
+  });
+
+  it('reads scores and margins to the hundredth', async () => {
+    renderWithProviders(
+      <MatchupDetail franchise1Id="f-alpha01" franchise2Id="f-bravo02" franchises={FRANCHISES} />
+    );
+
+    await screen.findByText('Every meeting');
+    // The closest meeting was decided by 0.04, which one decimal would show as 0.0.
+    const closest = screen.getByText('Closest meeting').parentElement;
+    expect(within(closest).getByText('0.04')).toBeInTheDocument();
+    expect(within(closest).getByText(/110\.96–111\.00/)).toBeInTheDocument();
   });
 
   it('never prints an owner a signed-out viewer may not see', async () => {

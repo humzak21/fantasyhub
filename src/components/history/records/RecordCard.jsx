@@ -5,7 +5,7 @@ import { Button } from '../../ui/button';
 import { RankBadge } from '../../ui/rank-badge';
 import { TeamAvatar } from '../../ui/team-identity';
 import { cn } from '../../../lib/utils';
-import { formatOrdinal, formatPoints, formatRecord } from '../../../utils/format';
+import { formatOrdinal, formatRecord, formatScore } from '../../../utils/format';
 import { rankRows, recordRows } from '../../../../utils/recordBook/index.js';
 import { formatRecordValue, hidesZero } from './recordCatalog';
 
@@ -43,7 +43,7 @@ function describeRow(record, row, identity) {
       const [pf, pa] = row.score ?? [];
       return {
         name: franchise,
-        meta: `${formatPoints(pf)}–${formatPoints(pa)} vs ${identity.franchiseName(row.opponentFranchiseId)} · Wk ${row.week}, ${row.year}`
+        meta: `${formatScore(pf)}–${formatScore(pa)} vs ${identity.franchiseName(row.opponentFranchiseId)} · Wk ${row.week}, ${row.year}`
       };
     }
     case 'streak': {

@@ -41,6 +41,23 @@ export function formatPoints(value, decimals = 1) {
   });
 }
 
+/** Decimal places a fantasy score is recorded to. */
+export const SCORE_DECIMALS = 2;
+
+/**
+ * A fantasy score, or the margin between two, as ESPN records it: to the
+ * hundredth. Quarterback scoring moves in hundredths — a passing yard is 0.04 —
+ * so one decimal can hide a result: the narrowest margin this league has
+ * played, 0.04, reads as "0.0". Wherever a score is the fact being compared —
+ * the record book, head-to-head detail — use this, not `formatPoints`.
+ *
+ * @param {number} value
+ * @returns {string}
+ */
+export function formatScore(value) {
+  return formatPoints(value, SCORE_DECIMALS);
+}
+
 /**
  * A percentage. The value is already scaled 0-100 — that is the shape every
  * calculator in this codebase produces. Pass a 0-1 fraction through

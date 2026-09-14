@@ -1282,7 +1282,11 @@ each replaced four or five hand-rolled variants:
 - `layout/PageHeader.jsx` — the one page header. Every tab uses it.
 - `utils/format.js` + `ui/number-text.jsx` — one precision policy (points and
   percentages to one decimal, missing values as an em dash, never `0`) and one
-  numeric face. Use `.tabular`, never `font-mono`: Inter has tabular figures,
+  numeric face. **A score or margin that is itself the fact being compared is
+  `formatScore`, to the hundredth** — the record book and head-to-head detail.
+  ESPN scores in hundredths (a passing yard is 0.04; `games` and
+  `player_week_stats` store `numeric(10,2)`), and the league's narrowest
+  margin, 0.04, printed as "0.0" at one decimal. Use `.tabular`, never `font-mono`: Inter has tabular figures,
   and a system mono at 14px mismatches its x-height.
 - `ui/team-identity.jsx` — a team's chip, name, owner, record.
 - `ui/rank-badge.jsx`, `ui/streak-chip.jsx`, `ui/stat-card.jsx`,

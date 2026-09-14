@@ -6,7 +6,7 @@ import { Badge } from '../../ui/badge';
 import { EmptyState } from '../../ui/empty-state';
 import { TeamAvatar } from '../../ui/team-identity';
 import { cn } from '../../../lib/utils';
-import { formatPct, formatPoints, formatRecord } from '../../../utils/format';
+import { formatPct, formatRecord, formatScore } from '../../../utils/format';
 import { useMatchupHistory } from '../../../../hooks/queries/index.js';
 import { canViewFullData, getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { phaseOf, summarizeMatchup } from './matchupSummary';
@@ -38,9 +38,9 @@ function MeetingRow({ game, showYear = false }) {
           </Badge>
         )}
       </span>
-      <span className={cn('tabular text-right', tone(0))}>{formatPoints(game.team1Score)}</span>
+      <span className={cn('tabular text-right', tone(0))}>{formatScore(game.team1Score)}</span>
       <span className="text-center text-[10px] uppercase tracking-[0.06em] text-muted-foreground">–</span>
-      <span className={cn('tabular', tone(1))}>{formatPoints(game.team2Score)}</span>
+      <span className={cn('tabular', tone(1))}>{formatScore(game.team2Score)}</span>
     </li>
   );
 }
@@ -53,7 +53,7 @@ function NotableGame({ label, value, game }) {
       <p className="mt-1.5 font-display text-2xl font-semibold leading-none tracking-[-0.01em]">{value}</p>
       {game && (
         <p className="mt-2 text-xs text-muted-foreground tabular">
-          {formatPoints(game.team1Score)}–{formatPoints(game.team2Score)} · Wk {game.week}, {game.year}
+          {formatScore(game.team1Score)}–{formatScore(game.team2Score)} · Wk {game.week}, {game.year}
           {phaseOf(game) !== 'regular' && ` · ${PHASE_LABEL[phaseOf(game)]}`}
         </p>
       )}
@@ -154,20 +154,20 @@ const MatchupDetail = ({
       lead: leader(first.byPhase.consolation.wins, second.byPhase.consolation.wins)
     },
     { label: 'Win %', values: [formatPct(first.winPct), formatPct(second.winPct)], lead: leader(first.winPct, second.winPct) },
-    { label: 'Points for', values: [formatPoints(first.points), formatPoints(second.points)], lead: leader(first.points, second.points) },
+    { label: 'Points for', values: [formatScore(first.points), formatScore(second.points)], lead: leader(first.points, second.points) },
     {
       label: 'Average score',
-      values: [formatPoints(first.averagePoints), formatPoints(second.averagePoints)],
+      values: [formatScore(first.averagePoints), formatScore(second.averagePoints)],
       lead: leader(first.averagePoints, second.averagePoints)
     },
     {
       label: 'Highest score',
-      values: [formatPoints(first.highScore?.value), formatPoints(second.highScore?.value)],
+      values: [formatScore(first.highScore?.value), formatScore(second.highScore?.value)],
       lead: leader(first.highScore?.value, second.highScore?.value)
     },
     {
       label: 'Biggest win',
-      values: [first.biggestWin, second.biggestWin].map((win) => (win ? `+${formatPoints(win.value)}` : '—')),
+      values: [first.biggestWin, second.biggestWin].map((win) => (win ? `+${formatScore(win.value)}` : '—')),
       lead: leader(first.biggestWin?.value ?? 0, second.biggestWin?.value ?? 0)
     },
     {
@@ -246,15 +246,15 @@ const MatchupDetail = ({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <NotableGame
               label="Highest-scoring meeting"
-              value={formatPoints(summary.highestCombined.value)}
+              value={formatScore(summary.highestCombined.value)}
               game={summary.highestCombined.game}
             />
             <NotableGame
               label="Closest meeting"
-              value={summary.closest ? formatPoints(summary.closest.value) : '—'}
+              value={summary.closest ? formatScore(summary.closest.value) : '—'}
               game={summary.closest?.game}
             />
-            <NotableGame label="Average combined score" value={formatPoints(summary.averageCombined)} />
+            <NotableGame label="Average combined score" value={formatScore(summary.averageCombined)} />
           </div>
         </CardContent>
       </Card>
