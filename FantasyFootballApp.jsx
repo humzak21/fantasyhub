@@ -27,7 +27,7 @@ import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTab
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
 
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
-import { HeaderNav, MobileTabBar, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
+import { HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
@@ -380,8 +380,10 @@ const FantasyFootballApp = () => {
               </div>
 
               {/* The cog sits beside the account it belongs to, at every
-                  width. Signed out there is nothing to set. */}
+                  width. Signed out there is nothing to set. The newsletter
+                  is public, so it shows either way. */}
               <div className="flex shrink-0 items-center gap-1">
+                <NewsletterLink />
                 {isAuthenticated && <SettingsLink active={activeTab === 'settings'} />}
                 <LoginDropdown />
               </div>
