@@ -29,9 +29,10 @@
  *     the season in progress, because a game that has been played is a result.
  *   * **Blowouts and narrow games are `games.is_blowout` / `is_close`**, the
  *     trigger's flags, never a threshold restated here.
- *   * **A rate needs a sample.** Career win percentage and points per game
- *     need 28 games; a season's lineup efficiency needs 7 settled weeks. A
- *     franchise below the line has no row, rather than a 100% from one game.
+ *   * **Every franchise ranks, whatever its sample.** No record has a minimum
+ *     number of games or weeks: a one-season franchise sits on the career win
+ *     percentage board beside a six-season one. The league asked for that over
+ *     a board that hides whoever has played least.
  *   * **Unknown is absent, never zero.** A season with no lineup data produces
  *     no lineup rows, and a record with no rows says so.
  */
@@ -42,9 +43,6 @@ import { streakRuns } from './streaks.js';
 export { rankRows } from './rank.js';
 export { streakRuns } from './streaks.js';
 
-export const CAREER_MIN_GAMES = 28;
-export const SEASON_MIN_LINEUP_WEEKS = 7;
-export const CAREER_MIN_LINEUP_WEEKS = 28;
 /** A lineup starts nine; a win with fewer scoring is short-handed. */
 export const FULL_LINEUP = 9;
 /** A streak is at least two. */
@@ -345,11 +343,9 @@ function addSeasonRows(store, aggregates, transactions) {
     add('schedule', a.schedule);
     add('luck', a.luck);
 
-    if (a.lineupWeeks >= SEASON_MIN_LINEUP_WEEKS) {
+    if (a.lineupWeeks > 0) {
       add('lineupEfficiency', (a.starterPoints / a.optimalPoints) * 100);
       add('perfectRate', (a.perfectWeeks / a.lineupWeeks) * 100);
-    }
-    if (a.lineupWeeks > 0) {
       add('benchPoints', a.benchPoints);
       add('avoidableLosses', a.avoidableLosses);
       add('shortHandedWins', a.shortHandedWins);
@@ -422,12 +418,10 @@ function addCareerRows(store, aggregates, transactions) {
 
     add('wins', c.wins);
     add('losses', c.losses);
-    if (c.games >= CAREER_MIN_GAMES) {
-      add('winPct', winPct(c));
-      add('ppg', c.pf / c.games);
-      add('paPerGame', c.pa / c.games);
-      add('diffPerGame', (c.pf - c.pa) / c.games);
-    }
+    add('winPct', winPct(c));
+    add('ppg', c.pf / c.games);
+    add('paPerGame', c.pa / c.games);
+    add('diffPerGame', (c.pf - c.pa) / c.games);
     add('allPlayWins', c.apW + c.apT / 2);
     add('allPlayLosses', c.apL + c.apT / 2);
     add('blowoutWins', c.blowoutWins);
@@ -452,11 +446,9 @@ function addCareerRows(store, aggregates, transactions) {
 
     add('luck', c.luck);
 
-    if (c.lineupWeeks >= CAREER_MIN_LINEUP_WEEKS) {
+    if (c.lineupWeeks > 0) {
       add('lineupEfficiency', (c.starterPoints / c.optimalPoints) * 100);
       add('perfectRate', (c.perfectWeeks / c.lineupWeeks) * 100);
-    }
-    if (c.lineupWeeks > 0) {
       add('benchPoints', c.benchPoints);
       add('avoidableLosses', c.avoidableLosses);
       add('shortHandedWins', c.shortHandedWins);
