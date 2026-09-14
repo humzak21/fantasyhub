@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Settings } from 'lucide-react';
+import { Newspaper, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
 /**
@@ -227,22 +227,46 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true }) =>
  * already lives. Same active treatment as the header nav so the two agree
  * about what "you are here" looks like.
  */
+const HEADER_ICON_BUTTON =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors pointer-coarse:min-w-11 ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+const HEADER_ICON_IDLE = 'text-muted-foreground hover:bg-accent/50 hover:text-foreground';
+
 export const SettingsLink = ({ active = false, className }) => (
   <NavLink
     to="/settings"
     aria-label="Settings"
     title="Settings"
     className={cn(
-      'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors pointer-coarse:min-w-11',
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-      active
-        ? 'bg-accent text-accent-foreground'
-        : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+      HEADER_ICON_BUTTON,
+      active ? 'bg-accent text-accent-foreground' : HEADER_ICON_IDLE,
       className
     )}
   >
     <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
   </NavLink>
+);
+
+export const NEWSLETTER_URL = 'https://ogjits.substack.com/';
+
+/**
+ * The league newsletter, on Substack. It sits beside the cog in the same
+ * icon-button face, but it leaves the app, so it is a plain anchor opening a
+ * new tab and never has an active state. Public, like the league itself —
+ * shown signed out too.
+ */
+export const NewsletterLink = ({ className }) => (
+  <a
+    href={NEWSLETTER_URL}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Newsletter (opens in a new tab)"
+    title="Newsletter"
+    className={cn(HEADER_ICON_BUTTON, HEADER_ICON_IDLE, className)}
+  >
+    <Newspaper className="h-[18px] w-[18px]" aria-hidden="true" />
+  </a>
 );
 
 export default HeaderNav;
