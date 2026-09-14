@@ -15,7 +15,14 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { buildRecordBook, rankRows, recordRows, streakRuns } from '../recordBook/index.js';
+import {
+  buildRecordBook,
+  isRecentRecord,
+  rankRows,
+  recordRows,
+  recordSetYear,
+  streakRuns
+} from '../recordBook/index.js';
 
 const S24 = { id: 's24', year: 2024, isCompleted: true, regularSeasonWeeks: 3 };
 const S25 = { id: 's25', year: 2025, isCompleted: false, regularSeasonWeeks: 3 };
@@ -228,6 +235,29 @@ describe('buildRecordBook', () => {
     ]));
     expect(recordRows(book, 'season', 'faabBids').map((row) => row.playerName)).toEqual(['Waiver Guy']);
     expect(valueOf(recordRows(book, 'season', 'rosterMoves'), 'fA')).toBe(9);
+  });
+
+  it('calls the current season and the one before it recent', () => {
+    expect(book.recentYears).toEqual([2025, 2024]);
+  });
+
+  it('marks a #1 as recently broken by the season it was set in', () => {
+    const recent = [2025, 2024];
+
+    // Outright and tied #1s both count; second place never does.
+    expect(isRecentRecord({ rank: 1, year: 2024, value: 130 }, recent)).toBe(true);
+    expect(isRecentRecord({ rank: 1, tied: true, year: 2025, value: 130 }, recent)).toBe(true);
+    expect(isRecentRecord({ rank: 2, year: 2025, value: 120 }, recent)).toBe(false);
+    expect(isRecentRecord({ rank: 1, year: 2023, value: 150 }, recent)).toBe(false);
+
+    // A streak is set when it ends, however long ago it began.
+    const streak = { rank: 1, year: 2022, start: { year: 2022, week: 9 }, end: { year: 2024, week: 2 } };
+    expect(recordSetYear(streak)).toBe(2024);
+    expect(isRecentRecord(streak, recent)).toBe(true);
+    expect(isRecentRecord({ rank: 1, startYear: 2021, endYear: 2024 }, recent)).toBe(true);
+
+    // A career total has no moment it was set.
+    expect(isRecentRecord({ rank: 1, franchiseId: 'fA', value: 50 }, recent)).toBe(false);
   });
 
   it('lists the seasons that have games, newest first', () => {

@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { ChevronDown, ChevronUp, Info, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { RankBadge } from '../../ui/rank-badge';
 import { TeamAvatar } from '../../ui/team-identity';
 import { cn } from '../../../lib/utils';
 import { formatOrdinal, formatRecord, formatScore } from '../../../utils/format';
-import { rankRows, recordRows } from '../../../../utils/recordBook/index.js';
+import { isRecentRecord, rankRows, recordRows } from '../../../../utils/recordBook/index.js';
 import { formatRecordValue, hidesZero } from './recordCatalog';
 
 /** Rows a card shows before it is opened. */
@@ -72,11 +72,11 @@ function describeRow(record, row, identity) {
   }
 }
 
-function RecordRow({ record, row, identity, onViewFranchise }) {
+function RecordRow({ record, row, identity, onViewFranchise, recent = false }) {
   const { name, meta, active } = describeRow(record, row, identity);
 
   return (
-    <li className="flex items-center gap-3 py-2">
+    <li className={cn('flex items-center gap-3 py-2', recent && '-mx-2 rounded-md bg-warning/[0.06] px-2')}>
       <RankBadge
         rank={row.rank}
         size="sm"
@@ -94,8 +94,15 @@ function RecordRow({ record, row, identity, onViewFranchise }) {
             {name}
             {row.tied && <span className="sr-only"> (tied)</span>}
           </span>
-          {(meta || active) && (
+          {(meta || active || recent) && (
             <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+              {/* First, so a long meta line truncates rather than hiding it. */}
+              {recent && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-warning/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-warning">
+                  <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                  New record
+                </span>
+              )}
               {meta && <span className="truncate">{meta}</span>}
               {active && (
                 <span className="shrink-0 rounded-full bg-info/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-info">
@@ -145,13 +152,28 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
 
   const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS);
 
+  // A recently broken record is a league record — the #1 across every season.
+  // With one season picked, a card's #1 is only that season's best, so nothing
+  // is marked.
+  const recentYears = book?.recentYears ?? [];
+  const isRecent = (row) => year == null && isRecentRecord(row, recentYears);
+  const hasRecent = rows.some(isRecent);
+
   return (
     <Card role="region" aria-labelledby={titleId} className="flex flex-col">
       <CardHeader className="space-y-1 pb-3 sm:pb-3">
         <div className="flex items-start justify-between gap-3">
-          <CardTitle id={titleId} className="text-sm leading-snug">
-            {record.title}
-          </CardTitle>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <CardTitle id={titleId} className="text-sm leading-snug">
+              {record.title}
+            </CardTitle>
+            {hasRecent && (
+              <span className="inline-flex shrink-0 text-warning" title="Broken in the last two seasons">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="sr-only">Broken recently</span>
+              </span>
+            )}
+          </div>
           {record.phases && (
             <div role="group" aria-label="Games shown" className="flex shrink-0 rounded-md bg-muted p-0.5">
               {PHASES.map((option) => (
@@ -196,6 +218,7 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
                 row={row}
                 identity={identity}
                 onViewFranchise={onViewFranchise}
+                recent={isRecent(row)}
               />
             ))}
           </ol>

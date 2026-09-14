@@ -100,6 +100,9 @@ describe('RecordBook', () => {
     const figures = rows.map((row) => within(row).getAllByText(/^\d+$/).map((cell) => cell.textContent));
     expect(figures).toEqual([['1', '2'], ['1', '2'], ['3', '1']]);
     expect(within(rows[0]).getByTitle('Tied for 1st')).toBeInTheDocument();
+
+    // A career total has no season it was set in, so it is never marked new.
+    expect(within(wins).queryByText('New record')).not.toBeInTheDocument();
   });
 
   it('keeps one neutral list per All-Time rate, and flags the trade count the commissioner inflates', async () => {
@@ -143,6 +146,12 @@ describe('RecordBook', () => {
 
     const highScore = await screen.findByRole('region', { name: 'Highest score' });
     expect(within(highScore).getAllByRole('listitem')).toHaveLength(5);
+
+    // The fixture's only season is the most recent one, so its #1 is marked —
+    // and only the #1.
+    const [first, second] = within(highScore).getAllByRole('listitem');
+    expect(within(first).getByText('New record')).toBeInTheDocument();
+    expect(within(second).queryByText('New record')).not.toBeInTheDocument();
 
     fireEvent.click(within(highScore).getByRole('button', { name: /Show top 12/ }));
     expect(within(highScore).getAllByRole('listitem')).toHaveLength(12);

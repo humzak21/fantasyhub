@@ -642,6 +642,10 @@ export function buildRecordBook(source = {}) {
   const yearsPlayed = new Set(sides.map((side) => side.year));
 
   return {
+    // The current season and the one before it, newest first: a #1 set in
+    // either is a recently broken record. From the season rows rather than the
+    // games, so a current season with no games yet still counts as current.
+    recentYears: seasons.map((s) => s.year).slice(-2).reverse(),
     years: seasons
       .filter((s) => yearsPlayed.has(s.year))
       .map((s) => ({ year: s.year, isCompleted: Boolean(s.isCompleted) }))
@@ -655,6 +659,29 @@ export function buildRecordBook(source = {}) {
     career,
     season
   };
+}
+
+/**
+ * The season a row's record was set in: a team-season's or a game's year, a
+ * bid's, and the season a streak ended in (an active streak is still being
+ * set). A career total has no such moment — a leader's total grows every
+ * season it plays — and returns null.
+ */
+export function recordSetYear(row) {
+  return row?.end?.year ?? row?.endYear ?? row?.year ?? null;
+}
+
+/**
+ * Is this ranked row a record broken recently: #1, outright or tied, and set in
+ * one of the book's recent seasons (the current season or the one before it)?
+ *
+ * @param {object} row a row from `rankRows`
+ * @param {number[]} recentYears `book.recentYears`
+ */
+export function isRecentRecord(row, recentYears = []) {
+  if (row?.rank !== 1) return false;
+  const year = recordSetYear(row);
+  return year != null && recentYears.includes(year);
 }
 
 /**
