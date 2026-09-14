@@ -15,6 +15,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 
 import { getDb } from '../../services/db/index.js';
+import { buildRecordBook } from '../../utils/recordBook/index.js';
 import { qk } from './keys.js';
 
 const db = () => getDb();
@@ -98,18 +99,19 @@ export function useMatchupHistory(franchise1Id, franchise2Id) {
   });
 }
 
-/** The record book, the single-season records and the all-time boards. */
+/**
+ * The whole record book: every leaderboard, all-time and per season.
+ *
+ * The query caches the source rows; `buildRecordBook` runs in `select`, which
+ * TanStack memoises against the cached data (the function is module-level, so
+ * its identity is stable). Switching tabs or seasons re-ranks rows in the
+ * component and never re-fetches or re-computes the book.
+ */
 export function useRecordBook() {
   return useQuery({
     queryKey: qk.history.recordBook(),
-    queryFn: async () => {
-      const [records, singleSeason, allTime] = await Promise.all([
-        db().history.getRecordBook(),
-        db().history.getSingleSeasonRecords(),
-        db().history.getAllTimeLeaderboards()
-      ]);
-      return { records, singleSeason, allTime };
-    },
+    queryFn: () => db().history.getRecordBookSource(),
+    select: buildRecordBook,
     ...STABLE
   });
 }

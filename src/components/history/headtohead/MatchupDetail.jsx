@@ -1,15 +1,74 @@
 import React, { useMemo } from 'react';
 import { ArrowLeft, Target } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '../../ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
+import { EmptyState } from '../../ui/empty-state';
+import { TeamAvatar } from '../../ui/team-identity';
+import { cn } from '../../../lib/utils';
+import { formatPct, formatPoints, formatRecord } from '../../../utils/format';
 import { useMatchupHistory } from '../../../../hooks/queries/index.js';
-import { getMaskedFranchiseName } from '../utils/privacyHelpers';
+import { canViewFullData, getMaskedFranchiseName } from '../utils/privacyHelpers';
+import { phaseOf, summarizeMatchup } from './matchupSummary';
 
-/** Shared by the header row and every game row, so the two cannot drift. */
-const MATCHUP_GRID =
-  'grid grid-cols-[2.5rem_minmax(0,1fr)_1.5rem_minmax(0,1fr)] gap-2 sm:grid-cols-[60px_1fr_80px_40px_80px_1fr]';
+const PHASE_LABEL = { regular: 'Regular season', playoff: 'Playoffs', consolation: 'Consolation' };
 
+/** Which side leads a comparison: 0, 1, or null for level. */
+const leader = (a, b, higherIsBetter = true) => {
+  if (a == null || b == null || a === b) return null;
+  return (a > b) === higherIsBetter ? 0 : 1;
+};
+
+/** One meeting: both scores, the winner's in the success tone, the loser's receding. */
+function MeetingRow({ game, showYear = false }) {
+  const winner = game.team1Score > game.team2Score ? 0 : game.team2Score > game.team1Score ? 1 : null;
+  const phase = phaseOf(game);
+  const tone = (side) =>
+    winner === side ? 'font-semibold text-success' : winner === null ? 'text-foreground' : 'text-muted-foreground';
+
+  return (
+    <li className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto] items-center gap-3 py-2 text-sm sm:grid-cols-[8rem_minmax(0,1fr)_auto_minmax(0,1fr)]">
+      <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+        <span className="truncate">
+          {showYear ? `${game.year} · ` : ''}Wk {game.week}
+        </span>
+        {phase !== 'regular' && (
+          <Badge variant={phase === 'playoff' ? 'secondary' : 'outline'} className="shrink-0 px-1.5 py-0 text-[10px]">
+            {phase === 'playoff' ? 'Playoffs' : 'Consol.'}
+          </Badge>
+        )}
+      </span>
+      <span className={cn('tabular text-right', tone(0))}>{formatPoints(game.team1Score)}</span>
+      <span className="text-center text-[10px] uppercase tracking-[0.06em] text-muted-foreground">–</span>
+      <span className={cn('tabular', tone(1))}>{formatPoints(game.team2Score)}</span>
+    </li>
+  );
+}
+
+/** A notable game, told as its figure and the meeting it came from. */
+function NotableGame({ label, value, game }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-4">
+      <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+      <p className="mt-1.5 font-display text-2xl font-semibold leading-none tracking-[-0.01em]">{value}</p>
+      {game && (
+        <p className="mt-2 text-xs text-muted-foreground tabular">
+          {formatPoints(game.team1Score)}–{formatPoints(game.team2Score)} · Wk {game.week}, {game.year}
+          {phaseOf(game) !== 'regular' && ` · ${PHASE_LABEL[phaseOf(game)]}`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Two franchises' whole rivalry: the series, how each side fared by phase, the
+ * games worth remembering, and every meeting.
+ *
+ * The numbers are `summarizeMatchup`'s; this lays them out as a tale of the
+ * tape — franchise 1 on the left, franchise 2 on the right, the measure between
+ * them — so a phone reads the same three columns a desktop does.
+ */
 const MatchupDetail = ({
   franchise1Id,
   franchise2Id,
@@ -19,306 +78,229 @@ const MatchupDetail = ({
   teamOwnerNames = [],
   onBack = () => {}
 }) => {
-  const { data: matchups = [], isLoading: loading } = useMatchupHistory(franchise1Id, franchise2Id);
+  const { data: matchups = [], isLoading } = useMatchupHistory(franchise1Id, franchise2Id);
 
-  // Get franchise info
-  const franchise1 = franchises.find(f => f.id === franchise1Id);
-  const franchise2 = franchises.find(f => f.id === franchise2Id);
-
-  const getName = (franchise) => {
-    if (!franchise) return 'Unknown';
-    return getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames);
+  const fullData = canViewFullData(user, isAdmin, teamOwnerNames);
+  const franchisesById = new Map(franchises.map((franchise) => [franchise.id, franchise]));
+  const ids = [franchise1Id, franchise2Id];
+  const names = ids.map((id) => getMaskedFranchiseName(franchisesById.get(id), user, isAdmin, teamOwnerNames));
+  const avatar = (i) => {
+    const franchise = franchisesById.get(ids[i]);
+    return fullData && franchise
+      ? { franchiseId: ids[i], owner_name: franchise.owner_name }
+      : { franchiseId: ids[i], name: names[i] };
   };
 
-  // Every row is already oriented with franchise 1 as `team1`, so the summary
-  // is a straight fold over the list.
-  const summary = useMemo(() => {
-    if (matchups.length === 0) return null;
+  const summary = useMemo(() => summarizeMatchup(matchups), [matchups]);
 
-    let f1Wins = 0;
-    let f2Wins = 0;
-    let f1Points = 0;
-    let f2Points = 0;
-    let playoffF1Wins = 0;
-    let playoffF2Wins = 0;
-    let highestScore = 0;
-    let highestScoreGame = null;
-    let closestMargin = Infinity;
-    let closestGame = null;
-
+  const byYear = useMemo(() => {
+    const groups = new Map();
     for (const game of matchups) {
-      const f1Score = game.team1Score;
-      const f2Score = game.team2Score;
-
-      f1Points += f1Score;
-      f2Points += f2Score;
-
-      if (f1Score > f2Score) {
-        f1Wins++;
-        if (game.isPlayoff) playoffF1Wins++;
-      } else if (f2Score > f1Score) {
-        f2Wins++;
-        if (game.isPlayoff) playoffF2Wins++;
-      }
-
-      // Track notable games
-      const totalScore = f1Score + f2Score;
-      if (totalScore > highestScore) {
-        highestScore = totalScore;
-        highestScoreGame = { ...game, f1Score, f2Score };
-      }
-
-      const margin = Math.abs(f1Score - f2Score);
-      if (margin < closestMargin && margin > 0) {
-        closestMargin = margin;
-        closestGame = { ...game, f1Score, f2Score, margin };
-      }
+      if (!groups.has(game.year)) groups.set(game.year, []);
+      groups.get(game.year).push(game);
     }
-
-    return {
-      totalGames: matchups.length,
-      f1Wins,
-      f2Wins,
-      f1Points,
-      f2Points,
-      f1AvgPoints: f1Points / matchups.length,
-      f2AvgPoints: f2Points / matchups.length,
-      playoffF1Wins,
-      playoffF2Wins,
-      playoffGames: matchups.filter(game => game.isPlayoff).length,
-      highestScoreGame,
-      closestGame
-    };
+    return [...groups.entries()]
+      .sort(([a], [b]) => b - a)
+      .map(([year, games]) => [year, [...games].sort((a, b) => b.week - a.week)]);
   }, [matchups]);
 
-  // Group matchups by season
-  const matchupsByYear = matchups.reduce((acc, game) => {
-    const year = game.year || 'Unknown';
-    if (!acc[year]) {
-      acc[year] = [];
-    }
-    acc[year].push(game);
-    return acc;
-  }, {});
+  const back = (
+    <Button variant="ghost" size="sm" onClick={onBack}>
+      <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+      Back to matrix
+    </Button>
+  );
 
-  if (loading && matchups.length === 0) {
+  if (isLoading && matchups.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Matrix
-          </Button>
-        </div>
+        {back}
+        <div className="h-64 animate-pulse rounded-xl border border-border bg-card" aria-busy="true" aria-label="Loading matchup" />
+      </div>
+    );
+  }
+
+  if (!summary) {
+    return (
+      <div className="space-y-6">
+        {back}
         <Card>
-          <CardContent className="p-12">
-            <div className="flex items-center justify-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          </CardContent>
+          <EmptyState icon={Target} title={`${names[0]} and ${names[1]} have never met`} />
         </Card>
       </div>
     );
   }
 
+  const [first, second] = summary.sides;
+  const tape = [
+    {
+      label: 'Series',
+      values: [formatRecord(first), formatRecord(second)],
+      lead: leader(first.wins, second.wins)
+    },
+    {
+      label: 'Regular season',
+      values: [formatRecord(first.byPhase.regular), formatRecord(second.byPhase.regular)],
+      lead: leader(first.byPhase.regular.wins, second.byPhase.regular.wins)
+    },
+    summary.phases.playoff > 0 && {
+      label: 'Playoffs',
+      values: [formatRecord(first.byPhase.playoff), formatRecord(second.byPhase.playoff)],
+      lead: leader(first.byPhase.playoff.wins, second.byPhase.playoff.wins)
+    },
+    summary.phases.consolation > 0 && {
+      label: 'Consolation',
+      values: [formatRecord(first.byPhase.consolation), formatRecord(second.byPhase.consolation)],
+      lead: leader(first.byPhase.consolation.wins, second.byPhase.consolation.wins)
+    },
+    { label: 'Win %', values: [formatPct(first.winPct), formatPct(second.winPct)], lead: leader(first.winPct, second.winPct) },
+    { label: 'Points for', values: [formatPoints(first.points), formatPoints(second.points)], lead: leader(first.points, second.points) },
+    {
+      label: 'Average score',
+      values: [formatPoints(first.averagePoints), formatPoints(second.averagePoints)],
+      lead: leader(first.averagePoints, second.averagePoints)
+    },
+    {
+      label: 'Highest score',
+      values: [formatPoints(first.highScore?.value), formatPoints(second.highScore?.value)],
+      lead: leader(first.highScore?.value, second.highScore?.value)
+    },
+    {
+      label: 'Biggest win',
+      values: [first.biggestWin, second.biggestWin].map((win) => (win ? `+${formatPoints(win.value)}` : '—')),
+      lead: leader(first.biggestWin?.value ?? 0, second.biggestWin?.value ?? 0)
+    },
+    {
+      label: 'Longest win streak',
+      values: [first.longestStreak, second.longestStreak].map((run) => (run ? String(run.length) : '—')),
+      lead: leader(first.longestStreak?.length ?? 0, second.longestStreak?.length ?? 0)
+    }
+  ].filter(Boolean);
+
+  const streak = summary.currentStreak;
+  const streakLine = streak
+    ? streak.length === 1
+      ? `${names[streak.side]} won the last meeting.`
+      : `${names[streak.side]} has won the last ${streak.length} meetings.`
+    : 'The last meeting was a tie.';
+
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Matrix
-        </Button>
-      </div>
+      {back}
 
-      {/* Header with overall record */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            {getName(franchise1)} vs {getName(franchise2)}
+            <Target className="h-5 w-5" aria-hidden="true" />
+            <span className="min-w-0 truncate">
+              {names[0]} vs {names[1]}
+            </span>
           </CardTitle>
           <CardDescription>
-            All-time matchup history between these franchises
+            {summary.totalGames} {summary.totalGames === 1 ? 'meeting' : 'meetings'} · {streakLine}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {summary ? (
-            <div className="space-y-6">
-              {/* Overall Record */}
-              <div className="flex items-center justify-center gap-8">
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">{getName(franchise1)}</p>
-                  <p className="text-4xl font-bold" style={{ color: summary.f1Wins > summary.f2Wins ? '#10b981' : summary.f1Wins < summary.f2Wins ? '#ef4444' : '#9ca3af' }}>
-                    {summary.f1Wins}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">Record</p>
-                  <p className="text-2xl font-bold">-</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-muted-foreground">{getName(franchise2)}</p>
-                  <p className="text-4xl font-bold" style={{ color: summary.f2Wins > summary.f1Wins ? '#10b981' : summary.f2Wins < summary.f1Wins ? '#ef4444' : '#9ca3af' }}>
-                    {summary.f2Wins}
-                  </p>
-                </div>
-              </div>
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div className="p-3 rounded-lg" style={{ backgroundColor: '#1f2937' }}>
-                  <p className="text-xs text-muted-foreground">Total Games</p>
-                  <p className="text-lg font-semibold">{summary.totalGames}</p>
-                </div>
-                <div className="p-3 rounded-lg" style={{ backgroundColor: '#1f2937' }}>
-                  <p className="text-xs text-muted-foreground">Playoff Games</p>
-                  <p className="text-lg font-semibold">{summary.playoffGames}</p>
-                </div>
-                <div className="p-3 rounded-lg" style={{ backgroundColor: '#1f2937' }}>
-                  <p className="text-xs text-muted-foreground">{getName(franchise1)} Avg</p>
-                  <p className="text-lg font-semibold">{summary.f1AvgPoints.toFixed(1)}</p>
-                </div>
-                <div className="p-3 rounded-lg" style={{ backgroundColor: '#1f2937' }}>
-                  <p className="text-xs text-muted-foreground">{getName(franchise2)} Avg</p>
-                  <p className="text-lg font-semibold">{summary.f2AvgPoints.toFixed(1)}</p>
-                </div>
-              </div>
-
-              {/* Notable Games */}
-              {(summary.highestScoreGame || summary.closestGame) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {summary.highestScoreGame && (
-                    <div className="p-4 rounded-lg border" style={{ backgroundColor: '#1f2937', borderColor: '#374151' }}>
-                      <p className="text-xs text-muted-foreground mb-1">Highest Scoring Game</p>
-                      <p className="font-semibold">
-                        {summary.highestScoreGame.f1Score} - {summary.highestScoreGame.f2Score}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Week {summary.highestScoreGame.week}, {summary.highestScoreGame.year}
-                      </p>
-                    </div>
+        <CardContent className="space-y-6">
+          {/* The series */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-6">
+            {[0, 1].map((i) => (
+              <div
+                key={ids[i]}
+                className={cn('flex min-w-0 flex-col items-center gap-2 text-center', i === 0 ? 'order-1' : 'order-3')}
+              >
+                <TeamAvatar team={avatar(i)} size="md" />
+                <span className="w-full truncate text-sm font-medium">{names[i]}</span>
+                <span
+                  className={cn(
+                    'font-display text-4xl font-semibold leading-none tracking-[-0.01em] tabular',
+                    leader(first.wins, second.wins) === i ? 'text-foreground' : 'text-muted-foreground'
                   )}
-                  {summary.closestGame && (
-                    <div className="p-4 rounded-lg border" style={{ backgroundColor: '#1f2937', borderColor: '#374151' }}>
-                      <p className="text-xs text-muted-foreground mb-1">Closest Game</p>
-                      <p className="font-semibold">
-                        {summary.closestGame.f1Score} - {summary.closestGame.f2Score}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Week {summary.closestGame.week}, {summary.closestGame.year} (margin: {summary.closestGame.margin.toFixed(1)})
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-center py-8">
-              No matchup history found
-            </p>
-          )}
+                >
+                  {summary.sides[i].wins}
+                </span>
+              </div>
+            ))}
+            <span className="order-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              {first.ties > 0 ? `${first.ties} ${first.ties === 1 ? 'tie' : 'ties'}` : 'wins'}
+            </span>
+          </div>
+
+          {/* Tale of the tape */}
+          <dl className="divide-y divide-border/60 rounded-lg border border-border">
+            {tape.map((row) => (
+              <div key={row.label} className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 px-3 py-2 text-sm sm:px-4">
+                <dd className={cn('tabular text-right', row.lead === 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
+                  {row.values[0]}
+                </dd>
+                <dt className="text-center text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                  {row.label}
+                </dt>
+                <dd className={cn('tabular', row.lead === 1 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
+                  {row.values[1]}
+                </dd>
+              </div>
+            ))}
+          </dl>
+
+          {/* Notable games */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <NotableGame
+              label="Highest-scoring meeting"
+              value={formatPoints(summary.highestCombined.value)}
+              game={summary.highestCombined.game}
+            />
+            <NotableGame
+              label="Closest meeting"
+              value={summary.closest ? formatPoints(summary.closest.value) : '—'}
+              game={summary.closest?.game}
+            />
+            <NotableGame label="Average combined score" value={formatPoints(summary.averageCombined)} />
+          </div>
         </CardContent>
       </Card>
 
-      {/* Game-by-Game History */}
-      {Object.keys(matchupsByYear).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Game History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {Object.entries(matchupsByYear)
-                .sort(([a], [b]) => Number(b) - Number(a)) // Sort by year descending
-                .map(([year, games]) => {
-                  // Sort games by week descending (later weeks first)
-                  const sortedGames = [...games].sort((a, b) => b.week - a.week);
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Recent meetings</CardTitle>
+          <CardDescription>
+            {names[0]} on the left. The last {summary.recent.length}, newest first.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ol className="divide-y divide-border/60">
+            {summary.recent.map((game) => (
+              <MeetingRow key={game.id} game={game} showYear />
+            ))}
+          </ol>
+        </CardContent>
+      </Card>
 
-                  return (
-                    <div key={year}>
-                      <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                        {year} Season
-                        <Badge variant="secondary" className="text-xs">
-                          {games.length} game{games.length !== 1 ? 's' : ''}
-                        </Badge>
-                      </h3>
-
-                      {/*
-                        Six fixed tracks — 60+80+40+80px plus gaps — left about
-                        40px between two owner names at 375px. Below sm: the
-                        two running-record columns drop out (they are context,
-                        not the result) and the remaining four tracks are
-                        fluid; from sm: up the original template is restored
-                        exactly.
-                      */}
-                      <div className={`${MATCHUP_GRID} px-3 py-2 text-sm text-muted-foreground border-b border-border mb-2`}>
-                        <div>Week</div>
-                        <div className="truncate text-right">{getName(franchise1)}</div>
-                        <div className="hidden text-right sm:block">Record</div>
-                        <div className="text-center"></div>
-                        <div className="hidden sm:block">Record</div>
-                        <div className="truncate">{getName(franchise2)}</div>
-                      </div>
-
-                      <div className="space-y-1">
-                        {sortedGames.map((game) => {
-                          const { team1Score: f1Score, team2Score: f2Score } = game;
-                          const f1Record = game.team1Record;
-                          const f2Record = game.team2Record;
-                          const f1Won = f1Score > f2Score;
-                          const f2Won = f2Score > f1Score;
-
-                          return (
-                            <div
-                              key={game.id}
-                              className={`${MATCHUP_GRID} items-center p-3 rounded-lg`}
-                              style={{ backgroundColor: '#111827' }}
-                            >
-                              {/* Week */}
-                              <div className="text-sm text-muted-foreground">
-                                {game.week}
-                              </div>
-
-                              {/* Franchise 1 Score */}
-                              <div className="text-right text-base font-semibold">
-                                <span style={{ color: f1Won ? '#10b981' : f2Won ? '#ef4444' : '#9ca3af' }}>
-                                  {f1Score.toFixed(2)}
-                                </span>
-                              </div>
-
-                              {/* Franchise 1 Record */}
-                              <div className="hidden text-right text-sm text-muted-foreground sm:block">
-                                {f1Record || '-'}
-                              </div>
-
-                              {/* VS */}
-                              <div className="text-center text-sm text-muted-foreground">
-                                vs
-                              </div>
-
-                              {/* Franchise 2 Record */}
-                              <div className="hidden text-sm text-muted-foreground sm:block">
-                                {f2Record || '-'}
-                              </div>
-
-                              {/* Franchise 2 Score */}
-                              <div className="text-base font-semibold">
-                                <span style={{ color: f2Won ? '#10b981' : f1Won ? '#ef4444' : '#9ca3af' }}>
-                                  {f2Score.toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Every meeting</CardTitle>
+          <CardDescription>{names[0]} on the left.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {byYear.map(([year, games]) => {
+            const seasonSummary = summarizeMatchup(games);
+            return (
+              <section key={year} aria-labelledby={`meetings-${year}`}>
+                <h3 id={`meetings-${year}`} className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                  {year}
+                  <span className="text-xs font-normal text-muted-foreground tabular">
+                    {formatRecord(seasonSummary.sides[0])}
+                  </span>
+                </h3>
+                <ol className="divide-y divide-border/60">
+                  {games.map((game) => (
+                    <MeetingRow key={game.id} game={game} />
+                  ))}
+                </ol>
+              </section>
+            );
+          })}
+        </CardContent>
+      </Card>
     </div>
   );
 };

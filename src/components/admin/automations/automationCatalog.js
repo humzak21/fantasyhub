@@ -44,6 +44,7 @@ export const LATE_AFTER_MINUTES = 60;
 export const STEP_ORDER = [
   'pickEmWeek',
   'rosters',
+  'postseasonGames',
   'scores',
   'playerStats',
   'finalizePrev',
@@ -89,6 +90,24 @@ export const STEPS = {
       "present-tense snapshot the pick'ems research panel, Teams tab and Schedule lineups read. " +
       "Stops once the playoffs start so records stay frozen."
   },
+  postseasonGames: {
+    label: "Write the week's bracket games",
+    fatal: false,
+    // Applies to part of the calendar only. Its not-applicable states — the
+    // regular season, a run where the scores step wrote the rows, and a row
+    // logged before the step existed — fold out of a run summary like a flag
+    // skip does, so every other week's summary is not padded with it.
+    seasonal: true,
+    espn: 'mMatchupScore for the target week (league-private)',
+    reads: ['teams', 'games'],
+    writes: ['games (postseason rows and their types; never scores)'],
+    description:
+      "Postseason weeks only, and only when the scores step is skipped — which is the daily refresh. " +
+      "ESPN draws each round after the previous one ends, so the semifinal and final rows can appear " +
+      "after Tuesday's run; this writes them the same day, typed from ESPN's bracket tier. A matchup " +
+      "ESPN has not tiered is held back rather than typed regular, and the stored week is checked " +
+      "against the bracket's shape."
+  },
   scores: {
     label: 'Write matchup scores',
     fatal: true,
@@ -98,7 +117,8 @@ export const STEPS = {
     description:
       "Upserts the week's matchups. Derived columns (winner, margin, blowout, completed_at) are " +
       "computed by the before_game_update trigger; the game type is written on insert only so " +
-      "hand-corrected postseason types survive."
+      "hand-corrected postseason types survive. In a postseason week an untiered matchup is held " +
+      "back instead of typed regular, and the stored week is checked against the bracket's shape."
   },
   playerStats: {
     label: 'Store player week stats',
@@ -158,10 +178,14 @@ export const STEPS = {
     fatal: false,
     espn: 'mTransactions2 season summary (league-private)',
     reads: ['teams (franchise_id)'],
-    writes: ['transactions (adds, waivers, trades, drops, FAAB per franchise)'],
+    writes: [
+      'transactions (adds, waivers, trades, drops, FAAB per franchise)',
+      'transaction_events (each executed add, claim and trade, with bids and trade partners)'
+    ],
     description:
-      "Season-to-date roster moves per franchise, upserted on (franchise_id, season_id). A team " +
-      "ESPN names that no season team matches is reported, not guessed."
+      "Season-to-date roster moves per franchise, upserted on (franchise_id, season_id), and every " +
+      "executed move individually from the same fetch — which is what the trade-partner and FAAB-bid " +
+      "records read. A team ESPN names that no season team matches is reported, not guessed."
   },
   snapshot: {
     label: 'Snapshot power rankings',
@@ -237,11 +261,12 @@ export const AUTOMATIONS = [
     timeoutMinutes: 10,
     concurrency: 'espn-write',
     secrets: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ESPN_S2', 'ESPN_SWID'],
-    steps: ['pickEmWeek', 'rosters', 'parlayGrades', 'transactions'],
+    steps: ['pickEmWeek', 'rosters', 'postseasonGames', 'parlayGrades', 'transactions'],
     skips: ['scores', 'playerStats', 'finalizePrev', 'nflSchedule', 'nflRatings', 'snapshot'],
     summary:
       "The present-tense half. Managers change lineups up to kickoff and waivers clear on " +
-      "Wednesday, so rosters and transaction counts are refreshed daily. It never writes a " +
+      "Wednesday, so rosters and transaction counts are refreshed daily — and in the postseason, " +
+      "the week's bracket rows as ESPN draws them. It never writes a " +
       "result: scores, player stats and the ranking snapshot move once a week, on Tuesday.",
     notes: [
       'Same script as the weekly sync with six --skip flags, so a sync_runs row is attributed to this job by those flags.',
@@ -518,10 +543,19 @@ const SKIP_REASONS = {
   flag: 'skipped by flag',
   'playoff week': 'skipped — playoff week',
   'no previous week': 'skipped — nothing before week 1',
-  'explicit week': 'skipped — week given explicitly'
+  'explicit week': 'skipped — week given explicitly',
+  'regular season': 'skipped — regular season',
+  'written by scores': 'skipped — the scores step writes these rows'
 };
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** Matchups a games writer held back, and what the stored bracket week is missing. */
+const postseasonIssues = (result) => [
+  ...(result.untyped ?? []).map((miss) =>
+    `held back: week ${miss.week} matchup ${miss.matchupId} — ${miss.reason}`),
+  ...(result.bracketIssues ?? []).map((issue) => `bracket: ${issue}`)
+];
 
 const errorIssues = (errors = [], prefix) =>
   errors.map((entry) => {
@@ -571,11 +605,17 @@ export function summarizeStep(name, result) {
         `owner differs for ${clash.team}: stored "${clash.stored}", ESPN "${clash.espn}" — not overwritten`));
       break;
     }
+    case 'postseasonGames':
+      text = `${result.created ?? 0} created · ${result.updated ?? 0} updated · ${result.unchanged ?? 0} unchanged`;
+      issues.push(...errorIssues(result.errors, 'unmatched: '));
+      issues.push(...postseasonIssues(result));
+      break;
     case 'scores':
       text = `${result.created ?? 0} created · ${result.updated ?? 0} updated · ${result.unchanged ?? 0} unchanged`;
       issues.push(...errorIssues(result.errors, 'unmatched: '));
       issues.push(...(result.conflicts ?? []).map((clash) =>
         `conflict: ${typeof clash === 'string' ? clash : JSON.stringify(clash)}`));
+      issues.push(...postseasonIssues(result));
       break;
     case 'playerStats':
       text = `${plural(result.upserted ?? 0, 'player row')} · ${plural(result.playersCreated ?? 0, 'new player')}`;
@@ -605,7 +645,8 @@ export function summarizeStep(name, result) {
       break;
     }
     case 'transactions':
-      text = `${plural(result.updated ?? 0, 'team')} updated`;
+      text = `${plural(result.updated ?? 0, 'team')} updated` +
+        (result.events != null ? ` · ${plural(result.events, 'transaction')} stored` : '');
       issues.push(...errorIssues(result.errors, ''));
       break;
     case 'snapshot':
@@ -626,8 +667,15 @@ export function summarizeRunSteps(run, { includeFlagSkips = false } = {}) {
   const steps = run?.steps ?? {};
   return STEP_ORDER
     .map((name) => ({ name, ...STEPS[name], ...summarizeStep(name, steps[name]), raw: steps[name] }))
-    .filter((step) => includeFlagSkips || !(step.state === 'skipped' && isFlagSkipped(steps[step.name])));
+    .filter((step) => includeFlagSkips || !(
+      (step.state === 'skipped' && isFlagSkipped(steps[step.name])) || isSeasonalIdle(step, steps[step.name])
+    ));
 }
+
+/** A seasonal step that did not apply to this run, as opposed to one that failed to. */
+const SEASONAL_IDLE_SKIPS = new Set(['regular season', 'written by scores']);
+const isSeasonalIdle = (step, result) =>
+  Boolean(step.seasonal) && (result == null || SEASONAL_IDLE_SKIPS.has(result?.skipped));
 
 /**
  * The run as a whole: the row's own status, sharpened by what the steps say
@@ -958,6 +1006,24 @@ export function buildRecommendations({
         actions: [runAction(daily)]
       });
     }
+    // The bracket, round by round. `health.postseason` holds only weeks with
+    // something wrong: an elapsed round that is short, or any postseason game
+    // typed regular. Types are written once, from ESPN's bracket tier, so the
+    // remedy is a run that sees the tier, and a person when ESPN has none.
+    for (const entry of health.postseason ?? []) {
+      push({
+        id: `postseason-week-${entry.week}`,
+        severity: 'warning',
+        title: `Postseason week ${entry.week} is not a complete bracket round`,
+        detail:
+          `${entry.issues.join(' · ')}. A postseason game's type comes from ESPN's bracket tier when its ` +
+          'row is created. Re-run the daily refresh first: it writes rows ESPN has drawn since, and ' +
+          'corrects a game stuck at regular once ESPN tiers it. If ESPN still reports no tier, set the ' +
+          "game's type by hand — the sync never overwrites a postseason type other than regular.",
+        actions: [runAction(daily), commandAction(daily)]
+      });
+    }
+
     if (!health.snapshot || health.snapshot.week < actualWeek) {
       push({
         id: 'snapshot-behind',

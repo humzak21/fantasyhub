@@ -189,8 +189,7 @@ const HeadToHeadMatrix = ({
                             </TooltipTrigger>
                             <TooltipContent
                               side="top"
-                              className="max-w-xs z-50"
-                              className="rounded-md border border-border bg-popover text-popover-foreground shadow-lg" style={{}}
+                              className="z-50 max-w-xs rounded-md border border-border bg-popover text-popover-foreground shadow-lg"
                             >
                               <div className="space-y-1 p-1">
                                 <p className="font-semibold">

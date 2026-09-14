@@ -289,8 +289,12 @@ export const POWER_RANKING_COMPONENT_META = {
 
 // Thresholds for various calculations
 export const THRESHOLDS = {
-  blowout: 25, // Point difference for blowout (lowered for more sensitivity)
-  close: 7,    // Point difference for close game (tightened)
+  // Blowout and close-game lines. These must equal the `before_game_update`
+  // trigger's, which stamps `games.is_blowout` (>= 30) and `is_close` (<= 5)
+  // and is what the record book counts. They were 25 and 7 here, so the power
+  // ranking and the stored flags disagreed about which games were blowouts.
+  blowout: 30,
+  close: 5,
   qualityWinRankThreshold: 5, // Beating a team ranked this or higher
   badLossRankThreshold: 10,   // Losing to a team ranked this or lower
   recentFormWeeks: 3,         // Number of weeks for recent form calculation (last 3 games)

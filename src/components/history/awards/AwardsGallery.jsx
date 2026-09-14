@@ -1,448 +1,238 @@
-import React, { useState, useMemo } from 'react';
-import { Award, Trophy, Medal, TrendingUp, TrendingDown, Zap, Target, Calendar, ChevronDown, ChevronUp, Vote } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
+import React, { useMemo, useState } from 'react';
+import { Award, Calendar, ChevronDown, ChevronUp, Medal, Vote } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
+import { EmptyState } from '../../ui/empty-state';
+import { RankBadge } from '../../ui/rank-badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
+import { TeamAvatar } from '../../ui/team-identity';
 import { useSeasonDetails } from '../../../../hooks/queries/index.js';
-import { getMaskedFranchiseName } from '../utils/privacyHelpers';
-import { formatPoints } from '../utils/statFormatters';
+import { canViewFullData, getMaskedFranchiseName } from '../utils/privacyHelpers';
 
-// Award category configuration
-const AWARD_CATEGORIES = {
-  standard: {
-    label: 'Championships & Standings',
-    icon: Trophy,
-    color: 'text-amber-600',
-    bgColor: 'bg-amber-50 dark:bg-amber-950/20',
-    description: 'Final standings awards'
-  },
-  regular_season: {
-    label: 'Regular Season Excellence',
-    icon: TrendingUp,
-    color: 'text-green-600',
-    bgColor: 'bg-green-50 dark:bg-green-950/20',
-    description: 'Best regular season performances'
-  },
-  dubious: {
-    label: 'Dubious Distinctions',
-    icon: TrendingDown,
-    color: 'text-red-600',
-    bgColor: 'bg-red-50 dark:bg-red-950/20',
-    description: 'Records you might not want'
-  },
-  advanced: {
-    label: 'Advanced Analytics',
-    icon: Zap,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50 dark:bg-purple-950/20',
-    description: 'Analytics-based awards'
-  },
-  // Awards the league votes on, or hands out by hand. They have a free-text
-  // title rather than an `award_type`, so they are grouped by their source.
-  ballot: {
-    label: 'League Ballot',
-    icon: Vote,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50 dark:bg-blue-950/20',
-    description: 'Voted on by the league'
-  }
-};
-
-// Award type icons and styling
-const AWARD_TYPE_CONFIG = {
-  champion: { icon: Trophy, rank: 1, color: 'text-amber-500' },
-  runner_up: { icon: Medal, rank: 2, color: 'text-muted-foreground' },
-  third_place: { icon: Medal, rank: 3, color: 'text-orange-600' },
-  best_record: { icon: Target, rank: 1, color: 'text-green-600' },
-  highest_points: { icon: TrendingUp, rank: 1, color: 'text-green-600' },
-  most_blowouts: { icon: Zap, rank: 1, color: 'text-green-600' },
-  highest_weekly_score: { icon: TrendingUp, rank: 1, color: 'text-green-600' },
-  worst_record: { icon: TrendingDown, rank: 1, color: 'text-red-600' },
-  lowest_points: { icon: TrendingDown, rank: 1, color: 'text-red-600' },
-  most_points_against: { icon: Target, rank: 1, color: 'text-red-600' },
-  biggest_blowout_loss: { icon: TrendingDown, rank: 1, color: 'text-red-600' },
-  lowest_weekly_score: { icon: TrendingDown, rank: 1, color: 'text-red-600' },
-  most_consistent: { icon: Target, rank: 1, color: 'text-purple-600' },
-  highest_efficiency: { icon: Zap, rank: 1, color: 'text-purple-600' }
-};
-
+/**
+ * The league's voted awards, season by season.
+ *
+ * This used to hold three kinds of award in five categories — computed stat
+ * awards, the admin's hand-entered stat awards, and the ones the league votes
+ * on — and its "most decorated" board counted all of them, so a franchise was
+ * decorated mostly for having scored a lot of points. Every stat award is a
+ * record in the record book now, ranked rather than naming one winner. What is
+ * left here is what only a ballot can decide.
+ *
+ * `getSeasonDetail` does the filtering (`shapeAwards`), so every surface that
+ * shows awards — this gallery, a season, a franchise profile — agrees.
+ */
 const AwardsGallery = ({
   franchises = [],
   seasons = [],
-  championships = [],
   user = null,
   isAdmin = false,
   teamOwnerNames = [],
   onViewFranchise = () => {},
-  onViewSeason = () => {}
+  onViewSeason = () => {},
+  onViewRecords = () => {}
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSeason, setSelectedSeason] = useState('all');
-  const [expandedSeasons, setExpandedSeasons] = useState({});
+  const [collapsed, setCollapsed] = useState({});
 
-  // One query per season, sharing the cache with the season detail view rather
-  // than re-reading every season's awards each time this tab is opened.
-  const seasonQueries = useSeasonDetails(seasons.map(season => season.id));
+  // One query per season, sharing the cache with the season detail view.
+  const seasonQueries = useSeasonDetails(seasons.map((season) => season.id));
+  const isLoading = seasonQueries.some((query) => query.isLoading);
 
   const allAwards = seasonQueries.flatMap((query, index) =>
-    (query.data?.awards ?? []).map(award => ({
-      ...award,
-      seasonYear: seasons[index].year,
-      seasonId: seasons[index].id
-    }))
+    (query.data?.awards ?? []).map((award) => ({ ...award, seasonYear: seasons[index].year }))
   );
 
-  // Get franchise display name
-  const getFranchiseDisplayName = (award) => {
-    const franchise = franchises.find(f => f.id === award.franchise_id) || award.franchise;
-    if (!franchise) return award.winner_id || 'Unknown';
-    return getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames);
+  const fullData = canViewFullData(user, isAdmin, teamOwnerNames);
+  const franchiseFor = (award) => franchises.find((f) => f.id === award.franchise_id) || award.franchise;
+
+  // An owner name with no franchise behind it is still an owner's name; a
+  // viewer who may not see names does not see that one either.
+  const winnerName = (award) => {
+    const franchise = franchiseFor(award);
+    if (franchise) return getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames);
+    return fullData ? award.winner_id || 'Unknown' : 'Unknown';
   };
 
-  // Group awards by season and category
-  const groupedAwards = useMemo(() => {
-    let filtered = allAwards;
+  const bySeason = useMemo(() => {
+    const groups = new Map();
+    for (const award of allAwards) {
+      if (selectedSeason !== 'all' && award.seasonYear !== Number(selectedSeason)) continue;
+      if (!groups.has(award.seasonYear)) groups.set(award.seasonYear, []);
+      groups.get(award.seasonYear).push(award);
+    }
+    return [...groups.entries()].sort(([a], [b]) => b - a);
+  }, [allAwards, selectedSeason]);
 
-    // Hide highest_efficiency award (metric doesn't make sense)
-    filtered = filtered.filter(a => a.award_type !== 'highest_efficiency');
-
-    // Filter by category
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(a => a.award_category === selectedCategory);
+  const leaders = useMemo(() => {
+    const counts = new Map();
+    for (const award of allAwards) {
+      if (!award.franchise_id) continue;
+      counts.set(award.franchise_id, (counts.get(award.franchise_id) ?? 0) + 1);
     }
 
-    // Filter by season
-    if (selectedSeason !== 'all') {
-      filtered = filtered.filter(a => a.seasonYear === parseInt(selectedSeason));
-    }
-
-    // Group by season year
-    const bySeasonYear = {};
-    filtered.forEach(award => {
-      const year = award.seasonYear;
-      if (!bySeasonYear[year]) {
-        bySeasonYear[year] = {
-          year,
-          seasonId: award.seasonId,
-          categories: {}
-        };
-      }
-
-      const category = award.award_category;
-      if (!bySeasonYear[year].categories[category]) {
-        bySeasonYear[year].categories[category] = [];
-      }
-      bySeasonYear[year].categories[category].push(award);
-    });
-
-    // Sort by year descending
-    return Object.values(bySeasonYear).sort((a, b) => b.year - a.year);
-  }, [allAwards, selectedCategory, selectedSeason]);
-
-  // Calculate award leaderboard (most awards by franchise)
-  const awardLeaderboard = useMemo(() => {
-    const counts = {};
-
-    allAwards.forEach(award => {
-      const franchiseId = award.franchise_id;
-      if (!franchiseId) return;
-
-      if (!counts[franchiseId]) {
-        counts[franchiseId] = {
-          franchiseId,
-          total: 0,
-          championships: 0,
-          regular_season: 0,
-          dubious: 0,
-          advanced: 0
-        };
-      }
-
-      counts[franchiseId].total++;
-      if (award.award_type === 'champion') {
-        counts[franchiseId].championships++;
-      }
-      if (award.award_category === 'regular_season') {
-        counts[franchiseId].regular_season++;
-      }
-      if (award.award_category === 'dubious') {
-        counts[franchiseId].dubious++;
-      }
-      if (award.award_category === 'advanced') {
-        counts[franchiseId].advanced++;
-      }
-    });
-
-    return Object.values(counts)
-      .sort((a, b) => b.total - a.total)
+    let rank = 0;
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(entry => {
-        const franchise = franchises.find(f => f.id === entry.franchiseId);
-        return {
-          ...entry,
-          displayName: franchise
-            ? getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames)
-            : 'Unknown'
-        };
+      .map(([franchiseId, total], index, list) => {
+        if (index === 0 || list[index - 1][1] !== total) rank = index + 1;
+        return { franchiseId, total, rank };
       });
-  }, [allAwards, franchises, user, isAdmin, teamOwnerNames]);
+  }, [allAwards]);
 
-  const toggleSeasonExpand = (year) => {
-    setExpandedSeasons(prev => ({
-      ...prev,
-      [year]: !prev[year]
-    }));
-  };
+  const header = (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1.5">
+            <CardTitle className="flex items-center gap-2">
+              <Vote className="h-5 w-5" aria-hidden="true" />
+              League Awards
+              {allAwards.length > 0 && <Badge variant="secondary">{allAwards.length}</Badge>}
+            </CardTitle>
+            <CardDescription>
+              Voted on by the league each season. Stat honors — best record, highest score, most
+              points against — are ranked in the record book.
+            </CardDescription>
+          </div>
+          {seasons.length > 1 && (
+            <Select value={selectedSeason} onValueChange={setSelectedSeason}>
+              <SelectTrigger className="w-full sm:w-40" aria-label="Season">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All seasons</SelectItem>
+                {seasons.map((season) => (
+                  <SelectItem key={season.id} value={String(season.year)}>
+                    {season.year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </CardHeader>
+    </Card>
+  );
 
-  // Format award value for display
-  const formatAwardValue = (award) => {
-    if (!award.value_label) return null;
-
-    // Check if it's a numeric value that should be formatted
-    if (award.award_type.includes('points') || award.award_type.includes('score')) {
-      const numValue = parseFloat(award.value_label);
-      if (!isNaN(numValue)) {
-        return formatPoints(numValue);
-      }
-    }
-
-    return award.value_label;
-  };
+  if (!isLoading && allAwards.length === 0) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <Card>
+          <EmptyState
+            icon={Award}
+            title="No voted awards decided yet"
+            description="Awards appear here once the league's ballot results are released and a winner is set."
+            action={
+              <Button variant="outline" size="sm" onClick={onViewRecords}>
+                <Medal className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                Open the record book
+              </Button>
+            }
+          />
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header and Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5" />
-            Awards Gallery
-            <Badge variant="secondary" className="ml-auto">
-              {allAwards.length} Awards
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4">
-            {/* Category Filter */}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={selectedCategory === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedCategory('all')}
-              >
-                All Categories
-              </Button>
-              {Object.entries(AWARD_CATEGORIES).map(([key, config]) => {
-                const Icon = config.icon;
-                return (
-                  <Button
-                    key={key}
-                    variant={selectedCategory === key ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setSelectedCategory(key)}
-                    className="flex items-center gap-1"
-                  >
-                    <Icon className="h-3 w-3" />
-                    <span className="hidden sm:inline">{config.label.split(' ')[0]}</span>
-                  </Button>
-                );
-              })}
-            </div>
+      {header}
 
-            {/* Season Filter */}
-            <select
-              value={selectedSeason}
-              onChange={(e) => setSelectedSeason(e.target.value)}
-              className="px-3 py-1.5 text-sm border rounded-md bg-background"
-            >
-              <option value="all">All Seasons</option>
-              {seasons.map(season => (
-                <option key={season.id} value={season.year}>
-                  {season.year}
-                </option>
-              ))}
-            </select>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Award Leaders */}
-      {selectedCategory === 'all' && selectedSeason === 'all' && awardLeaderboard.length > 0 && (
+      {selectedSeason === 'all' && leaders.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Award className="h-5 w-5" />
-              Most Decorated Franchises
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Award className="h-4 w-4" aria-hidden="true" />
+              Most decorated
             </CardTitle>
+            <CardDescription>Voted awards won, every season.</CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {awardLeaderboard.map((entry, index) => {
-                // Styling based on rank
-                const getRankStyle = () => {
-                  if (index === 0) return 'bg-gradient-to-r from-amber-500/20 to-amber-500/5 border-l-4 border-l-amber-500';
-                  if (index === 1) return 'bg-gradient-to-r from-gray-400/20 to-gray-400/5 border-l-4 border-l-gray-400';
-                  if (index === 2) return 'bg-gradient-to-r from-orange-500/20 to-orange-500/5 border-l-4 border-l-orange-500';
-                  return 'hover:bg-muted/50';
-                };
-
-                const getRankBadgeStyle = () => {
-                  if (index === 0) return 'bg-amber-500 text-white';
-                  if (index === 1) return 'bg-gray-400 text-white';
-                  if (index === 2) return 'bg-orange-500 text-white';
-                  return 'bg-muted text-muted-foreground';
-                };
-
+          <CardContent>
+            <ol className="divide-y divide-border/60">
+              {leaders.map((entry) => {
+                const franchise = franchises.find((f) => f.id === entry.franchiseId);
+                const name = getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames);
                 return (
-                  <div
-                    key={entry.franchiseId}
-                    className={`flex items-center gap-4 p-4 cursor-pointer transition-colors ${getRankStyle()}`}
-                    onClick={() => onViewFranchise(entry.franchiseId)}
-                  >
-                    {/* Rank Badge */}
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${getRankBadgeStyle()}`}>
-                      {index + 1}
-                    </div>
-
-                    {/* Franchise Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{entry.displayName}</p>
-                      <div className="flex items-center gap-3 mt-1">
-                        {entry.championships > 0 && (
-                          <span className="flex items-center gap-1 text-xs text-amber-600">
-                            <Trophy className="h-3 w-3" />
-                            {entry.championships} {entry.championships === 1 ? 'title' : 'titles'}
-                          </span>
-                        )}
-                        {entry.regular_season > 0 && (
-                          <span className="flex items-center gap-1 text-xs text-green-600">
-                            <TrendingUp className="h-3 w-3" />
-                            {entry.regular_season}
-                          </span>
-                        )}
-                        {entry.dubious > 0 && (
-                          <span className="flex items-center gap-1 text-xs text-red-600">
-                            <TrendingDown className="h-3 w-3" />
-                            {entry.dubious}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Total Awards */}
-                    <div className="flex-shrink-0 text-right">
-                      <p className="text-2xl font-bold">{entry.total}</p>
-                      <p className="text-xs text-muted-foreground">awards</p>
-                    </div>
-                  </div>
+                  <li key={entry.franchiseId} className="flex items-center gap-3 py-2">
+                    <RankBadge rank={entry.rank} size="sm" showDelta={false} />
+                    <button
+                      type="button"
+                      onClick={() => onViewFranchise(entry.franchiseId)}
+                      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/50"
+                    >
+                      <TeamAvatar
+                        team={fullData && franchise ? { franchiseId: entry.franchiseId, owner_name: franchise.owner_name } : { franchiseId: entry.franchiseId, name }}
+                        size="xs"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{name}</span>
+                      <span className="tabular text-sm font-semibold">{entry.total}</span>
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ol>
           </CardContent>
         </Card>
       )}
 
-      {/* Awards by Season */}
-      {groupedAwards.map(seasonGroup => {
-        const isExpanded = expandedSeasons[seasonGroup.year] !== false; // Default expanded
+      {bySeason.map(([year, awards]) => {
+        const isOpen = !collapsed[year];
+        const season = seasons.find((s) => s.year === year);
 
         return (
-          <Card key={seasonGroup.year}>
-            <CardHeader
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => toggleSeasonExpand(seasonGroup.year)}
-            >
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  {seasonGroup.year} Season Awards
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onViewSeason(seasonGroup.year);
-                    }}
-                  >
-                    View Season
-                  </Button>
-                  {isExpanded ? (
-                    <ChevronUp className="h-5 w-5" />
+          <Card key={year}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  onClick={() => setCollapsed((prev) => ({ ...prev, [year]: isOpen }))}
+                  className="flex items-center gap-2 text-left text-base font-semibold"
+                >
+                  <Calendar className="h-4 w-4" aria-hidden="true" />
+                  {year} season
+                  {isOpen ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   ) : (
-                    <ChevronDown className="h-5 w-5" />
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   )}
-                </div>
-              </CardTitle>
+                </button>
+                {season && (
+                  <Button variant="ghost" size="sm" onClick={() => onViewSeason(year)}>
+                    View season
+                  </Button>
+                )}
+              </div>
             </CardHeader>
 
-            {isExpanded && (
+            {isOpen && (
               <CardContent>
-                <div className="space-y-6">
-                  {Object.entries(AWARD_CATEGORIES).map(([categoryKey, categoryConfig]) => {
-                    const categoryAwards = seasonGroup.categories[categoryKey];
-                    if (!categoryAwards || categoryAwards.length === 0) return null;
-
-                    const CategoryIcon = categoryConfig.icon;
-
-                    return (
-                      <div key={categoryKey}>
-                        <h4 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${categoryConfig.color}`}>
-                          <CategoryIcon className="h-4 w-4" />
-                          {categoryConfig.label}
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {categoryAwards.map((award, index) => {
-                            const typeConfig = AWARD_TYPE_CONFIG[award.award_type] || {};
-                            const AwardIcon = typeConfig.icon || Award;
-
-                            return (
-                              <div
-                                key={`${award.id}-${index}`}
-                                className={`p-4 rounded-lg ${categoryConfig.bgColor} cursor-pointer hover:opacity-80 transition-opacity`}
-                                onClick={() => onViewFranchise(award.franchise_id)}
-                              >
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex items-center gap-2">
-                                    <AwardIcon className={`h-5 w-5 ${typeConfig.color || categoryConfig.color}`} />
-                                    <span className="font-semibold text-sm">
-                                      {award.award_name}
-                                    </span>
-                                  </div>
-                                </div>
-                                <p className="font-medium">
-                                  {getFranchiseDisplayName(award)}
-                                </p>
-                                {formatAwardValue(award) && (
-                                  <p className="text-sm text-muted-foreground mt-1">
-                                    {formatAwardValue(award)}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {awards.map((award) => (
+                    <button
+                      key={award.id}
+                      type="button"
+                      disabled={!award.franchise_id}
+                      onClick={() => award.franchise_id && onViewFranchise(award.franchise_id)}
+                      className="rounded-lg border border-border bg-muted/30 p-4 text-left transition-colors enabled:hover:bg-muted/60 disabled:cursor-default"
+                    >
+                      <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                        <Vote className="h-3.5 w-3.5 text-info" aria-hidden="true" />
+                        {award.award_name}
+                      </span>
+                      <span className="mt-2 block truncate font-medium">{winnerName(award)}</span>
+                    </button>
+                  ))}
                 </div>
               </CardContent>
             )}
           </Card>
         );
       })}
-
-      {groupedAwards.length === 0 && (
-        <Card>
-          <CardContent className="p-12">
-            <p className="text-muted-foreground text-center">
-              No awards found for the selected filters.
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

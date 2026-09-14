@@ -18,9 +18,13 @@ const PlayoffsBracketAdmin = ({
 }) => {
     const [releasing, setReleasing] = useState(false);
 
-    // Filter consolation games (Week 15 only for initial assignment)
+    // Consolation games of the first postseason week, for the initial slot
+    // assignment. The week follows the season's regular-season length rather
+    // than a hardcoded 15: 2020 ran a 13-week regular season.
+    const firstPostseasonWeek =
+        (season?.regularSeasonWeeks ?? season?.regular_season_weeks ?? 14) + 1;
     const consolationGames = playoffGames.filter(game =>
-        game.type === 'playoff_consolation_quarterfinals' && game.week === 15
+        game.type === 'playoff_consolation_quarterfinals' && game.week === firstPostseasonWeek
     );
 
     // State for slot assignments (matchup ID to slot mapping)

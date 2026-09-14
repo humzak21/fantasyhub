@@ -27,6 +27,7 @@
 import { throwDbError } from './errors.js';
 import { snakeToCamel } from './caseMap.js';
 import { createLogger } from './logger.js';
+import { validatePostseasonWeek } from '../espnGameMapper.js';
 
 const log = createLogger('db:syncRuns');
 
@@ -96,9 +97,13 @@ async function count(ctx, table, filter) {
  *
  * `seasonYear` keys the two NFL tables, which have no season FK. `throughWeek`
  * bounds the parlay's pending count to weeks that have actually elapsed; a
- * pick for the week in progress is not overdue.
+ * pick for the week in progress is not overdue. `currentWeek` is the week in
+ * progress, checked for the postseason's one always-wrong state.
  */
-export async function getAutomationHealth(ctx, { seasonId, seasonYear, throughWeek = 0 }) {
+export async function getAutomationHealth(
+  ctx,
+  { seasonId, seasonYear, throughWeek = 0, currentWeek = throughWeek + 1 }
+) {
   if (!seasonId) return null;
 
   try {
@@ -112,7 +117,9 @@ export async function getAutomationHealth(ctx, { seasonId, seasonYear, throughWe
       nflRating,
       pickEmWeekRows,
       pendingParlayGrades,
-      scheduleImport
+      scheduleImport,
+      seasonRow,
+      seasonGames
     ] = await Promise.all([
       newest(ctx, 'power_rankings_history', 'week_number', (q) =>
         q.eq('season_id', seasonId).eq('snapshot_type', 'weekly'), 'week_number, created_at'),
@@ -135,7 +142,12 @@ export async function getAutomationHealth(ctx, { seasonId, seasonYear, throughWe
           q.eq('season_id', seasonId).is('scored_td', null).lte('week', throughWeek))
         : 0,
       newest(ctx, 'espn_schedule_imports', 'imported_at', (q) =>
-        q.eq('assigned_season_id', seasonId), 'imported_at, assignment_notes')
+        q.eq('assigned_season_id', seasonId), 'imported_at, assignment_notes'),
+      ctx.client.from('seasons').select('year, regular_season_weeks').eq('id', seasonId).maybeSingle()
+        .then(({ data, error }) => { if (error) throw error; return data; }),
+      // A season is ~120 games; the types of all of them is a small read.
+      ctx.client.from('games').select('week, type').eq('season_id', seasonId)
+        .then(({ data, error }) => { if (error) throw error; return data ?? []; })
     ]);
 
     return {
@@ -153,10 +165,35 @@ export async function getAutomationHealth(ctx, { seasonId, seasonYear, throughWe
       pendingParlayGrades,
       scheduleImport: scheduleImport
         ? { at: scheduleImport.imported_at, summary: scheduleImport.assignment_notes }
-        : null
+        : null,
+      postseason: postseasonHealth(seasonGames, seasonRow, { throughWeek, currentWeek })
     };
   } catch (error) {
     log.warn('automation health read failed', error);
     throwDbError(error, 'Get automation health');
   }
+}
+
+/**
+ * Every postseason week so far that is not the bracket it should be.
+ *
+ * An elapsed week is checked whole; the week in progress only for a game typed
+ * `regular`, because ESPN draws a round after the previous one ends. The check
+ * is `validatePostseasonWeek`, the same one the sync runs after writing a week,
+ * so the dashboard and the run log cannot disagree. Empty in the regular
+ * season, and for a season with no postseason weeks yet.
+ */
+function postseasonHealth(games, season, { throughWeek, currentWeek }) {
+  const regularSeasonWeeks = season?.regular_season_weeks;
+  if (regularSeasonWeeks == null) return [];
+
+  const out = [];
+  for (let week = regularSeasonWeeks + 1; week <= currentWeek; week += 1) {
+    const issues = validatePostseasonWeek(
+      games.filter((game) => game.week === week),
+      { week, regularSeasonWeeks, year: season.year, complete: week <= throughWeek }
+    );
+    if (issues.length > 0) out.push({ week, issues });
+  }
+  return out;
 }

@@ -571,6 +571,7 @@ export type Database = {
           created_at: string | null
           espn_matchup_id: number | null
           espn_scoring_period_id: number | null
+          hand_entered: boolean
           id: string
           is_blowout: boolean | null
           is_close: boolean | null
@@ -595,6 +596,7 @@ export type Database = {
           created_at?: string | null
           espn_matchup_id?: number | null
           espn_scoring_period_id?: number | null
+          hand_entered?: boolean
           id?: string
           is_blowout?: boolean | null
           is_close?: boolean | null
@@ -619,6 +621,7 @@ export type Database = {
           created_at?: string | null
           espn_matchup_id?: number | null
           espn_scoring_period_id?: number | null
+          hand_entered?: boolean
           id?: string
           is_blowout?: boolean | null
           is_close?: boolean | null
@@ -2479,6 +2482,88 @@ export type Database = {
           },
         ]
       }
+      team_week_lineups: {
+        Row: {
+          bench_points: number | null
+          created_at: string
+          id: string
+          optimal_points: number
+          season_id: string
+          starter_points: number
+          starters_scoring: number
+          team_id: string
+          updated_at: string
+          week: number
+        }
+        Insert: {
+          bench_points?: number | null
+          created_at?: string
+          id?: string
+          optimal_points: number
+          season_id: string
+          starter_points: number
+          starters_scoring: number
+          team_id: string
+          updated_at?: string
+          week: number
+        }
+        Update: {
+          bench_points?: number | null
+          created_at?: string
+          id?: string
+          optimal_points?: number
+          season_id?: string
+          starter_points?: number
+          starters_scoring?: number
+          team_id?: string
+          updated_at?: string
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_week_lineups_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_week_lineups_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_season"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_week_lineups_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
+          {
+            foreignKeyName: "team_week_lineups_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "roster_stats"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "team_week_lineups_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_week_lineups_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_standings"
+            referencedColumns: ["team_id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           abbreviation: string | null
@@ -2675,6 +2760,111 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_award_ballot_seasons"
             referencedColumns: ["season_id"]
+          },
+        ]
+      }
+      transaction_events: {
+        Row: {
+          bid_amount: number | null
+          created_at: string
+          espn_player_ids: number[]
+          espn_transaction_id: string
+          franchise_id: string | null
+          franchise_ids: string[]
+          id: string
+          processed_at: string | null
+          scoring_period: number | null
+          season_id: string
+          team_id: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          bid_amount?: number | null
+          created_at?: string
+          espn_player_ids?: number[]
+          espn_transaction_id: string
+          franchise_id?: string | null
+          franchise_ids?: string[]
+          id?: string
+          processed_at?: string | null
+          scoring_period?: number | null
+          season_id: string
+          team_id?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          bid_amount?: number | null
+          created_at?: string
+          espn_player_ids?: number[]
+          espn_transaction_id?: string
+          franchise_id?: string | null
+          franchise_ids?: string[]
+          id?: string
+          processed_at?: string | null
+          scoring_period?: number | null
+          season_id?: string
+          team_id?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transaction_events_franchise_id_fkey"
+            columns: ["franchise_id"]
+            isOneToOne: false
+            referencedRelation: "league_franchises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_events_franchise_id_fkey"
+            columns: ["franchise_id"]
+            isOneToOne: false
+            referencedRelation: "v_franchise_career"
+            referencedColumns: ["franchise_id"]
+          },
+          {
+            foreignKeyName: "transaction_events_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_events_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_active_season"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_events_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "v_award_ballot_seasons"
+            referencedColumns: ["season_id"]
+          },
+          {
+            foreignKeyName: "transaction_events_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "roster_stats"
+            referencedColumns: ["team_id"]
+          },
+          {
+            foreignKeyName: "transaction_events_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transaction_events_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "v_team_standings"
+            referencedColumns: ["team_id"]
           },
         ]
       }
@@ -3500,6 +3690,7 @@ export type Database = {
         Row: {
           completed_at: string | null
           game_id: string | null
+          is_consolation: boolean | null
           is_playoff: boolean | null
           is_regular: boolean | null
           opponent_id: string | null
@@ -3562,21 +3753,6 @@ export type Database = {
             referencedColumns: ["franchise_id"]
           },
         ]
-      }
-      v_record_book: {
-        Row: {
-          franchise_id: string | null
-          game_id: string | null
-          owner_name: string | null
-          record_type: string | null
-          scope: string | null
-          season_id: string | null
-          season_year: number | null
-          value: number | null
-          value_label: string | null
-          week: number | null
-        }
-        Relationships: []
       }
       v_team_standings: {
         Row: {
@@ -3717,7 +3893,6 @@ export type Database = {
           week2_rank: number
         }[]
       }
-      compute_season_awards: { Args: { p_season_id: string }; Returns: Json }
       create_pick_em_week: {
         Args: {
           p_results_reveal_at?: string

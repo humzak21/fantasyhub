@@ -32,6 +32,60 @@ export const TRANSACTION_LABELS = {
   draft: 'Draft Picks'
 };
 
+/** The transaction kinds the counts are made of, and so the kinds stored individually. */
+const EVENT_TYPES = new Set(['FREEAGENT', 'WAIVER', 'TRADE_ACCEPT']);
+
+/**
+ * Every executed transaction, one entry each, in `transaction_events`' shape.
+ *
+ * Pure, over the same payload `parseTransactionData` counts — the two read one
+ * fetch, apply the same EXECUTED / TRADE_ACCEPT predicates, and so describe the
+ * same moves. Team ids stay in ESPN's space here; the writer resolves them to
+ * the season's teams and drops what is not a league team (ESPN's free-agent
+ * pool appears as a team id on the other side of an add or a drop).
+ *
+ *   espnTeamId    who made it: the claimant, or a trade's proposer
+ *   espnTeamIds   every team a player moved to or from
+ *   espnPlayerIds the players acquired: the ADD of an add or claim, every
+ *                 player moved in a trade
+ *   bidAmount     the FAAB bid, waiver claims only
+ */
+export function parseTransactionEvents(leagueData = {}) {
+  const events = [];
+
+  for (const transaction of leagueData.transactions || []) {
+    if (transaction.status !== 'EXECUTED' || !EVENT_TYPES.has(transaction.type)) continue;
+
+    const isTrade = transaction.type === 'TRADE_ACCEPT';
+    const teamIds = new Set();
+    const playerIds = new Set();
+
+    for (const item of transaction.items || []) {
+      if (item.toTeamId != null) teamIds.add(item.toTeamId);
+      if (item.fromTeamId != null) teamIds.add(item.fromTeamId);
+      if (item.playerId != null && (isTrade || item.type === 'ADD')) playerIds.add(item.playerId);
+    }
+
+    const processed = transaction.processDate ?? transaction.proposedDate ?? null;
+
+    events.push({
+      espnTransactionId: String(transaction.id),
+      type: transaction.type,
+      scoringPeriod: transaction.scoringPeriodId ?? null,
+      processedAt: processed != null ? new Date(processed).toISOString() : null,
+      espnTeamId: transaction.teamId ?? null,
+      espnTeamIds: [...teamIds].sort((a, b) => a - b),
+      espnPlayerIds: [...playerIds],
+      bidAmount:
+        transaction.type === 'WAIVER' && transaction.bidAmount != null
+          ? Number(transaction.bidAmount)
+          : null
+    });
+  }
+
+  return events;
+}
+
 export class ESPNTransactionFetcher {
   constructor(leagueId, seasonYear, espnS2 = null, swid = null) {
     this.leagueId = leagueId;
@@ -232,6 +286,11 @@ export class ESPNTransactionFetcher {
     });
 
     return Object.values(teamAggregates);
+  }
+
+  /** Every executed transaction individually; see `parseTransactionEvents`. */
+  parseTransactionEvents(leagueData) {
+    return parseTransactionEvents(leagueData);
   }
 
   /**

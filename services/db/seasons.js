@@ -307,19 +307,21 @@ export async function getAllSeasons(ctx) {
 }
 
 /**
- * Derive and write a season's final placements, and the awards that depend on
- * them.
+ * Derive and write a season's final placements.
  *
- * Both halves live in the database (`supabase/migrations/*_finalize_season`)
- * because the derivation is a join across games, teams and the standings view,
- * and because the same rules have to hold for the weekly sync as for the admin
- * pressing a button. Idempotent: re-running it rewrites the same rows.
+ * The derivation lives in the database (`supabase/migrations/*_finalize_season`)
+ * because it is a join across games, teams and the standings view, and because
+ * the same rules have to hold for the weekly sync as for the admin pressing a
+ * button. Idempotent: re-running it rewrites the same rows.
+ *
+ * It used to go on to write eleven computed stat awards. Those are records now
+ * — ranked, and read from the games by the record book — so finishing a season
+ * is placements and nothing else.
  *
  * @param {Object} [options]
  * @param {boolean} [options.dryRun] Compute the assignments and return them
  *   without writing, so the admin can confirm the podium first.
- * @returns {Promise<Object>} `{ season_id, year, dry_run, assignments[] }`,
- *   plus `awards` on a real run.
+ * @returns {Promise<Object>} `{ season_id, year, dry_run, assignments[] }`
  */
 export async function finalizeSeason(ctx, seasonId, { dryRun = false } = {}) {
   try {
@@ -331,17 +333,11 @@ export async function finalizeSeason(ctx, seasonId, { dryRun = false } = {}) {
     if (error) throw error;
     if (dryRun) return data;
 
-    const { data: awards, error: awardsError } = await ctx.client.rpc('compute_season_awards', {
-      p_season_id: seasonId
-    });
-
-    if (awardsError) throw awardsError;
-
     // `is_completed` just changed, and the cached season still says otherwise.
     forgetSeason(ctx, seasonId);
     log.info(`finalized season ${data?.year ?? seasonId}`);
 
-    return { ...data, awards };
+    return data;
   } catch (error) {
     throwDbError(error, 'Finalize season');
   }

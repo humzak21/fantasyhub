@@ -24,6 +24,7 @@
 
 import { throwDbError, unwrap } from './errors.js';
 import { createLogger } from './logger.js';
+import { selectAll } from './paging.js';
 
 const log = createLogger('db:history');
 
@@ -189,17 +190,23 @@ export async function getSeasonDetail(ctx, seasonId) {
 }
 
 /**
- * Awards, in the vocabulary the gallery renders.
+ * Awards, in the vocabulary the gallery renders — league-voted awards only.
  *
- * Two kinds share the table. Computed awards carry `award_type`,
- * `winner_franchise_id` and a category the gallery already groups by. Ballot
- * awards carry a free-text title and only the owner's *name* — so the franchise
- * is resolved by owner name, which is the one identifier that survives a team
- * rename. Ballot awards with no winner yet are dropped: an award nobody won is
- * not a result.
+ * The table holds three kinds. Only the ballot awards the league votes on
+ * (`source = 'ballot'`, `category = 'voted'`) are awards in History: the stat
+ * awards — computed ones, and the admin's hand-entered `non-voted` ballot rows
+ * like "Survivor (lowest PA)" — are records now, ranked in the record book
+ * (`utils/recordBook`), and counting them here would make "most decorated" a
+ * second, one-winner copy of the Records tab.
+ *
+ * A voted award carries a free-text title and only the owner's *name*, so the
+ * franchise is resolved by owner name, which is the one identifier that
+ * survives a team rename. An award with no winner yet is dropped: an award
+ * nobody won is not a result.
  */
 function shapeAwards(rows, index) {
   return rows
+    .filter((row) => row.source === 'ballot' && row.category === 'voted')
     .map((row) => {
       const franchise =
         (row.winner_franchise_id && index.byId.get(row.winner_franchise_id)) ||
@@ -535,6 +542,10 @@ export async function getMatchupHistory(ctx, franchise1Id, franchise2Id) {
           seasonName: season?.name ?? null,
           type: row.type,
           isPlayoff: Boolean(row.is_playoff),
+          // `is_playoff` is a bracket game; consolation is its own thing, and
+          // counting it as a playoff meeting is what the pre-2025 flat types did.
+          isRegular: Boolean(row.is_regular),
+          isConsolation: Boolean(row.is_consolation),
           team1Score: Number(row.points_for),
           team2Score: Number(row.points_against),
           team1Name: teamById.get(row.team_id)?.name ?? null,
@@ -557,109 +568,143 @@ export async function getMatchupHistory(ctx, franchise1Id, franchise2Id) {
 // Records
 // ---------------------------------------------------------------------------
 
-/** The league's outright records — highest game, largest margin, best season. */
-export async function getRecordBook(ctx) {
-  try {
-    const rows = unwrap(await ctx.client.from('v_record_book').select('*'), 'Get record book');
+const num = (value) => (value == null ? null : Number(value));
 
-    return (rows ?? []).map((row) => ({
-      recordType: row.record_type,
-      scope: row.scope,
-      franchiseId: row.franchise_id,
-      ownerName: row.owner_name,
-      value: Number(row.value),
-      valueLabel: row.value_label,
-      year: row.season_year,
-      week: row.week
-    }));
-  } catch (error) {
-    throwDbError(error, 'Get record book');
+/** ESPN player ids → names, for the players a bid was placed on. */
+async function getPlayerNames(ctx, espnPlayerIds) {
+  const ids = [...new Set(espnPlayerIds)].filter((id) => id != null);
+  const names = new Map();
+
+  for (let start = 0; start < ids.length; start += 150) {
+    const rows = unwrap(
+      await ctx.client
+        .from('players')
+        .select('espn_player_id, name')
+        .in('espn_player_id', ids.slice(start, start + 150)),
+      'Get bid player names'
+    ) ?? [];
+    for (const row of rows) names.set(row.espn_player_id, row.name);
   }
-}
 
-/** The best and worst single seasons anyone has had. */
-export async function getSingleSeasonRecords(ctx) {
-  try {
-    const [standings, franchises] = await Promise.all([
-      unwrap(
-        await ctx.client.from('v_team_standings').select('*').gt('games_played', 0),
-        'Get single-season records'
-      ),
-      getFranchises(ctx)
-    ]);
-
-    const { byId } = indexFranchises(franchises);
-    const teams = (standings ?? []).map((row) => toHistoryTeam(row, byId.get(row.franchise_id)));
-    if (teams.length === 0) return {};
-
-    const pick = (compare) => teams.reduce((best, team) => (compare(team, best) ? team : best));
-    const diff = (team) => team.points_for - team.points_against;
-
-    const records = {
-      mostWins: pick((t, b) => t.regular_season_wins > b.regular_season_wins),
-      mostPoints: pick((t, b) => t.points_for > b.points_for),
-      fewestPoints: pick((t, b) => t.points_for < b.points_for),
-      bestPointDiff: pick((t, b) => diff(t) > diff(b)),
-      worstPointDiff: pick((t, b) => diff(t) < diff(b)),
-      fewestLosses: pick((t, b) => t.regular_season_losses < b.regular_season_losses)
-    };
-
-    return Object.fromEntries(
-      Object.entries(records).map(([key, team]) => [
-        key,
-        {
-          ownerName: team.owner_name,
-          teamName: team.team_name,
-          year: team.year,
-          value:
-            key === 'mostWins' || key === 'fewestLosses'
-              ? recordLabel(team)
-              : key.includes('PointDiff')
-                ? diff(team).toFixed(2)
-                : team.points_for.toFixed(2)
-        }
-      ])
-    );
-  } catch (error) {
-    throwDbError(error, 'Get single-season records');
-  }
+  return names;
 }
 
 /**
- * The all-time top five by wins, points and titles.
+ * Everything the record book is computed from, in the shape
+ * `utils/recordBook::buildRecordBook` reads.
  *
- * One query for all three boards: the old hook ran `getAllTimeLeaderboard`
- * three times, each of which re-read the career stats and the whole active
- * season.
+ * The raw tables rather than the views: the records need each game once with
+ * its blowout and close-game flags (which `v_game_results` does not carry),
+ * each team's placement, and the two tables the backfill filled — individual
+ * trades and bids from `transaction_events`, and `team_week_lineups`. Every
+ * read that can pass PostgREST's 1,000-row cap goes through `selectAll`.
+ *
+ * This replaces `getRecordBook` (`v_record_book`), `getSingleSeasonRecords` and
+ * `getAllTimeLeaderboards`, which between them answered "who is first" for
+ * nine questions.
  */
-export async function getAllTimeLeaderboards(ctx, limit = 5) {
+export async function getRecordBookSource(ctx) {
   try {
-    const careers = unwrap(
-      await ctx.client.from('v_franchise_career').select('*'),
-      'Get all-time leaderboards'
-    ) ?? [];
+    const client = ctx.client;
 
-    const board = (valueOf) =>
-      [...careers]
-        .filter((row) => Number(row.seasons_played ?? 0) > 0)
-        .sort((a, b) => valueOf(b) - valueOf(a))
-        .slice(0, limit)
-        .map((row, index) => ({
-          rank: index + 1,
-          franchiseId: row.franchise_id,
-          ownerName: row.owner_name,
-          displayName: row.display_name,
-          value: valueOf(row),
-          totalSeasons: Number(row.seasons_played ?? 0),
-          record: `${Number(row.total_wins ?? 0)}-${Number(row.total_losses ?? 0)}`
-        }));
+    const [seasons, franchises, teams, games, transactions, trades, bids, lineups] = await Promise.all([
+      (async () => unwrap(
+        await client.from('seasons').select('id, year, is_completed, regular_season_weeks').order('year'),
+        'Get record seasons'
+      ) ?? [])(),
+      getFranchises(ctx),
+      selectAll(() => client
+        .from('teams')
+        .select('id, season_id, franchise_id, name, owner, made_playoffs, playoff_finish, final_rank')
+        .order('id')),
+      selectAll(() => client
+        .from('games')
+        .select('id, season_id, week, type, team1_id, team2_id, team1_score, team2_score, is_blowout, is_close')
+        .not('team2_id', 'is', null)
+        .not('team1_score', 'is', null)
+        .not('team2_score', 'is', null)
+        .order('id')),
+      selectAll(() => client
+        .from('transactions')
+        .select('season_id, franchise_id, free_agent_adds, waiver_claims, trades, drops, faab_spent')
+        .order('id')),
+      selectAll(() => client
+        .from('transaction_events')
+        .select('season_id, franchise_ids')
+        .eq('type', 'TRADE_ACCEPT')
+        .order('id')),
+      selectAll(() => client
+        .from('transaction_events')
+        .select('season_id, team_id, franchise_id, bid_amount, scoring_period, espn_player_ids')
+        .eq('type', 'WAIVER')
+        .gt('bid_amount', 0)
+        .order('id')),
+      selectAll(() => client
+        .from('team_week_lineups')
+        .select('season_id, week, team_id, starter_points, optimal_points, starters_scoring')
+        .order('id'))
+    ]);
+
+    const playerNames = await getPlayerNames(ctx, bids.map((bid) => bid.espn_player_ids?.[0]));
 
     return {
-      wins: board((row) => Number(row.total_wins ?? 0)),
-      points: board((row) => Number(row.career_points_for ?? 0)),
-      championships: board((row) => Number(row.championships ?? 0))
+      seasons: seasons.map((row) => ({
+        id: row.id,
+        year: row.year,
+        isCompleted: Boolean(row.is_completed),
+        regularSeasonWeeks: row.regular_season_weeks
+      })),
+      franchises,
+      teams: teams.map((row) => ({
+        id: row.id,
+        seasonId: row.season_id,
+        franchiseId: row.franchise_id,
+        name: row.name,
+        owner: row.owner,
+        madePlayoffs: Boolean(row.made_playoffs),
+        playoffFinish: row.playoff_finish,
+        finalRank: row.final_rank
+      })),
+      games: games.map((row) => ({
+        id: row.id,
+        seasonId: row.season_id,
+        week: row.week,
+        type: row.type,
+        team1Id: row.team1_id,
+        team2Id: row.team2_id,
+        team1Score: num(row.team1_score),
+        team2Score: num(row.team2_score),
+        isBlowout: Boolean(row.is_blowout),
+        isClose: Boolean(row.is_close)
+      })),
+      transactions: transactions.map((row) => ({
+        seasonId: row.season_id,
+        franchiseId: row.franchise_id,
+        freeAgentAdds: row.free_agent_adds ?? 0,
+        waiverClaims: row.waiver_claims ?? 0,
+        trades: row.trades ?? 0,
+        drops: row.drops ?? 0,
+        faabSpent: num(row.faab_spent) ?? 0
+      })),
+      trades: trades.map((row) => ({ seasonId: row.season_id, franchiseIds: row.franchise_ids ?? [] })),
+      bids: bids.map((row) => ({
+        seasonId: row.season_id,
+        teamId: row.team_id,
+        franchiseId: row.franchise_id,
+        bidAmount: num(row.bid_amount),
+        scoringPeriod: row.scoring_period,
+        playerName: playerNames.get(row.espn_player_ids?.[0]) ?? null
+      })),
+      lineups: lineups.map((row) => ({
+        seasonId: row.season_id,
+        week: row.week,
+        teamId: row.team_id,
+        starterPoints: num(row.starter_points),
+        optimalPoints: num(row.optimal_points),
+        startersScoring: row.starters_scoring
+      }))
     };
   } catch (error) {
-    throwDbError(error, 'Get all-time leaderboards');
+    throwDbError(error, 'Get record book source');
   }
 }

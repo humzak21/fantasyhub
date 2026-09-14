@@ -179,7 +179,7 @@ const LeagueHistoryManager = ({
       id: 'awards',
       label: 'Awards',
       icon: Award,
-      description: 'Championships and honors'
+      description: 'Awards the league votes on'
     }
   ];
 
@@ -329,7 +329,6 @@ const LeagueHistoryManager = ({
           <AwardsGallery
             franchises={franchises}
             seasons={seasons}
-            championships={championships}
             user={user}
             isAdmin={isAdmin}
             teamOwnerNames={teamOwnerNames}
@@ -341,6 +340,7 @@ const LeagueHistoryManager = ({
               setSelectedSeasonYear(year);
               setActiveSubTab('overview');
             }}
+            onViewRecords={() => setActiveSubTab('records')}
           />
         </TabsContent>
       </Tabs>

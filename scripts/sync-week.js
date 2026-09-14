@@ -21,7 +21,8 @@
  *   node scripts/sync-week.js 5               # re-sync a specific week
  *   node scripts/sync-week.js 5 <season-id>   # target a season explicitly
  *
- * Options: --skip-pick-em-week --skip-rosters --skip-scores --skip-transactions
+ * Options: --skip-pick-em-week --skip-rosters --skip-postseason-games
+ *          --skip-scores --skip-transactions
  *          --skip-player-stats --skip-nfl-schedule --skip-nfl-ratings
  *          --skip-finalize-prev --skip-parlay-grades --skip-snapshot
  *          --dry-run   resolve and report the target, write nothing
@@ -31,7 +32,7 @@
 import '../services/db/client.server.js';
 
 import { createRosterUpdateScript } from '../services/espnRosterUpdater.js';
-import { buildTeamIndex } from '../services/espnGameMapper.js';
+import { buildTeamIndex, validatePostseasonWeek } from '../services/espnGameMapper.js';
 import { findStatBreakdown, mapMatchupRosterEntries } from '../services/espnPlayerStatsMapper.js';
 import { fetchProTeamSchedules } from '../services/espnNflScheduleFetcher.js';
 import { fetchPlayerWeekInfo } from '../services/espnPlayerInfoFetcher.js';
@@ -155,15 +156,19 @@ function parseArgs(argv) {
  * 2025 postseason types corrected by hand in migration 20260805100000 survive
  * every sync.
  */
-async function syncScores(seasonId, weekNumber, espnMatchups, currentScoringPeriod) {
+async function syncScores(
+  seasonId, weekNumber, espnMatchups, currentScoringPeriod, { withholdResults = false } = {}
+) {
   const db = getDb();
   const season = await db.seasons.getSeason(seasonId);
+  const regularSeasonWeeks = season.regularSeasonWeeks ?? season.regular_season_weeks;
 
   const result = await db.games.upsertEspnGames(seasonId, espnMatchups, {
     week: weekNumber,
     teams: season.teams,
     currentScoringPeriod,
-    regularSeasonWeeks: season.regularSeasonWeeks ?? season.regular_season_weeks
+    regularSeasonWeeks,
+    withholdResults
   });
 
   return {
@@ -171,8 +176,45 @@ async function syncScores(seasonId, weekNumber, espnMatchups, currentScoringPeri
     updated: result.updated,
     unchanged: result.unchanged,
     errors: result.unmatched,
-    conflicts: result.conflicts ?? []
+    conflicts: result.conflicts ?? [],
+    untyped: result.untyped ?? [],
+    bracketIssues: await postseasonBracketIssues(seasonId, weekNumber, {
+      regularSeasonWeeks,
+      year: season.year
+    })
   };
+}
+
+/**
+ * Read back what a postseason week now holds and check its shape.
+ *
+ * After the write rather than from the plan, because what matters is the
+ * stored week — a row written by an earlier run, or typed by hand, counts as
+ * much as one written now. `validatePostseasonWeek` is the same check the
+ * Automations dashboard runs, so the two agree on what a correct week is. A
+ * regular-season week costs no query.
+ */
+async function postseasonBracketIssues(seasonId, weekNumber, { regularSeasonWeeks, year }) {
+  if (regularSeasonWeeks == null || weekNumber <= regularSeasonWeeks) return [];
+
+  const { data, error } = await getContext().client
+    .from('games')
+    .select('type, team2_id')
+    .eq('season_id', seasonId)
+    .eq('week', weekNumber);
+  if (error) throw error;
+
+  return validatePostseasonWeek(data ?? [], { week: weekNumber, regularSeasonWeeks, year });
+}
+
+/** What the games writers held back or found wrong about the bracket. */
+function logPostseasonIssues(result) {
+  for (const miss of result?.untyped ?? []) {
+    console.warn(`⚠️  week ${miss.week} matchup ${miss.matchupId}: ${miss.reason} — held back until it is`);
+  }
+  for (const issue of result?.bracketIssues ?? []) {
+    console.warn(`⚠️  bracket: ${issue}`);
+  }
 }
 
 /**
@@ -188,7 +230,7 @@ async function syncScores(seasonId, weekNumber, espnMatchups, currentScoringPeri
  * Runs in playoff weeks too. The ranking math ignores them, but a complete
  * table is worth more than the handful of rows saved by skipping.
  */
-async function syncPlayerStats(seasonId, weekNumber, espnMatchups) {
+export async function syncPlayerStats(seasonId, weekNumber, espnMatchups) {
   const db = getDb();
   const season = await db.seasons.getSeason(seasonId);
 
@@ -389,14 +431,26 @@ async function syncNflSchedule(seasonYear) {
   return { upserted: result.upserted, weekSpan, errors: warnings.map((w) => ({ error: w })) };
 }
 
-async function syncTransactions(seasonId, espn) {
+/**
+ * Transaction counts per franchise, and every transaction individually.
+ *
+ * One ESPN fetch, read twice: `parseTransactionData` counts it into
+ * `transactions`, `parseTransactionEvents` keeps each move for
+ * `transaction_events`. Both apply the same EXECUTED / TRADE_ACCEPT rules, so
+ * the counts and the detail describe the same moves. Exported for
+ * `scripts/backfill-transactions.js`, which runs this exact path over past
+ * seasons.
+ */
+export async function syncTransactions(seasonId, espn) {
   const db = getDb();
   const season = await db.seasons.getSeason(seasonId);
 
   const fetcher = new ESPNTransactionFetcher(
     espn.leagueId, espn.seasonYear, espn.espnS2, espn.swid
   );
-  const summary = await fetcher.getSeasonTransactionSummary(espn.seasonYear);
+  const leagueData = await fetcher.fetchSeasonTransactions(espn.seasonYear);
+  const summary = fetcher.parseTransactionData(leagueData);
+  const events = fetcher.parseTransactionEvents(leagueData);
 
   if (!summary || summary.length === 0) {
     return { updated: 0, errors: [{ error: 'ESPN returned no transaction data' }] };
@@ -446,7 +500,12 @@ async function syncTransactions(seasonId, espn) {
     return { updated: 0, errors };
   }
 
-  return { updated: rows.length, errors };
+  const eventResult = await db.transactionEvents.upsertTransactionEvents(seasonId, events, season.teams);
+  for (const miss of eventResult.skipped) {
+    errors.push({ error: `transaction ${miss.espnTransactionId}: ${miss.reason}` });
+  }
+
+  return { updated: rows.length, events: eventResult.upserted, errors };
 }
 
 /**
@@ -610,13 +669,50 @@ export async function syncWeek(argv = []) {
     // it is fetched once here instead of once per step.
     const wantsScores = !options['skip-scores'];
     const wantsPlayerStats = !options['skip-player-stats'];
+    // The postseason bracket arrives a round at a time, and ESPN may not have
+    // drawn the semis by the Tuesday run. The weekly job's scores step creates
+    // the week's rows; the daily refresh skips that step, so in postseason
+    // weeks it writes them here instead — rows and types, never a score.
+    const wantsPostseasonGames =
+      isPlayoffWeek && !wantsScores && !options['skip-postseason-games'];
     let weekData = null;
 
-    if (wantsScores || wantsPlayerStats) {
+    if (wantsScores || wantsPlayerStats || wantsPostseasonGames) {
       const fetcher = await createScheduleFetcher(
         espn.leagueId, espn.seasonYear, espn.espnS2, espn.swid
       );
       weekData = await fetcher.getSingleWeek(weekNumber);
+    }
+
+    // Non-fatal: a missing bracket row is one late matchup on the Playoffs tab,
+    // and the next run writes it. The daily refresh never writes a result, and
+    // this is no exception — `withholdResults` is what keeps that true.
+    if (options['skip-postseason-games']) {
+      steps.postseasonGames = { skipped: 'flag' };
+    } else if (!isPlayoffWeek) {
+      steps.postseasonGames = { skipped: 'regular season' };
+    } else if (wantsScores) {
+      steps.postseasonGames = { skipped: 'written by scores' };
+    } else {
+      try {
+        if (!weekData?.matchups?.length) {
+          throw new Error(`ESPN returned no matchups for week ${weekNumber}`);
+        }
+
+        steps.postseasonGames = await syncScores(
+          seasonId, weekNumber, weekData.matchups, weekData.currentScoringPeriod,
+          { withholdResults: true }
+        );
+        console.log(
+          `🏆 postseason games: ${steps.postseasonGames.created} created, ` +
+          `${steps.postseasonGames.updated} updated, ` +
+          `${steps.postseasonGames.untyped.length} held back untyped`
+        );
+        logPostseasonIssues(steps.postseasonGames);
+      } catch (error) {
+        steps.postseasonGames = { failed: error.message };
+        console.warn(`⚠️  postseason games: ${error.message}`);
+      }
     }
 
     if (!wantsScores) {
@@ -645,6 +741,7 @@ export async function syncWeek(argv = []) {
           `ESPN week ${clash.espnWeek} ${clash.espnTeams.join(' vs ')}`
         );
       }
+      logPostseasonIssues(steps.scores);
     }
 
     // Non-critical, like transactions: the rankings degrade to team-level
@@ -771,7 +868,10 @@ export async function syncWeek(argv = []) {
     } else {
       try {
         steps.transactions = await syncTransactions(seasonId, espn);
-        console.log(`🔁 transactions: ${steps.transactions.updated} teams`);
+        console.log(
+          `🔁 transactions: ${steps.transactions.updated} teams, ` +
+          `${steps.transactions.events ?? 0} transactions stored`
+        );
       } catch (error) {
         steps.transactions = { failed: error.message };
         console.warn(`⚠️  transactions: ${error.message}`);

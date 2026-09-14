@@ -15,6 +15,7 @@
  */
 
 import { buildTeamIndex } from '../espnGameMapper.js';
+import { summarizeTeamWeek } from '../lineupSummary.js';
 import { formatFromDatabase } from './caseMap.js';
 import { throwDbError } from './errors.js';
 import { getNFLTeamAbbreviation, mapESPNInjuryStatus, mapESPNRosterSlot } from './espnMapping.js';
@@ -100,11 +101,61 @@ async function resolvePlayerIds(ctx, rows) {
 }
 
 /**
+ * Each team's settled lineup for the week, as `team_week_lineups` rows.
+ *
+ * From the mapped ESPN rows rather than from what `player_week_stats` accepted:
+ * a player whose `players` row could not be created still scored for his team,
+ * and leaving him out would understate both totals.
+ */
+function teamWeekLineups(seasonId, week, mappedRows, teamIndex) {
+  const byTeam = new Map();
+
+  for (const row of mappedRows) {
+    const team = teamIndex.find(row.espnTeamId, null);
+    if (!team) continue;
+
+    const entry = byTeam.get(team.id) ?? { players: new Set(), rows: [] };
+    if (row.espnPlayerId != null && entry.players.has(row.espnPlayerId)) continue;
+    entry.players.add(row.espnPlayerId);
+    entry.rows.push({
+      lineupSlotId: row.lineupSlotId,
+      rosterSlot: mapESPNRosterSlot(row.lineupSlotId),
+      started: row.started,
+      position: row.position,
+      actualPoints: row.actualPoints,
+      projectedPoints: row.projectedPoints
+    });
+    byTeam.set(team.id, entry);
+  }
+
+  const out = [];
+  for (const [teamId, { rows }] of byTeam) {
+    const summary = summarizeTeamWeek(rows);
+    if (!summary) continue;
+
+    out.push({
+      season_id: seasonId,
+      week,
+      team_id: teamId,
+      starter_points: summary.starterPoints,
+      optimal_points: summary.optimalPoints,
+      starters_scoring: summary.startersScoring,
+      updated_at: new Date().toISOString()
+    });
+  }
+  return out;
+}
+
+/**
  * Write one week of roster scoring.
  *
  * Idempotent: the unique key is (season, week, player), so re-running a week
  * rewrites the same rows rather than doubling them. That is what makes a failed
  * sync fixable by running it again, the promise every other step here makes.
+ *
+ * Also writes the week's `team_week_lineups` — starter against optimal points,
+ * per team — in the same call, for every team whose week is settled. They are
+ * computed from the same rows, so the two tables cannot disagree.
  *
  * @param {object} ctx
  * @param {string} seasonId
@@ -190,9 +241,21 @@ export async function upsertPlayerWeekStats(ctx, seasonId, week, mappedRows = []
 
     if (error) throw error;
 
-    log.info(`week ${week}: ${rows.length} player rows, ${created} players created`);
+    const lineups = teamWeekLineups(seasonId, week, mappedRows, teamIndex);
+    if (lineups.length > 0) {
+      const { error: lineupError } = await ctx.client
+        .from('team_week_lineups')
+        .upsert(lineups, { onConflict: 'season_id,week,team_id', ignoreDuplicates: false });
 
-    return { upserted: rows.length, playersCreated: created, skipped };
+      if (lineupError) throw lineupError;
+    }
+
+    log.info(
+      `week ${week}: ${rows.length} player rows, ${created} players created, ` +
+      `${lineups.length} settled lineups`
+    );
+
+    return { upserted: rows.length, playersCreated: created, skipped, lineups: lineups.length };
   } catch (error) {
     throwDbError(error, 'Upsert player week stats');
   }

@@ -28,6 +28,8 @@
     "sync-nfl-schedule": "node scripts/sync-nfl-schedule.js",
     "sync-nfl-ratings": "node scripts/sync-nfl-ratings.js",
     "sync-week": "node scripts/sync-week.js",
+    "backfill-transactions": "node scripts/backfill-transactions.js",
+    "backfill-player-week-stats": "node scripts/backfill-player-week-stats.js",
     "check-bundle": "node scripts/check-bundle.js",
     "check-css-tokens": "node scripts/check-css-tokens.js",
     "test:e2e": "playwright test",

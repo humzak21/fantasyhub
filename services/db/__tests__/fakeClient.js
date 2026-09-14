@@ -116,6 +116,14 @@ export function makeClient(handlers = {}, { session = null } = {}) {
           state.filters[`gte:${column}`] = value;
           return builder;
         },
+        gt: (column, value) => {
+          state.filters[`gt:${column}`] = value;
+          return builder;
+        },
+        range: (from, to) => {
+          state.range = [from, to];
+          return builder;
+        },
         is: (column, value) => {
           state.filters[`is:${column}`] = value;
           return builder;

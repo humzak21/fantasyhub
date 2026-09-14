@@ -109,14 +109,14 @@ describe('getSeasonDetail', () => {
     });
   });
 
-  it('resolves a ballot award by owner name, which is all it stores', async () => {
+  it('resolves a voted award by owner name, which is all it stores', async () => {
     const ctx = makeCtx({
       'v_team_standings.select': () => [],
       'awards.select': () => [
         {
           id: 'award-1',
-          title: 'Punishee',
-          category: 'non-voted',
+          title: 'Best Negotiator',
+          category: 'voted',
           source: 'ballot',
           winner_id: 'Rohit Ramki',
           winner_franchise_id: null
@@ -128,17 +128,33 @@ describe('getSeasonDetail', () => {
     const { awards } = await getSeasonDetail(ctx, 'season-2025');
 
     expect(awards[0]).toMatchObject({
-      award_name: 'Punishee',
+      award_name: 'Best Negotiator',
       award_category: 'ballot',
       franchise_id: 'f-rohit'
     });
   });
 
-  it('drops a ballot award nobody has won yet', async () => {
+  it('keeps only league-voted awards: the stat awards are records now', async () => {
     const ctx = makeCtx({
       'v_team_standings.select': () => [],
       'awards.select': () => [
-        { id: 'award-2', title: 'Best Trade', source: 'ballot', winner_id: null, winner_franchise_id: null }
+        { id: 'a-voted', title: 'Best Draft', category: 'voted', source: 'ballot', winner_id: 'Rohit Ramki' },
+        { id: 'a-stat', title: 'Survivor (lowest PA)', category: 'non-voted', source: 'ballot', winner_id: 'Humza Khalil' },
+        { id: 'a-computed', title: 'Highest Points Scored', category: 'regular_season', source: 'computed', award_type: 'highest_points', winner_franchise_id: 'f-humza' }
+      ],
+      'league_franchises.select': () => FRANCHISES
+    });
+
+    const { awards } = await getSeasonDetail(ctx, 'season-2025');
+
+    expect(awards.map((award) => award.id)).toEqual(['a-voted']);
+  });
+
+  it('drops a voted award nobody has won yet', async () => {
+    const ctx = makeCtx({
+      'v_team_standings.select': () => [],
+      'awards.select': () => [
+        { id: 'award-2', title: 'Best Trade', category: 'voted', source: 'ballot', winner_id: null, winner_franchise_id: null }
       ],
       'league_franchises.select': () => FRANCHISES
     });
