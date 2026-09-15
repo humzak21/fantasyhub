@@ -4,7 +4,7 @@ import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import {
   Trophy, Target, Users, Award,
-  CheckCircle2, XCircle, Calendar, BarChart3
+  CheckCircle2, XCircle, Clock, Calendar, BarChart3
 } from 'lucide-react';
 import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUtils';
 
@@ -188,46 +188,71 @@ const PickEmsResults = ({
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {picks.map((pick) => (
+                      {picks.map((pick) => {
+                        // A game with no winner is either unplayed or a tie;
+                        // neither may read as a named team.
+                        const outcome = !pick.gameCompleted
+                          ? 'pending'
+                          : pick.isCorrect ? 'hit' : 'miss';
+                        const winnerLabel = !pick.gameCompleted
+                          ? 'Not played yet'
+                          : pick.actualWinnerName
+                            ? getMaskedTeamName({ id: pick.actualWinnerTeamId, name: pick.actualWinnerName }, user, isAdmin, teamOwnerNames)
+                            : 'Tie';
+                        const chosenLabel = pick.pickedTeamName
+                          ? getMaskedTeamName({ id: pick.pickedTeamId, name: pick.pickedTeamName }, user, isAdmin, teamOwnerNames)
+                          : '—';
+
+                        return (
                         <div
                           key={pick.submissionId}
-                          className="flex items-center justify-between p-3 border rounded-lg"
+                          className="flex items-start justify-between gap-3 p-3 border rounded-lg"
                         >
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              {pick.isCorrect ? (
-                                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                              ) : (
-                                <XCircle className="h-5 w-5 text-red-500" />
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="pt-0.5 shrink-0">
+                              {outcome === 'hit' && (
+                                <CheckCircle2 className="h-5 w-5 text-success" aria-label="Hit" />
+                              )}
+                              {outcome === 'miss' && (
+                                <XCircle className="h-5 w-5 text-destructive" aria-label="Miss" />
+                              )}
+                              {outcome === 'pending' && (
+                                <Clock className="h-5 w-5 text-muted-foreground" aria-label="Pending" />
                               )}
                             </div>
 
-                            <div>
-                              <div className="font-medium">
+                            <div className="min-w-0">
+                              <div className="font-medium break-words">
                                 {getMaskedTeamName({ id: pick.team1Id, name: pick.team1Name }, user, isAdmin, teamOwnerNames)} vs {getMaskedTeamName({ id: pick.team2Id, name: pick.team2Name }, user, isAdmin, teamOwnerNames)}
                               </div>
-                              {pick.actualWinnerName && (
-                                <div className="text-sm">
-                                  <span className="text-muted-foreground">Winner: </span>
-                                  <span className={`font-semibold ${
-                                    pick.isCorrect
-                                      ? 'text-green-600 dark:text-green-400'
-                                      : 'text-red-600 dark:text-red-400'
-                                  }`}>
-                                    {getMaskedTeamName({ id: pick.actualWinnerId, name: pick.actualWinnerName }, user, isAdmin, teamOwnerNames)}
-                                  </span>
-                                </div>
-                              )}
+                              <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 text-sm">
+                                <dt className="text-muted-foreground">Winner of Matchup:</dt>
+                                <dd className={`break-words ${outcome === 'pending' ? 'text-muted-foreground' : 'font-semibold text-foreground'}`}>
+                                  {winnerLabel}
+                                </dd>
+                                <dt className="text-muted-foreground">Chosen:</dt>
+                                <dd className="font-semibold text-foreground break-words">
+                                  {chosenLabel}
+                                </dd>
+                              </dl>
                             </div>
                           </div>
 
-                          <div className="text-right">
-                            <div className="text-sm font-medium">
+                          <div className="text-right shrink-0 space-y-1">
+                            {outcome === 'hit' && <Badge variant="success">Hit</Badge>}
+                            {outcome === 'miss' && (
+                              <Badge variant="outline" className="border-destructive/20 bg-destructive/10 text-destructive">
+                                Miss
+                              </Badge>
+                            )}
+                            {outcome === 'pending' && <Badge variant="outline">Pending</Badge>}
+                            <div className="text-sm font-medium tabular">
                               {pick.pointsEarned || 0} pts
                             </div>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
