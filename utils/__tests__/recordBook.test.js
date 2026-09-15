@@ -329,9 +329,64 @@ describe('occasion records', () => {
     expect(rowOf('rivalryWins', 'fC')).toMatchObject({ value: 0, record: { wins: 0, losses: 0, ties: 0 } });
   });
 
+  it('ends a title run at the championship, and a tie breaks it', () => {
+    // The main grid's 2024 champion A tied week 3, so its run is the final alone.
+    expect(recordRows(book, 'career', 'titleRunStreak')).toEqual([
+      expect.objectContaining({ franchiseId: 'fA', value: 1, start: { year: 2024, week: 4 }, end: { year: 2024, week: 4 } })
+    ]);
+  });
+
   it('counts a first-round loss as an exit, with the first-round record beside it', () => {
     expect(rowOf('firstRoundExits', 'fA')).toMatchObject({ value: 2, record: { wins: 0, losses: 2, ties: 0 } });
     expect(rowOf('firstRoundExits', 'fD')).toMatchObject({ value: 2, record: { wins: 1, losses: 2, ties: 0 } });
     expect(rowOf('firstRoundExits', 'fC')).toMatchObject({ value: 0, record: { wins: 2, losses: 0, ties: 0 } });
+  });
+});
+
+/**
+ * A title run, against its own grid:
+ *
+ * 2022: wk1 A 100 – B 90, wk2 A 100 – B 90        (A not champion)
+ * 2023: wk1 A 100 – B  90, wk2 A 90 – B 100, wk3 A 100 – B 90, wk4 A 100 – B 90
+ *       wk5 A bye                  C 100 – D 90 (first round)
+ *       wk6 A 110 – B 100 (semifinal)
+ *       wk7 A 120 – C 115 (championship)
+ */
+describe('title-run streak', () => {
+  const S22 = { id: 's22', year: 2022, isCompleted: true };
+  const S23 = { id: 's23', year: 2023, isCompleted: true };
+
+  const titles = buildRecordBook({
+    seasons: [S22, S23],
+    teams: [
+      ...['A', 'B', 'C', 'D'].map((key) => team(S22, key)),
+      team(S23, 'A', { playoffFinish: 'champion' }),
+      team(S23, 'B'),
+      team(S23, 'C', { playoffFinish: '2nd' }),
+      team(S23, 'D')
+    ],
+    games: [
+      game(S22, 1, 'A', 100, 'B', 90), game(S22, 2, 'A', 100, 'B', 90),
+      game(S23, 1, 'A', 100, 'B', 90), game(S23, 2, 'A', 90, 'B', 100),
+      game(S23, 3, 'A', 100, 'B', 90), game(S23, 4, 'A', 100, 'B', 90),
+      { ...game(S23, 5, 'A', null, 'B', null, 'bye'), team2Id: null },
+      game(S23, 5, 'C', 100, 'D', 90, 'playoff_first_round'),
+      game(S23, 6, 'A', 110, 'B', 100, 'playoff_semifinals'),
+      game(S23, 7, 'A', 120, 'C', 115, 'playoff_championship')
+    ]
+  });
+
+  it('counts back from the title game through the bracket and the regular season', () => {
+    // The week 2 loss starts the run at week 3; the bye does not break it, the
+    // 2022 wins do not carry into it, and the beaten finalist has no row.
+    expect(recordRows(titles, 'career', 'titleRunStreak')).toEqual([
+      expect.objectContaining({
+        franchiseId: 'fA',
+        value: 4,
+        start: { year: 2023, week: 3 },
+        end: { year: 2023, week: 7 },
+        active: false
+      })
+    ]);
   });
 });

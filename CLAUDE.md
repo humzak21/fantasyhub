@@ -792,6 +792,10 @@ Rules that are load-bearing:
   has no rivalry week. A **first-round exit** is a `playoff_first_round` loss.
   Week 1, rivalry and first-round rows carry that occasion's own W–L as
   `record`, not the career record.
+- **The title-run streak** is a champion's (`playoff_finish = 'champion'`)
+  consecutive wins ending at its `playoff_championship` win, counted within
+  the title season across regular-season and bracket games. A tie breaks it;
+  a bye is not a game and does not.
 - Masking goes through `getMaskedFranchiseName`/`canViewFullData`, and a masked
   viewer's avatar is keyed on the masked name, since initials come from owners.
 

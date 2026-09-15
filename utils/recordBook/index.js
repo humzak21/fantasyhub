@@ -62,6 +62,7 @@ export const isRivalryWeek = (year, week) =>
 
 /** The bracket's opening round; losing it is a first-round exit. */
 const FIRST_ROUND = 'playoff_first_round';
+const CHAMPIONSHIP = 'playoff_championship';
 
 const EPSILON = 0.005;
 
@@ -597,6 +598,37 @@ function addStreakRows(career, season, sides, aggregates) {
   }
 }
 
+/**
+ * A champion's title run: consecutive wins, regular season and bracket, ending
+ * with the championship game. Within the title season only — it is the run
+ * that won that title. A tie breaks it; a bye is not a game and does not.
+ * Champions are `playoffFinish`, the fact every other title count reads.
+ */
+function addTitleRunRows(career, sides, teamById) {
+  const games = sides.filter((side) => side.phase === 'regular' || side.phase === 'playoff');
+
+  for (const [teamId, items] of groupBy(games, (side) => side.teamId)) {
+    if (teamById.get(teamId)?.playoffFinish !== 'champion') continue;
+    const endIndex = items.findLastIndex((side) => side.type === CHAMPIONSHIP && side.result === 'W');
+    if (endIndex < 0) continue;
+
+    let startIndex = endIndex;
+    while (startIndex > 0 && items[startIndex - 1].result === 'W') startIndex -= 1;
+    const start = items[startIndex];
+    const end = items[endIndex];
+
+    push(career, 'titleRunStreak', {
+      franchiseId: end.franchiseId,
+      teamId,
+      value: endIndex - startIndex + 1,
+      year: end.year,
+      start: { year: start.year, week: start.week },
+      end: { year: end.year, week: end.week },
+      active: false
+    });
+  }
+}
+
 /** How often each pair of franchises has traded, overall and per season. */
 function addTradeRows(career, season, trades, seasonById) {
   const overall = new Map();
@@ -673,6 +705,7 @@ export function buildRecordBook(source = {}) {
   addCareerRows(career, aggregates, source.transactions ?? []);
   addGameRows(season, sides);
   addStreakRows(career, season, sides, aggregates);
+  addTitleRunRows(career, sides, teamById);
   addTradeRows(career, season, source.trades ?? [], seasonById);
   addBidRows(season, source.bids ?? [], seasonById);
 
