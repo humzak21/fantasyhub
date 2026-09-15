@@ -61,6 +61,8 @@ export const RECORDS = [
   career({ id: 'career-blowout-losses', section: 'winning', data: 'blowoutLosses', title: 'Most blowout losses', blurb: 'Lost by 30 or more.', format: 'int' }),
   career({ id: 'career-narrow-wins', section: 'winning', data: 'narrowWins', title: 'Most narrow wins', blurb: 'Won by 5 or fewer.', format: 'int' }),
   career({ id: 'career-narrow-losses', section: 'winning', data: 'narrowLosses', title: 'Most narrow losses', blurb: 'Lost by 5 or fewer. The heartbreakers.', format: 'int' }),
+  career({ id: 'career-week1-wins', section: 'winning', data: 'week1Wins', title: 'Most Week 1 wins', blurb: 'Won the season opener.', format: 'int', detail: 'record' }),
+  career({ id: 'career-rivalry-wins', section: 'winning', data: 'rivalryWins', title: 'Most Rivalry Week wins', blurb: 'Week 14 every season, and week 4 as well from 2025.', format: 'int', detail: 'record' }),
   career({ id: 'career-top-records', section: 'winning', data: 'topRecords', title: 'Best regular-season record', blurb: 'Seasons finished top of the standings.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-top-record-flops', section: 'winning', data: 'topRecordFlops', title: 'Regular-season merchant', blurb: 'Best record in the league, no finals appearance.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-last-places', section: 'winning', data: 'lastPlaces', title: 'Last-place finishes', blurb: 'Finished the season dead last. The punishee.', format: 'int', detail: 'seasons' }),
@@ -79,6 +81,7 @@ export const RECORDS = [
   career({ id: 'career-playoff-wins', section: 'playoffs', data: 'playoffWins', title: 'Most playoff wins', blurb: 'Bracket games, placement games included.', format: 'int' }),
   career({ id: 'career-playoff-losses', section: 'playoffs', data: 'playoffLosses', title: 'Most playoff losses', blurb: 'Bracket games, placement games included.', format: 'int' }),
   career({ id: 'career-playoff-points', section: 'playoffs', data: 'playoffPoints', title: 'Most playoff points', blurb: 'Scored in bracket games.', format: 'points' }),
+  career({ id: 'career-first-round-exits', section: 'playoffs', data: 'firstRoundExits', title: 'Most first-round exits', blurb: 'Made the bracket, lost the first game. Record is in first-round games.', format: 'int', detail: 'record' }),
 
   career({ id: 'career-luck-best', section: 'luck', data: 'luck', title: 'Luckiest career', blurb: 'Wins above what their scoring earned against the whole league.', format: 'wins' }),
   career({ id: 'career-luck-worst', section: 'luck', data: 'luck', direction: 'asc', title: 'Unluckiest career', blurb: 'Wins below what their scoring earned against the whole league.', format: 'wins' }),
@@ -96,6 +99,7 @@ export const RECORDS = [
   career({ id: 'career-winning-season-streak', section: 'streaks', kind: 'seasonStreak', data: 'winningSeasonStreak', title: 'Winning-season streak', blurb: 'Consecutive seasons over .500.', format: 'int', unit: 'seasons' }),
   career({ id: 'career-playoff-streak', section: 'streaks', kind: 'seasonStreak', data: 'playoffStreak', title: 'Playoff-appearance streak', blurb: 'Consecutive seasons in the bracket.', format: 'int', unit: 'seasons' }),
   career({ id: 'career-finals-streak', section: 'streaks', kind: 'seasonStreak', data: 'finalsStreak', title: 'Finals-appearance streak', blurb: 'Consecutive championship-game appearances.', format: 'int', unit: 'seasons' }),
+  career({ id: 'career-title-run-streak', section: 'streaks', kind: 'streak', data: 'titleRunStreak', title: 'Longest win streak to a title', blurb: 'Consecutive wins, regular season and playoffs, ending with the championship game.', format: 'int', unit: 'games' }),
 
   career({ id: 'career-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', note: COMMISSIONER_TRADES_NOTE, format: 'int' }),
   career({ id: 'career-roster-moves', section: 'transactions', data: 'rosterMoves', title: 'Most roster moves', blurb: 'Free-agent adds, waiver claims and drops.', format: 'int' }),
