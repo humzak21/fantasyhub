@@ -4,6 +4,10 @@
  * it twice. Both are cheap to break — a stray timestamp argument would move the
  * window off the season's own rule, and a missing existence check would raise
  * on the unique constraint every Wednesday.
+ *
+ * The client here is fake, so nothing below can see what the RPC does inside
+ * the database. Whether the service role can actually insert the row is
+ * asserted in supabase/tests/database/pick_em_weeks_service_role.test.sql.
  */
 
 import { describe, it, expect } from 'vitest';

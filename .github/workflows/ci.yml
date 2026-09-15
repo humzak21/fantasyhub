@@ -151,6 +151,15 @@ jobs:
         if: steps.baseline.outputs.ready == 'true'
         run: supabase db diff --local
 
+      # pgTAP tests in supabase/tests, against the schema just replayed. They
+      # are for what the vitest suite's fake client cannot see: constraints,
+      # triggers, and which role a function runs as. The first is the
+      # service-role insert that left week 2 of 2026 without pick'ems while
+      # every unit test passed.
+      - name: Run database tests
+        if: steps.baseline.outputs.ready == 'true'
+        run: supabase test db --local supabase/tests
+
       - name: Tear down
         if: always() && steps.baseline.outputs.ready == 'true'
         run: supabase stop --no-backup
