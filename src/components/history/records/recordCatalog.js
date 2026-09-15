@@ -99,6 +99,7 @@ export const RECORDS = [
   career({ id: 'career-winning-season-streak', section: 'streaks', kind: 'seasonStreak', data: 'winningSeasonStreak', title: 'Winning-season streak', blurb: 'Consecutive seasons over .500.', format: 'int', unit: 'seasons' }),
   career({ id: 'career-playoff-streak', section: 'streaks', kind: 'seasonStreak', data: 'playoffStreak', title: 'Playoff-appearance streak', blurb: 'Consecutive seasons in the bracket.', format: 'int', unit: 'seasons' }),
   career({ id: 'career-finals-streak', section: 'streaks', kind: 'seasonStreak', data: 'finalsStreak', title: 'Finals-appearance streak', blurb: 'Consecutive championship-game appearances.', format: 'int', unit: 'seasons' }),
+  career({ id: 'career-title-run-streak', section: 'streaks', kind: 'streak', data: 'titleRunStreak', title: 'Longest win streak to a title', blurb: 'Consecutive wins, regular season and playoffs, ending with the championship game.', format: 'int', unit: 'games' }),
 
   career({ id: 'career-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', note: COMMISSIONER_TRADES_NOTE, format: 'int' }),
   career({ id: 'career-roster-moves', section: 'transactions', data: 'rosterMoves', title: 'Most roster moves', blurb: 'Free-agent adds, waiver claims and drops.', format: 'int' }),
