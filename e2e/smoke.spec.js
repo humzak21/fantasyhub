@@ -3,16 +3,11 @@ import { test, expect } from '@playwright/test'
 /**
  * Every tab is a route now, so every tab is reachable from here.
  *
- * `/history` and `/takes` are access-gated and redirect a signed-out viewer to
- * `/rankings`; that is correct behaviour, not a failure, so the assertions
- * below are about layout and about the page not being broken — never about
- * which URL you ended up on.
- *
- * `/awards` used to be in that group and no longer is: a season that has been
- * voted on stays readable after it ends, so a signed-out viewer lands on the
- * real page with its pie charts. It is listed here because it is now the only
- * way this suite sees that content at 375px — while the tab was gated, the
- * charts were measured at no width at all.
+ * `/history`, `/takes`, `/pickems`, `/playoffs` and `/awards` are access-gated
+ * and redirect a signed-out viewer to `/rankings`; that is correct behaviour,
+ * not a failure, so the assertions below are about layout and about the page
+ * not being broken — never about which URL you ended up on. The members-only
+ * gate itself is asserted separately, below.
  */
 const ROUTES = [
   '/',
@@ -98,6 +93,22 @@ test.describe('smoke', () => {
   test('an unknown tab falls back to the default one', async ({ page }) => {
     await page.goto('/not-a-real-tab', { waitUntil: 'domcontentloaded' })
     await expect(page).toHaveURL(/\/rankings$/)
+  })
+
+  // Pick'ems, Playoffs, Awards and Takes are for approved members, and so is
+  // the newsletter link. A signed-out viewer sees none of them, in the header
+  // or the phone tab bar, and a deep link lands on the default tab.
+  test('members-only destinations are hidden from a signed-out viewer', async ({ page }) => {
+    await page.goto('/pickems', { waitUntil: 'domcontentloaded' })
+    await expect(page).toHaveURL(/\/rankings$/)
+
+    // The nav has rendered before its absences mean anything.
+    await expect(page.getByRole('link', { name: 'Schedule', exact: true }).first()).toBeVisible()
+
+    for (const name of ["Pick'ems", 'Playoffs', 'Awards', 'Takes']) {
+      await expect(page.getByRole('link', { name, exact: true })).toHaveCount(0)
+    }
+    await expect(page.getByRole('link', { name: /newsletter/i })).toHaveCount(0)
   })
 })
 

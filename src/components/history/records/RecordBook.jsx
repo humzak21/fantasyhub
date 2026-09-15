@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeftRight, Dices, Flame, ListChecks, Medal, Target, Trophy, Zap } from 'lucide-react';
+import { ArrowLeftRight, Dices, Flame, ListChecks, Medal, Sparkles, Target, Trophy, Zap } from 'lucide-react';
 import { Card } from '../../ui/card';
 import { EmptyState } from '../../ui/empty-state';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
@@ -128,6 +128,13 @@ const RecordBook = ({
           <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
             {year} is still being played. Season totals join the record book once the season is
             finalized; the games and streaks so far are below.
+          </p>
+        )}
+
+        {year == null && book?.recentYears?.length > 0 && (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+            New record: a #1 set in {[...book.recentYears].sort((a, b) => a - b).join(' or ')}.
           </p>
         )}
 

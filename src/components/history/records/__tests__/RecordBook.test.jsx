@@ -69,7 +69,8 @@ const SOURCE = {
   ],
   games: [
     game(1, 'A', 120, 'B', 100), game(1, 'C', 90, 'D', 95),
-    game(2, 'A', 130, 'C', 80), game(2, 'B', 110, 'D', 108),
+    // B beat D by 0.04 — the kind of margin quarterback scoring produces.
+    game(2, 'A', 130, 'C', 80), game(2, 'B', 110, 'D', 109.96),
     game(3, 'A', 100, 'D', 100), game(3, 'B', 140, 'C', 70),
     game(4, 'A', 110, 'B', 105, 'playoff_championship')
   ],
@@ -99,6 +100,9 @@ describe('RecordBook', () => {
     const figures = rows.map((row) => within(row).getAllByText(/^\d+$/).map((cell) => cell.textContent));
     expect(figures).toEqual([['1', '2'], ['1', '2'], ['3', '1']]);
     expect(within(rows[0]).getByTitle('Tied for 1st')).toBeInTheDocument();
+
+    // A career total has no season it was set in, so it is never marked new.
+    expect(within(wins).queryByText('New record')).not.toBeInTheDocument();
   });
 
   it('keeps one neutral list per All-Time rate, and flags the trade count the commissioner inflates', async () => {
@@ -143,14 +147,26 @@ describe('RecordBook', () => {
     const highScore = await screen.findByRole('region', { name: 'Highest score' });
     expect(within(highScore).getAllByRole('listitem')).toHaveLength(5);
 
+    // The fixture's only season is the most recent one, so its #1 is marked —
+    // and only the #1.
+    const [first, second] = within(highScore).getAllByRole('listitem');
+    expect(within(first).getByText('New record')).toBeInTheDocument();
+    expect(within(second).queryByText('New record')).not.toBeInTheDocument();
+
     fireEvent.click(within(highScore).getByRole('button', { name: /Show top 12/ }));
     expect(within(highScore).getAllByRole('listitem')).toHaveLength(12);
 
     fireEvent.click(within(highScore).getByRole('button', { name: 'Playoffs' }));
     const playoff = within(highScore).getAllByRole('listitem');
     expect(playoff).toHaveLength(2);
-    expect(within(playoff[0]).getByText('110.0')).toBeInTheDocument();
+    expect(within(playoff[0]).getByText('110.00')).toBeInTheDocument();
     expect(within(highScore).queryByRole('button', { name: /Show top/ })).not.toBeInTheDocument();
+
+    // Scores and margins read to the hundredth: 0.04 must not print as 0.0.
+    const narrowest = screen.getByRole('region', { name: 'Narrowest win' });
+    const [closest] = within(narrowest).getAllByRole('listitem');
+    expect(within(closest).getByText('0.04')).toBeInTheDocument();
+    expect(within(closest).getByText(/110\.00–109\.96/)).toBeInTheDocument();
   });
 
   it('says so when the record book does not load', async () => {

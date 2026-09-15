@@ -583,6 +583,14 @@ any policy in the file, so no existing member ever saw a refusal.
   `isAuthLoading`: a false `isApproved` during the fetch bounces a member's
   bookmarked `/takes`. The flag is never true signed-out or for the admin,
   whose query is disabled and would pend forever.
+- **Pick'ems, Playoffs and Awards are members-only tabs, and so is the
+  newsletter link** (since 2026-09-15). `customAccess: isApproved` on the first
+  two; `isApproved && awardsAccessible` on Awards, so the release rules still
+  apply to members; and `isApproved` around `NewsletterLink`. Signed-out and
+  unapproved viewers see none of them, and a deep link redirects to the default
+  tab once approval has loaded (the guard above). **This is a shell gate
+  only:** unlike Takes, the tables behind these tabs are still public-read at
+  the database. `e2e/smoke.spec.js` asserts the signed-out half.
 - **Approval is not pushed to the member's browser.** The admin's
   `invalidateQueries` reaches the admin's cache only; `useIsApprovedMember`
   polls once a minute while the answer is no and refetches on focus, and the
@@ -1282,7 +1290,11 @@ each replaced four or five hand-rolled variants:
 - `layout/PageHeader.jsx` — the one page header. Every tab uses it.
 - `utils/format.js` + `ui/number-text.jsx` — one precision policy (points and
   percentages to one decimal, missing values as an em dash, never `0`) and one
-  numeric face. Use `.tabular`, never `font-mono`: Inter has tabular figures,
+  numeric face. **A score or margin that is itself the fact being compared is
+  `formatScore`, to the hundredth** — the record book and head-to-head detail.
+  ESPN scores in hundredths (a passing yard is 0.04; `games` and
+  `player_week_stats` store `numeric(10,2)`), and the league's narrowest
+  margin, 0.04, printed as "0.0" at one decimal. Use `.tabular`, never `font-mono`: Inter has tabular figures,
   and a system mono at 14px mismatches its x-height.
 - `ui/team-identity.jsx` — a team's chip, name, owner, record.
 - `ui/rank-badge.jsx`, `ui/streak-chip.jsx`, `ui/stat-card.jsx`,
@@ -1523,7 +1535,7 @@ require `auth.jwt() ->> 'aal' = 'aal2'`.
 - ESPN integration allows automatic data import
 - Responsive design with mobile-first approach — see "Mobile is not a separate
   app" for the rules that make that true rather than aspirational
-- This project has 1 admin user. All other users are *approved members* — a new account is a visitor until the admin approves it in Settings → Approvals — and any user can visualize the data (without logging in). RLS policies should reflect this. Only approved members can change their own pickems (`is_approved_member()`), but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
+- This project has 1 admin user. All other users are *approved members* — a new account is a visitor until the admin approves it in Settings → Approvals — and any user can visualize the data (without logging in) — except the members-only tabs (Pick'ems, Playoffs, Awards, Takes) and the newsletter link, which only approved members see. RLS policies should reflect this. Only approved members can change their own pickems (`is_approved_member()`), but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
 - Owner names eg: "Humza Khalil" are stored in the database and should be the first thing to check against when looking for data for a team. Team names often change but owner names are consistent.
 - **Creating a season carries the previous season's teams forward.**
   `seasons.createSeason` copies the divisions and teams of the most recent

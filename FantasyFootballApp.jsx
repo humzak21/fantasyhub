@@ -182,7 +182,10 @@ const FantasyFootballApp = () => {
       // already treats them — owning a team is not a prerequisite for running
       // the league.
       { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAdmin || isTeamOwner },
-      { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false },
+      // Pick'ems, Playoffs and Awards are for approved members, like Takes:
+      // signed-out and unapproved viewers do not see them at all. This is the
+      // shell's gate only — the tables behind them stay public-read.
+      { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false, customAccess: isApproved },
       // Members only — approved members, not merely signed-in ones; the
       // board's RLS asks the same question. `requiresAuth` is *not* the flag
       // for this — despite the name it means admin-only (`requiresAuth &&
@@ -190,12 +193,13 @@ const FantasyFootballApp = () => {
       // for. `customAccess` is how History already expresses a non-admin
       // audience.
       { id: 'takes', label: 'Takes', icon: Flame, requiresSeason: true, requiresAuth: false, customAccess: isApproved },
-      { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false },
+      { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false, customAccess: isApproved },
       // The league-wide TD parlay view is not a destination of its own. It
       // lives inside Pick'ems, next to Submissions, beside the form the picks
       // it reports on are entered in — two people can open it, which is thin
       // grounds for a nav item every other layout has to make room for.
-      { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: awardsAccessible },
+      // Approved members only, and then the release rules above still decide.
+      { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isApproved && awardsAccessible },
       // Settings is a tab — same route table, same guard, same shell — but
       // not a nav item: `inNav: false` keeps it out of the header list and
       // the phone tab bar, and the cog beside the account control
@@ -381,9 +385,9 @@ const FantasyFootballApp = () => {
 
               {/* The cog sits beside the account it belongs to, at every
                   width. Signed out there is nothing to set. The newsletter
-                  is public, so it shows either way. */}
+                  is for approved members, like the members-only tabs. */}
               <div className="flex shrink-0 items-center gap-1">
-                <NewsletterLink />
+                {isApproved && <NewsletterLink />}
                 {isAuthenticated && <SettingsLink active={activeTab === 'settings'} />}
                 <LoginDropdown />
               </div>
