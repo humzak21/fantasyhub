@@ -34,11 +34,13 @@ describe('parseTransactionEvents', () => {
       espnTeamId: 4,
       espnTeamIds: [0, 4],
       espnPlayerIds: [111],
+      espnFromTeamIds: [0],
+      espnToTeamIds: [4],
       bidAmount: 37
     }]);
   });
 
-  it('records every team and every player a trade moved', () => {
+  it('records every team and every player a trade moved, and which way each went', () => {
     const [trade] = parseTransactionEvents({
       transactions: [tx({
         id: 'trade-1',
@@ -46,14 +48,33 @@ describe('parseTransactionEvents', () => {
         bidAmount: 0,
         items: [
           { type: 'TRADE', playerId: 1, fromTeamId: 4, toTeamId: 9 },
-          { type: 'TRADE', playerId: 2, fromTeamId: 9, toTeamId: 4 }
+          { type: 'TRADE', playerId: 2, fromTeamId: 9, toTeamId: 4 },
+          // The drop that made room, to ESPN's pool: team 0.
+          { type: 'DROP', playerId: 3, fromTeamId: 9, toTeamId: 0 }
         ]
       })]
     });
 
-    expect(trade.espnTeamIds.sort()).toEqual([4, 9]);
-    expect(trade.espnPlayerIds).toEqual([1, 2]);
+    expect(trade.espnTeamIds).toEqual([0, 4, 9]);
+    expect(trade.espnPlayerIds).toEqual([1, 2, 3]);
+    expect(trade.espnFromTeamIds).toEqual([4, 9, 9]);
+    expect(trade.espnToTeamIds).toEqual([9, 4, 0]);
     expect(trade.bidAmount).toBeNull();
+  });
+
+  it('nets out a player listed twice: where they started and where they ended up', () => {
+    const [trade] = parseTransactionEvents({
+      transactions: [tx({
+        type: 'TRADE_ACCEPT',
+        items: [
+          { type: 'TRADE', playerId: 1, fromTeamId: 4, toTeamId: 9 },
+          { type: 'DROP', playerId: 1, fromTeamId: 9, toTeamId: 0 }
+        ]
+      })]
+    });
+
+    expect(trade.espnPlayerIds).toEqual([1]);
+    expect([trade.espnFromTeamIds, trade.espnToTeamIds]).toEqual([[4], [0]]);
   });
 
   it('keeps a zero-dollar bid, which is still a bid', () => {

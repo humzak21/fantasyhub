@@ -168,6 +168,13 @@ export const RECORDS = [
   season({ id: 'season-trade-partners', section: 'transactions', kind: 'pair', data: 'tradePartners', title: 'Most frequent trade partners', blurb: 'Trades between the same two franchises in one season.', format: 'int', unit: 'trades' })
 ];
 
+/**
+ * A trade record's row opens to the trades behind it — players, sides, week —
+ * instead of linking to the franchise: "Most trades: 9" is a question about
+ * which nine.
+ */
+export const expandsTrades = (record) => record.data === 'trades' || record.data === 'tradePartners';
+
 /** Counts ranked high-to-low hide zeros: "0 championships" is not a placing. */
 export const hidesZero = (record) =>
   record.hideZero ?? (record.direction !== 'asc' && ['int', 'half'].includes(record.format));

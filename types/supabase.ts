@@ -2772,6 +2772,8 @@ export type Database = {
           franchise_id: string | null
           franchise_ids: string[]
           id: string
+          player_from_franchise_ids: string[] | null
+          player_to_franchise_ids: string[] | null
           processed_at: string | null
           scoring_period: number | null
           season_id: string
@@ -2787,6 +2789,8 @@ export type Database = {
           franchise_id?: string | null
           franchise_ids?: string[]
           id?: string
+          player_from_franchise_ids?: string[] | null
+          player_to_franchise_ids?: string[] | null
           processed_at?: string | null
           scoring_period?: number | null
           season_id: string
@@ -2802,6 +2806,8 @@ export type Database = {
           franchise_id?: string | null
           franchise_ids?: string[]
           id?: string
+          player_from_franchise_ids?: string[] | null
+          player_to_franchise_ids?: string[] | null
           processed_at?: string | null
           scoring_period?: number | null
           season_id?: string

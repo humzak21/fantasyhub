@@ -69,6 +69,13 @@ export async function upsertTransactionEvents(ctx, seasonId, events = [], teams 
         bid_amount: event.bidAmount,
         franchise_ids: franchiseIds,
         espn_player_ids: event.espnPlayerIds,
+        // Aligned with espn_player_ids. ESPN's pool (team 0) is no franchise: null.
+        player_from_franchise_ids: event.espnFromTeamIds
+          ? event.espnFromTeamIds.map((id) => resolve(id)?.franchiseId ?? null)
+          : null,
+        player_to_franchise_ids: event.espnToTeamIds
+          ? event.espnToTeamIds.map((id) => resolve(id)?.franchiseId ?? null)
+          : null,
         updated_at: now
       });
     }

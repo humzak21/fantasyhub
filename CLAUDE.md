@@ -780,6 +780,19 @@ Rules that are load-bearing:
 - **"Most trades" carries a note** (`note` in the catalog, rendered under the
   blurb): the commissioner's count is inflated, because trades the
   commissioner executes for other managers go through their own account.
+- **A trade record's row opens to its trades** (`expandsTrades` in the
+  catalog) instead of linking to the franchise — "Most trades" and "Most
+  frequent trade partners", on both tabs. `tradesForRow` picks a row's out of
+  `book.trades`: the week and processed date, each side's players received,
+  and the drop that made room. **A trade is a `TRADE_ACCEPT` between at least
+  two franchises.** ESPN also files rows with no items, and the roster-space
+  drop filed again as a row of its own — 15 of the 48 stored for 2020-25, all
+  in 2021-23 — and `buildTrades` keeps them out of the lists and the partner
+  record. `parseTransactionData` applies the same rule to
+  `transactions.trades`; until 2026-09-15 it did not, and six franchise-seasons
+  each counted one of those rows as a trade. Where a count still runs past its
+  listed trades — a season counted but not yet stored move by move — the list
+  says how many more.
 - **Unknown is absent, never zero**, the power ranking's rule again: a season
   with no lineup data has no lineup rows. Counts ranked high-to-low hide zeros
   (`hidesZero`).
@@ -820,6 +833,12 @@ writes, both backfilled for 2020-25:
   EXECUTED / TRADE_ACCEPT predicates, so the counts and the detail agree —
   verified: event-derived trades equal `transactions.trades` for every team
   2020-25, and bids sum to `faab_spent` every season.
+  `player_from_franchise_ids` / `player_to_franchise_ids`
+  (`20260915170000_transaction_event_player_moves.sql`) say which way each
+  player went, aligned index for index with `espn_player_ids`: a null element
+  is ESPN's free-agent pool, and a null column is a row written before
+  direction was stored, which the record book lists without sides rather than
+  guessing one.
 
 `scripts/backfill-transactions.js` and `scripts/backfill-player-week-stats.js`
 run the sync's own `syncTransactions` / `syncPlayerStats` over past seasons
