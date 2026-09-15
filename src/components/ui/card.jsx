@@ -41,11 +41,15 @@ CardHeader.displayName = "CardHeader"
 // `text-2xl` and 3 of `text-xl`: there was no step between a section heading
 // and a page title, so every card shouted. Page titles are `PageHeader`'s job
 // now; a card title is a heading.
+//
+// `leading-snug`, not `leading-none`: a title that wraps on a phone set its
+// two lines on top of each other. Never override it below `text-base` — the
+// scale in `ui/section-heading.jsx` puts a card heading at 16px or more.
 const CardTitle = React.forwardRef(({ className, ...props }, ref) => (
   <h3
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
+      "text-lg font-semibold leading-snug tracking-tight",
       className
     )}
     {...props}

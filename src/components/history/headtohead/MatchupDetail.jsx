@@ -49,7 +49,7 @@ function MeetingRow({ game, showYear = false }) {
 function NotableGame({ label, value, game }) {
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4">
-      <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+      <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
       <p className="mt-1.5 font-display text-2xl font-semibold leading-none tracking-[-0.01em]">{value}</p>
       {game && (
         <p className="mt-2 text-xs text-muted-foreground tabular">
@@ -220,7 +220,7 @@ const MatchupDetail = ({
                 </span>
               </div>
             ))}
-            <span className="order-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+            <span className="order-2 text-[13px] font-medium text-muted-foreground">
               {first.ties > 0 ? `${first.ties} ${first.ties === 1 ? 'tie' : 'ties'}` : 'wins'}
             </span>
           </div>
@@ -232,7 +232,7 @@ const MatchupDetail = ({
                 <dd className={cn('tabular text-right', row.lead === 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
                   {row.values[0]}
                 </dd>
-                <dt className="text-center text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                <dt className="text-center text-[13px] font-medium text-muted-foreground">
                   {row.label}
                 </dt>
                 <dd className={cn('tabular', row.lead === 1 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>

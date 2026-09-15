@@ -17,9 +17,13 @@ Table.displayName = "Table"
  *
  * Stock shadcn gives it the same background and near-enough the same type as
  * the body, so a table reads as an undifferentiated grid. Recessing it onto
- * the muted surface and setting the labels small, uppercase and letter-spaced
- * separates the two jobs — that treatment is why a well-made data table looks
- * organised before you have read a word of it.
+ * the muted surface separates the two jobs — that is why a well-made data
+ * table looks organised before you have read a word of it.
+ *
+ * The labels are 13px sentence case in the muted grey. They were 11px,
+ * uppercase and letter-spaced, which read as texture rather than words on a
+ * black ground; the recessed strip does the separating, so the type does not
+ * have to shrink to do it too.
  */
 const TableHeader = React.forwardRef(({ className, ...props }, ref) => (
   <thead
@@ -70,7 +74,7 @@ const TableHead = React.forwardRef(({ className, ...props }, ref) => (
   <th
     ref={ref}
     className={cn(
-      "h-9 px-4 text-left align-middle text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground [&:has([role=checkbox])]:pr-0",
+      "h-10 px-4 text-left align-middle text-[13px] font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
       className
     )}
     {...props}

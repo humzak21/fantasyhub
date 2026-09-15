@@ -145,7 +145,7 @@ const SeasonProgressBar = ({
       {/* Legend */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-muted-foreground">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em]">
+          <span className="text-[13px] font-medium">
             Week {currentWeek} of {totalWeeks}
           </span>
         </div>

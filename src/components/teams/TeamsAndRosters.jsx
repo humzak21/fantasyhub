@@ -255,7 +255,7 @@ const TeamsAndRosters = ({
           {/* Starting Lineup Grid */}
           {starters.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
+              <h4 className="text-sm font-semibold text-foreground">
                 Starters
               </h4>
               <div className="grid grid-cols-1 gap-px">
@@ -269,7 +269,7 @@ const TeamsAndRosters = ({
           {/* Bench Players */}
           {benchPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
+              <h4 className="text-sm font-semibold text-foreground">
                 Bench
               </h4>
               <div className="grid grid-cols-1 gap-px">
@@ -283,7 +283,7 @@ const TeamsAndRosters = ({
           {/* IR Players */}
           {irPlayers.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-[10px] font-semibold uppercase tracking-[0.07em] text-destructive">
+              <h4 className="text-sm font-semibold text-destructive">
                 Injured reserve
               </h4>
               <div className="grid grid-cols-1 gap-px">

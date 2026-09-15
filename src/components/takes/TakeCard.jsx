@@ -70,11 +70,11 @@ export function TakeCard({ take, displayNames = {}, onOpen, onFade, onWithdraw, 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-foreground">{authorName}</p>
-          <p className="mt-0.5 text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {formatDate(take.createdAt)}
             {/* Server-stamped, so this cannot be forged or forgotten — see
                 set_take_edited_at() in the migration. */}
-            {take.editedAt && <span className="normal-case tracking-normal"> · edited</span>}
+            {take.editedAt && <span> · edited</span>}
           </p>
         </div>
         <Badge variant={STATUS_BADGE[take.status] ?? 'secondary'}>
