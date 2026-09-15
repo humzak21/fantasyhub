@@ -48,6 +48,21 @@ export const FULL_LINEUP = 9;
 /** A streak is at least two. */
 export const MIN_STREAK = 2;
 
+/** Rivalry Week is week 14 every season, and week 4 as well from 2025. */
+export const RIVALRY_WEEK = 14;
+export const EARLY_RIVALRY_WEEK = 4;
+export const EARLY_RIVALRY_FROM = 2025;
+
+/**
+ * Is this a Rivalry Week? Only a regular-season game counts: 2020's regular
+ * season ended at week 13, so its week 14 was the playoffs, not a rivalry.
+ */
+export const isRivalryWeek = (year, week) =>
+  week === RIVALRY_WEEK || (week === EARLY_RIVALRY_WEEK && year >= EARLY_RIVALRY_FROM);
+
+/** The bracket's opening round; losing it is a first-round exit. */
+const FIRST_ROUND = 'playoff_first_round';
+
 const EPSILON = 0.005;
 
 const round = (value, places = 4) => {
@@ -113,6 +128,7 @@ function buildSides(games, seasonById, teamById) {
       completedSeason: Boolean(season.isCompleted),
       week: game.week,
       phase,
+      type: game.type,
       isTeam1,
       teamId: team.id,
       franchiseId: team.franchiseId,
@@ -183,10 +199,16 @@ const emptyAggregate = (team, side) => ({
   apW: 0, apL: 0, apT: 0,
   blowoutWins: 0, blowoutLosses: 0, narrowWins: 0, narrowLosses: 0,
   weeklyHighs: 0, facedTop: 0,
+  week1Wins: 0, week1Losses: 0, week1Ties: 0,
+  rivalryWins: 0, rivalryLosses: 0, rivalryTies: 0,
   playoffWins: 0, playoffLosses: 0, playoffPoints: 0,
+  firstRoundWins: 0, firstRoundExits: 0,
   lineupWeeks: 0, starterPoints: 0, optimalPoints: 0, perfectWeeks: 0,
   benchPoints: 0, avoidableLosses: 0, shortHandedWins: 0
 });
+
+/** 'W' | 'L' | 'T' → the matching counter's suffix. */
+const RESULT_SUFFIX = { W: 'Wins', L: 'Losses', T: 'Ties' };
 
 function aggregateTeamSeasons(sides, teamById, lineups) {
   const byTeam = new Map();
@@ -208,6 +230,8 @@ function aggregateTeamSeasons(sides, teamById, lineups) {
       a.apT += side.apT;
       if (side.weeklyHigh) a.weeklyHighs += 1;
       if (side.facedTop) a.facedTop += 1;
+      if (side.week === 1) a[`week1${RESULT_SUFFIX[side.result]}`] += 1;
+      if (isRivalryWeek(side.year, side.week)) a[`rivalry${RESULT_SUFFIX[side.result]}`] += 1;
 
       if (side.result === 'W') {
         a.wins += 1;
@@ -224,6 +248,10 @@ function aggregateTeamSeasons(sides, teamById, lineups) {
       a.playoffPoints += side.pf;
       if (side.result === 'W') a.playoffWins += 1;
       if (side.result === 'L') a.playoffLosses += 1;
+      if (side.type === FIRST_ROUND) {
+        if (side.result === 'W') a.firstRoundWins += 1;
+        if (side.result === 'L') a.firstRoundExits += 1;
+      }
     }
   }
 
@@ -371,7 +399,10 @@ function addCareerRows(store, aggregates, transactions) {
       apW: 0, apL: 0, apT: 0,
       blowoutWins: 0, blowoutLosses: 0, narrowWins: 0, narrowLosses: 0,
       weeklyHighs: 0, facedTop: 0, luck: 0,
+      week1Wins: 0, week1Losses: 0, week1Ties: 0,
+      rivalryWins: 0, rivalryLosses: 0, rivalryTies: 0,
       playoffWins: 0, playoffLosses: 0, playoffPoints: 0,
+      firstRoundWins: 0, firstRoundExits: 0,
       championships: 0, finals: 0, playoffAppearances: 0,
       topRecords: 0, topRecordFlops: 0, scoringTitles: 0, lastPlaces: 0,
       lineupWeeks: 0, starterPoints: 0, optimalPoints: 0, perfectWeeks: 0,
@@ -381,7 +412,8 @@ function addCareerRows(store, aggregates, transactions) {
     for (const key of [
       'games', 'wins', 'losses', 'ties', 'pf', 'pa', 'apW', 'apL', 'apT',
       'blowoutWins', 'blowoutLosses', 'narrowWins', 'narrowLosses', 'weeklyHighs', 'facedTop',
-      'playoffWins', 'playoffLosses', 'playoffPoints',
+      'week1Wins', 'week1Losses', 'week1Ties', 'rivalryWins', 'rivalryLosses', 'rivalryTies',
+      'playoffWins', 'playoffLosses', 'playoffPoints', 'firstRoundWins', 'firstRoundExits',
       'lineupWeeks', 'starterPoints', 'optimalPoints', 'perfectWeeks',
       'benchPoints', 'avoidableLosses', 'shortHandedWins'
     ]) {
@@ -412,13 +444,17 @@ function addCareerRows(store, aggregates, transactions) {
       seasons: c.seasons,
       record: { wins: c.wins, losses: c.losses, ties: c.ties }
     };
-    const add = (key, value) => {
-      if (value != null) push(store, key, { ...base, value: round(value) });
+    const add = (key, value, record = base.record) => {
+      if (value != null) push(store, key, { ...base, record, value: round(value) });
     };
 
     add('wins', c.wins);
     add('losses', c.losses);
     add('winPct', winPct(c));
+    // These carry their own record — in week 1, in Rivalry Weeks, in the first
+    // round — because the career record beside them would say nothing.
+    add('week1Wins', c.week1Wins, { wins: c.week1Wins, losses: c.week1Losses, ties: c.week1Ties });
+    add('rivalryWins', c.rivalryWins, { wins: c.rivalryWins, losses: c.rivalryLosses, ties: c.rivalryTies });
     add('ppg', c.pf / c.games);
     add('paPerGame', c.pa / c.games);
     add('diffPerGame', (c.pf - c.pa) / c.games);
@@ -443,6 +479,7 @@ function addCareerRows(store, aggregates, transactions) {
     add('playoffWins', c.playoffWins);
     add('playoffLosses', c.playoffLosses);
     add('playoffPoints', c.playoffPoints);
+    add('firstRoundExits', c.firstRoundExits, { wins: c.firstRoundWins, losses: c.firstRoundExits, ties: 0 });
 
     add('luck', c.luck);
 
