@@ -570,23 +570,23 @@ export async function getMatchupHistory(ctx, franchise1Id, franchise2Id) {
 
 const num = (value) => (value == null ? null : Number(value));
 
-/** ESPN player ids → names, for the players a bid was placed on. */
-async function getPlayerNames(ctx, espnPlayerIds) {
+/** ESPN player ids → name and position, for the players a bid or a trade moved. */
+async function getPlayers(ctx, espnPlayerIds) {
   const ids = [...new Set(espnPlayerIds)].filter((id) => id != null);
-  const names = new Map();
+  const players = new Map();
 
   for (let start = 0; start < ids.length; start += 150) {
     const rows = unwrap(
       await ctx.client
         .from('players')
-        .select('espn_player_id, name')
+        .select('espn_player_id, name, position')
         .in('espn_player_id', ids.slice(start, start + 150)),
-      'Get bid player names'
+      'Get record book players'
     ) ?? [];
-    for (const row of rows) names.set(row.espn_player_id, row.name);
+    for (const row of rows) players.set(row.espn_player_id, { name: row.name, position: row.position });
   }
 
-  return names;
+  return players;
 }
 
 /**
@@ -630,7 +630,7 @@ export async function getRecordBookSource(ctx) {
         .order('id')),
       selectAll(() => client
         .from('transaction_events')
-        .select('season_id, franchise_ids')
+        .select('id, season_id, scoring_period, processed_at, franchise_ids, espn_player_ids, player_from_franchise_ids, player_to_franchise_ids')
         .eq('type', 'TRADE_ACCEPT')
         .order('id')),
       selectAll(() => client
@@ -645,7 +645,10 @@ export async function getRecordBookSource(ctx) {
         .order('id'))
     ]);
 
-    const playerNames = await getPlayerNames(ctx, bids.map((bid) => bid.espn_player_ids?.[0]));
+    const players = await getPlayers(ctx, [
+      ...bids.map((bid) => bid.espn_player_ids?.[0]),
+      ...trades.flatMap((trade) => trade.espn_player_ids ?? [])
+    ]);
 
     return {
       seasons: seasons.map((row) => ({
@@ -686,14 +689,29 @@ export async function getRecordBookSource(ctx) {
         drops: row.drops ?? 0,
         faabSpent: num(row.faab_spent) ?? 0
       })),
-      trades: trades.map((row) => ({ seasonId: row.season_id, franchiseIds: row.franchise_ids ?? [] })),
+      trades: trades.map((row) => ({
+        id: row.id,
+        seasonId: row.season_id,
+        week: row.scoring_period,
+        processedAt: row.processed_at,
+        franchiseIds: row.franchise_ids ?? [],
+        players: (row.espn_player_ids ?? []).map((espnPlayerId) => ({
+          espnPlayerId,
+          name: players.get(espnPlayerId)?.name ?? null,
+          position: players.get(espnPlayerId)?.position ?? null
+        })),
+        // Null on a row stored before direction was; the record book lists
+        // those players without sides rather than guessing one.
+        fromFranchiseIds: row.player_from_franchise_ids ?? null,
+        toFranchiseIds: row.player_to_franchise_ids ?? null
+      })),
       bids: bids.map((row) => ({
         seasonId: row.season_id,
         teamId: row.team_id,
         franchiseId: row.franchise_id,
         bidAmount: num(row.bid_amount),
         scoringPeriod: row.scoring_period,
-        playerName: playerNames.get(row.espn_player_ids?.[0]) ?? null
+        playerName: players.get(row.espn_player_ids?.[0])?.name ?? null
       })),
       lineups: lineups.map((row) => ({
         seasonId: row.season_id,

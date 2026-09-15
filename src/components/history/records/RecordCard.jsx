@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { RankBadge } from '../../ui/rank-badge';
 import { TeamAvatar } from '../../ui/team-identity';
-import { cn } from '../../../lib/utils';
+import { cn, formatDate } from '../../../lib/utils';
 import { formatOrdinal, formatRecord, formatScore } from '../../../utils/format';
-import { isRecentRecord, rankRows, recordRows } from '../../../../utils/recordBook/index.js';
-import { formatRecordValue, hidesZero } from './recordCatalog';
+import { isRecentRecord, rankRows, recordRows, tradesForRow } from '../../../../utils/recordBook/index.js';
+import { expandsTrades, formatRecordValue, hidesZero } from './recordCatalog';
 
 /** Rows a card shows before it is opened. */
 export const COLLAPSED_ROWS = 5;
@@ -72,57 +72,179 @@ function describeRow(record, row, identity) {
   }
 }
 
-function RecordRow({ record, row, identity, onViewFranchise, recent = false }) {
-  const { name, meta, active } = describeRow(record, row, identity);
+const playerName = (player) => player.name ?? 'Unknown player';
+
+/** "Wk 6 · Oct 14, 2021", or "Wk 6, 2021" for a trade with no processed date. */
+function tradeWhen(trade) {
+  const week = trade.week != null ? `Wk ${trade.week}` : null;
+  if (trade.processedAt) return [week, formatDate(trade.processedAt)].filter(Boolean).join(' · ');
+  return [week, trade.year].filter(Boolean).join(', ');
+}
+
+function PlayerLine({ player }) {
+  return (
+    <li className="flex min-w-0 items-baseline gap-1.5 text-xs">
+      <span className="truncate text-foreground">{playerName(player)}</span>
+      {player.position && (
+        <span className="shrink-0 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+          {player.position}
+        </span>
+      )}
+    </li>
+  );
+}
+
+/**
+ * The trades behind a trade record's row, newest first: when, and who received
+ * which players. Franchise names come through `identity`, so they mask exactly
+ * as the row does.
+ *
+ * `count` is the row's figure. For "Most trades" that is `transactions.trades`,
+ * a different table from the trades listed; where it runs past them — a season
+ * the sync has counted but not yet stored move by move — the difference is
+ * stated rather than left to look like a missing trade.
+ */
+function TradeList({ id, trades, count, identity }) {
+  const unlisted = Math.max(0, Math.round(count) - trades.length);
 
   return (
-    <li className={cn('flex items-center gap-3 py-2', recent && '-mx-2 rounded-md bg-warning/[0.06] px-2')}>
-      <RankBadge
-        rank={row.rank}
-        size="sm"
-        showDelta={false}
-        title={row.tied ? `Tied for ${formatOrdinal(row.rank)}` : undefined}
-      />
-      <button
-        type="button"
-        onClick={() => onViewFranchise(row.franchiseId)}
-        className="-my-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <TeamAvatar team={identity.avatar(row.franchiseId)} size="xs" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium leading-tight">
-            {name}
-            {row.tied && <span className="sr-only"> (tied)</span>}
-          </span>
-          {(meta || active || recent) && (
-            <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-              {/* First, so a long meta line truncates rather than hiding it. */}
-              {recent && (
-                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-warning/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-warning">
-                  <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
-                  New record
-                </span>
+    <div id={id} className="mt-2 space-y-2">
+      {trades.length > 0 && (
+        <ol aria-label="Trades" className="space-y-2">
+          {trades.map((trade, index) => (
+            <li key={trade.id ?? index} className="rounded-md bg-muted/40 px-3 py-2.5">
+              <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                {tradeWhen(trade)}
+              </p>
+
+              {trade.directed ? (
+                <div className="mt-2 space-y-2.5">
+                  {trade.sides.map((side) => {
+                    const name = identity.franchiseName(side.franchiseId);
+                    return (
+                      <div key={side.franchiseId} className="min-w-0">
+                        <p className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+                          <TeamAvatar team={identity.avatar(side.franchiseId)} size="xs" />
+                          <span className="truncate">{name}</span>
+                          <span className="shrink-0 text-[10px] font-normal uppercase tracking-[0.06em] text-muted-foreground">
+                            received
+                          </span>
+                        </p>
+                        <ul aria-label={`${name} received`} className="mt-1 space-y-0.5 pl-7">
+                          {side.received.length > 0 ? (
+                            side.received.map((player, playerIndex) => (
+                              <PlayerLine key={player.espnPlayerId ?? playerIndex} player={player} />
+                            ))
+                          ) : (
+                            <li className="text-xs text-muted-foreground">No players</li>
+                          )}
+                        </ul>
+                        {side.dropped.length > 0 && (
+                          <p className="mt-1 pl-7 text-[11px] text-muted-foreground">
+                            Dropped {side.dropped.map(playerName).join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Stored before direction was: the players, without guessing a side.
+                <div className="mt-2 min-w-0">
+                  <p className="truncate text-xs font-medium">
+                    {trade.sides.map((side) => identity.franchiseName(side.franchiseId)).join(' & ')}
+                  </p>
+                  <ul aria-label="Players moved" className="mt-1 space-y-0.5">
+                    {trade.players.map((player, playerIndex) => (
+                      <PlayerLine key={player.espnPlayerId ?? playerIndex} player={player} />
+                    ))}
+                  </ul>
+                </div>
               )}
-              {meta && <span className="truncate">{meta}</span>}
-              {active && (
-                <span className="shrink-0 rounded-full bg-info/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-info">
-                  Active
-                </span>
-              )}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {unlisted > 0 && (
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          {unlisted} more counted {unlisted === 1 ? 'trade has' : 'trades have'} no detail on record.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RecordRow({ record, row, book, identity, onViewFranchise, detailId, recent = false }) {
+  const { name, meta, active } = describeRow(record, row, identity);
+  const opensTrades = expandsTrades(record);
+  const [open, setOpen] = useState(false);
+
+  const trades = useMemo(
+    () => (opensTrades && open ? tradesForRow(book, row) : []),
+    [opensTrades, open, book, row]
+  );
+
+  return (
+    <li className={cn('py-2', recent && '-mx-2 rounded-md bg-warning/[0.06] px-2')}>
+      <div className="flex items-center gap-3">
+        <RankBadge
+          rank={row.rank}
+          size="sm"
+          showDelta={false}
+          title={row.tied ? `Tied for ${formatOrdinal(row.rank)}` : undefined}
+        />
+        <button
+          type="button"
+          onClick={opensTrades ? () => setOpen((isOpen) => !isOpen) : () => onViewFranchise(row.franchiseId)}
+          aria-expanded={opensTrades ? open : undefined}
+          aria-controls={opensTrades && open ? detailId : undefined}
+          className="-my-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <TeamAvatar team={identity.avatar(row.franchiseId)} size="xs" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium leading-tight">
+              {name}
+              {row.tied && <span className="sr-only"> (tied)</span>}
             </span>
-          )}
-        </span>
-        <span className="shrink-0 whitespace-nowrap text-right">
-          <span className="tabular text-sm font-semibold text-foreground">
-            {formatRecordValue(record, row.value)}
+            {(meta || active || recent) && (
+              <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                {/* First, so a long meta line truncates rather than hiding it. */}
+                {recent && (
+                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-warning/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-warning">
+                    <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                    New record
+                  </span>
+                )}
+                {meta && <span className="truncate">{meta}</span>}
+                {active && (
+                  <span className="shrink-0 rounded-full bg-info/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-info">
+                    Active
+                  </span>
+                )}
+              </span>
+            )}
           </span>
-          {record.unit && (
-            <span className="ml-1 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-              {record.unit}
+          <span className="shrink-0 whitespace-nowrap text-right">
+            <span className="tabular text-sm font-semibold text-foreground">
+              {formatRecordValue(record, row.value)}
             </span>
+            {record.unit && (
+              <span className="ml-1 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+                {record.unit}
+              </span>
+            )}
+          </span>
+          {opensTrades && (
+            <ChevronDown
+              className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+              aria-hidden="true"
+            />
           )}
-        </span>
-      </button>
+        </button>
+      </div>
+
+      {open && <TradeList id={detailId} trades={trades} count={row.value} identity={identity} />}
     </li>
   );
 }
@@ -135,6 +257,7 @@ function RecordRow({ record, row, identity, onViewFranchise, recent = false }) {
  * The rows are ranked here, from the book's raw rows, so one row set serves a
  * record and its opposite and the season filter costs no refetch. Game records
  * carry a Regular / Playoffs toggle; the record proper is the regular season.
+ * A trade record's row opens to its trades rather than linking to the franchise.
  */
 export function RecordCard({ record, book, year = null, identity, onViewFranchise = () => {} }) {
   const [expanded, setExpanded] = useState(false);
@@ -216,8 +339,10 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
                 key={`${record.id}-${index}`}
                 record={record}
                 row={row}
+                book={book}
                 identity={identity}
                 onViewFranchise={onViewFranchise}
+                detailId={`${titleId}-row-${index}`}
                 recent={isRecent(row)}
               />
             ))}

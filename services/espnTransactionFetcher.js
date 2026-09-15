@@ -47,7 +47,11 @@ const EVENT_TYPES = new Set(['FREEAGENT', 'WAIVER', 'TRADE_ACCEPT']);
  *   espnTeamId    who made it: the claimant, or a trade's proposer
  *   espnTeamIds   every team a player moved to or from
  *   espnPlayerIds the players acquired: the ADD of an add or claim, every
- *                 player moved in a trade
+ *                 player moved in a trade (the drop that made room included)
+ *   espnFromTeamIds / espnToTeamIds
+ *                 aligned with espnPlayerIds: where each player came from and
+ *                 went to. ESPN's pool is team 0, which the writer resolves to
+ *                 no franchise.
  *   bidAmount     the FAAB bid, waiver claims only
  */
 export function parseTransactionEvents(leagueData = {}) {
@@ -58,12 +62,20 @@ export function parseTransactionEvents(leagueData = {}) {
 
     const isTrade = transaction.type === 'TRADE_ACCEPT';
     const teamIds = new Set();
-    const playerIds = new Set();
+    // Player id → { from, to }, in item order. A player listed twice keeps where
+    // they started and where they ended up.
+    const moves = new Map();
 
     for (const item of transaction.items || []) {
       if (item.toTeamId != null) teamIds.add(item.toTeamId);
       if (item.fromTeamId != null) teamIds.add(item.fromTeamId);
-      if (item.playerId != null && (isTrade || item.type === 'ADD')) playerIds.add(item.playerId);
+      if (item.playerId == null || !(isTrade || item.type === 'ADD')) continue;
+
+      const earlier = moves.get(item.playerId);
+      moves.set(item.playerId, {
+        from: earlier ? earlier.from : item.fromTeamId ?? null,
+        to: item.toTeamId ?? null
+      });
     }
 
     const processed = transaction.processDate ?? transaction.proposedDate ?? null;
@@ -75,7 +87,9 @@ export function parseTransactionEvents(leagueData = {}) {
       processedAt: processed != null ? new Date(processed).toISOString() : null,
       espnTeamId: transaction.teamId ?? null,
       espnTeamIds: [...teamIds].sort((a, b) => a - b),
-      espnPlayerIds: [...playerIds],
+      espnPlayerIds: [...moves.keys()],
+      espnFromTeamIds: [...moves.values()].map((move) => move.from),
+      espnToTeamIds: [...moves.values()].map((move) => move.to),
       bidAmount:
         transaction.type === 'WAIVER' && transaction.bidAmount != null
           ? Number(transaction.bidAmount)
@@ -233,7 +247,7 @@ export class ESPNTransactionFetcher {
 
       // Handle trades specially - count transactions not items
       if (type === 'TRADE_ACCEPT') {
-        // Track which teams are involved in this trade
+        // Track which teams are involved in this trade (team 0 is the pool)
         const teamsInTrade = new Set();
         if (transaction.items) {
           transaction.items.forEach(item => {
@@ -241,6 +255,13 @@ export class ESPNTransactionFetcher {
             if (item.fromTeamId) teamsInTrade.add(item.fromTeamId);
           });
         }
+        // A trade moves players between at least two teams. ESPN also files
+        // TRADE_ACCEPT rows that do not — rows with no items, and the drop that
+        // made room for a real trade filed again as a row of its own — and
+        // those used to count as a trade for the team that dropped.
+        // `utils/recordBook::buildTrades` draws the same line over the stored
+        // events, so a franchise's count and its listed trades agree.
+        if (teamsInTrade.size < 2) return;
         // Count one trade per team involved
         teamsInTrade.forEach(teamId => {
           if (teamAggregates[teamId]) {

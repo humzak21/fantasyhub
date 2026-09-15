@@ -16,6 +16,7 @@
  *   book.career[key]  one row per franchise (streaks: one row per streak)
  *   book.season[key]  one row per team-season, game, bid, trade pair or
  *                     in-season streak, each carrying its `year`
+ *   book.trades       every trade, newest first, with who received whom
  *
  * Rules that are load-bearing:
  *
@@ -629,21 +630,106 @@ function addTitleRunRows(career, sides, teamById) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Trades
+// ---------------------------------------------------------------------------
+
+/**
+ * Every trade as the league reads one — who got which player, and when —
+ * newest first.
+ *
+ * A trade moves players between at least two franchises. ESPN also files
+ * `TRADE_ACCEPT` rows that do not: rows with no items at all, and the drop that
+ * made room for a real trade filed again as a row of its own. Neither is a
+ * trade, and leaving them out here keeps them out of the partner record and
+ * every trade list. `parseTransactionData` draws the same line when it counts
+ * `transactions.trades`, so a franchise's count and its listed trades agree.
+ *
+ * Direction is `fromFranchiseIds` / `toFranchiseIds`, aligned with `players`,
+ * with null for the free-agent pool. A row written before direction was stored
+ * has neither, and its players are listed without sides rather than guessed
+ * onto one.
+ */
+function buildTrades(trades, seasonById) {
+  const built = [];
+
+  for (const trade of trades) {
+    const year = seasonById.get(trade.seasonId)?.year;
+    const franchiseIds = [...new Set(trade.franchiseIds ?? [])];
+    if (year == null || franchiseIds.length < 2) continue;
+
+    const players = (trade.players ?? []).map((player) => ({
+      espnPlayerId: player.espnPlayerId ?? null,
+      name: player.name ?? null,
+      position: player.position ?? null
+    }));
+    const from = trade.fromFranchiseIds;
+    const to = trade.toFranchiseIds;
+    const directed = Array.isArray(from) && Array.isArray(to) &&
+      from.length === players.length && to.length === players.length;
+
+    built.push({
+      id: trade.id ?? null,
+      year: Number(year),
+      week: trade.week ?? null,
+      processedAt: trade.processedAt ?? null,
+      directed,
+      sides: franchiseIds.map((franchiseId) => ({
+        franchiseId,
+        received: directed ? players.filter((_, index) => to[index] === franchiseId) : [],
+        // Off this roster and onto no league team's: the drop that made room.
+        dropped: directed
+          ? players.filter((_, index) => from[index] === franchiseId && to[index] == null)
+          : []
+      })),
+      players: directed ? [] : players
+    });
+  }
+
+  return built.sort((a, b) =>
+    b.year - a.year ||
+    (b.week ?? 0) - (a.week ?? 0) ||
+    String(b.processedAt ?? '').localeCompare(String(a.processedAt ?? ''))
+  );
+}
+
+/**
+ * The trades behind one row of a trade record, newest first: a franchise's —
+ * in one season, for a team-season row — or a pair's. The row's franchise, then
+ * its partner, is the first side of each.
+ *
+ * @param {object} book from `buildRecordBook`
+ * @param {{ franchiseId: string, partnerFranchiseId?: string, year?: number }} row
+ */
+export function tradesForRow(book, row) {
+  if (!row?.franchiseId) return [];
+
+  const order = [row.franchiseId, row.partnerFranchiseId].filter(Boolean);
+  const place = (side) => {
+    const index = order.indexOf(side.franchiseId);
+    return index === -1 ? order.length : index;
+  };
+
+  return (book?.trades ?? [])
+    .filter((trade) =>
+      (row.year == null || trade.year === row.year) &&
+      order.every((id) => trade.sides.some((side) => side.franchiseId === id))
+    )
+    .map((trade) => ({ ...trade, sides: [...trade.sides].sort((a, b) => place(a) - place(b)) }));
+}
+
 /** How often each pair of franchises has traded, overall and per season. */
-function addTradeRows(career, season, trades, seasonById) {
+function addTradeRows(career, season, trades) {
   const overall = new Map();
   const bySeason = new Map();
   const bump = (map, key) => map.set(key, (map.get(key) ?? 0) + 1);
 
   for (const trade of trades) {
-    const year = seasonById.get(trade.seasonId)?.year;
-    if (year == null) continue;
-
-    const ids = [...new Set(trade.franchiseIds ?? [])].sort();
+    const ids = trade.sides.map((side) => side.franchiseId).sort();
     for (let i = 0; i < ids.length; i += 1) {
       for (let j = i + 1; j < ids.length; j += 1) {
         bump(overall, `${ids[i]}|${ids[j]}`);
-        bump(bySeason, `${year}|${ids[i]}|${ids[j]}`);
+        bump(bySeason, `${trade.year}|${ids[i]}|${ids[j]}`);
       }
     }
   }
@@ -706,7 +792,8 @@ export function buildRecordBook(source = {}) {
   addGameRows(season, sides);
   addStreakRows(career, season, sides, aggregates);
   addTitleRunRows(career, sides, teamById);
-  addTradeRows(career, season, source.trades ?? [], seasonById);
+  const trades = buildTrades(source.trades ?? [], seasonById);
+  addTradeRows(career, season, trades);
   addBidRows(season, source.bids ?? [], seasonById);
 
   const yearsPlayed = new Set(sides.map((side) => side.year));
@@ -727,7 +814,9 @@ export function buildRecordBook(source = {}) {
       ])
     ),
     career,
-    season
+    season,
+    // Every trade, newest first; `tradesForRow` picks out a row's.
+    trades
   };
 }
 

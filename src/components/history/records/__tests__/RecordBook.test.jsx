@@ -74,8 +74,49 @@ const SOURCE = {
     game(3, 'A', 100, 'D', 100), game(3, 'B', 140, 'C', 70),
     game(4, 'A', 110, 'B', 105, 'playoff_championship')
   ],
-  transactions: [],
-  trades: [],
+  // A's count is one past its stored trades, as when the sync has counted a
+  // trade it has not yet stored move by move.
+  transactions: [
+    { seasonId: 's24', franchiseId: IDS.A, trades: 3 },
+    { seasonId: 's24', franchiseId: IDS.B, trades: 1 },
+    { seasonId: 's24', franchiseId: IDS.C, trades: 1 }
+  ],
+  trades: [
+    {
+      id: 'trade-1',
+      seasonId: 's24',
+      week: 2,
+      processedAt: '2024-09-12T15:00:00.000Z',
+      franchiseIds: [IDS.A, IDS.B],
+      players: [
+        { espnPlayerId: 11, name: 'Runner One', position: 'RB' },
+        { espnPlayerId: 12, name: 'Catcher Two', position: 'WR' },
+        { espnPlayerId: 13, name: 'Spare Three', position: 'TE' }
+      ],
+      fromFranchiseIds: [IDS.B, IDS.A, IDS.A],
+      toFranchiseIds: [IDS.A, IDS.B, null]
+    },
+    {
+      id: 'trade-1-drop',
+      seasonId: 's24',
+      week: 2,
+      processedAt: '2024-09-12T15:00:01.000Z',
+      franchiseIds: [IDS.A],
+      players: [{ espnPlayerId: 13, name: 'Spare Three', position: 'TE' }],
+      fromFranchiseIds: [IDS.A],
+      toFranchiseIds: [null]
+    },
+    {
+      id: 'trade-2',
+      seasonId: 's24',
+      week: 3,
+      processedAt: '2024-09-19T15:00:00.000Z',
+      franchiseIds: [IDS.C, IDS.A],
+      players: [{ espnPlayerId: 14, name: 'Kicker Four', position: 'K' }],
+      fromFranchiseIds: [IDS.C],
+      toFranchiseIds: [IDS.A]
+    }
+  ],
   bids: [],
   lineups: []
 };
@@ -167,6 +208,44 @@ describe('RecordBook', () => {
     const [closest] = within(narrowest).getAllByRole('listitem');
     expect(within(closest).getByText('0.04')).toBeInTheDocument();
     expect(within(closest).getByText(/110\.00–109\.96/)).toBeInTheDocument();
+  });
+
+  it('opens a trade record to the trades behind it, instead of the franchise', async () => {
+    const onViewFranchise = vi.fn();
+    renderWithProviders(<RecordBook franchises={FRANCHISES} onViewFranchise={onViewFranchise} />);
+    await screen.findByRole('heading', { name: 'Winning' });
+
+    const card = screen.getByRole('region', { name: 'Most trades' });
+    const [first] = within(card).getAllByRole('listitem');
+    const toggle = within(first).getByRole('button', { expanded: false });
+    fireEvent.click(toggle);
+
+    expect(onViewFranchise).not.toHaveBeenCalled();
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+    // Newest first, and the drop ESPN filed as a trade of its own is not one.
+    const trades = within(first).getByRole('list', { name: 'Trades' });
+    expect(trades.children).toHaveLength(2);
+    const [latest, earlier] = trades.children;
+    expect(within(latest).getByText(/^Wk 3 · /)).toBeInTheDocument();
+    expect(
+      within(within(latest).getByRole('list', { name: 'Franchise f-alpha0 received' })).getByText('Kicker Four')
+    ).toBeInTheDocument();
+
+    // Each side lists what it received; the drop that made room is not received by anyone.
+    const alphaGot = within(earlier).getByRole('list', { name: 'Franchise f-alpha0 received' });
+    const bravoGot = within(earlier).getByRole('list', { name: 'Franchise f-bravo0 received' });
+    expect(within(alphaGot).getByText('Runner One')).toBeInTheDocument();
+    expect(within(bravoGot).getByText('Catcher Two')).toBeInTheDocument();
+    expect(within(bravoGot).queryByText('Spare Three')).not.toBeInTheDocument();
+    expect(within(earlier).getByText('Dropped Spare Three')).toBeInTheDocument();
+
+    // The count is ESPN's; where it runs past the trades on record, that is said.
+    expect(within(first).getByText('1 more counted trade has no detail on record.')).toBeInTheDocument();
+    expect(screen.queryByText('Owner A')).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(within(first).queryByRole('list', { name: 'Trades' })).not.toBeInTheDocument();
   });
 
   it('says so when the record book does not load', async () => {

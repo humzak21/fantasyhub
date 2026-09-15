@@ -22,7 +22,8 @@ import {
   rankRows,
   recordRows,
   recordSetYear,
-  streakRuns
+  streakRuns,
+  tradesForRow
 } from '../recordBook/index.js';
 
 const S24 = { id: 's24', year: 2024, isCompleted: true, regularSeasonWeeks: 3 };
@@ -236,6 +237,62 @@ describe('buildRecordBook', () => {
     ]));
     expect(recordRows(book, 'season', 'faabBids').map((row) => row.playerName)).toEqual(['Waiver Guy']);
     expect(valueOf(recordRows(book, 'season', 'rosterMoves'), 'fA')).toBe(9);
+  });
+
+  it("lists a row's trades newest first, its own franchise first, and nothing that moved nobody", () => {
+    const tradeBook = buildRecordBook({
+      ...SOURCE,
+      trades: [
+        {
+          id: 't1', seasonId: 's24', week: 2, processedAt: '2024-09-12T15:00:00.000Z',
+          franchiseIds: ['fA', 'fB'],
+          players: [
+            { espnPlayerId: 1, name: 'One', position: 'RB' },
+            { espnPlayerId: 2, name: 'Two', position: 'WR' },
+            { espnPlayerId: 3, name: 'Three', position: 'TE' }
+          ],
+          fromFranchiseIds: ['fB', 'fA', 'fA'],
+          toFranchiseIds: ['fA', 'fB', null]
+        },
+        // ESPN's rows that are not trades: the drop filed again, and nothing at all.
+        {
+          id: 't1-drop', seasonId: 's24', week: 2, franchiseIds: ['fA'],
+          players: [{ espnPlayerId: 3 }], fromFranchiseIds: ['fA'], toFranchiseIds: [null]
+        },
+        { id: 'empty', seasonId: 's24', week: 4, franchiseIds: [], players: [] },
+        // Stored before direction was.
+        { id: 't2', seasonId: 's25', week: 1, franchiseIds: ['fC', 'fA'], players: [{ espnPlayerId: 4, name: 'Four' }] }
+      ]
+    });
+
+    expect(tradeBook.trades.map((trade) => trade.id)).toEqual(['t2', 't1']);
+
+    const [latest, earlier] = tradesForRow(tradeBook, { franchiseId: 'fA' });
+    // No direction on record: the players, and no side guessed for them.
+    expect(latest.directed).toBe(false);
+    expect(latest.sides.map((side) => side.franchiseId)).toEqual(['fA', 'fC']);
+    expect(latest.sides.every((side) => side.received.length === 0)).toBe(true);
+    expect(latest.players.map((player) => player.name)).toEqual(['Four']);
+
+    expect(earlier.sides).toEqual([
+      {
+        franchiseId: 'fA',
+        received: [{ espnPlayerId: 1, name: 'One', position: 'RB' }],
+        dropped: [{ espnPlayerId: 3, name: 'Three', position: 'TE' }]
+      },
+      { franchiseId: 'fB', received: [{ espnPlayerId: 2, name: 'Two', position: 'WR' }], dropped: [] }
+    ]);
+
+    // A team-season row is that season's trades; a pair row is the pair's, partner second.
+    expect(tradesForRow(tradeBook, { franchiseId: 'fA', year: 2024 }).map((trade) => trade.id)).toEqual(['t1']);
+    expect(
+      tradesForRow(tradeBook, { franchiseId: 'fB', partnerFranchiseId: 'fA' })
+        .map((trade) => trade.sides.map((side) => side.franchiseId))
+    ).toEqual([['fB', 'fA']]);
+    expect(tradesForRow(tradeBook, { franchiseId: 'fB', partnerFranchiseId: 'fC' })).toEqual([]);
+
+    // The rows that are not trades make no partners either.
+    expect(recordRows(tradeBook, 'career', 'tradePartners')).toHaveLength(2);
   });
 
   it('calls the current season and the one before it recent', () => {
