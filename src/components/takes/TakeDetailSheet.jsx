@@ -59,7 +59,7 @@ import {
 
 const FieldRow = ({ label, children }) => (
   <div className="flex items-baseline justify-between gap-4 border-b border-border py-2.5 last:border-b-0">
-    <span className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">{label}</span>
+    <span className="text-[13px] font-medium text-muted-foreground">{label}</span>
     <span className="text-right text-sm text-foreground">{children}</span>
   </div>
 );
@@ -219,8 +219,8 @@ export function TakeDetailSheet({
                   read before the button below it. */}
               {staked && (
                 <div className="rounded-lg border border-border bg-muted/40 p-4">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    <Coins className="mr-1 inline h-3.5 w-3.5 text-warning" aria-hidden="true" />
+                  <h3 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+                    <Coins className="h-4 w-4 text-warning" aria-hidden="true" />
                     The bet
                   </h3>
                   <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-foreground">
@@ -253,8 +253,8 @@ export function TakeDetailSheet({
               remove them. */}
           {(staked || participants.length > 0) && (
           <div>
-            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-              <ThumbsDown className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+            <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold text-foreground">
+              <ThumbsDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               Hell nah&apos;d by {participants.length}
             </h3>
 
@@ -377,8 +377,8 @@ export function TakeDetailSheet({
               too many. */}
           {isAdmin && !isEditing && (
             <div className="border-t border-border pt-4">
-              <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                <ShieldCheck className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+              <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold text-foreground">
+                <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 Admin
               </h3>
               <div className="flex flex-wrap items-center gap-2">

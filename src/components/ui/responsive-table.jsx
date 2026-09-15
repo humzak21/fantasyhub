@@ -201,7 +201,7 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
         >
           {secondary.map((c) => (
             <div key={c.key} className="min-w-0">
-              <dt className="truncate text-[10px] font-medium uppercase tracking-[0.05em] text-muted-foreground">
+              <dt className="truncate text-xs font-medium text-muted-foreground">
                 {c.cardLabel ?? c.header}
               </dt>
               <dd className="mt-0.5 truncate text-[13px] font-medium tabular">
@@ -232,7 +232,7 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
             <dl className="mt-1 grid grid-cols-3 gap-x-3 gap-y-2.5 border-t border-border/60 pt-3 xs:grid-cols-4">
               {detail.map((c) => (
                 <div key={c.key} className="min-w-0">
-                  <dt className="truncate text-[10px] font-medium uppercase tracking-[0.05em] text-muted-foreground">
+                  <dt className="truncate text-xs font-medium text-muted-foreground">
                     {c.cardLabel ?? c.header}
                   </dt>
                   <dd className="mt-0.5 truncate text-[13px] font-medium tabular">

@@ -22,10 +22,7 @@ import {
 } from './milestones.js';
 
 const FieldLabel = ({ htmlFor, children }) => (
-  <label
-    htmlFor={htmlFor}
-    className="mb-1 block text-[11px] uppercase tracking-[0.06em] text-muted-foreground"
-  >
+  <label htmlFor={htmlFor} className="mb-1 block text-[13px] font-medium text-muted-foreground">
     {children}
   </label>
 );
@@ -107,8 +104,8 @@ export function AdminTakeEditor({
       className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]"
     >
       <div>
-        <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-          <ShieldCheck className="mr-1 inline h-3.5 w-3.5 text-primary" aria-hidden="true" />
+        <h3 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
+          <ShieldCheck className="h-4 w-4 text-primary" aria-hidden="true" />
           Editing as admin
         </h3>
         <p className="mt-1 text-xs text-muted-foreground">

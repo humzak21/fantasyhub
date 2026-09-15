@@ -48,7 +48,7 @@ function ChangeRow({ field }) {
   if (field.multiline) {
     return (
       <div className="mt-2">
-        <span className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           {field.label}
         </span>
         {showsPrevious && (
@@ -65,7 +65,7 @@ function ChangeRow({ field }) {
 
   return (
     <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs">
-      <span className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
+      <span className="text-xs font-medium text-muted-foreground">
         {field.label}
       </span>
       {showsPrevious && (
@@ -126,8 +126,8 @@ export function TakeActivityLog({ events = [], displayNames = {}, seasonConfig, 
 
   return (
     <div className="border-t border-border pt-4">
-      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-        <History className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+      <h3 className="mb-3 flex items-center gap-1.5 text-base font-semibold text-foreground">
+        <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         Activity
       </h3>
 

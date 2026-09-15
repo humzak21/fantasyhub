@@ -1,6 +1,7 @@
 import { Flame } from 'lucide-react';
 
 import { EmptyState } from '../ui/empty-state';
+import { SectionHeading } from '../ui/section-heading';
 import { TakeCard } from './TakeCard.jsx';
 import { groupByMilestone } from './milestones.js';
 
@@ -42,14 +43,12 @@ export function TakesBoard({
     <div className="space-y-8">
       {sections.map((section) => (
         <section key={section.key}>
-          <div className="mb-3 flex items-baseline gap-2">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-              {section.label}
-            </h2>
-            <span className="text-[11px] tabular-nums text-muted-foreground/70">
-              {section.takes.length}
-            </span>
-          </div>
+          <SectionHeading
+            className="mb-4"
+            aside={<span className="tabular-nums">{section.takes.length}</span>}
+          >
+            {section.label}
+          </SectionHeading>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {section.takes.map((take) => (

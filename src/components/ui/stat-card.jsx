@@ -59,10 +59,15 @@ const StatCard = React.forwardRef(
         )}
         {...props}
       >
+        {/* The label is the card's heading, so it is set like one: sentence
+            case, in the foreground colour, at a size that reads on black. It
+            was 11px uppercase grey, which passed contrast on paper (7:1) and
+            still disappeared — at that size letterforms are too small to read
+            at a glance, and all-caps removes the word shapes that help. */}
         <div className="flex items-start justify-between gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+          <h3 className="text-base font-semibold leading-snug text-foreground">
             {label}
-          </span>
+          </h3>
           {Icon && (
             <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', iconTone)}>
               <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -74,7 +79,7 @@ const StatCard = React.forwardRef(
           {format ? <NumberText value={value} variant={format} /> : value}
         </div>
 
-        {footer && <div className="text-[12px] leading-snug text-muted-foreground">{footer}</div>}
+        {footer && <div className="text-[13px] leading-snug text-muted-foreground">{footer}</div>}
         {children}
       </div>
     );
