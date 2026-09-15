@@ -67,6 +67,15 @@ function describeRow(record, row, identity) {
           .filter(Boolean)
           .join(' · ')
       };
+    // The league as one team: the row is a week or a season, not a franchise.
+    case 'leagueWeek': {
+      let meta = null;
+      if (row.franchiseIds?.length) meta = row.franchiseIds.map((id) => identity.franchiseName(id)).join(' & ');
+      else if (row.average != null) meta = `${formatScore(row.average)} per team`;
+      return { name: `Week ${row.week}, ${row.year}`, meta };
+    }
+    case 'leagueSeason':
+      return { name: String(row.year), meta: `${row.weeks} weeks · ${row.games} games` };
     default:
       return { name: franchise, meta: null };
   }
@@ -178,6 +187,9 @@ function TradeList({ id, trades, count, identity }) {
 function RecordRow({ record, row, book, identity, onViewFranchise, detailId, recent = false }) {
   const { name, meta, active } = describeRow(record, row, identity);
   const opensTrades = expandsTrades(record);
+  // A league-wide row is no franchise's: there is nothing for it to open.
+  const interactive = opensTrades || Boolean(row.franchiseId);
+  const Row = interactive ? 'button' : 'div';
   const [open, setOpen] = useState(false);
 
   const trades = useMemo(
@@ -194,14 +206,22 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, rec
           showDelta={false}
           title={row.tied ? `Tied for ${formatOrdinal(row.rank)}` : undefined}
         />
-        <button
-          type="button"
-          onClick={opensTrades ? () => setOpen((isOpen) => !isOpen) : () => onViewFranchise(row.franchiseId)}
-          aria-expanded={opensTrades ? open : undefined}
-          aria-controls={opensTrades && open ? detailId : undefined}
-          className="-my-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        <Row
+          {...(interactive
+            ? {
+                type: 'button',
+                onClick: opensTrades ? () => setOpen((isOpen) => !isOpen) : () => onViewFranchise(row.franchiseId),
+                'aria-expanded': opensTrades ? open : undefined,
+                'aria-controls': opensTrades && open ? detailId : undefined
+              }
+            : {})}
+          className={cn(
+            '-my-1 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1.5 py-1 text-left',
+            interactive &&
+              'transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+          )}
         >
-          <TeamAvatar team={identity.avatar(row.franchiseId)} size="xs" />
+          {row.franchiseId && <TeamAvatar team={identity.avatar(row.franchiseId)} size="xs" />}
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium leading-tight">
               {name}
@@ -241,7 +261,7 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, rec
               aria-hidden="true"
             />
           )}
-        </button>
+        </Row>
       </div>
 
       {open && <TradeList id={detailId} trades={trades} count={row.value} identity={identity} />}

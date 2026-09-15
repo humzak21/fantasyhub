@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeftRight, Dices, Flame, ListChecks, Medal, Sparkles, Target, Trophy, Zap } from 'lucide-react';
+import { ArrowLeftRight, Dices, Flame, ListChecks, Medal, Sigma, Sparkles, Target, Trophy, Zap } from 'lucide-react';
 import { Card } from '../../ui/card';
 import { EmptyState } from '../../ui/empty-state';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
@@ -14,6 +14,7 @@ const SECTION_ICONS = {
   winning: Trophy,
   scoring: Zap,
   games: Target,
+  league: Sigma,
   playoffs: Medal,
   luck: Dices,
   lineups: ListChecks,
@@ -93,7 +94,8 @@ const RecordBook = ({
   }, [franchises, user, isAdmin, teamOwnerNames, book]);
 
   // With a season picked, a card with nothing for that season is left out —
-  // an in-progress year has games and streaks but no season totals yet.
+  // an in-progress year has games and streaks but no season totals yet — and
+  // so is a league-wide season record, which would be a list of one.
   const sections = useMemo(() => {
     if (!book) return [];
     return SECTIONS
@@ -102,6 +104,7 @@ const RecordBook = ({
         records: RECORDS.filter((record) => record.scope === scope && record.section === section.id)
           .filter((record) =>
             year == null ||
+            !record.perSeason &&
             rankRows(recordRows(book, record.scope, record.data, { year }), {
               hideZero: hidesZero(record),
               limit: 1

@@ -796,6 +796,15 @@ Rules that are load-bearing:
 - **Unknown is absent, never zero**, the power ranking's rule again: a season
   with no lineup data has no lineup rows. Counts ranked high-to-low hide zeros
   (`hidesZero`).
+- **League-wide records are the league as one team** (Single Season → League-wide):
+  every team's figures added together, one row per regular-season week or per
+  completed season, with no franchise behind the row and nothing to click. A
+  week counts only once every team in that season has a scored game in it (the
+  source reads scored games only, so a half-played week would otherwise hold
+  every "lowest" record); league bench points need every team's lineup that
+  week. Season rows are `perSeason` in the catalog and are left out when one
+  season is picked, since a list of one ranks nothing. League trades count
+  `book.trades`, not `transactions.trades`, which counts each trade once per side.
 - **Luck** is wins minus all-play expected wins (all-play win share × games);
   **schedule strength** is the opponents' season PPG; a streak across seasons
   breaks on a season the franchise sat out.

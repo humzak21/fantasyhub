@@ -15,7 +15,8 @@
  *
  *   book.career[key]  one row per franchise (streaks: one row per streak)
  *   book.season[key]  one row per team-season, game, bid, trade pair or
- *                     in-season streak, each carrying its `year`
+ *                     in-season streak, each carrying its `year` — and the
+ *                     league-wide `league*` rows, one per week or season
  *   book.trades       every trade, newest first, with who received whom
  *
  * Rules that are load-bearing:
@@ -143,6 +144,7 @@ function buildSides(games, seasonById, teamById) {
       isBlowout: Boolean(game.isBlowout),
       isClose: Boolean(game.isClose),
       weeklyHigh: false,
+      weeklyLow: false,
       facedTop: false,
       apW: 0,
       apL: 0,
@@ -159,9 +161,10 @@ function buildSides(games, seasonById, teamById) {
 }
 
 /**
- * The week-level facts: who had the high score, who faced it, and each team's
- * all-play record — how it would have done against every other team that week.
- * Ties share the high score, and an all-play tie is half a win.
+ * The week-level facts: who had the high and low scores, who faced the high,
+ * and each team's all-play record — how it would have done against every other
+ * team that week. Ties share a high or low score, and an all-play tie is half a
+ * win.
  */
 function markWeeks(sides) {
   const weeks = groupBy(
@@ -171,9 +174,11 @@ function markWeeks(sides) {
 
   for (const week of weeks.values()) {
     const high = Math.max(...week.map((side) => side.pf));
+    const low = Math.min(...week.map((side) => side.pf));
 
     for (const side of week) {
       side.weeklyHigh = side.pf === high;
+      side.weeklyLow = side.pf === low;
       side.facedTop = side.pa === high;
       for (const other of week) {
         if (other === side) continue;
@@ -200,7 +205,7 @@ const emptyAggregate = (team, side) => ({
   scores: [], opponents: [],
   apW: 0, apL: 0, apT: 0,
   blowoutWins: 0, blowoutLosses: 0, narrowWins: 0, narrowLosses: 0,
-  weeklyHighs: 0, facedTop: 0,
+  weeklyHighs: 0, weeklyLows: 0, facedTop: 0,
   week1Wins: 0, week1Losses: 0, week1Ties: 0,
   rivalryWins: 0, rivalryLosses: 0, rivalryTies: 0,
   playoffWins: 0, playoffLosses: 0, playoffPoints: 0,
@@ -231,6 +236,7 @@ function aggregateTeamSeasons(sides, teamById, lineups) {
       a.apL += side.apL;
       a.apT += side.apT;
       if (side.weeklyHigh) a.weeklyHighs += 1;
+      if (side.weeklyLow) a.weeklyLows += 1;
       if (side.facedTop) a.facedTop += 1;
       if (side.week === 1) a[`week1${RESULT_SUFFIX[side.result]}`] += 1;
       if (isRivalryWeek(side.year, side.week)) a[`rivalry${RESULT_SUFFIX[side.result]}`] += 1;
@@ -360,6 +366,7 @@ function addSeasonRows(store, aggregates, transactions) {
     add('pointsAgainst', a.pa);
     add('pointDiff', a.pf - a.pa);
     add('weeklyHighs', a.weeklyHighs);
+    add('weeklyLows', a.weeklyLows);
     add('facedTop', a.facedTop);
     add('consistency', a.consistency);
     if (!a.madePlayoffs) add('pointsMissedPlayoffs', a.pf);
@@ -400,7 +407,7 @@ function addCareerRows(store, aggregates, transactions) {
       seasons: 0, games: 0, wins: 0, losses: 0, ties: 0, pf: 0, pa: 0,
       apW: 0, apL: 0, apT: 0,
       blowoutWins: 0, blowoutLosses: 0, narrowWins: 0, narrowLosses: 0,
-      weeklyHighs: 0, facedTop: 0, luck: 0,
+      weeklyHighs: 0, weeklyLows: 0, facedTop: 0, luck: 0,
       week1Wins: 0, week1Losses: 0, week1Ties: 0,
       rivalryWins: 0, rivalryLosses: 0, rivalryTies: 0,
       playoffWins: 0, playoffLosses: 0, playoffPoints: 0,
@@ -413,7 +420,7 @@ function addCareerRows(store, aggregates, transactions) {
 
     for (const key of [
       'games', 'wins', 'losses', 'ties', 'pf', 'pa', 'apW', 'apL', 'apT',
-      'blowoutWins', 'blowoutLosses', 'narrowWins', 'narrowLosses', 'weeklyHighs', 'facedTop',
+      'blowoutWins', 'blowoutLosses', 'narrowWins', 'narrowLosses', 'weeklyHighs', 'weeklyLows', 'facedTop',
       'week1Wins', 'week1Losses', 'week1Ties', 'rivalryWins', 'rivalryLosses', 'rivalryTies',
       'playoffWins', 'playoffLosses', 'playoffPoints', 'firstRoundWins', 'firstRoundExits',
       'lineupWeeks', 'starterPoints', 'optimalPoints', 'perfectWeeks',
@@ -472,6 +479,7 @@ function addCareerRows(store, aggregates, transactions) {
 
     add('pointsFor', c.pf);
     add('weeklyHighs', c.weeklyHighs);
+    add('weeklyLows', c.weeklyLows);
     add('scoringTitles', c.scoringTitles);
     add('facedTop', c.facedTop);
 
@@ -761,6 +769,91 @@ function addBidRows(season, bids, seasonById) {
 }
 
 // ---------------------------------------------------------------------------
+// The league as one team
+// ---------------------------------------------------------------------------
+
+/**
+ * League-wide records: every team's figures added together, one row per
+ * regular-season week or per completed season, with no franchise behind it.
+ *
+ * A week is the league's once every team in the season has a scored game in
+ * it. The source carries scored games only, so a week half played would
+ * otherwise hold every "lowest" record — the reason season totals wait for a
+ * completed season. Weeks include the season in progress; seasons do not.
+ * League bench points need every team's lineup that week: a missing lineup
+ * would read as nothing left on the bench.
+ */
+function addLeagueRows(store, sides, teamById, lineups, trades, transactions) {
+  const teamsBySeason = new Map();
+  for (const team of teamById.values()) {
+    teamsBySeason.set(team.seasonId, (teamsBySeason.get(team.seasonId) ?? 0) + 1);
+  }
+
+  const lineupByTeamWeek = new Map(lineups.map((row) => [`${row.teamId}:${row.week}`, row]));
+  const lineupFor = (side) => lineupByTeamWeek.get(`${side.teamId}:${side.week}`);
+  const hasLineup = (row) => Boolean(row) && Number.isFinite(row.starterPoints) && Number.isFinite(row.optimalPoints);
+  // Each game is two sides; count it once.
+  const gamesWhere = (list, flag) => list.filter((side) => side.isTeam1 && side[flag]).length;
+  const holders = (list, score) => list.filter((side) => side.pf === score).map((side) => side.franchiseId);
+
+  const regular = sides.filter((side) => side.phase === 'regular');
+
+  for (const week of groupBy(regular, (side) => `${side.seasonId}:${side.week}`).values()) {
+    if (week.length !== teamsBySeason.get(week[0].seasonId)) continue;
+
+    const scores = week.map((side) => side.pf);
+    const points = sum(scores);
+    const low = Math.min(...scores);
+    const high = Math.max(...scores);
+    const base = { year: week[0].year, week: week[0].week, games: week.length / 2 };
+    const add = (key, value, extra = {}) => push(store, key, { ...base, ...extra, value: round(value, 2) });
+
+    add('leagueWeekPoints', points, { average: round(points / week.length, 2) });
+    add('leagueWeekFloor', low, { franchiseIds: holders(week, low) });
+    add('leagueWeekCeiling', high, { franchiseIds: holders(week, high) });
+    add('leagueWeekBlowouts', gamesWhere(week, 'isBlowout'));
+    add('leagueWeekNarrow', gamesWhere(week, 'isClose'));
+
+    const weekLineups = week.map(lineupFor);
+    if (weekLineups.every(hasLineup)) {
+      const bench = sum(weekLineups.map((row) => row.optimalPoints - row.starterPoints));
+      add('leagueWeekBench', bench, { average: round(bench / week.length, 2) });
+    }
+  }
+
+  const tradesByYear = groupBy(trades, (trade) => trade.year);
+  const txBySeason = groupBy(transactions, (tx) => tx.seasonId);
+
+  for (const [seasonId, list] of groupBy(regular.filter((side) => side.completedSeason), (side) => side.seasonId)) {
+    const { year } = list[0];
+    const points = sum(list.map((side) => side.pf));
+    const base = { year, weeks: new Set(list.map((side) => side.week)).size, games: list.length / 2 };
+    const add = (key, value) => push(store, key, { ...base, value: round(value) });
+
+    add('leaguePoints', points);
+    add('leaguePpg', points / list.length);
+    add('leagueBlowouts', gamesWhere(list, 'isBlowout'));
+    add('leagueNarrow', gamesWhere(list, 'isClose'));
+
+    // Over the weeks with lineups on record, as the team-level efficiency is.
+    const seasonLineups = list.map(lineupFor).filter(hasLineup);
+    if (seasonLineups.length > 0) {
+      const started = sum(seasonLineups.map((row) => row.starterPoints));
+      const optimal = sum(seasonLineups.map((row) => row.optimalPoints));
+      add('leagueLineupEfficiency', (started / optimal) * 100);
+    }
+
+    const txs = txBySeason.get(seasonId);
+    if (txs) {
+      // From the trades themselves: `transactions.trades` counts each once per side.
+      add('leagueTrades', tradesByYear.get(year)?.length ?? 0);
+      add('leagueRosterMoves', sum(txs.map(rosterMoves)));
+      add('leagueFaabSpent', sum(txs.map((tx) => tx.faabSpent ?? 0)));
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Entry points
 // ---------------------------------------------------------------------------
 
@@ -795,6 +888,7 @@ export function buildRecordBook(source = {}) {
   const trades = buildTrades(source.trades ?? [], seasonById);
   addTradeRows(career, season, trades);
   addBidRows(season, source.bids ?? [], seasonById);
+  addLeagueRows(season, sides, teamById, source.lineups ?? [], trades, source.transactions ?? []);
 
   const yearsPlayed = new Set(sides.map((side) => side.year));
 
