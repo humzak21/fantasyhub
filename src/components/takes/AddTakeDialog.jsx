@@ -19,37 +19,21 @@ import {
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
-import { listWeeks } from '../../../utils/seasonConfig.js';
-import { getWeekLabel } from '../../../utils/weekLabelUtils.js';
 import {
-  TARGET_END_OF_REGULAR_SEASON,
+  MAX_BODY,
+  MAX_WAGER,
   TARGET_END_OF_SEASON,
-  TARGET_WEEK
+  TARGET_WEEK,
+  milestoneKey,
+  milestoneOptions,
+  parseMilestoneValue
 } from './milestones.js';
-
-const MAX_BODY = 500;
-
-/** Mirrors `takes_wager_check`. The stake is a phrase — "$20", "40 FAAB" — not
- *  an essay, and a length the database will refuse should not be typeable. */
-const MAX_WAGER = 200;
-
-/** The two terminal milestones, as `Select` values. Weeks are `week:N`, so one
- *  string carries both the type and the week and the Select stays flat. */
-const END_OF_REGULAR_SEASON = TARGET_END_OF_REGULAR_SEASON;
-const END_OF_SEASON = TARGET_END_OF_SEASON;
-
-const weekValue = (week) => `${TARGET_WEEK}:${week}`;
-
-function parseMilestone(value) {
-  if (value === END_OF_REGULAR_SEASON || value === END_OF_SEASON) {
-    return { targetType: value, targetWeek: null };
-  }
-  const [, week] = value.split(':');
-  return { targetType: TARGET_WEEK, targetWeek: Number(week) };
-}
 
 /**
  * Post a take, or reword one.
+ *
+ * Milestones are `Select` values in `milestoneKey` form — weeks are `week:N`,
+ * so one string carries both the type and the week and the Select stays flat.
  *
  * Edit mode leaves the milestone control mounted but disabled. That is not a
  * courtesy: `takes_guard_author_update` rejects an UPDATE that moves the
@@ -70,7 +54,7 @@ export function AddTakeDialog({
 
   const [body, setBody] = useState('');
   const [wager, setWager] = useState('');
-  const [milestone, setMilestone] = useState(END_OF_SEASON);
+  const [milestone, setMilestone] = useState(TARGET_END_OF_SEASON);
   const [error, setError] = useState(null);
 
   // Seed on open, not on mount: the dialog stays mounted between openings, so
@@ -87,15 +71,16 @@ export function AddTakeDialog({
     setWager(take?.wager ?? '');
 
     if (take) {
-      setMilestone(
-        take.targetType === TARGET_WEEK ? weekValue(take.targetWeek) : take.targetType
-      );
+      setMilestone(milestoneKey(take));
     } else {
-      setMilestone(defaultWeek ? weekValue(defaultWeek) : END_OF_SEASON);
+      setMilestone(
+        defaultWeek
+          ? milestoneKey({ targetType: TARGET_WEEK, targetWeek: defaultWeek })
+          : TARGET_END_OF_SEASON
+      );
     }
   }, [open, take, defaultWeek]);
 
-  const weeks = listWeeks(seasonConfig);
   const remaining = MAX_BODY - body.length;
 
   const handleSubmit = async (event) => {
@@ -123,7 +108,7 @@ export function AddTakeDialog({
       await onSubmit({
         body: trimmed,
         wager: trimmedWager || null,
-        ...parseMilestone(milestone)
+        ...parseMilestoneValue(milestone)
       });
       onOpenChange(false);
     } catch (submitError) {
@@ -191,17 +176,11 @@ export function AddTakeDialog({
                   <SelectValue placeholder="When does this settle?" />
                 </SelectTrigger>
                 <SelectContent>
-                  {weeks.map((week) => (
-                    <SelectItem key={week} value={weekValue(week)}>
-                      {getWeekLabel(
-                        week,
-                        seasonConfig?.regularSeasonWeeks,
-                        seasonConfig?.weekCount
-                      )}
+                  {milestoneOptions(seasonConfig).map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
                     </SelectItem>
                   ))}
-                  <SelectItem value={END_OF_REGULAR_SEASON}>End of regular season</SelectItem>
-                  <SelectItem value={END_OF_SEASON}>End of season</SelectItem>
                 </SelectContent>
               </Select>
               <p className="mt-1 text-xs text-muted-foreground">

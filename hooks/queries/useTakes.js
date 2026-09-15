@@ -95,6 +95,20 @@ export function useTakesMutations(seasonId) {
     reopenTake: useMutation({
       mutationFn: ({ takeId }) => db().takes.reopenTake(takeId),
       onSuccess: invalidate
+    }),
+    // The admin's three. Same invalidation as every other write: each changes
+    // the board and the open take's log, both under `['takes', seasonId]`.
+    adminUpdateTake: useMutation({
+      mutationFn: ({ takeId, patch }) => db().takes.adminUpdateTake({ takeId, patch }),
+      onSuccess: invalidate
+    }),
+    addFadeFor: useMutation({
+      mutationFn: ({ takeId, userId }) => db().takes.addFadeFor({ takeId, seasonId, userId }),
+      onSuccess: invalidate
+    }),
+    removeFadeFor: useMutation({
+      mutationFn: ({ takeId, userId }) => db().takes.removeFadeFor({ takeId, userId }),
+      onSuccess: invalidate
     })
   };
 }

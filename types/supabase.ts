@@ -2218,6 +2218,7 @@ export type Database = {
       }
       take_events: {
         Row: {
+          acted_as_admin: boolean
           actor_id: string | null
           changes: Json
           created_at: string
@@ -2229,6 +2230,7 @@ export type Database = {
           take_id: string
         }
         Insert: {
+          acted_as_admin?: boolean
           actor_id?: string | null
           changes?: Json
           created_at?: string
@@ -2240,6 +2242,7 @@ export type Database = {
           take_id: string
         }
         Update: {
+          acted_as_admin?: boolean
           actor_id?: string | null
           changes?: Json
           created_at?: string

@@ -1,4 +1,16 @@
-import { Check, Coins, Minus, Pencil, RotateCcw, ThumbsDown, Trash2, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import {
+  Check,
+  Coins,
+  Minus,
+  Pencil,
+  Plus,
+  RotateCcw,
+  ShieldCheck,
+  ThumbsDown,
+  Trash2,
+  X
+} from 'lucide-react';
 
 import {
   Sheet,
@@ -18,11 +30,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from '../ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '../ui/select';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { formatDate, formatDateTime } from '../../lib/utils';
 import { getMaskedUserName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { AdminTakeEditor } from './AdminTakeEditor.jsx';
 import { TakeActivityLog } from './TakeActivityLog.jsx';
 import {
   STATUS_BADGE,
@@ -45,6 +65,54 @@ const FieldRow = ({ label, children }) => (
 );
 
 /**
+ * The admin placing a Hell Nah for somebody. Offered only on a staked take —
+ * the league's rule is that nothing staked means nothing to fade, and the admin
+ * overriding it by accident is likelier than on purpose.
+ */
+function AdminFadeAdder({ take, members, onAdd, pending }) {
+  const [userId, setUserId] = useState('');
+
+  const taken = new Set([
+    take.userId,
+    ...(take.takeParticipants || []).map((participant) => participant.userId)
+  ]);
+  const options = members.filter((member) => !taken.has(member.id));
+
+  if (options.length === 0) return null;
+
+  const handleAdd = async () => {
+    if (await onAdd?.(take, userId)) setUserId('');
+  };
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <Select value={userId} onValueChange={setUserId}>
+        <SelectTrigger className="w-full sm:w-60" aria-label="Member to add a Hell Nah for">
+          <SelectValue placeholder="Add a Hell Nah for…" />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((member) => (
+            <SelectItem key={member.id} value={member.id}>
+              {member.displayName}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
+        disabled={!userId || pending}
+        onClick={handleAdd}
+      >
+        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+        Add
+      </Button>
+    </div>
+  );
+}
+
+/**
  * One take, in full: who called it, who joined, and what the admin did about it.
  *
  * It reads its take from the board query's cache rather than fetching — the
@@ -56,6 +124,11 @@ const FieldRow = ({ label, children }) => (
  * the same way: fetched by the caller, passed in here. This component stays
  * presentational, so a test can render any history it likes without a query
  * client standing behind it.
+ *
+ * For the admin, every facet is editable in place — `AdminTakeEditor` swaps in
+ * for the take while an edit is open, and the roster gains remove and add
+ * controls. None of that is a separate path: the admin's writes land in the
+ * same log as everybody's, signed "Admin" by the database.
  */
 export function TakeDetailSheet({
   take,
@@ -71,9 +144,22 @@ export function TakeDetailSheet({
   onDelete,
   onResolve,
   onReopen,
-  pending
+  pending,
+  members = [],
+  onAdminSave,
+  adminSaving,
+  onAdminAddFade,
+  onAdminRemoveFade
 }) {
   const { user, isAdmin, teamOwnerNames } = useViewer();
+  const [editing, setEditing] = useState(false);
+
+  // An edit belongs to one take in one opening of the sheet. Closing it, or
+  // opening another take, must not come back to a half-finished form.
+  const takeId = take?.id;
+  useEffect(() => {
+    setEditing(false);
+  }, [takeId, open]);
 
   if (!take) return null;
 
@@ -84,6 +170,17 @@ export function TakeDetailSheet({
   const staked = hasWager(take);
   const faded = hasFaded(take, user);
   const canToggle = canFade(take, user);
+  const isEditing = isAdmin && editing;
+
+  // The admin's editor supersedes the author's composer, so the admin is not
+  // offered two Edit buttons on their own take.
+  const showAuthorEdit = !isAdmin && canEditTake(take, user);
+  const showDelete = !isEditing && canDeleteTake(take, user);
+
+  const handleAdminSave = async (patch) => {
+    await onAdminSave?.(take, patch);
+    setEditing(false);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -98,46 +195,63 @@ export function TakeDetailSheet({
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
-          <div className="rounded-lg border border-border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]">
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-              {take.body}
-            </p>
-          </div>
+          {isEditing ? (
+            <AdminTakeEditor
+              take={take}
+              seasonConfig={seasonConfig}
+              members={members}
+              nameOf={nameOf}
+              onSave={handleAdminSave}
+              onCancel={() => setEditing(false)}
+              saving={adminSaving}
+            />
+          ) : (
+            <>
+              <div className="rounded-lg border border-border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]">
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+                  {take.body}
+                </p>
+              </div>
 
-          {/* Its own block rather than a FieldRow: those right-align a short
-              value on one line, and a stake runs to 200 characters. The terms
-              sit with it, because this is the sentence somebody should have
-              read before the button below it. */}
-          {staked && (
-            <div className="rounded-lg border border-border bg-muted/40 p-4">
-              <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                <Coins className="mr-1 inline h-3.5 w-3.5 text-warning" aria-hidden="true" />
-                The bet
-              </h3>
-              <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-foreground">
-                {take.wager}
-              </p>
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                {fadeTerms(take)}
-              </p>
-            </div>
+              {/* Its own block rather than a FieldRow: those right-align a short
+                  value on one line, and a stake runs to 200 characters. The terms
+                  sit with it, because this is the sentence somebody should have
+                  read before the button below it. */}
+              {staked && (
+                <div className="rounded-lg border border-border bg-muted/40 p-4">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    <Coins className="mr-1 inline h-3.5 w-3.5 text-warning" aria-hidden="true" />
+                    The bet
+                  </h3>
+                  <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-foreground">
+                    {take.wager}
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    {fadeTerms(take)}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <FieldRow label="Status">
+                  <Badge variant={STATUS_BADGE[take.status] ?? 'secondary'}>
+                    {STATUS_LABEL[take.status] ?? take.status}
+                  </Badge>
+                </FieldRow>
+                <FieldRow label="Resolves">{milestoneLabel(take, seasonConfig)}</FieldRow>
+                <FieldRow label="Posted">{formatDateTime(take.createdAt)}</FieldRow>
+                {take.editedAt && <FieldRow label="Edited">{formatDateTime(take.editedAt)}</FieldRow>}
+                {take.resolvedAt && <FieldRow label="Graded">{formatDateTime(take.resolvedAt)}</FieldRow>}
+              </div>
+            </>
           )}
 
-          <div>
-            <FieldRow label="Status">
-              <Badge variant={STATUS_BADGE[take.status] ?? 'secondary'}>
-                {STATUS_LABEL[take.status] ?? take.status}
-              </Badge>
-            </FieldRow>
-            <FieldRow label="Resolves">{milestoneLabel(take, seasonConfig)}</FieldRow>
-            <FieldRow label="Posted">{formatDateTime(take.createdAt)}</FieldRow>
-            {take.editedAt && <FieldRow label="Edited">{formatDateTime(take.editedAt)}</FieldRow>}
-            {take.resolvedAt && <FieldRow label="Graded">{formatDateTime(take.resolvedAt)}</FieldRow>}
-          </div>
-
           {/* Nothing staked, nothing to fade — so this whole section is absent
-              rather than an empty roster on a take that could never have one. */}
-          {staked && (
+              rather than an empty roster on a take that could never have one.
+              The exception is a take whose stake was cleared with fades still
+              on it: those rows exist, so they are shown, and the admin can
+              remove them. */}
+          {(staked || participants.length > 0) && (
           <div>
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
               <ThumbsDown className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
@@ -150,17 +264,34 @@ export function TakeDetailSheet({
               </p>
             ) : (
               <ul className="space-y-1.5">
-                {participants.map((participant) => (
-                  <li
-                    key={participant.id ?? participant.userId}
-                    className="flex items-baseline justify-between gap-4 text-sm"
-                  >
-                    <span className="truncate text-foreground">{nameOf(participant.userId)}</span>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {formatDate(participant.createdAt)}
-                    </span>
-                  </li>
-                ))}
+                {participants.map((participant) => {
+                  const name = nameOf(participant.userId);
+                  return (
+                    <li
+                      key={participant.id ?? participant.userId}
+                      className="flex items-center justify-between gap-4 text-sm"
+                    >
+                      <span className="truncate text-foreground">{name}</span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatDate(participant.createdAt)}
+                        </span>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            aria-label={`Remove ${name}'s Hell Nah`}
+                            disabled={pending}
+                            onClick={() => onAdminRemoveFade?.(take, participant.userId)}
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden="true" />
+                          </Button>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
 
@@ -185,19 +316,28 @@ export function TakeDetailSheet({
                 )}
               </Button>
             )}
+
+            {isAdmin && staked && (
+              <AdminFadeAdder
+                take={take}
+                members={members}
+                onAdd={onAdminAddFade}
+                pending={pending}
+              />
+            )}
           </div>
           )}
 
-          {(canEditTake(take, user) || canDeleteTake(take, user)) && (
+          {(showAuthorEdit || showDelete) && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              {canEditTake(take, user) && (
+              {showAuthorEdit && (
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onEdit?.(take)}>
                   <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                   Edit
                 </Button>
               )}
 
-              {canDeleteTake(take, user) && (
+              {showDelete && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
@@ -232,12 +372,25 @@ export function TakeDetailSheet({
             </div>
           )}
 
-          {isAdmin && (
+          {/* Hidden while the editor is open: the editor has its own status
+              control, and two ways to grade one take on screen at once is one
+              too many. */}
+          {isAdmin && !isEditing && (
             <div className="border-t border-border pt-4">
               <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                Grade this take
+                <ShieldCheck className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
+                Admin
               </h3>
               <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setEditing(true)}
+                >
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  Edit take
+                </Button>
                 {isPending(take) ? (
                   <>
                     <Button
@@ -284,11 +437,11 @@ export function TakeDetailSheet({
                   </Button>
                 )}
               </div>
-              {take.resolvedBy && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Graded by {nameOf(take.resolvedBy)}.
-                </p>
-              )}
+              <p className="mt-2 text-xs text-muted-foreground">
+                Anything you change on someone else&apos;s take, and every grade, shows in the
+                activity log as Admin.
+                {take.resolvedBy && <> Graded by {nameOf(take.resolvedBy)}.</>}
+              </p>
             </div>
           )}
 

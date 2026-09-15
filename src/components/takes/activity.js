@@ -17,12 +17,20 @@
  *     log; their old values were never recorded. Showing the take's *current*
  *     wording as what was "posted" would be a fabrication the reader has no way
  *     to catch, so the entry carries a note instead.
+ *
+ *   * **An admin act is signed "Admin".** `acted_as_admin` is stamped by the
+ *     log triggers when an act used the admin's privilege. The admin is also a
+ *     member, so their own name on a reworded take cannot tell a reader whether
+ *     the author changed their mind or the commissioner changed it for them.
  */
 
 import { STATUS_LABEL, milestoneLabel } from './milestones.js';
 
 /** How a missing stake reads. Not an empty string: see the note above. */
 const NO_STAKE = 'No stake';
+
+/** Who an admin act is attributed to. */
+export const ADMIN_ACTOR_NAME = 'Admin';
 
 /** `changes.milestone` carries the target type and week on either side; both
  *  go back through `milestoneLabel` so the log and the board agree that week 16
@@ -49,7 +57,7 @@ export function isBackfilled(event) {
  * time, or two entries describing the same kind of change read as different
  * kinds of change.
  */
-function editedFields(changes, config) {
+function editedFields(changes, config, nameOf) {
   const fields = [];
 
   if (changes?.body) {
@@ -82,22 +90,39 @@ function editedFields(changes, config) {
     });
   }
 
+  // Only the admin can reassign a take, and it moves who owes whom, so it is
+  // named on both sides like the stake.
+  if (changes?.author) {
+    fields.push({
+      key: 'author',
+      label: 'Posted by',
+      from: authorText(changes.author.from, nameOf),
+      to: authorText(changes.author.to, nameOf),
+      multiline: false
+    });
+  }
+
   return fields;
+}
+
+function authorText(userId, nameOf) {
+  return (userId && nameOf?.(userId)) || 'Unknown member';
 }
 
 /**
  * One event, as a heading and a set of before/after rows.
  *
- * `actorName` and `subjectName` are passed in rather than looked up: name
- * masking needs the viewer, which is context the component has and a pure
- * function should not reach for.
+ * `actorName`, `subjectName` and `nameOf` (for a reassigned author's two ids)
+ * are passed in rather than looked up: name masking needs the viewer, which is
+ * context the component has and a pure function should not reach for.
  *
  * Returns `{ kind, title, fields, note }`. `fields` with a null `from` render
  * as a plain value — that is a statement of what something *is* (what a take
  * was posted as) rather than of what it became.
  */
-export function describeTakeEvent(event, { actorName, subjectName, seasonConfig } = {}) {
-  const who = actorName || 'Someone';
+export function describeTakeEvent(event, { actorName, subjectName, nameOf, seasonConfig } = {}) {
+  const asAdmin = event?.actedAsAdmin === true;
+  const who = asAdmin ? ADMIN_ACTOR_NAME : actorName || 'Someone';
   const changes = event?.changes || {};
   const backfilled = isBackfilled(event);
 
@@ -145,17 +170,31 @@ export function describeTakeEvent(event, { actorName, subjectName, seasonConfig 
       return {
         kind: 'edited',
         title: `${who} edited this take`,
-        fields: backfilled ? [] : editedFields(changes, seasonConfig),
+        fields: backfilled ? [] : editedFields(changes, seasonConfig, nameOf),
         note
       };
 
     case 'graded': {
       const status = changes.status?.to;
       const label = STATUS_LABEL[status] ?? status ?? 'graded';
+      const previous = changes.status?.from;
       return {
         kind: 'graded',
         title: `${who} graded it ${label}`,
-        fields: [],
+        // A regrade — Correct to Incorrect, which the admin's editor can do in
+        // one save — is only meaningful against the grade it replaced.
+        fields:
+          previous && previous !== 'pending'
+            ? [
+                {
+                  key: 'status',
+                  label: 'Was',
+                  from: null,
+                  to: STATUS_LABEL[previous] ?? previous,
+                  multiline: false
+                }
+              ]
+            : [],
         note: backfilled ? note : null
       };
     }
@@ -187,7 +226,9 @@ export function describeTakeEvent(event, { actorName, subjectName, seasonConfig 
     // log has to name both people, or it reads as the fader changing their own
     // mind.
     case 'faded': {
-      const onBehalf = subjectName && actorName && subjectName !== actorName;
+      const onBehalf = Boolean(
+        subjectName && (asAdmin || (actorName && subjectName !== actorName))
+      );
       return {
         kind: 'faded',
         title: onBehalf
@@ -199,7 +240,9 @@ export function describeTakeEvent(event, { actorName, subjectName, seasonConfig 
     }
 
     case 'unfaded': {
-      const onBehalf = subjectName && actorName && subjectName !== actorName;
+      const onBehalf = Boolean(
+        subjectName && (asAdmin || (actorName && subjectName !== actorName))
+      );
       return {
         kind: 'unfaded',
         title: onBehalf

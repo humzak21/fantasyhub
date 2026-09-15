@@ -13,11 +13,19 @@
  * a button that is going to fail.
  */
 
+import { listWeeks } from '../../../utils/seasonConfig.js';
 import { getWeekLabel } from '../../../utils/weekLabelUtils.js';
 
 export const TARGET_WEEK = 'week';
 export const TARGET_END_OF_REGULAR_SEASON = 'end_of_regular_season';
 export const TARGET_END_OF_SEASON = 'end_of_season';
+
+/** Mirrors `takes_body_check`. */
+export const MAX_BODY = 500;
+
+/** Mirrors `takes_wager_check`. The stake is a phrase — "$20", "40 FAAB" — not
+ *  an essay, and a length the database will refuse should not be typeable. */
+export const MAX_WAGER = 200;
 
 /**
  * How long after posting an author may still reword their take. Mirrors the
@@ -62,6 +70,32 @@ export function milestoneKey(take) {
   return take?.targetType === TARGET_WEEK
     ? `week:${take.targetWeek}`
     : String(take?.targetType ?? 'unknown');
+}
+
+/** The inverse of `milestoneKey`, for a `Select` whose values are those keys:
+ *  `week:3` → `{ targetType: 'week', targetWeek: 3 }`, and a terminal milestone
+ *  carries no week. */
+export function parseMilestoneValue(value) {
+  if (typeof value === 'string' && value.startsWith(`${TARGET_WEEK}:`)) {
+    return { targetType: TARGET_WEEK, targetWeek: Number(value.slice(TARGET_WEEK.length + 1)) };
+  }
+  return { targetType: value, targetWeek: null };
+}
+
+/**
+ * Every milestone a take can resolve at, as `{ value, label }` in resolve
+ * order. One list for the composer and the admin's editor, so the two cannot
+ * offer different calendars.
+ */
+export function milestoneOptions(config = null) {
+  return [
+    ...listWeeks(config).map((week) => {
+      const take = { targetType: TARGET_WEEK, targetWeek: week };
+      return { value: milestoneKey(take), label: milestoneLabel(take, config) };
+    }),
+    { value: TARGET_END_OF_REGULAR_SEASON, label: 'End of regular season' },
+    { value: TARGET_END_OF_SEASON, label: 'End of season' }
+  ];
 }
 
 /**
