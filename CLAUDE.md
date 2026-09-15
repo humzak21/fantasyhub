@@ -216,7 +216,13 @@ admin button uses, sending no timestamps so the database derives the window
 from the season's `pickem_*` columns. It runs first so an ESPN outage cannot
 cost the league its pick'ems, is a no-op when the row exists (so the daily
 refresh doubles as a retry), and skips playoff weeks like the roster step. Before 2026-09-03 this was an admin pressing a button every
-Tuesday morning. Note the window still *opens* at `pickem_open_time`
+Tuesday morning. **The cron has no `auth.uid()`**, so a week it opens has a
+NULL `pick_em_weeks.user_id` — the column was NOT NULL until
+`20260915180000_pick_em_weeks_user_id_nullable.sql`, and on 2026-09-15, the
+first Tuesday the step had a row to create, that refused the insert and week 2
+never opened while the run reported success. A column the service role writes
+through a default of `auth.uid()` must be nullable;
+`supabase/tests/database/pick_em_weeks_service_role.test.sql` asserts it. Note the window still *opens* at `pickem_open_time`
 (04:00 by default) while the row appears at the 05:00 run; nothing reads the
 row in that hour, but a season that wants the two to coincide sets the open
 time to 05:00.
@@ -1379,7 +1385,11 @@ their subject. Components that consume `ViewerContext`, `ViewedWeekProvider` or
 TanStack Query must be rendered through `src/test/renderWithProviders.jsx`, not
 bare `render`. CI (`.github/workflows/ci.yml`) gates type-check, tests and
 build, the CSS token check, the mobile-convention greps, and a Playwright
-smoke job. Lint is advisory repo-wide until its pre-existing backlog is cleared
+smoke job. Its `migrations` job replays every migration into a throwaway
+Postgres and then runs the pgTAP tests in `supabase/tests/` against it — the
+place for anything the vitest suite's fake client cannot see: constraints,
+triggers, and which role a function runs as. They need Docker to run locally
+(`supabase start`, then `supabase test db`). Lint is advisory repo-wide until its pre-existing backlog is cleared
 (6 errors and 258 warnings as of the ESLint 9 migration; the "~800" this file
 used to claim predates the refactor and was never re-counted), **except** in
 `src/components/ui/**` and `src/components/layout/**`, where `rules-of-hooks`,

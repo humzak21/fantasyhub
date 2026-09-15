@@ -1289,7 +1289,7 @@ export type Database = {
           submission_closes_at: string
           submission_opens_at: string
           updated_at: string | null
-          user_id: string
+          user_id: string | null
           week_number: number
         }
         Insert: {
@@ -1303,7 +1303,7 @@ export type Database = {
           submission_closes_at: string
           submission_opens_at: string
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
           week_number: number
         }
         Update: {
@@ -1317,7 +1317,7 @@ export type Database = {
           submission_closes_at?: string
           submission_opens_at?: string
           updated_at?: string | null
-          user_id?: string
+          user_id?: string | null
           week_number?: number
         }
         Relationships: [
