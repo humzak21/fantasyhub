@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildRecordBook,
   isRecentRecord,
+  isRivalryWeek,
   rankRows,
   recordRows,
   recordSetYear,
@@ -262,5 +263,75 @@ describe('buildRecordBook', () => {
 
   it('lists the seasons that have games, newest first', () => {
     expect(book.years).toEqual([{ year: 2025, isCompleted: false }, { year: 2024, isCompleted: true }]);
+  });
+});
+
+/**
+ * Week 1, Rivalry Week and the first round, against their own grid:
+ *
+ * 2020 (week 14 was the playoffs):
+ *   wk1   C 100 – D  90
+ *   wk14  C 120 – D 100 (first round)
+ * 2023 (rivalry week is 14 only):
+ *   wk1   A 100 – B  90      C  95 – D 105
+ *   wk4   A  80 – B 120
+ *   wk14  A 110 – B 100
+ *   wk15  A  90 – B 100 (first round)   C 100 – D 90 (first round)
+ * 2025 (rivalry weeks are 4 and 14):
+ *   wk1   B 100 – A  90      C  80 – D  70
+ *   wk4   A 120 – B 100
+ *   wk14  A 100 – B 100
+ *   wk15  A  80 – D 100 (first round)
+ */
+describe('occasion records', () => {
+  const S20 = { id: 's20', year: 2020, isCompleted: true };
+  const S23 = { id: 's23', year: 2023, isCompleted: true };
+  const S25b = { id: 's25b', year: 2025, isCompleted: true };
+  const FIRST = 'playoff_first_round';
+
+  const occasions = buildRecordBook({
+    seasons: [S20, S23, S25b],
+    teams: [S20, S23, S25b].flatMap((season) => ['A', 'B', 'C', 'D'].map((key) => team(season, key))),
+    games: [
+      game(S20, 1, 'C', 100, 'D', 90),
+      game(S20, 14, 'C', 120, 'D', 100, FIRST),
+      game(S23, 1, 'A', 100, 'B', 90), game(S23, 1, 'C', 95, 'D', 105),
+      game(S23, 4, 'A', 80, 'B', 120),
+      game(S23, 14, 'A', 110, 'B', 100),
+      game(S23, 15, 'A', 90, 'B', 100, FIRST), game(S23, 15, 'C', 100, 'D', 90, FIRST),
+      game(S25b, 1, 'B', 100, 'A', 90), game(S25b, 1, 'C', 80, 'D', 70),
+      game(S25b, 4, 'A', 120, 'B', 100),
+      game(S25b, 14, 'A', 100, 'B', 100),
+      game(S25b, 15, 'A', 80, 'D', 100, FIRST)
+    ]
+  });
+  const rowOf = (key, franchiseId) =>
+    recordRows(occasions, 'career', key).find((row) => row.franchiseId === franchiseId);
+
+  it('calls week 14 a rivalry week every season, and week 4 from 2025', () => {
+    expect(isRivalryWeek(2020, 14)).toBe(true);
+    expect(isRivalryWeek(2024, 4)).toBe(false);
+    expect(isRivalryWeek(2025, 4)).toBe(true);
+    expect(isRivalryWeek(2026, 4)).toBe(true);
+    expect(isRivalryWeek(2025, 13)).toBe(false);
+  });
+
+  it('counts week 1 wins, with the week 1 record beside them', () => {
+    expect(rowOf('week1Wins', 'fC')).toMatchObject({ value: 2, record: { wins: 2, losses: 1, ties: 0 } });
+    expect(rowOf('week1Wins', 'fA')).toMatchObject({ value: 1, record: { wins: 1, losses: 1, ties: 0 } });
+  });
+
+  it('counts rivalry wins in regular-season games only', () => {
+    // A: won 2023 wk14 and 2025 wk4, tied 2025 wk14; 2023 wk4 was not a rivalry.
+    expect(rowOf('rivalryWins', 'fA')).toMatchObject({ value: 2, record: { wins: 2, losses: 0, ties: 1 } });
+    expect(rowOf('rivalryWins', 'fB')).toMatchObject({ value: 0, record: { wins: 0, losses: 2, ties: 1 } });
+    // C won 2020's week 14, but that was a playoff game.
+    expect(rowOf('rivalryWins', 'fC')).toMatchObject({ value: 0, record: { wins: 0, losses: 0, ties: 0 } });
+  });
+
+  it('counts a first-round loss as an exit, with the first-round record beside it', () => {
+    expect(rowOf('firstRoundExits', 'fA')).toMatchObject({ value: 2, record: { wins: 0, losses: 2, ties: 0 } });
+    expect(rowOf('firstRoundExits', 'fD')).toMatchObject({ value: 2, record: { wins: 1, losses: 2, ties: 0 } });
+    expect(rowOf('firstRoundExits', 'fC')).toMatchObject({ value: 0, record: { wins: 2, losses: 0, ties: 0 } });
   });
 });
