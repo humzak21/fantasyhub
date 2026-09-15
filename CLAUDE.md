@@ -526,6 +526,32 @@ can forget to log or choose what to log.
   it appears nowhere but the open detail sheet. Its key sits under
   `['takes', seasonId, …]` so the mutations' shared `invalidate()` reaches it.
 
+**The admin edits every facet of a take in its sheet, and the log signs it
+"Admin".** `AdminTakeEditor` (author, wording, stake, milestone, status) and
+the roster's remove / add-for controls write through the policies that
+already existed — `takes admin write` and `take_participants admin write` — so
+there is no RPC and no second write path. What is new is
+`take_events.acted_as_admin` (`20260915190000_take_events_admin_actor.sql`),
+stamped by the two log triggers and never by the client:
+
+- **The rule is "used the admin's privilege", not "is the admin".** Graded and
+  reopened are always admin acts. An edit is one unless it is the author's own
+  reword of body/wager inside 72 hours, ungraded, touching nothing else. A
+  Hell Nah is one when it is moved for somebody else, or is one a member could
+  not have placed or withdrawn. So the admin posting, rewording or fading as a
+  member still reads under their own name. The trigger restates the member
+  policies over OLD/NEW; changing a policy means changing it there too.
+- **`is_admin()`, not `can_write_league()`**, against the usual rule, because
+  this is attribution rather than a guard: a service-role pass has no person
+  behind it and must not read "Admin".
+- **`changes.author`** records a reassignment with both user ids;
+  `getTakeActivity` resolves those names with the actors'.
+- **`buildAdminTakePatch` sends only the fields that moved.** Resending an
+  unchanged grade comes with a fresh `resolved_at`/`resolved_by`, re-dating
+  and re-attributing it. `adminUpdateTake` is one UPDATE, so one save is one
+  `edited` event (plus `graded`/`reopened` if the status moved).
+- `supabase/tests/database/take_events_admin.test.sql` asserts both halves.
+
 **Times are `hour: 'numeric'`, never `'2-digit'`.** The latter renders 8:42 PM
 as "08:42 PM", which is not a clock face anybody writes. `formatDateTime` in
 `src/lib/utils.js` is the single definition; minutes stay 2-digit.

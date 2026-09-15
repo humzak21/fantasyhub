@@ -291,6 +291,137 @@ export async function reopenTake(ctx, takeId) {
 }
 
 /**
+ * The admin's edit: any facet of a take, in one statement.
+ *
+ * One UPDATE rather than a call per field, because the log is written per
+ * statement — rewording, restaking and moving the milestone in one save is one
+ * `edited` event carrying every field, exactly as it is for an author. A grade
+ * change in the same save adds its own `graded` or `reopened` row beside it.
+ *
+ * `patch` holds only what moved (`buildAdminTakePatch`). The columns go up
+ * under the `takes admin write` policy, `takes_guard_author_update` lets the
+ * admin through, and the log triggers sign the result "Admin" — so nothing
+ * here decides who may do this or how it is attributed.
+ *
+ * The grade carries its resolution columns with it, the same pairing as
+ * `resolveTake` / `reopenTake`, because `takes_resolution_check` refuses a
+ * status without them. The milestone travels as a type and a week together
+ * for `takes_target_week_check`.
+ */
+export async function adminUpdateTake(ctx, { takeId, patch = {} }) {
+  try {
+    if (!takeId) throw new Error('A take id is required');
+
+    const update = {};
+
+    if (Object.hasOwn(patch, 'body')) {
+      if (!patch.body?.trim()) throw new Error('A take needs something to say');
+      update.body = patch.body.trim();
+    }
+
+    if (Object.hasOwn(patch, 'wager')) {
+      update.wager = normalizeWager(patch.wager);
+    }
+
+    if (Object.hasOwn(patch, 'targetType')) {
+      if (!TARGET_TYPES.includes(patch.targetType)) {
+        throw new Error(`Unknown take milestone: ${patch.targetType}`);
+      }
+      const isWeek = patch.targetType === 'week';
+      if (isWeek && !(Number.isInteger(patch.targetWeek) && patch.targetWeek > 0)) {
+        throw new Error('A week take needs a week');
+      }
+      update.targetType = patch.targetType;
+      update.targetWeek = isWeek ? patch.targetWeek : null;
+    }
+
+    if (Object.hasOwn(patch, 'userId')) {
+      if (!patch.userId) throw new Error('A take needs an author');
+      update.userId = patch.userId;
+    }
+
+    if (Object.hasOwn(patch, 'status')) {
+      if (patch.status === 'pending') {
+        Object.assign(update, { status: 'pending', resolvedAt: null, resolvedBy: null });
+      } else if (RESOLUTION_STATUSES.includes(patch.status)) {
+        const resolvedBy = (await ctx.client.auth.getUser()).data.user?.id ?? null;
+        Object.assign(update, {
+          status: patch.status,
+          resolvedAt: new Date().toISOString(),
+          resolvedBy
+        });
+      } else {
+        throw new Error(`Unknown take resolution: ${patch.status}`);
+      }
+    }
+
+    if (Object.keys(update).length === 0) throw new Error('Nothing to change');
+
+    const { data, error } = await ctx.client
+      .from('takes')
+      .update(formatForDatabase(update))
+      .eq('id', takeId)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    log.info(`take ${takeId} edited by the admin (${Object.keys(patch).join(', ')})`);
+
+    return formatFromDatabase(data);
+  } catch (error) {
+    throwDbError(error, 'Edit take');
+  }
+}
+
+/**
+ * Place a Hell Nah on somebody's behalf. Admin-only, by the
+ * `take_participants admin write` policy; `set_user_id()` keeps a supplied
+ * `user_id` rather than overwriting it with the caller's.
+ */
+export async function addFadeFor(ctx, { takeId, seasonId, userId }) {
+  try {
+    if (!takeId || !seasonId || !userId) {
+      throw new Error('A Hell Nah needs a take, a season and a member');
+    }
+
+    const { data, error } = await ctx.client
+      .from('take_participants')
+      .insert(formatForDatabase({ takeId, seasonId, userId }))
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return formatFromDatabase(data);
+  } catch (error) {
+    throwDbError(error, 'Add Hell Nah');
+  }
+}
+
+/**
+ * Remove somebody's Hell Nah. The `user_id` filter is the whole of what makes
+ * this one member's row — see `removeFade` for why RLS will not narrow it for
+ * the admin.
+ */
+export async function removeFadeFor(ctx, { takeId, userId }) {
+  try {
+    if (!takeId || !userId) throw new Error('A take id and a member are required');
+
+    const { error } = await ctx.client
+      .from('take_participants')
+      .delete()
+      .eq('take_id', takeId)
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    throwDbError(error, 'Remove Hell Nah');
+  }
+}
+
+/**
  * Everything that has happened to one take, newest first.
  *
  * Its own request rather than an embed on `getTakesForSeason`. The board is
@@ -322,8 +453,17 @@ export async function getTakeActivity(ctx, takeId) {
 
     const events = formatFromDatabase(data || []);
 
+    // A reassigned take names both authors, and neither need appear anywhere
+    // else in the log.
     const userIds = [
-      ...new Set(events.flatMap((event) => [event.actorId, event.subjectId]))
+      ...new Set(
+        events.flatMap((event) => [
+          event.actorId,
+          event.subjectId,
+          event.changes?.author?.from,
+          event.changes?.author?.to
+        ])
+      )
     ].filter(Boolean);
 
     const displayNames = await getUserDisplayNames(ctx, userIds);

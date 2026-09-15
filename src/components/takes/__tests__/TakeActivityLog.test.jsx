@@ -123,3 +123,26 @@ describe('TakeActivityLog', () => {
     expect(screen.getByText(/nothing has happened to this take yet/i)).toBeInTheDocument();
   });
 });
+
+describe('TakeActivityLog, admin acts', () => {
+  it('signs an act that used the admin’s privilege as Admin', () => {
+    render({
+      events: [
+        {
+          id: 'a1',
+          eventType: 'edited',
+          actorId: 'u1',
+          actedAsAdmin: true,
+          seq: 4,
+          createdAt: '2026-09-06T12:00:00Z',
+          changes: { author: { from: 'u2', to: 'u1' } }
+        }
+      ]
+    });
+
+    const entry = within(screen.getByRole('list')).getAllByRole('listitem')[0];
+
+    expect(entry).toHaveTextContent('Admin edited this take');
+    expect(entry).toHaveTextContent('Posted by');
+  });
+});

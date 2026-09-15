@@ -143,6 +143,7 @@ export function TakeActivityLog({ events = [], displayNames = {}, seasonConfig, 
             const described = describeTakeEvent(event, {
               actorName: nameOf(event.actorId),
               subjectName: nameOf(event.subjectId),
+              nameOf,
               seasonConfig
             });
             const { Icon, tint } = EVENT_STYLE[described.kind] ?? EVENT_STYLE.unknown;

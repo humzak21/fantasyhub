@@ -19,10 +19,14 @@ import { describe, it, expect } from 'vitest';
 import { makeCtx } from './fakeClient.js';
 import {
   addFade,
+  addFadeFor,
+  adminUpdateTake,
   createTake,
   deleteTake,
+  getTakeActivity,
   getTakesForSeason,
   removeFade,
+  removeFadeFor,
   reopenTake,
   resolveTake,
   updateTake
@@ -289,5 +293,137 @@ describe('reopenTake', () => {
 
     const [call] = ctx.client.callsFor('takes', 'update');
     expect(call.payload).toEqual({ status: 'pending', resolved_at: null, resolved_by: null });
+  });
+});
+
+describe('adminUpdateTake', () => {
+  it('sends only the columns in the patch', async () => {
+    const ctx = makeCtx({ 'takes.update': () => [takeRow] }, { session });
+
+    await adminUpdateTake(ctx, {
+      takeId: TAKE_ID,
+      patch: { body: '  Reworded  ', userId: OTHER_ID }
+    });
+
+    const [call] = ctx.client.callsFor('takes', 'update');
+    // An untouched grade is never resent: it would come with a fresh
+    // resolved_at and resolved_by, re-dating and re-attributing it.
+    expect(call.payload).toEqual({ body: 'Reworded', user_id: OTHER_ID });
+    expect(call.filters.id).toBe(TAKE_ID);
+  });
+
+  it('moves a milestone as a pair, and drops a stray week on a terminal one', async () => {
+    const ctx = makeCtx({ 'takes.update': () => [takeRow] }, { session });
+
+    await adminUpdateTake(ctx, {
+      takeId: TAKE_ID,
+      patch: { targetType: 'end_of_season', targetWeek: 9 }
+    });
+
+    const [call] = ctx.client.callsFor('takes', 'update');
+    expect(call.payload).toEqual({ target_type: 'end_of_season', target_week: null });
+  });
+
+  it('grades with all three resolution columns, and reopens by nulling them', async () => {
+    const ctx = makeCtx({ 'takes.update': () => [takeRow] }, { session });
+
+    await adminUpdateTake(ctx, { takeId: TAKE_ID, patch: { status: 'incorrect' } });
+    await adminUpdateTake(ctx, { takeId: TAKE_ID, patch: { status: 'pending' } });
+
+    const [graded, reopened] = ctx.client.callsFor('takes', 'update');
+    expect(graded.payload).toEqual({
+      status: 'incorrect',
+      resolved_at: expect.any(String),
+      resolved_by: USER_ID
+    });
+    expect(reopened.payload).toEqual({ status: 'pending', resolved_at: null, resolved_by: null });
+  });
+
+  it('stores a blank stake as null', async () => {
+    const ctx = makeCtx({ 'takes.update': () => [takeRow] }, { session });
+
+    await adminUpdateTake(ctx, { takeId: TAKE_ID, patch: { wager: '   ' } });
+
+    const [call] = ctx.client.callsFor('takes', 'update');
+    expect(call.payload).toEqual({ wager: null });
+  });
+
+  it('refuses what the database would, without a round trip', async () => {
+    const ctx = makeCtx({}, { session });
+
+    await expect(adminUpdateTake(ctx, { takeId: TAKE_ID, patch: {} })).rejects.toThrow();
+    await expect(
+      adminUpdateTake(ctx, { takeId: TAKE_ID, patch: { body: '   ' } })
+    ).rejects.toThrow();
+    await expect(
+      adminUpdateTake(ctx, { takeId: TAKE_ID, patch: { targetType: 'week', targetWeek: null } })
+    ).rejects.toThrow(/week/i);
+    await expect(
+      adminUpdateTake(ctx, { takeId: TAKE_ID, patch: { status: 'maybe' } })
+    ).rejects.toThrow();
+    expect(ctx.client.calls).toHaveLength(0);
+  });
+});
+
+describe('addFadeFor', () => {
+  it('sends the member the Hell Nah is for', async () => {
+    const ctx = makeCtx(
+      { 'take_participants.insert': () => [{ id: 'p2', take_id: TAKE_ID, user_id: OTHER_ID }] },
+      { session }
+    );
+
+    await addFadeFor(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID, userId: OTHER_ID });
+
+    const [call] = ctx.client.callsFor('take_participants', 'insert');
+    expect(call.payload).toEqual({ take_id: TAKE_ID, season_id: SEASON_ID, user_id: OTHER_ID });
+  });
+});
+
+describe('removeFadeFor', () => {
+  it('filters on the member as well as the take', async () => {
+    const ctx = makeCtx({ 'take_participants.delete': () => [] }, { session });
+
+    await removeFadeFor(ctx, { takeId: TAKE_ID, userId: OTHER_ID });
+
+    const [call] = ctx.client.callsFor('take_participants', 'delete');
+    // Without the member filter the admin's FOR ALL policy matches every fade
+    // on the take.
+    expect(call.filters).toEqual({ take_id: TAKE_ID, user_id: OTHER_ID });
+  });
+
+  it('refuses to delete without a member, rather than deleting every fade', async () => {
+    const ctx = makeCtx({}, { session });
+
+    await expect(removeFadeFor(ctx, { takeId: TAKE_ID })).rejects.toThrow();
+    expect(ctx.client.callsFor('take_participants', 'delete')).toHaveLength(0);
+  });
+});
+
+describe('getTakeActivity', () => {
+  it('resolves both authors of a reassigned take along with the actors', async () => {
+    const THIRD_ID = '55555555-5555-4555-8555-555555555555';
+    const ctx = makeCtx(
+      {
+        'take_events.select': () => [
+          {
+            id: 'e1',
+            take_id: TAKE_ID,
+            event_type: 'edited',
+            actor_id: USER_ID,
+            subject_id: null,
+            acted_as_admin: true,
+            changes: { author: { from: OTHER_ID, to: THIRD_ID } }
+          }
+        ],
+        'rpc.get_user_display_names': () => []
+      },
+      { session }
+    );
+
+    const { events } = await getTakeActivity(ctx, TAKE_ID);
+
+    expect(events[0].actedAsAdmin).toBe(true);
+    const [call] = ctx.client.callsFor('rpc', 'get_user_display_names');
+    expect(call.payload.user_ids.sort()).toEqual([USER_ID, OTHER_ID, THIRD_ID].sort());
   });
 });

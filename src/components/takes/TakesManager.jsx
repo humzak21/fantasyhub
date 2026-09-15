@@ -10,6 +10,7 @@ import { EmptyState } from '../ui/empty-state';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
   useActualWeek,
+  useLeagueMembers,
   useSeasonConfig,
   useTakeActivity,
   useTakesBoard,
@@ -55,7 +56,7 @@ export function TakesManager({ season, loading }) {
   // `isAuthenticated` is the prop, and the shell passes approval as it — but
   // the copy below has to tell a signed-in, unapproved member apart from a
   // visitor, so the real session flag is read here as well.
-  const { isAuthenticated: hasSession, isApproved } = useViewer();
+  const { isAuthenticated: hasSession, isApproved, isAdmin } = useViewer();
   const seasonConfig = useSeasonConfig();
   const actualWeek = useActualWeek();
 
@@ -87,6 +88,11 @@ export function TakesManager({ season, loading }) {
   // matching how the take itself is passed down.
   const { activity, isLoading: activityLoading } = useTakeActivity(seasonId, selectedId);
 
+  // The admin's author and Hell Nah pickers. Deferred like the log, and never
+  // issued for anyone else: `list_league_members()` returns nothing to a
+  // non-admin anyway, so the request would only ever be wasted.
+  const { data: members = [] } = useLeagueMembers({ enabled: isAdmin && Boolean(selectedId) });
+
   const {
     createTake,
     updateTake,
@@ -94,7 +100,10 @@ export function TakesManager({ season, loading }) {
     fade,
     withdrawFade,
     resolveTake,
-    reopenTake
+    reopenTake,
+    adminUpdateTake,
+    addFadeFor,
+    removeFadeFor
   } = mutations;
 
   /** Which take is mid-write, so its control can disable rather than flicker.
@@ -104,6 +113,8 @@ export function TakesManager({ season, loading }) {
     (withdrawFade.isPending && withdrawFade.variables?.takeId) ||
     (resolveTake.isPending && resolveTake.variables?.takeId) ||
     (reopenTake.isPending && reopenTake.variables?.takeId) ||
+    (addFadeFor.isPending && addFadeFor.variables?.takeId) ||
+    (removeFadeFor.isPending && removeFadeFor.variables?.takeId) ||
     null;
 
   /** Every write goes through here so a rejection is reported rather than
@@ -240,6 +251,17 @@ export function TakesManager({ season, loading }) {
         }
         onReopen={(take) => run(reopenTake, { takeId: take.id }, 'Could not reopen that take')}
         pending={pendingTakeId === selectedTake?.id}
+        members={members}
+        // Not through `run`: the editor shows a refusal beside the form it came
+        // from, and has to know the save failed so it stays open.
+        onAdminSave={(take, patch) => adminUpdateTake.mutateAsync({ takeId: take.id, patch })}
+        adminSaving={adminUpdateTake.isPending}
+        onAdminAddFade={(take, userId) =>
+          run(addFadeFor, { takeId: take.id, userId }, 'Could not add that Hell Nah')
+        }
+        onAdminRemoveFade={(take, userId) =>
+          run(removeFadeFor, { takeId: take.id, userId }, 'Could not remove that Hell Nah')
+        }
       />
     </div>
   );

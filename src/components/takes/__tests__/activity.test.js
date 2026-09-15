@@ -207,3 +207,83 @@ describe('sortEventsNewestFirst', () => {
     expect(events.map((e) => e.id)).toEqual(['a', 'b']);
   });
 });
+
+describe('describeTakeEvent, admin acts', () => {
+  const nameOf = (id) => ({ u2: 'Arya Shah', u3: 'Sam Lee' })[id];
+
+  it('signs an act that used the admin’s privilege "Admin", not the admin’s own name', () => {
+    const described = describeTakeEvent(
+      event({ actedAsAdmin: true, changes: { body: { from: 'a', to: 'b' } } }),
+      NAMES
+    );
+
+    expect(described.title).toBe('Admin edited this take');
+  });
+
+  it('keeps the admin’s own name on an act any member could have made', () => {
+    // The admin rewording their own take inside its window is an author's act,
+    // and the trigger leaves acted_as_admin false for it.
+    const described = describeTakeEvent(
+      event({ actedAsAdmin: false, changes: { body: { from: 'a', to: 'b' } } }),
+      NAMES
+    );
+
+    expect(described.title).toBe('Humza Khalil edited this take');
+  });
+
+  it('names both authors of a reassigned take, after the other fields', () => {
+    const { fields } = describeTakeEvent(
+      event({
+        actedAsAdmin: true,
+        changes: {
+          author: { from: 'u2', to: 'u3' },
+          wager: { from: '$20', to: '$50' }
+        }
+      }),
+      { ...NAMES, nameOf }
+    );
+
+    expect(fields.map((field) => field.key)).toEqual(['wager', 'author']);
+    expect(fields[1]).toMatchObject({ label: 'Posted by', from: 'Arya Shah', to: 'Sam Lee' });
+  });
+
+  it('says so when a reassigned author cannot be named', () => {
+    const [field] = describeTakeEvent(
+      event({ changes: { author: { from: 'gone', to: 'u3' } } }),
+      { ...NAMES, nameOf }
+    ).fields;
+
+    expect(field).toMatchObject({ from: 'Unknown member', to: 'Sam Lee' });
+  });
+
+  it('names the grade a regrade replaced', () => {
+    const described = describeTakeEvent(
+      event({
+        eventType: 'graded',
+        actedAsAdmin: true,
+        changes: { status: { from: 'correct', to: 'incorrect' } }
+      }),
+      NAMES
+    );
+
+    expect(described.title).toBe('Admin graded it Incorrect');
+    expect(described.fields).toEqual([
+      { key: 'status', label: 'Was', from: null, to: 'Correct', multiline: false }
+    ]);
+  });
+
+  it('names the member whose Hell Nah the admin moved, even when it was the admin’s own', () => {
+    expect(
+      describeTakeEvent(event({ eventType: 'unfaded', actedAsAdmin: true }), NAMES).title
+    ).toBe("Admin removed Arya Shah's Hell Nah");
+    expect(
+      describeTakeEvent(event({ eventType: 'faded', actedAsAdmin: true }), NAMES).title
+    ).toBe('Admin added a Hell Nah for Arya Shah');
+    expect(
+      describeTakeEvent(event({ eventType: 'unfaded', actedAsAdmin: true }), {
+        ...NAMES,
+        subjectName: 'Humza Khalil'
+      }).title
+    ).toBe("Admin removed Humza Khalil's Hell Nah");
+  });
+});
