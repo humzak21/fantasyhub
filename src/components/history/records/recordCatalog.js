@@ -23,6 +23,8 @@
  *              known to distort
  *   hideZero   drop zero values; defaults on for counts ranked high-to-low,
  *              where zero means "never"
+ *   perSeason  one row per season: with a season picked there is nothing to
+ *              rank, so the card is left out
  */
 
 import { SCORE_DECIMALS, formatDelta, formatPct, formatScore } from '../../../utils/format';
@@ -31,6 +33,7 @@ export const SECTIONS = [
   { id: 'winning', label: 'Winning' },
   { id: 'scoring', label: 'Scoring' },
   { id: 'games', label: 'Single games' },
+  { id: 'league', label: 'League-wide' },
   { id: 'playoffs', label: 'Playoffs' },
   { id: 'luck', label: 'Schedule & luck' },
   { id: 'lineups', label: 'Lineups' },
@@ -45,6 +48,10 @@ const COMMISSIONER_TRADES_NOTE =
 const career = (entry) => ({ scope: 'career', kind: 'franchise', direction: 'desc', ...entry });
 const season = (entry) => ({ scope: 'season', kind: 'teamSeason', direction: 'desc', ...entry });
 const game = (entry) => ({ scope: 'season', kind: 'game', section: 'games', phases: true, direction: 'desc', format: 'points', ...entry });
+// The league as one team: every team's figures added together, a row per
+// regular-season week or per completed season.
+const leagueWeek = (entry) => ({ scope: 'season', kind: 'leagueWeek', section: 'league', direction: 'desc', format: 'points', ...entry });
+const leagueSeason = (entry) => ({ scope: 'season', kind: 'leagueSeason', section: 'league', perSeason: true, direction: 'desc', ...entry });
 
 export const RECORDS = [
   // -------------------------------------------------------------------------
@@ -72,6 +79,7 @@ export const RECORDS = [
   career({ id: 'career-pa', section: 'scoring', data: 'paPerGame', title: 'Points against per game', blurb: 'Regular-season points scored against them, per game.', format: 'points', detail: 'seasons' }),
   career({ id: 'career-diff', section: 'scoring', data: 'diffPerGame', title: 'Point differential per game', blurb: 'Points for minus points against, per game.', format: 'signed', detail: 'seasons' }),
   career({ id: 'career-weekly-highs', section: 'scoring', data: 'weeklyHighs', title: 'Most weekly high scores', blurb: "Weeks with the league's top score.", format: 'int' }),
+  career({ id: 'career-weekly-lows', section: 'scoring', data: 'weeklyLows', title: 'Most weekly low scores', blurb: "Weeks with the league's bottom score.", format: 'int' }),
   career({ id: 'career-scoring-titles', section: 'scoring', data: 'scoringTitles', title: 'Most scoring titles', blurb: 'Seasons leading the league in points.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-faced-top', section: 'scoring', data: 'facedTop', title: "Most times facing the week's top score", blurb: 'The guy everyone shot at.', format: 'int' }),
 
@@ -128,6 +136,7 @@ export const RECORDS = [
   season({ id: 'season-diff-best', section: 'scoring', data: 'pointDiff', title: 'Best point differential', blurb: 'Points for minus points against.', format: 'signed', detail: 'record' }),
   season({ id: 'season-diff-worst', section: 'scoring', data: 'pointDiff', direction: 'asc', title: 'Worst point differential', blurb: 'Points for minus points against.', format: 'signed', detail: 'record' }),
   season({ id: 'season-weekly-highs', section: 'scoring', data: 'weeklyHighs', title: 'Most weekly high scores', blurb: "Weeks with the league's top score.", format: 'int' }),
+  season({ id: 'season-weekly-lows', section: 'scoring', data: 'weeklyLows', title: 'Most weekly low scores', blurb: "Weeks with the league's bottom score.", format: 'int' }),
   season({ id: 'season-faced-top', section: 'scoring', data: 'facedTop', title: "Most times facing the week's top score", blurb: 'The guy everyone shot at.', format: 'int' }),
   season({ id: 'season-consistent-most', section: 'scoring', data: 'consistency', direction: 'asc', title: 'Most consistent', blurb: 'Lowest standard deviation of weekly scores.', format: 'points', unit: 'σ' }),
   season({ id: 'season-consistent-least', section: 'scoring', data: 'consistency', title: 'Least consistent', blurb: 'Highest standard deviation of weekly scores.', format: 'points', unit: 'σ' }),
@@ -141,6 +150,24 @@ export const RECORDS = [
   game({ id: 'game-low-combined', data: 'combined', direction: 'asc', title: 'Lowest-scoring game', blurb: 'Both teams combined.', detail: 'score' }),
   game({ id: 'game-high-loss', data: 'losingScore', title: 'Highest score in a loss', blurb: 'Scored big and lost anyway.', detail: 'score' }),
   game({ id: 'game-low-win', data: 'winningScore', direction: 'asc', title: 'Lowest score in a win', blurb: 'Won ugly.', detail: 'score' }),
+
+  // Weeks keep both ends; seasons are one list each, because the league has
+  // few enough seasons that the bottom is already on it.
+  leagueWeek({ id: 'league-week-points-most', data: 'leagueWeekPoints', title: 'Highest-scoring week', blurb: "Every team's points in one regular-season week, added together." }),
+  leagueWeek({ id: 'league-week-points-fewest', data: 'leagueWeekPoints', direction: 'asc', title: 'Lowest-scoring week', blurb: "Every team's points in one regular-season week, added together." }),
+  leagueSeason({ id: 'league-season-points', data: 'leaguePoints', title: 'Most points in a season', blurb: "Every team's regular-season points, added together.", format: 'points' }),
+  leagueSeason({ id: 'league-season-ppg', data: 'leaguePpg', title: 'Points per game', blurb: 'League-wide regular-season points, per team per game.', format: 'points' }),
+  leagueWeek({ id: 'league-week-floor', data: 'leagueWeekFloor', title: 'Highest weekly low score', blurb: "The week's bottom score, at its highest. No easy wins." }),
+  leagueWeek({ id: 'league-week-ceiling', data: 'leagueWeekCeiling', direction: 'asc', title: 'Lowest weekly high score', blurb: "The week's top score, at its lowest. Nobody showed up." }),
+  leagueWeek({ id: 'league-week-blowouts', data: 'leagueWeekBlowouts', title: 'Most blowouts in a week', blurb: 'Games won by 30 or more.', format: 'int', unit: 'games' }),
+  leagueSeason({ id: 'league-season-blowouts', data: 'leagueBlowouts', title: 'Most blowouts in a season', blurb: 'Regular-season games won by 30 or more.', format: 'int', unit: 'games' }),
+  leagueWeek({ id: 'league-week-narrow', data: 'leagueWeekNarrow', title: 'Most narrow games in a week', blurb: 'Games decided by 5 or fewer.', format: 'int', unit: 'games' }),
+  leagueSeason({ id: 'league-season-narrow', data: 'leagueNarrow', title: 'Most narrow games in a season', blurb: 'Regular-season games decided by 5 or fewer.', format: 'int', unit: 'games' }),
+  leagueWeek({ id: 'league-week-bench', data: 'leagueWeekBench', title: 'Most points left on the bench in a week', blurb: "Every team's best possible lineup minus the one started, added together." }),
+  leagueSeason({ id: 'league-season-efficiency', data: 'leagueLineupEfficiency', title: 'Lineup efficiency', blurb: `League-wide starter points as a share of the best possible lineups. ${LINEUP_NOTE}`, format: 'pct' }),
+  leagueSeason({ id: 'league-season-trades', data: 'leagueTrades', title: 'Most trades in a season', blurb: 'Accepted trades, each counted once.', format: 'int' }),
+  leagueSeason({ id: 'league-season-roster-moves', data: 'leagueRosterMoves', title: 'Most roster moves in a season', blurb: 'Free-agent adds, waiver claims and drops, league-wide.', format: 'int' }),
+  leagueSeason({ id: 'league-season-faab', data: 'leagueFaabSpent', title: 'Most FAAB spent in a season', blurb: 'Waiver budget spent on winning claims, league-wide.', format: 'money' }),
 
   season({ id: 'season-playoff-wins', section: 'playoffs', data: 'playoffWins', title: 'Most playoff wins', blurb: 'Bracket games, placement games included.', format: 'int' }),
   season({ id: 'season-playoff-losses', section: 'playoffs', data: 'playoffLosses', title: 'Most playoff losses', blurb: 'Bracket games, placement games included.', format: 'int' }),

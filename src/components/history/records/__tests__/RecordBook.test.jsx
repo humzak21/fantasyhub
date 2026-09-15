@@ -210,6 +210,43 @@ describe('RecordBook', () => {
     expect(within(closest).getByText(/110\.00–109\.96/)).toBeInTheDocument();
   });
 
+  it('adds the league as one team to the Single Season tab, by week and by season', async () => {
+    const onViewFranchise = vi.fn();
+    renderWithProviders(<RecordBook franchises={FRANCHISES} onViewFranchise={onViewFranchise} />);
+    await screen.findByRole('heading', { name: 'Winning' });
+    expect(screen.queryByRole('heading', { name: 'League-wide' })).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Single Season' }), { button: 0 });
+    expect(await screen.findByRole('heading', { name: 'League-wide' })).toBeInTheDocument();
+
+    // Week 2: 130 + 80 + 110 + 109.96.
+    const weeks = screen.getByRole('region', { name: 'Highest-scoring week' });
+    const [top] = within(weeks).getAllByRole('listitem');
+    expect(within(top).getByText('Week 2, 2024')).toBeInTheDocument();
+    expect(within(top).getByText('429.96')).toBeInTheDocument();
+    expect(within(top).getByText('107.49 per team')).toBeInTheDocument();
+    // No franchise behind the row, so nothing to open.
+    expect(within(weeks).queryAllByRole('button')).toHaveLength(0);
+
+    // The week's floor names who set it, masked like every other name.
+    const floor = screen.getByRole('region', { name: 'Highest weekly low score' });
+    const [highestLow] = within(floor).getAllByRole('listitem');
+    expect(within(highestLow).getByText('Week 1, 2024')).toBeInTheDocument();
+    expect(within(highestLow).getByText('Franchise f-charl0')).toBeInTheDocument();
+
+    const seasons = screen.getByRole('region', { name: 'Most points in a season' });
+    const [season] = within(seasons).getAllByRole('listitem');
+    expect(within(season).getByText('1,244.96')).toBeInTheDocument();
+    expect(within(season).getByText('3 weeks · 6 games')).toBeInTheDocument();
+
+    // The team-level counterpart: C had the week's lowest score all three weeks.
+    const lows = screen.getByRole('region', { name: 'Most weekly low scores' });
+    const [lowest] = within(lows).getAllByRole('listitem');
+    expect(within(lowest).getByText('Franchise f-charl0')).toBeInTheDocument();
+    expect(within(lowest).getByText('3')).toBeInTheDocument();
+    expect(onViewFranchise).not.toHaveBeenCalled();
+  });
+
   it('opens a trade record to the trades behind it, instead of the franchise', async () => {
     const onViewFranchise = vi.fn();
     renderWithProviders(<RecordBook franchises={FRANCHISES} onViewFranchise={onViewFranchise} />);

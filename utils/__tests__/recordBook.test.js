@@ -401,6 +401,80 @@ describe('occasion records', () => {
 });
 
 /**
+ * The league as one team, against the main grid:
+ *
+ *   2024 wk1  405 (low C 90, high A 120)   1 narrow
+ *   2024 wk2  428 (low C 80, high A 130)   1 blowout, 1 narrow
+ *   2024 wk3  410 (low C 70, high B 140)   1 blowout, 1 narrow (the tie)
+ *   2025 wk1  419 (low A 90, high B 130)   1 blowout, 1 narrow
+ */
+describe('league-wide records', () => {
+  const byWeek = (key) =>
+    Object.fromEntries(recordRows(book, 'season', key).map((row) => [`${row.year}-${row.week}`, row.value]));
+
+  it('adds every team up for a week, including the season in progress', () => {
+    expect(byWeek('leagueWeekPoints')).toEqual({ '2024-1': 405, '2024-2': 428, '2024-3': 410, '2025-1': 419 });
+    expect(recordRows(book, 'season', 'leagueWeekPoints', { year: 2024 })[0]).toMatchObject({ games: 2, average: 101.25 });
+    expect(byWeek('leagueWeekBlowouts')).toEqual({ '2024-1': 0, '2024-2': 1, '2024-3': 1, '2025-1': 1 });
+    // A tied game is a narrow game, counted once.
+    expect(byWeek('leagueWeekNarrow')).toEqual({ '2024-1': 1, '2024-2': 1, '2024-3': 1, '2025-1': 1 });
+  });
+
+  it("names who set a week's floor and ceiling", () => {
+    const floor = recordRows(book, 'season', 'leagueWeekFloor');
+    expect(floor.map((row) => [row.value, row.franchiseIds])).toEqual([
+      [90, ['fC']], [80, ['fC']], [70, ['fC']], [90, ['fA']]
+    ]);
+    expect(recordRows(book, 'season', 'leagueWeekCeiling').map((row) => row.value)).toEqual([120, 130, 140, 130]);
+  });
+
+  it('leaves out a week not every team has played yet', () => {
+    // 2025 week 2: A and C have played; B and D have not.
+    const partial = buildRecordBook({ ...SOURCE, games: [...SOURCE.games, game(S25, 2, 'A', 100, 'C', 95)] });
+    expect(recordRows(partial, 'season', 'leagueWeekPoints', { year: 2025 }).map((row) => row.week)).toEqual([1]);
+  });
+
+  it('totals a completed season, and counts each trade once', () => {
+    const [row] = recordRows(book, 'season', 'leaguePoints');
+    expect(row).toMatchObject({ year: 2024, value: 1243, weeks: 3, games: 6 });
+    expect(recordRows(book, 'season', 'leaguePoints')).toHaveLength(1);
+
+    const seasonValue = (key) => recordRows(book, 'season', key)[0]?.value;
+    expect(seasonValue('leaguePpg')).toBeCloseTo(1243 / 12, 4);
+    expect(seasonValue('leagueBlowouts')).toBe(2);
+    expect(seasonValue('leagueNarrow')).toBe(3);
+    expect(seasonValue('leagueTrades')).toBe(3);
+    expect(seasonValue('leagueRosterMoves')).toBe(10);
+    expect(seasonValue('leagueFaabSpent')).toBe(40);
+    // 330 started of a possible 357, over the three lineups on record.
+    expect(seasonValue('leagueLineupEfficiency')).toBeCloseTo((330 / 357) * 100, 3);
+  });
+
+  it("totals the bench only for a week with every team's lineup", () => {
+    // The main grid has week 1 lineups for A and B only: no row.
+    expect(recordRows(book, 'season', 'leagueWeekBench')).toEqual([]);
+
+    const full = buildRecordBook({
+      ...SOURCE,
+      lineups: [
+        ...SOURCE.lineups,
+        { seasonId: 's24', week: 1, teamId: 's24-C', starterPoints: 90, optimalPoints: 100, startersScoring: 9 },
+        { seasonId: 's24', week: 1, teamId: 's24-D', starterPoints: 95, optimalPoints: 95, startersScoring: 9 }
+      ]
+    });
+    expect(recordRows(full, 'season', 'leagueWeekBench')).toEqual([
+      expect.objectContaining({ year: 2024, week: 1, value: 35, average: 8.75 })
+    ]);
+  });
+
+  it('counts the weekly low score per team, for a season and a career', () => {
+    expect(valueOf(recordRows(book, 'season', 'weeklyLows'), 'fC')).toBe(3);
+    expect(valueOf(recordRows(book, 'career', 'weeklyLows'), 'fC')).toBe(3);
+    expect(valueOf(recordRows(book, 'career', 'weeklyLows'), 'fA')).toBe(1);
+  });
+});
+
+/**
  * A title run, against its own grid:
  *
  * 2022: wk1 A 100 – B 90, wk2 A 100 – B 90        (A not champion)
