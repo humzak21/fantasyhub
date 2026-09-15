@@ -11,6 +11,7 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { useCurrentLineups, useNflOpponentMap } from '../../../hooks/queries/index.js';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
+import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { isScoringStarter, starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
 
 /**
@@ -22,9 +23,15 @@ import { isScoringStarter, starterTotal, totalAsPoints } from '../../../utils/li
  * on the reasoning that most visits are here to click two buttons and leave.
  * In practice it was a tedious extra click on the way to the thing people
  * came to compare, so the outer toggle is gone and the matchups are always in
- * view. The per-matchup fold stays, because fourteen teams' starting lineups
- * is ~130 rows and nobody reads all of them; each row now says "Lineups" next
- * to its chevron so it reads as a disclosure rather than a label.
+ * view. The per-matchup fold stays, because fourteen teams' rosters are over
+ * two hundred rows and nobody reads all of them; each row now says "Lineups"
+ * next to its chevron so it reads as a disclosure rather than a label.
+ *
+ * An opened matchup shows each whole roster — starters in lineup order, then
+ * the bench, then IR, the grouping Schedule's lineup panel uses. It used to
+ * filter to starters, which hid the depth behind a questionable starter, the
+ * thing a reader researching a pick most wants to see. The header total still
+ * counts starters only: bench points are not the team's.
  *
  * The player query runs as soon as there are games to research.
  *
@@ -77,8 +84,8 @@ const MatchupResearchSection = ({ seasonId, seasonYear = null, week, games = [] 
           <div className="min-w-0 flex-1">
             <h3 className="font-semibold">Research matchups</h3>
             <p className="text-xs text-muted-foreground">
-              Starting lineups and projections for week {week}. Open a matchup to see who
-              each side is starting.
+              Rosters and projections for week {week}. Open a matchup to see each side&apos;s
+              starters and bench.
             </p>
           </div>
         </div>
@@ -108,25 +115,60 @@ const MatchupResearchSection = ({ seasonId, seasonYear = null, week, games = [] 
 /** The order the lineup is set in, so two columns read as the same lineup. */
 const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
 
-const startersFor = (statsByTeam, teamId) =>
-  (statsByTeam[teamId] ?? [])
-    .filter(isScoringStarter)
-    .sort((a, b) => {
-      const bySlot = SLOT_ORDER.indexOf(a.rosterSlot) - SLOT_ORDER.indexOf(b.rosterSlot);
-      if (bySlot !== 0) return bySlot;
-      return (b.projectedPoints ?? 0) - (a.projectedPoints ?? 0);
-    });
+const positionOf = (row) => row.position ?? row.player?.position ?? null;
+
+/** Unknown slots and positions sort last rather than first. */
+const orderOf = (value) => {
+  const index = SLOT_ORDER.indexOf(value);
+  return index === -1 ? SLOT_ORDER.length : index;
+};
+
+const sortBy = (keyOf) => (a, b) =>
+  orderOf(keyOf(a)) - orderOf(keyOf(b)) || (b.projectedPoints ?? 0) - (a.projectedPoints ?? 0);
+
+const EMPTY_ROSTER = { starters: [], bench: [], injured: [] };
+
+/**
+ * One team's whole roster. Starters sort by the slot they fill; the bench and
+ * IR fill no slot, so they sort by position. Anything that is not a scoring
+ * starter and not on IR is bench, so no row can fall between the groups.
+ */
+const rosterFor = (statsByTeam, teamId) => {
+  const rows = statsByTeam[teamId] ?? [];
+  return {
+    starters: rows.filter(isScoringStarter).sort(sortBy((row) => row.rosterSlot)),
+    bench: rows
+      .filter((row) => !isScoringStarter(row) && row.rosterSlot !== 'IR')
+      .sort(sortBy(positionOf)),
+    injured: rows.filter((row) => row.rosterSlot === 'IR').sort(sortBy(positionOf))
+  };
+};
+
+const rosterSize = (roster) =>
+  roster.starters.length + roster.bench.length + roster.injured.length;
 
 const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
   const [open, setOpen] = useState(false);
 
   const isBye = game.type === 'bye' || !game.team2;
-  const team1Starters = startersFor(statsByTeam, game.team1?.id);
-  const team2Starters = isBye ? [] : startersFor(statsByTeam, game.team2?.id);
-  const hasRows = team1Starters.length > 0 || team2Starters.length > 0;
+  const team1Roster = rosterFor(statsByTeam, game.team1?.id);
+  const team2Roster = isBye ? EMPTY_ROSTER : rosterFor(statsByTeam, game.team2?.id);
+  const hasRows = rosterSize(team1Roster) > 0 || rosterSize(team2Roster) > 0;
+  const nameOf = (team) =>
+    getMaskedTeamName(team, viewer.user, viewer.isAdmin, viewer.teamOwnerNames);
+
+  // The viewer's own matchup gets the same tint and brand rail as their row
+  // in the rankings, and their side the same "You" label as `TeamIdentity`.
+  const team1IsViewer = isUserTeam(game.team1, viewer.user);
+  const team2IsViewer = !isBye && isUserTeam(game.team2, viewer.user);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
+    <div
+      className={cn(
+        'overflow-hidden rounded-lg border border-border',
+        getUserTeamHighlightClasses(team1IsViewer || team2IsViewer)
+      )}
+    >
       {/* One full-width control, tall enough to hit on a phone. Two side-by-side
           team buttons would put a 44px target inside a 160px column. */}
       <button
@@ -137,8 +179,9 @@ const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
       >
         <TeamSide
           team={game.team1}
-          total={starterTotal(team1Starters)}
-          hasRows={team1Starters.length > 0}
+          total={starterTotal(team1Roster.starters)}
+          hasRows={team1Roster.starters.length > 0}
+          isViewer={team1IsViewer}
           viewer={viewer}
         />
 
@@ -155,9 +198,10 @@ const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
         ) : (
           <TeamSide
             team={game.team2}
-            total={starterTotal(team2Starters)}
-            hasRows={team2Starters.length > 0}
+            total={starterTotal(team2Roster.starters)}
+            hasRows={team2Roster.starters.length > 0}
             align="right"
+            isViewer={team2IsViewer}
             viewer={viewer}
           />
         )}
@@ -187,8 +231,10 @@ const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
             </p>
           ) : (
             <div className={cn('grid gap-4', !isBye && 'grid-cols-1 sm:grid-cols-2')}>
-              <StarterList rows={team1Starters} opponents={opponents} />
-              {!isBye && <StarterList rows={team2Starters} opponents={opponents} />}
+              <TeamRoster roster={team1Roster} teamName={nameOf(game.team1)} opponents={opponents} />
+              {!isBye && (
+                <TeamRoster roster={team2Roster} teamName={nameOf(game.team2)} opponents={opponents} />
+              )}
             </div>
           )}
         </div>
@@ -206,10 +252,19 @@ const MatchupCard = ({ game, statsByTeam, opponents, viewer }) => {
  * an unlabelled 118.4 beside a team name reads as a score. It is labelled until
  * every starter in it is a result.
  */
-const TeamSide = ({ team, total, hasRows, align = 'left', viewer }) => (
+const TeamSide = ({ team, total, hasRows, align = 'left', isViewer = false, viewer }) => (
   <span className={cn('min-w-0 flex-1', align === 'right' && 'text-right')}>
-    <span className="block truncate text-sm font-semibold">
-      {getMaskedTeamName(team, viewer.user, viewer.isAdmin, viewer.teamOwnerNames)}
+    {/* The label sits outside the truncated name, so a long name on a phone
+        loses its tail rather than the "You". */}
+    <span className={cn('flex min-w-0 items-baseline gap-1.5', align === 'right' && 'justify-end')}>
+      <span className="truncate text-sm font-semibold">
+        {getMaskedTeamName(team, viewer.user, viewer.isAdmin, viewer.teamOwnerNames)}
+      </span>
+      {isViewer && (
+        <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.08em] text-primary/80">
+          You
+        </span>
+      )}
     </span>
     <span className="block truncate text-xs text-muted-foreground">
       {getMaskedOwnerName(team, viewer.user, viewer.isAdmin, viewer.teamOwnerNames)}
@@ -223,17 +278,52 @@ const TeamSide = ({ team, total, hasRows, align = 'left', viewer }) => (
   </span>
 );
 
-const StarterList = ({ rows, opponents = {} }) => (
+/**
+ * One side's roster. Below `sm` the two columns stack, and a full roster is
+ * long enough that the second team's rows would read as more of the first's
+ * without a name over them; side by side the header row already names them.
+ */
+const TeamRoster = ({ roster, teamName, opponents }) => (
+  <div className="space-y-3">
+    <h4 className="truncate text-sm font-semibold sm:hidden">{teamName}</h4>
+    <RosterGroup label="Starters" rows={roster.starters} opponents={opponents} />
+    <RosterGroup label="Bench" rows={roster.bench} opponents={opponents} bench />
+    <RosterGroup
+      label="Injured reserve"
+      rows={roster.injured}
+      opponents={opponents}
+      bench
+      tone="text-destructive"
+    />
+  </div>
+);
+
+const RosterGroup = ({ label, rows, opponents, bench = false, tone = 'text-muted-foreground' }) => {
+  if (rows.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <h5 className={cn('text-[11px] font-semibold uppercase tracking-[0.06em]', tone)}>{label}</h5>
+      <PlayerList rows={rows} opponents={opponents} bench={bench} />
+    </div>
+  );
+};
+
+/**
+ * A starter's chip is the slot they fill (FLEX says more than RB there); a
+ * bench player fills none, and a column of "BE" chips would say nothing, so
+ * theirs is their position, and the row is dimmed.
+ */
+const PlayerList = ({ rows, opponents = {}, bench = false }) => (
   <ul className="space-y-1">
     {rows.map((row) => (
-      <li key={row.id} className="flex items-center gap-2 text-sm">
+      <li key={row.id} className={cn('flex items-center gap-2 text-sm', bench && 'text-muted-foreground')}>
         <span
           className={cn(
             'w-11 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-semibold uppercase tracking-[0.06em]',
-            getPositionColor(row.rosterSlot)
+            getPositionColor(bench ? positionOf(row) : row.rosterSlot)
           )}
         >
-          {row.rosterSlot}
+          {(bench ? positionOf(row) : row.rosterSlot) ?? '—'}
         </span>
         <span className="min-w-0 flex-1 truncate">{row.player?.name ?? '—'}</span>
         {/* A starter on a bye is the single most useful thing this panel can

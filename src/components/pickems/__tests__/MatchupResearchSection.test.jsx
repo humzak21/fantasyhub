@@ -12,6 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
+import { within } from '@testing-library/react';
 import { renderWithProviders, screen } from '../../../test/renderWithProviders.jsx';
 
 const rosters = { getCurrentLineupsForWeek: vi.fn(async () => []) };
@@ -107,9 +108,20 @@ describe('MatchupResearchSection', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('lists starters, not the bench, once a matchup is opened', async () => {
+  it('lists the whole roster once a matchup is opened, starters above the bench and IR', async () => {
     const user = userEvent.setup();
-    rosters.getCurrentLineupsForWeek.mockResolvedValue(ROWS);
+    rosters.getCurrentLineupsForWeek.mockResolvedValue([
+      ...ROWS,
+      {
+        id: 'r4',
+        teamId: 't1',
+        rosterSlot: 'IR',
+        started: false,
+        projectedPoints: null,
+        actualPoints: null,
+        player: { name: 'A Crock', position: 'WR' }
+      }
+    ]);
 
     renderWithProviders(<MatchupResearchSection seasonId="s1" week={3} games={GAMES} />);
 
@@ -118,9 +130,17 @@ describe('MatchupResearchSection', () => {
     const matchup = await screen.findByRole('button', { name: /team one/i });
     await user.click(matchup);
 
-    expect(await screen.findByText('Josh Allen')).toBeInTheDocument();
+    const starter = await screen.findByText('Josh Allen');
     expect(screen.getByText('Justin Jefferson')).toBeInTheDocument();
-    expect(screen.queryByText('A Benchwarmer')).not.toBeInTheDocument();
+
+    const bench = screen.getByText('Bench').parentElement;
+    const benchwarmer = within(bench).getByText('A Benchwarmer');
+    // A bench player's chip is their position; "BE" on every row says nothing.
+    expect(within(bench).getByText('RB')).toBeInTheDocument();
+    expect(within(bench).queryByText('BE')).not.toBeInTheDocument();
+    expect(starter.compareDocumentPosition(benchwarmer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    expect(within(screen.getByText('Injured reserve').parentElement).getByText('A Crock')).toBeInTheDocument();
   });
 
   it('reads the live roster, never the weekly stats snapshot', async () => {
@@ -175,6 +195,27 @@ describe('MatchupResearchSection', () => {
 
     expect(await screen.findByText(/on bye/i)).toBeInTheDocument();
     expect(screen.queryByText('Team Two')).not.toBeInTheDocument();
+  });
+
+  it("marks the signed-in viewer's own matchup, and only that one", async () => {
+    // The mocked viewer is Arya Shah, who owns Team One.
+    const others = {
+      id: 'g3',
+      team1: { id: 't3', name: 'Team Three', owner: 'Someone Else' },
+      team2: { id: 't4', name: 'Team Four', owner: 'Another Owner' }
+    };
+
+    renderWithProviders(
+      <MatchupResearchSection seasonId="s1" week={3} games={[...GAMES, others]} />
+    );
+
+    const mine = (await screen.findByRole('button', { name: /team one/i })).parentElement;
+    const theirs = screen.getByRole('button', { name: /team three/i }).parentElement;
+
+    expect(mine).toHaveClass('ff-viewer-row');
+    expect(within(mine).getAllByText('You')).toHaveLength(1);
+    expect(theirs).not.toHaveClass('ff-viewer-row');
+    expect(within(theirs).queryByText('You')).not.toBeInTheDocument();
   });
 });
 
