@@ -13,6 +13,7 @@ import PickEmsSubmission from './PickEmsSubmission';
 import PickEmsResults from './PickEmsResults';
 import PickEmsAdminSubmissions from './PickEmsAdminSubmissions';
 import PickEmsSeasonStandings from './PickEmsSeasonStandings';
+import PreviousWeekWinners from './PreviousWeekWinners';
 
 // The commissioner view is two people's tab, so it is not in everyone's
 // pick'ems chunk. It used to be its own lazy route on the app shell; moving it
@@ -40,6 +41,7 @@ const PickEmsManager = ({
   const [weeklyScores, setWeeklyScores] = useState([]);
   const [seasonStandings, setSeasonStandings] = useState([]);
   const [pickEmStatus, setPickEmStatus] = useState(null);
+  const [previousWeekStatus, setPreviousWeekStatus] = useState(null);
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -64,6 +66,7 @@ const PickEmsManager = ({
       // Find status for current week
       const currentWeekStatus = statusData?.find(s => s.weekNumber === currentWeek);
       setPickEmStatus(currentWeekStatus);
+      setPreviousWeekStatus(statusData?.find(s => s.weekNumber === currentWeek - 1) || null);
 
       // Load user picks if pick'em week exists
       if (pickEmWeekData) {
@@ -106,6 +109,7 @@ const PickEmsManager = ({
       setPickEmWeek(preloadedData.pickEmWeek);
       setGames(preloadedData.games || []);
       setPickEmStatus(preloadedData.status?.find(s => s.weekNumber === currentWeek) || null);
+      setPreviousWeekStatus(preloadedData.status?.find(s => s.weekNumber === currentWeek - 1) || null);
       setUserPicks(preloadedData.userPicks || []);
       setSeasonStandings(preloadedData.standings || []);
       setSeasonPicks(preloadedData.allSeasonPicks || []);
@@ -253,7 +257,16 @@ const PickEmsManager = ({
             </>
           ) : null
         }
-      />
+      >
+        {/* Rendered whether or not this week has a pick'em row, so the first
+            playoff week still names the last regular-season winners. The
+            gate is here as well as inside the strip because PageHeader wraps
+            any children in a margin, and most weeks' unrevealed or missing
+            previous week should not leave an empty gap under the title. */}
+        {previousWeekStatus?.resultsAvailable && (
+          <PreviousWeekWinners week={currentWeek - 1} status={previousWeekStatus} />
+        )}
+      </PageHeader>
 
       {/* Error display */}
       {error && (
