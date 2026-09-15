@@ -16,6 +16,7 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { StatCard } from '../ui/stat-card';
+import { SectionHeading } from '../ui/section-heading';
 import { EmptyState } from '../ui/empty-state';
 import { TeamIdentity } from '../ui/team-identity';
 import { NumberText } from '../ui/number-text';
@@ -158,7 +159,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
     if (!team) {
       return (
         <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
-          <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{title}</div>
+          <h3 className="text-base font-semibold leading-snug text-foreground">{title}</h3>
           <div className="mt-3 text-sm text-muted-foreground">No completed games yet.</div>
         </div>
       );
@@ -166,7 +167,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
 
     return (
       <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:p-5">
-        <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{title}</div>
+        <h3 className="text-base font-semibold leading-snug text-foreground">{title}</h3>
         <div className="mt-3">
           <TeamIdentity
             team={{
@@ -186,20 +187,17 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           <span className="font-display text-[26px] font-semibold leading-none tracking-[-0.01em] text-foreground">
             {value}
           </span>
-          {unit && <span className="text-[12px] text-muted-foreground">{unit}</span>}
+          {unit && <span className="text-[13px] text-muted-foreground">{unit}</span>}
         </div>
-        {description && <div className="mt-1.5 text-[12px] text-muted-foreground">{description}</div>}
+        {description && <div className="mt-1.5 text-[13px] text-muted-foreground">{description}</div>}
       </div>
     );
   };
 
   /** A titled block of related cards. */
-  const Section = ({ icon: Icon, title, children }) => (
-    <section className="space-y-3.5">
-      <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        {title}
-      </h2>
+  const Section = ({ icon, title, children }) => (
+    <section className="space-y-4">
+      <SectionHeading icon={icon}>{title}</SectionHeading>
       {children}
     </section>
   );
@@ -323,7 +321,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-end">
             <div className="flex flex-1 items-end gap-3">
               <div className="flex-1">
-                <Label htmlFor="min-week" className="mb-1.5 block text-xs text-muted-foreground">
+                <Label htmlFor="min-week" className="mb-1.5 block text-sm text-muted-foreground">
                   From week
                 </Label>
                 <Select
@@ -344,7 +342,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
               </div>
 
               <div className="flex-1">
-                <Label htmlFor="max-week" className="mb-1.5 block text-xs text-muted-foreground">
+                <Label htmlFor="max-week" className="mb-1.5 block text-sm text-muted-foreground">
                   To week
                 </Label>
                 <Select
@@ -379,7 +377,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Weekly scoring</CardTitle>
+                <CardTitle className="text-base leading-snug">Weekly scoring</CardTitle>
               </CardHeader>
               <CardContent>
                 <WeeklyScoringTrendsChart
@@ -397,7 +395,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Points per game</CardTitle>
+                <CardTitle className="text-base leading-snug">Points per game</CardTitle>
               </CardHeader>
               <CardContent>
                 <PointsPerGameChart
@@ -412,7 +410,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
 
             <Card>
               <CardHeader>
-                <CardTitle>Average margin of victory</CardTitle>
+                <CardTitle className="text-base leading-snug">Average margin of victory</CardTitle>
               </CardHeader>
               <CardContent>
                 <MarginOfVictoryChart
@@ -427,7 +425,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
 
             <Card>
               <CardHeader>
-                <CardTitle>All-play records</CardTitle>
+                <CardTitle className="text-base leading-snug">All-play records</CardTitle>
               </CardHeader>
               <CardContent>
                 <AllPlayRecordsChart

@@ -303,7 +303,7 @@ const SeasonGrid = ({ weeks, picks, nameFor }) => {
   return (
     <Card>
       <CardContent className="p-3 sm:p-4">
-        <h3 className="mb-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <h3 className="mb-3 text-base font-semibold text-foreground">
           Season at a glance
         </h3>
 
@@ -311,13 +311,13 @@ const SeasonGrid = ({ weeks, picks, nameFor }) => {
           <table className="w-full min-w-max border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 bg-card px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <th className="sticky left-0 z-10 bg-card px-2 py-1.5 text-left text-[13px] font-medium text-muted-foreground">
                   Member
                 </th>
                 {weeks.map((week) => (
                   <th
                     key={week}
-                    className="px-2 py-1.5 text-center text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+                    className="px-2 py-1.5 text-center text-[13px] font-medium text-muted-foreground"
                   >
                     {week}
                   </th>

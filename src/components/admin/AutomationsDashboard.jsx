@@ -146,7 +146,7 @@ const Chips = ({ items, empty = '—' }) =>
 
 const Field = ({ label, children, className }) => (
   <div className={cn('min-w-0', className)}>
-    <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{label}</p>
+    <p className="text-xs font-medium text-muted-foreground">{label}</p>
     <div className="mt-0.5 text-sm text-foreground">{children}</div>
   </div>
 );
@@ -687,7 +687,7 @@ const WeekView = ({ days, now }) => {
               aria-current={day.isToday ? 'date' : undefined}
             >
               <div className="flex items-baseline justify-between gap-2 md:block">
-                <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground">
                   {day.isToday ? 'Today' : dayLabel(day.date)}
                 </p>
                 <p className="text-sm font-medium tabular">{dayNumber(day.date)}</p>
@@ -738,7 +738,7 @@ const KeyRow = ({ swatch, label, meaning }) => (
 
 const KeyGroup = ({ title, children }) => (
   <section>
-    <h3 className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">{title}</h3>
+    <h3 className="text-sm font-semibold text-foreground">{title}</h3>
     <ul className="mt-1 divide-y divide-border/60">{children}</ul>
   </section>
 );

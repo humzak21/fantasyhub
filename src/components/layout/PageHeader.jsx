@@ -55,7 +55,7 @@ export function PageHeader({
               {badge}
             </div>
             {description && (
-              <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{description}</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground sm:text-[15px]">{description}</p>
             )}
           </div>
         </div>

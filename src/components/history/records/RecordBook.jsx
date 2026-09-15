@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeftRight, Dices, Flame, ListChecks, Medal, Sigma, Sparkles, Target, Trophy, Zap } from 'lucide-react';
 import { Card } from '../../ui/card';
 import { EmptyState } from '../../ui/empty-state';
+import { SectionHeading } from '../../ui/section-heading';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { useRecordBook } from '../../../../hooks/queries/index.js';
@@ -155,13 +156,9 @@ const RecordBook = ({
             const headingId = `records-${scope}-${section.id}`;
             return (
               <section key={section.id} aria-labelledby={headingId}>
-                <h3
-                  id={headingId}
-                  className="mb-3 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground"
-                >
-                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                <SectionHeading as="h3" id={headingId} icon={Icon} className="mb-4">
                   {section.label}
-                </h3>
+                </SectionHeading>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {section.records.map((record) => (
                     <RecordCard

@@ -260,7 +260,7 @@ const PointsWinsDistributionChart = ({
       <TabsContent value="points" className="mt-0">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div>
-            <h4 className="mb-2 text-center text-sm font-medium text-muted-foreground">
+            <h4 className="mb-2 text-center text-sm font-semibold text-foreground">
               Total points
             </h4>
             <ResponsiveContainer width="100%" height={axis.isMobile ? 320 : 380}>
@@ -287,7 +287,7 @@ const PointsWinsDistributionChart = ({
           </div>
 
           <div>
-            <h4 className="mb-2 text-center text-sm font-medium text-muted-foreground">
+            <h4 className="mb-2 text-center text-sm font-semibold text-foreground">
               Points per game
             </h4>
             <ResponsiveContainer width="100%" height={axis.isMobile ? 320 : 380}>

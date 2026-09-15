@@ -312,7 +312,7 @@ const PlayerPicker = ({ initialQuery, opponents = {}, submitting, onSubmit, onCa
   return (
     <div className="space-y-3">
       <div className="relative">
-        <label htmlFor="parlay-player" className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <label htmlFor="parlay-player" className="mb-1.5 block text-sm font-medium text-foreground">
           Your player
         </label>
         <Input
@@ -451,7 +451,7 @@ const LeaguePicks = ({ groups, unassigned, total, showGrades, viewer }) => {
   return (
     <div className="border-t border-border pt-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h4 className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <h4 className="text-base font-semibold text-foreground">
           The league&rsquo;s picks
         </h4>
         <span className="text-xs text-muted-foreground">
@@ -515,7 +515,7 @@ const DivisionColumn = ({ className, title, picks, showGrades, viewer, emptyText
     className={cn('rounded-lg border border-border bg-muted/20 p-3', className)}
   >
     <div className="mb-1 flex items-baseline justify-between gap-2">
-      <h5 className="truncate text-xs font-semibold uppercase tracking-[0.06em]">{title}</h5>
+      <h5 className="truncate text-sm font-semibold text-foreground">{title}</h5>
       <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{picks.length}</span>
     </div>
 

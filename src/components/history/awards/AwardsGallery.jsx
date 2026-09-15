@@ -220,8 +220,8 @@ const AwardsGallery = ({
                       onClick={() => award.franchise_id && onViewFranchise(award.franchise_id)}
                       className="rounded-lg border border-border bg-muted/30 p-4 text-left transition-colors enabled:hover:bg-muted/60 disabled:cursor-default"
                     >
-                      <span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
-                        <Vote className="h-3.5 w-3.5 text-info" aria-hidden="true" />
+                      <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <Vote className="h-4 w-4 shrink-0 text-info" aria-hidden="true" />
                         {award.award_name}
                       </span>
                       <span className="mt-2 block truncate font-medium">{winnerName(award)}</span>

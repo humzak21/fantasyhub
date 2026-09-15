@@ -1269,8 +1269,19 @@ than the values it separates, and the eye ends up reading the grid.
 
 **One thing per view is big.** Hierarchy comes from a single element being
 larger — the power rating, the score, the stat figure — not from six things
-being bold. Large type is set tight (`tracking-[-0.01em]`); small labels are
-uppercase at 10-11px with `tracking-[0.06em]`.
+being bold. Large type is set tight (`tracking-[-0.01em]`).
+
+**Headings are sentence case, in the foreground colour, on one scale.** Page
+title (`PageHeader`, 26/32px display) → section (`ui/section-heading.jsx`,
+18/20px semibold with a rule under it) → card (`CardTitle` or an `h3`, 16px or
+more) → group label ("Starters", "Bench", 14px semibold) → field and column
+labels ("Record", "PF", table headers, 12–13px medium, muted). Every label used
+to be 10-11px uppercase grey with `tracking-[0.06em]`. It passed contrast on
+paper (about 7:1) and still could not be read on black: at that size the
+letterforms are too small to take in at a glance, all-caps strips the word
+shapes that help, and a section heading looked exactly like the card labels
+under it. Uppercase is for chips and badges now ("YOU", "proj", "BYE", grade
+marks) — never for something that titles a block.
 
 **Restraint with identity colour.** A team's hue appears at full strength in
 charts, where hue *is* the data. In tables it is a low tint and a faint ring
@@ -1332,6 +1343,9 @@ Before writing a header, a number, a stat tile or an empty state, use these —
 each replaced four or five hand-rolled variants:
 
 - `layout/PageHeader.jsx` — the one page header. Every tab uses it.
+- `ui/section-heading.jsx` — the heading of a block of cards under the page
+  title, with an optional icon and a count or control at the right. Its
+  docblock carries the whole heading scale.
 - `utils/format.js` + `ui/number-text.jsx` — one precision policy (points and
   percentages to one decimal, missing values as an em dash, never `0`) and one
   numeric face. **A score or margin that is itself the fact being compared is

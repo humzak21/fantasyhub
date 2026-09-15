@@ -298,11 +298,11 @@ const TeamRoster = ({ roster, teamName, opponents }) => (
   </div>
 );
 
-const RosterGroup = ({ label, rows, opponents, bench = false, tone = 'text-muted-foreground' }) => {
+const RosterGroup = ({ label, rows, opponents, bench = false, tone = 'text-foreground' }) => {
   if (rows.length === 0) return null;
   return (
     <div className="space-y-1">
-      <h5 className={cn('text-[11px] font-semibold uppercase tracking-[0.06em]', tone)}>{label}</h5>
+      <h5 className={cn('text-sm font-semibold', tone)}>{label}</h5>
       <PlayerList rows={rows} opponents={opponents} bench={bench} />
     </div>
   );

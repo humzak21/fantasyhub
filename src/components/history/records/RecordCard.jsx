@@ -122,7 +122,7 @@ function TradeList({ id, trades, count, identity }) {
         <ol aria-label="Trades" className="space-y-2">
           {trades.map((trade, index) => (
             <li key={trade.id ?? index} className="rounded-md bg-muted/40 px-3 py-2.5">
-              <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 {tradeWhen(trade)}
               </p>
 
@@ -307,7 +307,7 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
       <CardHeader className="space-y-1 pb-3 sm:pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-1.5">
-            <CardTitle id={titleId} className="text-sm leading-snug">
+            <CardTitle id={titleId} className="text-base">
               {record.title}
             </CardTitle>
             {hasRecent && (

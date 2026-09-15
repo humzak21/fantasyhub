@@ -600,7 +600,7 @@ const GameCard = ({
     >
       <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/40 px-3.5 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+          <span className="text-[13px] font-medium text-muted-foreground">
             Week {game.week}
           </span>
           {game.isCompleted && game.isBlowout && <Badge variant="warning">Blowout</Badge>}
@@ -827,7 +827,7 @@ const TeamLineup = ({ teamName, rows, opponents }) => {
   const group = (label, players, tone) =>
     players.length > 0 && (
       <div className="space-y-1">
-        <h5 className={cn('text-[11px] font-semibold uppercase tracking-wide', tone)}>{label}</h5>
+        <h5 className={cn('text-sm font-semibold', tone)}>{label}</h5>
         {players.map((row, idx) => (
           <PlayerRow
             key={row.id ?? `${label}-${idx}`}
@@ -842,8 +842,8 @@ const TeamLineup = ({ teamName, rows, opponents }) => {
   return (
     <div className="space-y-3">
       {teamName && <h4 className="truncate text-sm font-semibold">{teamName}</h4>}
-      {group('Starters', starters, 'text-muted-foreground')}
-      {group('Bench', bench, 'text-muted-foreground')}
+      {group('Starters', starters, 'text-foreground')}
+      {group('Bench', bench, 'text-foreground')}
       {group('Injured reserve', injured, 'text-destructive')}
     </div>
   );
