@@ -726,3 +726,62 @@ export async function getRecordBookSource(ctx) {
     throwDbError(error, 'Get record book source');
   }
 }
+
+/**
+ * Every scored regular-season game, with just enough to say which franchise
+ * played it — the source of the franchise profile's record trend.
+ *
+ * The record book's source would do, but it also carries lineups, transaction
+ * events and player names; a profile should not pay for those to draw a line.
+ * This is one small read cached for every franchise, so switching profiles or
+ * adding a team to the comparison fetches nothing. Regular season only, like
+ * standings: a bracket run would make seasons end at different weeks.
+ */
+export async function getRecordTrendSource(ctx) {
+  try {
+    const client = ctx.client;
+
+    const [seasons, teams, games] = await Promise.all([
+      (async () => unwrap(
+        await client.from('seasons').select('id, year, is_completed').order('year'),
+        'Get record trend seasons'
+      ) ?? [])(),
+      selectAll(() => client
+        .from('teams')
+        .select('id, season_id, franchise_id')
+        .order('id')),
+      selectAll(() => client
+        .from('games')
+        .select('id, season_id, week, team1_id, team2_id, team1_score, team2_score')
+        .eq('type', 'regular')
+        .not('team2_id', 'is', null)
+        .not('team1_score', 'is', null)
+        .not('team2_score', 'is', null)
+        .order('id'))
+    ]);
+
+    return {
+      seasons: seasons.map((row) => ({
+        id: row.id,
+        year: row.year,
+        isCompleted: Boolean(row.is_completed)
+      })),
+      teams: teams.map((row) => ({
+        id: row.id,
+        seasonId: row.season_id,
+        franchiseId: row.franchise_id
+      })),
+      games: games.map((row) => ({
+        id: row.id,
+        seasonId: row.season_id,
+        week: row.week,
+        team1Id: row.team1_id,
+        team2Id: row.team2_id,
+        team1Score: num(row.team1_score),
+        team2Score: num(row.team2_score)
+      }))
+    };
+  } catch (error) {
+    throwDbError(error, 'Get record trend source');
+  }
+}
