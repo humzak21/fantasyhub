@@ -29,8 +29,8 @@ import {
   seasonSeries,
   weeklySeries
 } from '../../../../utils/statComparison/index.js';
-import TrendPicker from '../franchises/TrendPicker';
-import { useFranchiseIdentity } from '../utils/useFranchiseIdentity';
+import TrendPicker from '../../history/franchises/TrendPicker';
+import { useFranchiseIdentity } from '../../history/utils/useFranchiseIdentity';
 import { RankedBarChart, StatScatterChart, TrendLineChart } from './ComparisonCharts';
 import ValueList from './ValueList';
 
@@ -42,7 +42,7 @@ const STATS_BY_CATEGORY = CATEGORIES.map((category) => ({
 }));
 
 /**
- * Any stat, any franchises, any seasons — at the foot of the History overview.
+ * Any stat, any franchises, any seasons — at the foot of the Statistics tab.
  *
  * The reader picks what to compare; `resolveView` picks the chart that
  * answers it: lines through a season's weeks, lines across seasons, ranked

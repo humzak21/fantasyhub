@@ -879,8 +879,10 @@ meeting.
 
 ### The stat comparison is the record book's facts, re-cut
 
-History → Overview ends with **Compare stats**
-(`src/components/history/compare/StatComparison.jsx`). It offers around fifty
+The Statistics tab ends with **Compare stats**
+(`src/components/statistics/compare/StatComparison.jsx`), below the season's
+charts and in place even before the season's first game — it is league
+history, not this season. It offers around fifty
 team stats (record, scoring, luck & schedule, lineups, postseason,
 transactions) for any franchises over any seasons. The chart type is chosen
 from the selection. Rules that are load-bearing:
@@ -889,8 +891,8 @@ from the selection. Rules that are load-bearing:
   book's own query key (`qk.history.recordBook`) with its own `select`
   (`buildComparisonFacts`). Opening either surface after the other fetches
   nothing. The card also passes `enabled` only once it is near the viewport
-  (`src/hooks/use-near-viewport.js`), because the overview is the tab's
-  landing view. A hidden page never gets an `IntersectionObserver` callback,
+  (`src/hooks/use-near-viewport.js`), because it sits below the
+  Statistics tab's fold. A hidden page never gets an `IntersectionObserver` callback,
   so a background preview tab shows the skeleton; that is expected.
 - **One definition.** `utils/statComparison/facts.js` builds on the record
   book's exported `buildSides` + `markWeeks`, so a blowout, a phase, an

@@ -12,6 +12,7 @@ import MarginOfVictoryChart from '../statistics/charts/MarginOfVictoryChart';
 import AllPlayRecordsChart from '../statistics/charts/AllPlayRecordsChart';
 import PointsPerGameChart from '../statistics/charts/PointsPerGameChart';
 import FloatingTeamFilter from '../ui/FloatingTeamFilter';
+import StatComparison from '../statistics/compare/StatComparison';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -88,6 +89,10 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
             description="Analytics appear once the league has teams and at least one completed game."
           />
         </Card>
+        {/* League history, so it does not wait on this season's first game. */}
+        <div className="mt-10">
+          <StatComparison user={user} isAdmin={isAdmin} teamOwnerNames={teamOwnerNames} />
+        </div>
       </>
     );
   }
@@ -439,6 +444,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
             </Card>
           </div>
         </Section>
+
+        <StatComparison user={user} isAdmin={isAdmin} teamOwnerNames={teamOwnerNames} />
       </div>
     </div>
   );
