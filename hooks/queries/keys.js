@@ -208,6 +208,7 @@ export const qk = {
     h2hMatrix: () => ['history', 'h2h', 'matrix'],
     matchup: (franchise1Id, franchise2Id) => ['history', 'h2h', franchise1Id, franchise2Id],
     recordBook: () => ['history', 'records'],
+    recordTrends: () => ['history', 'recordTrends'],
     franchiseProfile: (franchiseId) => ['history', 'franchise', franchiseId],
     transactionLeaderboard: () => ['history', 'transactions'],
     franchiseTransactions: (franchiseId) => ['history', 'transactions', franchiseId]

@@ -16,6 +16,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 
 import { getDb } from '../../services/db/index.js';
 import { buildRecordBook } from '../../utils/recordBook/index.js';
+import { buildRecordTrends } from '../../utils/recordTrend.js';
 import { qk } from './keys.js';
 
 const db = () => getDb();
@@ -112,6 +113,22 @@ export function useRecordBook() {
     queryKey: qk.history.recordBook(),
     queryFn: () => db().history.getRecordBookSource(),
     select: buildRecordBook,
+    ...STABLE
+  });
+}
+
+/**
+ * Every franchise's record, week by week, for the profile's trend chart.
+ *
+ * League-wide rather than per franchise: the chart compares any teams the
+ * reader picks, and one cached source means adding a team fetches nothing.
+ * `buildRecordTrends` runs in `select`, memoised like the record book.
+ */
+export function useRecordTrends() {
+  return useQuery({
+    queryKey: qk.history.recordTrends(),
+    queryFn: () => db().history.getRecordTrendSource(),
+    select: buildRecordTrends,
     ...STABLE
   });
 }

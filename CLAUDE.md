@@ -769,6 +769,16 @@ double-counted every 2020-24 matchup.
 over the *active* season, not over 2025 — it is what labelled 2026's numbers
 "2025".
 
+**The franchise profile's record trend** (`franchises/RecordTrendChart.jsx`)
+plots games over .500 after each **regular-season** week — a bracket run would
+end seasons at different weeks. Its source, `getRecordTrendSource`, is one small
+league-wide read (seasons, teams, scored regular games) cached under
+`qk.history.recordTrends`, so comparing any team costs nothing; the record
+book's source would work too but carries lineups and transaction events.
+`utils/recordTrend.js` is the pure half. Colour follows what differs: one team
+colours its seasons by their place on the league calendar (2023 is one hue on
+every profile); several teams wear their franchise hue, older seasons fainter.
+
 ### The record book is computed on read
 
 History → Records is every record as a leaderboard — top 5, opening to 20 (10

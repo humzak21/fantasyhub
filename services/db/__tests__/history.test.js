@@ -15,7 +15,8 @@ import {
   getSeasonDetail,
   getMatchupHistory,
   getHeadToHeadMatrix,
-  getFranchisesWithCareerStats
+  getFranchisesWithCareerStats,
+  getRecordTrendSource
 } from '../history.js';
 
 const FRANCHISES = [
@@ -297,5 +298,58 @@ describe('getFranchisesWithCareerStats', () => {
     expect(franchise.franchise_id).toBe('f-humza');
     expect(franchise.total_wins).toBe(42);
     expect(franchise.championships).toBe(1);
+  });
+});
+
+describe('getRecordTrendSource', () => {
+  const ctx = () =>
+    makeCtx({
+      'seasons.select': () => [{ id: 'season-2025', year: 2025, is_completed: false }],
+      'teams.select': () => [{ id: 'team-humza-2025', season_id: 'season-2025', franchise_id: 'f-humza' }],
+      'games.select': () => [
+        {
+          id: 'game-1',
+          season_id: 'season-2025',
+          week: 1,
+          team1_id: 'team-humza-2025',
+          team2_id: 'team-rohit-2025',
+          team1_score: '120.36',
+          team2_score: '75.82'
+        }
+      ]
+    });
+
+  // A bracket run would end seasons at different weeks, and a bye or an
+  // unplayed fixture is not a result.
+  it('asks only for scored regular-season games', async () => {
+    const client = ctx();
+
+    await getRecordTrendSource(client);
+
+    const read = client.client.callsFor('games', 'select')[0];
+    expect(read.filters.type).toBe('regular');
+    expect(read.filters['not:team2_id:is']).toBeNull();
+    expect(read.filters['not:team1_score:is']).toBeNull();
+    expect(read.filters['not:team2_score:is']).toBeNull();
+  });
+
+  it('returns camelCase rows with numeric scores', async () => {
+    const source = await getRecordTrendSource(ctx());
+
+    expect(source).toEqual({
+      seasons: [{ id: 'season-2025', year: 2025, isCompleted: false }],
+      teams: [{ id: 'team-humza-2025', seasonId: 'season-2025', franchiseId: 'f-humza' }],
+      games: [
+        {
+          id: 'game-1',
+          seasonId: 'season-2025',
+          week: 1,
+          team1Id: 'team-humza-2025',
+          team2Id: 'team-rohit-2025',
+          team1Score: 120.36,
+          team2Score: 75.82
+        }
+      ]
+    });
   });
 });

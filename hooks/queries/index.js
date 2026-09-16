@@ -111,6 +111,7 @@ export {
   useHeadToHeadMatrix,
   useMatchupHistory,
   useRecordBook,
+  useRecordTrends,
   useFranchiseProfile,
   useTransactionLeaderboard,
   useFranchiseTransactions

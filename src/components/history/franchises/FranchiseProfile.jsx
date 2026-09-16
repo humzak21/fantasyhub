@@ -19,6 +19,7 @@ import { getMaskedFranchiseName, getMaskedHistoricalTeamName, canViewFullData } 
 import { formatWinPercentage, formatPoints, formatRecord, formatYearRange, formatPlayoffFinish } from '../utils/statFormatters';
 import { TRANSACTION_COLORS } from '../../../../types/index.js';
 import { AXIS_STYLE, GRID_STYLE } from '../utils/chartHelpers';
+import RecordTrendChart from './RecordTrendChart';
 
 const FranchiseProfile = ({
   franchise,
@@ -297,6 +298,15 @@ const FranchiseProfile = ({
           </CardContent>
         </Card>
       </div>
+
+      {/* Keyed on the franchise so another profile starts from its own team. */}
+      <RecordTrendChart
+        key={franchiseId}
+        franchiseId={franchiseId}
+        user={user}
+        isAdmin={isAdmin}
+        teamOwnerNames={teamOwnerNames}
+      />
 
       {/* Season-by-season history */}
       <Card>
