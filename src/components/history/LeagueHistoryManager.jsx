@@ -17,7 +17,6 @@ import {
 // Import overview components
 import HistoryTimeline from './overview/HistoryTimeline';
 import QuickStatsPanel from './overview/QuickStatsPanel';
-import StatComparison from './compare/StatComparison';
 
 // Import franchise components
 import AllTimeLeaderboards from './franchises/AllTimeLeaderboards';
@@ -245,7 +244,6 @@ const LeagueHistoryManager = ({
                   setSelectedSeasonYear(year);
                 }}
               />
-              <StatComparison user={user} isAdmin={isAdmin} teamOwnerNames={teamOwnerNames} />
             </>
           ) : (
             <SeasonDetail
