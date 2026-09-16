@@ -66,7 +66,7 @@ export const isRivalryWeek = (year, week) =>
 const FIRST_ROUND = 'playoff_first_round';
 const CHAMPIONSHIP = 'playoff_championship';
 
-const EPSILON = 0.005;
+export const EPSILON = 0.005;
 
 const round = (value, places = 4) => {
   const scale = 10 ** places;
@@ -111,9 +111,12 @@ export function phaseOf(type) {
 
 // ---------------------------------------------------------------------------
 // Games, as one row per team per game
+//
+// Exported for `utils/statComparison`, which builds on these same facts so a
+// blowout, a phase or an all-play win means one thing in both places.
 // ---------------------------------------------------------------------------
 
-function buildSides(games, seasonById, teamById) {
+export function buildSides(games, seasonById, teamById) {
   const sides = [];
 
   for (const game of games) {
@@ -166,7 +169,7 @@ function buildSides(games, seasonById, teamById) {
  * team that week. Ties share a high or low score, and an all-play tie is half a
  * win.
  */
-function markWeeks(sides) {
+export function markWeeks(sides) {
   const weeks = groupBy(
     sides.filter((side) => side.phase === 'regular'),
     (side) => `${side.seasonId}:${side.week}`

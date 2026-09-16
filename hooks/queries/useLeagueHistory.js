@@ -17,6 +17,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { getDb } from '../../services/db/index.js';
 import { buildRecordBook } from '../../utils/recordBook/index.js';
 import { buildRecordTrends } from '../../utils/recordTrend.js';
+import { buildComparisonFacts } from '../../utils/statComparison/index.js';
 import { qk } from './keys.js';
 
 const db = () => getDb();
@@ -129,6 +130,25 @@ export function useRecordTrends() {
     queryKey: qk.history.recordTrends(),
     queryFn: () => db().history.getRecordTrendSource(),
     select: buildRecordTrends,
+    ...STABLE
+  });
+}
+
+/**
+ * The History overview's stat comparison: every franchise-season's facts.
+ *
+ * The record book's own query — same key, same fetch — with a different
+ * `select`, so opening Records after the comparison (or the other way round)
+ * fetches nothing. TanStack runs each observer's `select` against the one
+ * cached source. `enabled` lets the card wait until it is scrolled near, since
+ * the overview is the tab's landing view and this is its largest read.
+ */
+export function useStatComparison({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: qk.history.recordBook(),
+    queryFn: () => db().history.getRecordBookSource(),
+    select: buildComparisonFacts,
+    enabled,
     ...STABLE
   });
 }

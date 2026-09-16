@@ -877,6 +877,57 @@ record by phase, win %, points, average and highest scores, biggest win,
 longest win streak, the notable games, the last five meetings and every
 meeting.
 
+### The stat comparison is the record book's facts, re-cut
+
+History → Overview ends with **Compare stats**
+(`src/components/history/compare/StatComparison.jsx`). It offers around fifty
+team stats (record, scoring, luck & schedule, lineups, postseason,
+transactions) for any franchises over any seasons. The chart type is chosen
+from the selection. Rules that are load-bearing:
+
+- **One fetch, shared with Records.** `useStatComparison` uses the record
+  book's own query key (`qk.history.recordBook`) with its own `select`
+  (`buildComparisonFacts`). Opening either surface after the other fetches
+  nothing. The card also passes `enabled` only once it is near the viewport
+  (`src/hooks/use-near-viewport.js`), because the overview is the tab's
+  landing view. A hidden page never gets an `IntersectionObserver` callback,
+  so a background preview tab shows the skeleton; that is expected.
+- **One definition.** `utils/statComparison/facts.js` builds on the record
+  book's exported `buildSides` + `markWeeks`, so a blowout, a phase, an
+  all-play win and an attached lineup mean the same thing in both places.
+  `utils/__tests__/statComparison.test.js` holds every stat whose id matches a
+  record-book key to that key's season and career rows. Name a new stat after
+  its record-book key when one exists, and never reuse a key for something
+  else: `winMargin` there is the biggest single margin, which is why the
+  average here is `avgWinMargin`.
+- **Sum the components, then compute.** Each catalog stat
+  (`utils/statComparison/catalog.js`) maps a fact to additive components
+  (or `max`/`min` via `combine`) plus one `value` function. Win % over three
+  seasons is (W + T/2) / GP over all their games, never an average of three
+  percentages. That is what keeps a week, a running line, a season, a set of
+  seasons and all-time mutually consistent.
+- **`resolveView` picks the chart** (`utils/statComparison/view.js`, tested):
+
+  | Selection | Views |
+  |---|---|
+  | one season, weekly stat | week-by-week lines · season-total bars |
+  | one season, season-only stat | bars |
+  | some seasons | season-by-season lines · combined bars |
+  | all seasons | all-time bars · season-by-season lines |
+  | a second stat | a scatter, total or per season, never week by week |
+
+  A count over several seasons offers **Per season**. It divides by the
+  seasons that contributed, so a two-season franchise is not ranked against
+  seven seasons' totals.
+- **Placements are completed seasons only**, the record book's rule. The
+  exception is the regular-season finish, which counts a season in progress
+  where it stands.
+- **Unknown is absent.** A franchise with no figure (no lineups, no
+  transactions row, no wins for an average winning margin) is listed under
+  "No data", never drawn as zero.
+- **Live-only numbers are out by design.** Projections, FPI, playoff odds and
+  the power rating have no history: `power_rankings_history` starts in 2025.
+
 ### Lineups and transactions go back to 2020
 
 Two tables the record book needs, both written beside rows the sync already
