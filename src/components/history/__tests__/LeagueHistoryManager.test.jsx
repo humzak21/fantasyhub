@@ -16,7 +16,9 @@ const history = {
   getSeasonsTimeline: vi.fn(),
   getFranchisesWithCareerStats: vi.fn(),
   getChampionships: vi.fn(),
-  getSeasonDetail: vi.fn()
+  getSeasonDetail: vi.fn(),
+  // The overview's stat comparison reads the record book's source.
+  getRecordBookSource: vi.fn()
 };
 
 // Only `getDb` is stubbed: the query layer imports `DbErrorKind` from the same
@@ -74,6 +76,7 @@ const SEASON = {
 beforeEach(() => {
   vi.clearAllMocks();
   history.getSeasonDetail.mockResolvedValue({ teams: [], awards: [] });
+  history.getRecordBookSource.mockResolvedValue({ seasons: [], teams: [], games: [], transactions: [], lineups: [] });
 });
 
 describe('LeagueHistoryManager', () => {

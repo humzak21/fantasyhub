@@ -112,6 +112,7 @@ export {
   useMatchupHistory,
   useRecordBook,
   useRecordTrends,
+  useStatComparison,
   useFranchiseProfile,
   useTransactionLeaderboard,
   useFranchiseTransactions

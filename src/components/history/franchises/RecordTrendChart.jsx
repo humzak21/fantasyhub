@@ -10,7 +10,7 @@ import { cn } from '../../../lib/utils';
 import { formatRecord } from '../../../utils/format';
 import { useHistoryFranchises, useRecordTrends } from '../../../../hooks/queries/index.js';
 import { buildTrendChart, yearsPlayed } from '../../../../utils/recordTrend.js';
-import { canViewFullData, getMaskedFranchiseName } from '../utils/privacyHelpers';
+import { useFranchiseIdentity } from '../utils/useFranchiseIdentity';
 import { trendSeriesLabel, trendSeriesStyles } from './recordTrendStyle';
 import TrendPicker from './TrendPicker';
 
@@ -40,22 +40,7 @@ const RecordTrendChart = ({ franchiseId, user = null, isAdmin = false, teamOwner
   /** `null` until touched (latest season), `'all'`, or explicit years. */
   const [seasonPick, setSeasonPick] = useState(null);
 
-  const identity = useMemo(() => {
-    const byId = new Map(franchises.map((franchise) => [franchise.id, franchise]));
-    const fullData = canViewFullData(user, isAdmin, teamOwnerNames);
-    const name = (id) => getMaskedFranchiseName(byId.get(id) ?? { id }, user, isAdmin, teamOwnerNames);
-    return {
-      name,
-      // Initials come from the owner, so a masked viewer's avatar is keyed on
-      // the masked name; the colour still tells franchises apart.
-      avatar: (id) => {
-        const franchise = byId.get(id);
-        return fullData && franchise
-          ? { franchiseId: id, owner_name: franchise.owner_name }
-          : { franchiseId: id, name: name(id) };
-      }
-    };
-  }, [franchises, user, isAdmin, teamOwnerNames]);
+  const identity = useFranchiseIdentity(franchises, user, isAdmin, teamOwnerNames);
 
   const available = useMemo(() => yearsPlayed(trends, teamIds), [trends, teamIds]);
 
