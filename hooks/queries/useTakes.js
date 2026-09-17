@@ -24,11 +24,18 @@ const db = () => getDb();
 const EMPTY_BOARD = { takes: [], displayNames: {} };
 const EMPTY_ACTIVITY = { events: [], displayNames: {} };
 
-export function useTakesBoard(seasonId) {
+/**
+ * `enabled` is how the shell borrows this query for the nav badge without
+ * issuing it for a viewer who may not read the board. It is the same cache
+ * entry the tab uses, so a member who has the badge has already paid for the
+ * tab's data and opening Takes fetches nothing — and an unapproved or
+ * signed-out viewer, for whom RLS returns zero takes anyway, never asks.
+ */
+export function useTakesBoard(seasonId, { enabled = true } = {}) {
   const query = useQuery({
     queryKey: qk.takes.board(seasonId),
     queryFn: async () => (await db().takes.getTakesForSeason(seasonId)) ?? EMPTY_BOARD,
-    enabled: Boolean(seasonId)
+    enabled: Boolean(seasonId) && enabled
   });
 
   return { ...query, board: query.data ?? EMPTY_BOARD };

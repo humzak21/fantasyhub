@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Flame, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -16,9 +16,13 @@ import {
   useTakesBoard,
   useTakesMutations
 } from '../../../hooks/queries/index.js';
+import { useTakesSeen } from '../../hooks/use-takes-seen.js';
 import { AddTakeDialog } from './AddTakeDialog.jsx';
+import { HellNahDialog } from './HellNahDialog.jsx';
+import { shouldConfirmHellNah, suppressHellNahConfirm } from './confirmPreference.js';
 import { TakeDetailSheet } from './TakeDetailSheet.jsx';
 import { TakesBoard } from './TakesBoard.jsx';
+import { newestTakeAt } from './seen.js';
 
 /**
  * What the page says the game is.
@@ -38,7 +42,10 @@ const TAKES_DESCRIPTION =
   'potentially coming for the next season, with cash rewards also in play. You can also ' +
   "bet FAAB, pubes, actual dollars (make sure to specify) in your take if you'd like to " +
   "win money from those who think your take won't hit. Be warned though, you have to pay " +
-  'out everyone who wins off your take if you lose.';
+  'out everyone who wins off your take if you lose. ' +
+  'Hell Nahs close 3 days after a take was last edited: until then you can say Hell Nah ' +
+  'to anyone else\u2019s staked take, or take yours back. Once that window shuts nobody ' +
+  'can join and nobody can back out, so both sides are locked in until the take is graded.';
 
 /**
  * The Takes tab.
@@ -56,7 +63,7 @@ export function TakesManager({ season, loading }) {
   // `isAuthenticated` is the prop, and the shell passes approval as it — but
   // the copy below has to tell a signed-in, unapproved member apart from a
   // visitor, so the real session flag is read here as well.
-  const { isAuthenticated: hasSession, isApproved, isAdmin } = useViewer();
+  const { user, isAuthenticated: hasSession, isApproved, isAdmin } = useViewer();
   const seasonConfig = useSeasonConfig();
   const actualWeek = useActualWeek();
 
@@ -68,7 +75,21 @@ export function TakesManager({ season, loading }) {
   const [editingId, setEditingId] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
 
+  // Which take is waiting on its Hell Nah confirmation. An id, like the other
+  // two, so the dialog reads the fresh row after a refetch.
+  const [confirmingFadeId, setConfirmingFadeId] = useState(null);
+
   const { takes, displayNames } = board;
+
+  // Reading the tab is what clears the nav badge. The mark is the newest
+  // take's own timestamp rather than the clock — see `newestTakeAt` — and it
+  // is set once the board has actually rendered, not while it is loading,
+  // because a skeleton is not a read.
+  const { markSeen } = useTakesSeen(user?.id);
+  const newestAt = useMemo(() => newestTakeAt(takes), [takes]);
+  useEffect(() => {
+    if (!boardLoading && newestAt) markSeen(newestAt);
+  }, [boardLoading, newestAt, markSeen]);
 
   // The sheet and the composer hold an *id*, not a row. After a mutation the
   // board refetches and hands back a new object; holding the row itself would
@@ -80,6 +101,10 @@ export function TakesManager({ season, loading }) {
   const editingTake = useMemo(
     () => takes.find((take) => take.id === editingId) ?? null,
     [takes, editingId]
+  );
+  const confirmingFadeTake = useMemo(
+    () => takes.find((take) => take.id === confirmingFadeId) ?? null,
+    [takes, confirmingFadeId]
   );
 
   // Deferred until a take is open — the log appears nowhere else, and `enabled`
@@ -128,6 +153,26 @@ export function TakesManager({ season, loading }) {
       toast.error(`${failure}: ${error.message}`);
       return false;
     }
+  };
+
+  /**
+   * Every Hell Nah on this page goes through here — the card's button and the
+   * sheet's alike — so the confirmation is one decision made in one place. A
+   * component that owned its own dialog would be a second answer to "has this
+   * member opted out", and the board renders a dozen of them.
+   */
+  const requestFade = (take) => {
+    if (shouldConfirmHellNah(user?.id)) {
+      setConfirmingFadeId(take.id);
+      return;
+    }
+    return run(fade, { takeId: take.id }, 'Could not fade that take');
+  };
+
+  const confirmFade = async (take, dontShowAgain) => {
+    if (dontShowAgain) suppressHellNahConfirm(user?.id);
+    setConfirmingFadeId(null);
+    await run(fade, { takeId: take.id }, 'Could not fade that take');
   };
 
   const openComposer = () => {
@@ -210,7 +255,7 @@ export function TakesManager({ season, loading }) {
         displayNames={displayNames}
         seasonConfig={seasonConfig}
         onOpen={(take) => setSelectedId(take.id)}
-        onFade={(take) => run(fade, { takeId: take.id }, 'Could not fade that take')}
+        onFade={requestFade}
         onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
         pendingTakeId={pendingTakeId}
         emptyAction={isApproved ? addTakeButton : null}
@@ -229,6 +274,16 @@ export function TakesManager({ season, loading }) {
         submitting={createTake.isPending || updateTake.isPending}
       />
 
+      <HellNahDialog
+        take={confirmingFadeTake}
+        open={Boolean(confirmingFadeTake)}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingFadeId(null);
+        }}
+        onConfirm={confirmFade}
+        pending={fade.isPending}
+      />
+
       <TakeDetailSheet
         take={selectedTake}
         displayNames={displayNames}
@@ -239,7 +294,7 @@ export function TakesManager({ season, loading }) {
         onOpenChange={(open) => {
           if (!open) setSelectedId(null);
         }}
-        onFade={(take) => run(fade, { takeId: take.id }, 'Could not fade that take')}
+        onFade={requestFade}
         onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
         onEdit={(take) => {
           setEditingId(take.id);

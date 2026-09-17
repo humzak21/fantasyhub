@@ -1,24 +1,34 @@
 /**
- * The board's ordering and the author's window.
+ * The board's ordering and the two windows.
  *
- * These are the two things the takes UI gets wrong silently if they drift: a
- * board sorted by posting time reads as a feed rather than a schedule, and an
- * edit window that disagrees with the RLS policy shows the reader a button
+ * These are the things the takes UI gets wrong silently if they drift: a board
+ * sorted by posting time reads as a feed rather than a schedule, and an edit or
+ * Hell Nah window that disagrees with the RLS policy shows the reader a button
  * whose only outcome is an error toast.
+ *
+ * Every window assertion passes `now` explicitly. The fixtures are dated, and a
+ * test that let the wall clock decide would have started failing three days
+ * after it was written — which is how the board's own fixtures broke when the
+ * Hell Nah window shipped.
  */
 
 import { describe, it, expect } from 'vitest';
 
 import {
   EDIT_WINDOW_MS,
+  FADE_WINDOW_MS,
   STATUS_BADGE,
   canDeleteTake,
   canEditTake,
   canFade,
+  canWithdrawFade,
   fadeCount,
+  fadeDeadline,
+  fadeWindowNote,
   groupByMilestone,
   hasFaded,
   hasWager,
+  isFadeWindowOpen,
   milestoneLabel,
   milestoneSortKey
 } from '../milestones.js';
@@ -173,30 +183,99 @@ describe('hasWager', () => {
   });
 });
 
+/** The fixtures are posted at noon on 2026-09-01; this is an hour later. */
+const INSIDE = Date.parse('2026-09-01T13:00:00Z');
+/** Four days later — past the 72-hour window, whichever end it runs from. */
+const OUTSIDE = Date.parse('2026-09-05T13:00:00Z');
+
 describe('canFade', () => {
   const staked = (overrides = {}) => take({ wager: '$20', ...overrides });
 
   it('refuses the author their own take', () => {
-    expect(canFade(staked(), USER)).toBe(false);
+    expect(canFade(staked(), USER, INSIDE)).toBe(false);
   });
 
   it('allows another signed-in member', () => {
-    expect(canFade(staked(), OTHER)).toBe(true);
+    expect(canFade(staked(), OTHER, INSIDE)).toBe(true);
   });
 
   it('refuses a signed-out viewer', () => {
-    expect(canFade(staked(), null)).toBe(false);
+    expect(canFade(staked(), null, INSIDE)).toBe(false);
   });
 
   it('refuses once the take is graded', () => {
-    expect(canFade(staked({ status: 'correct' }), OTHER)).toBe(false);
+    expect(canFade(staked({ status: 'correct' }), OTHER, INSIDE)).toBe(false);
   });
 
   it('refuses a take with nothing staked on it', () => {
     // The clause added to `take_participants insert own`: with no wager there
     // is no side to take, so the button must not exist. Without this the UI
     // would offer a click the database now refuses.
-    expect(canFade(take(), OTHER)).toBe(false);
+    expect(canFade(take(), OTHER, INSIDE)).toBe(false);
+  });
+
+  it('refuses once the take has been settled for three days', () => {
+    expect(canFade(staked(), OTHER, OUTSIDE)).toBe(false);
+  });
+
+  it('runs the window from the last edit, not from posting', () => {
+    // The author reworded it on the third day, so the take people are fading
+    // is younger than the take that was posted — and everybody gets three days
+    // on the new wording.
+    const reworded = staked({ editedAt: '2026-09-04T12:00:00Z' });
+    expect(canFade(reworded, OTHER, OUTSIDE)).toBe(true);
+    expect(canFade(reworded, OTHER, Date.parse('2026-09-08T13:00:00Z'))).toBe(false);
+  });
+});
+
+describe('the Hell Nah window', () => {
+  const staked = (overrides = {}) => take({ wager: '$20', ...overrides });
+
+  it('closes 72 hours after the take last moved', () => {
+    expect(FADE_WINDOW_MS).toBe(72 * 60 * 60 * 1000);
+    expect(fadeDeadline(staked())).toBe(Date.parse('2026-09-01T12:00:00Z') + FADE_WINDOW_MS);
+    expect(fadeDeadline(staked({ editedAt: '2026-09-02T12:00:00Z' })))
+      .toBe(Date.parse('2026-09-02T12:00:00Z') + FADE_WINDOW_MS);
+  });
+
+  it('treats a take with no usable date as closed rather than as open forever', () => {
+    expect(fadeDeadline(take({ createdAt: null }))).toBe(null);
+    expect(fadeDeadline(take({ createdAt: 'not a date' }))).toBe(null);
+    expect(isFadeWindowOpen(take({ createdAt: null }), INSIDE)).toBe(false);
+  });
+
+  it('closes withdrawing exactly when it closes fading', () => {
+    // The asymmetry this pair exists to prevent: a window that shut for
+    // joining but stayed open for leaving would let the side with something to
+    // lose step off once the football had answered the question.
+    const faded = staked({
+      takeParticipants: [{ id: 'p1', userId: OTHER.id, createdAt: '2026-09-01T13:00:00Z' }]
+    });
+
+    expect(canWithdrawFade(faded, OTHER, INSIDE)).toBe(true);
+    expect(canWithdrawFade(faded, OTHER, OUTSIDE)).toBe(false);
+  });
+
+  it('lets somebody withdraw from a take whose stake was cleared', () => {
+    // Withdrawing deliberately does not check the wager: clearing a stake
+    // leaves the rows behind, and the people holding them must still be able
+    // to step off while the window is open.
+    const faded = take({
+      takeParticipants: [{ id: 'p1', userId: OTHER.id, createdAt: '2026-09-01T13:00:00Z' }]
+    });
+
+    expect(canWithdrawFade(faded, OTHER, INSIDE)).toBe(true);
+    expect(canFade(faded, OTHER, INSIDE)).toBe(false);
+  });
+
+  it('refuses to withdraw a Hell Nah the viewer never placed', () => {
+    expect(canWithdrawFade(staked(), OTHER, INSIDE)).toBe(false);
+  });
+
+  it('says which side of the deadline the take is on', () => {
+    expect(fadeWindowNote(staked(), INSIDE)).toMatch(/^Hell Nahs close /);
+    expect(fadeWindowNote(staked(), OUTSIDE)).toMatch(/^Hell Nahs closed /);
+    expect(fadeWindowNote(take({ createdAt: null }), INSIDE)).toBe(null);
   });
 });
 

@@ -16,9 +16,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
 
-const takes = { getTakesForSeason: vi.fn() };
+const takes = { getTakesForSeason: vi.fn(), addFade: vi.fn() };
 
 // The approval answer, per test. The board is members-only and "member" means
 // approved: a signed-in account the admin has not approved yet must read as a
@@ -55,6 +56,17 @@ const SEASON = {
 const AUTHOR = 'u1';
 const READER = 'u2';
 
+/**
+ * Board fixtures are dated relative to the run, not pinned.
+ *
+ * The Hell Nah window closes 72 hours after a take was last edited, so a fixed
+ * `createdAt` makes these tests pass until three days after they were written
+ * and then fail forever — which is exactly what happened to the original board
+ * when the window shipped. Anything asserting on the control's presence has to
+ * say which side of the deadline it means.
+ */
+const hoursAgo = (hours) => new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+
 const BOARD = {
   takes: [
     {
@@ -65,7 +77,7 @@ const BOARD = {
       targetWeek: null,
       status: 'pending',
       wager: '$20',
-      createdAt: '2026-09-01T12:00:00Z',
+      createdAt: hoursAgo(2),
       takeParticipants: []
     },
     {
@@ -76,9 +88,9 @@ const BOARD = {
       targetWeek: 3,
       status: 'correct',
       wager: '40 FAAB',
-      createdAt: '2026-09-05T12:00:00Z',
-      resolvedAt: '2026-09-20T12:00:00Z',
-      takeParticipants: [{ id: 'p1', userId: READER, createdAt: '2026-09-06T12:00:00Z' }]
+      createdAt: hoursAgo(3),
+      resolvedAt: hoursAgo(1),
+      takeParticipants: [{ id: 'p1', userId: READER, createdAt: hoursAgo(2) }]
     }
   ],
   displayNames: { [AUTHOR]: 'Humza Khalil', [READER]: 'Arya Shah' }
@@ -90,8 +102,23 @@ const renderTab = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   takes.getTakesForSeason.mockResolvedValue(BOARD);
+  takes.addFade.mockResolvedValue({ id: 'new-fade' });
   auth = { user: null, isAuthenticated: false, isAdmin: false, loading: false };
+  // Both the "seen" mark and the confirmation opt-out live here, and both are
+  // keyed per user — a test that inherited either would be testing the
+  // previous test's state.
+  localStorage.clear();
 });
+
+/** The signed-in, approved member who is not the author of anything. */
+const signInAsReader = () => {
+  auth = {
+    user: { id: READER, user_metadata: { name: 'Arya Shah' } },
+    isAuthenticated: true,
+    isAdmin: false,
+    loading: false
+  };
+};
 
 describe('TakesManager, signed out', () => {
   // Not reachable through the tab any more — see the file header.
@@ -147,12 +174,7 @@ describe('TakesManager, signed in', () => {
   });
 
   it('offers the composer', async () => {
-    auth = {
-      user: { id: READER, user_metadata: { name: 'Arya Shah' } },
-      isAuthenticated: true,
-      isAdmin: false,
-      loading: false
-    };
+    signInAsReader();
 
     renderTab();
     await screen.findByText('Nobody goes 14-0');
@@ -230,9 +252,163 @@ describe('TakesManager, signed in', () => {
     renderTab();
     await screen.findByText('Somebody wins it from the 6 seed');
 
+    // Scoped to the card: the page description explains the Hell Nah window
+    // to everybody, so an unscoped /hell nah/ now matches the header.
+    const card = screen.getByText('Somebody wins it from the 6 seed').closest('[role="button"]');
     expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/hell nah/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/the bet/i)).not.toBeInTheDocument();
+    expect(within(card).queryByText(/hell nah/i)).not.toBeInTheDocument();
+    expect(within(card).queryByText(/the bet/i)).not.toBeInTheDocument();
+  });
+});
+
+describe('TakesManager, the Hell Nah window', () => {
+  // Three days after the take was last edited, both halves shut: nobody new
+  // can fade it and nobody already on it can step off. Those are RLS policies
+  // — `take_participants insert own` and `take_participants withdraw own` —
+  // and these assertions are about the UI not offering a button the database
+  // is going to refuse.
+
+  const oldTake = (overrides = {}) => ({
+    ...BOARD.takes[0],
+    id: 'stale',
+    createdAt: hoursAgo(80),
+    ...overrides
+  });
+
+  beforeEach(() => {
+    approved = true;
+    signInAsReader();
+  });
+
+  it('withdraws the control once the window has closed', async () => {
+    takes.getTakesForSeason.mockResolvedValue({
+      takes: [oldTake()],
+      displayNames: BOARD.displayNames
+    });
+
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/^Hell Nahs closed /)).toBeInTheDocument();
+  });
+
+  it('gives the window back when the take is edited', async () => {
+    // `edited_at`, not `created_at`: the take people are fading is the
+    // reworded one, so everybody gets three days on the new wording.
+    takes.getTakesForSeason.mockResolvedValue({
+      takes: [oldTake({ editedAt: hoursAgo(1) })],
+      displayNames: BOARD.displayNames
+    });
+
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    expect(screen.getByRole('button', { name: /^hell nah$/i })).toBeInTheDocument();
+    expect(screen.getByText(/^Hell Nahs close /)).toBeInTheDocument();
+  });
+
+  it('keeps a fade visible but unwithdrawable after the window', async () => {
+    // The state survives the control. This is the one place a member checks
+    // whether they are on the hook for a take, and the answer does not change
+    // just because they can no longer act on it.
+    takes.getTakesForSeason.mockResolvedValue({
+      takes: [
+        oldTake({ takeParticipants: [{ id: 'p9', userId: READER, createdAt: hoursAgo(79) }] })
+      ],
+      displayNames: BOARD.displayNames
+    });
+
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    // The state stays and the control goes. `queryByRole('button')` cannot say
+    // that here — the card itself is a `role="button"`, so its accessible name
+    // carries every word inside it — so this asserts on the element.
+    const chip = screen.getByText(/hell nah'd/i);
+    expect(chip.tagName).toBe('SPAN');
+    expect(chip.closest('button')).toBeNull();
+    expect(screen.getByText(/^Hell Nahs closed /)).toBeInTheDocument();
+  });
+});
+
+describe('TakesManager, the Hell Nah confirmation', () => {
+  beforeEach(() => {
+    approved = true;
+    signInAsReader();
+  });
+
+  it('confirms before committing the viewer to somebody else\'s wager', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell nah$/i }));
+
+    // Nothing is written on the first click — the dialog is the write.
+    expect(takes.addFade).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/if this take hits, you owe \$20/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/take it back until/i)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: /^hell nah$/i }));
+
+    expect(takes.addFade).toHaveBeenCalledWith({ takeId: 'late', seasonId: 's1' });
+  });
+
+  it('confirms the sheet\'s Hell Nah too, not just the card\'s', async () => {
+    // Both controls route through `requestFade` in the manager rather than
+    // owning a dialog each — otherwise "has this member opted out" would have
+    // two answers, and the board renders a dozen cards beside the one sheet.
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByText('Somebody wins it from the 6 seed'));
+    const sheet = await screen.findByRole('dialog');
+    await user.click(within(sheet).getByRole('button', { name: /^hell nah$/i }));
+
+    expect(takes.addFade).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: /^hell nah$/i }));
+
+    expect(takes.addFade).toHaveBeenCalledWith({ takeId: 'late', seasonId: 's1' });
+  });
+
+  it('writes nothing when the viewer backs out', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell nah$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
+
+    expect(takes.addFade).not.toHaveBeenCalled();
+  });
+
+  it('skips the dialog for good once the box is ticked', async () => {
+    // Per person, per browser, and a preference rather than a rule: it
+    // suppresses the explanation and nothing else. A dialog that cannot be
+    // dismissed permanently is one that gets clicked through unread.
+    const user = userEvent.setup();
+    const { unmount } = renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell nah$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('checkbox', { name: /don't show this again/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^hell nah$/i }));
+
+    expect(takes.addFade).toHaveBeenCalledTimes(1);
+    unmount();
+
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+    await user.click(screen.getByRole('button', { name: /^hell nah$/i }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(takes.addFade).toHaveBeenCalledTimes(2);
   });
 });
 

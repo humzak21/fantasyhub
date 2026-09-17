@@ -38,7 +38,8 @@ import { useScrollEdges } from '../../hooks/use-scroll-edges';
  * middle-click, "copy link address" and `aria-current`, all of which a
  * `<button>` silently drops.
  *
- * @param {Array} tabs - tab config: { id, label, icon, isDisabled, showNotification }
+ * @param {Array} tabs - tab config: { id, label, icon, isDisabled,
+ *   showNotification, badgeCount }
  * @param {string} activeTab
  * @param {Function} shouldShowTab
  */
@@ -114,6 +115,45 @@ const NavScrollChevron = ({ side, show, scrollerRef, className }) => {
   );
 };
 
+/**
+ * A count on a nav item, for a tab holding things the viewer has not seen yet.
+ *
+ * A number rather than the dot beside it, and the difference is deliberate:
+ * the dot means "you owe something here" — the pick'ems one is on until you
+ * submit — and it is answered by acting. This says "there are four takes you
+ * have not read", which is answered by looking, and four is a different amount
+ * of looking from one. Capped at 9+ because past that the number stops being
+ * information and starts being a width.
+ *
+ * `aria-hidden`, with the count carried in the link's accessible name instead:
+ * a screen reader announcing "Takes 4" gives no clue what the 4 counts, and
+ * two focus stops for one destination is worse than the label being long.
+ */
+const NavCountBadge = ({ count, className }) => (
+  <span
+    aria-hidden="true"
+    className={cn(
+      'flex h-4 min-w-4 items-center justify-center rounded-full px-1',
+      'bg-destructive text-[10px] font-semibold leading-none tabular text-white ring-2 ring-card',
+      className
+    )}
+  >
+    {count > 9 ? '9+' : count}
+  </span>
+);
+
+/**
+ * What a tab's accessible name says when it is carrying a badge. The visible
+ * label is `aria-hidden` in both navs, so this is the only place the count is
+ * announced — and "Takes, 4 unread" is the whole of what the badge means.
+ */
+const tabAccessibleName = (tab) => {
+  const count = Number(tab.badgeCount) || 0;
+  if (count > 0) return `${tab.label}, ${count} unread`;
+  if (tab.showNotification) return `${tab.label}, needs your attention`;
+  return tab.label;
+};
+
 const DesktopNav = ({ tabs, activeTab }) => {
   const scrollerRef = useRef(null);
   const edges = useScrollEdges(scrollerRef, tabs.length);
@@ -170,12 +210,21 @@ const DesktopNav = ({ tabs, activeTab }) => {
               <span className="hidden whitespace-nowrap 2xl:inline" aria-hidden="true">
                 {tab.label}
               </span>
-              <span className="sr-only">{tab.label}</span>
-              {tab.showNotification && (
-                <span
-                  className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-destructive"
-                  aria-label="Needs your attention"
+              <span className="sr-only">{tabAccessibleName(tab)}</span>
+              {/* A count wins over the dot when there is one: stacked on one
+                  tab they would say the same thing, and the number says more. */}
+              {Number(tab.badgeCount) > 0 ? (
+                <NavCountBadge
+                  count={Number(tab.badgeCount)}
+                  className="absolute -right-0.5 -top-0.5"
                 />
+              ) : (
+                tab.showNotification && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-destructive"
+                  />
+                )
               )}
             </NavLink>
           );
@@ -263,11 +312,18 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true }) =>
               >
                 <span className="relative">
                   <Icon className="h-5 w-5" aria-hidden="true" />
-                  {tab.showNotification && (
-                    <span
-                      className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-card"
-                      aria-label="Needs your attention"
+                  {Number(tab.badgeCount) > 0 ? (
+                    <NavCountBadge
+                      count={Number(tab.badgeCount)}
+                      className="absolute -right-2.5 -top-1.5"
                     />
+                  ) : (
+                    tab.showNotification && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-card"
+                      />
+                    )
                   )}
                 </span>
                 {/* Drawn: the short label. Announced: the full one. The visible
@@ -279,7 +335,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true }) =>
                 >
                   {tab.shortLabel || tab.label}
                 </span>
-                <span className="sr-only">{tab.label}</span>
+                <span className="sr-only">{tabAccessibleName(tab)}</span>
                 {/* The active marker is a bar at the top edge of the tab rather
                     than a filled pill: at 72px wide a fill leaves no room for
                     the label to breathe. */}

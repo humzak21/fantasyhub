@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Check,
   Coins,
+  Lock,
   Minus,
   Pencil,
   Plus,
@@ -50,9 +51,13 @@ import {
   canDeleteTake,
   canEditTake,
   canFade,
+  canWithdrawFade,
+  fadeDeadline,
   fadeTerms,
+  fadeWindowTerms,
   hasFaded,
   hasWager,
+  isFadeWindowOpen,
   isPending,
   milestoneLabel
 } from './milestones.js';
@@ -169,7 +174,11 @@ export function TakeDetailSheet({
   const participants = take.takeParticipants || [];
   const staked = hasWager(take);
   const faded = hasFaded(take, user);
-  const canToggle = canFade(take, user);
+
+  // Joining and leaving are two rules sharing one window — see `canWithdrawFade`.
+  const canToggle = faded ? canWithdrawFade(take, user) : canFade(take, user);
+  const fadeWindowOpen = isFadeWindowOpen(take);
+  const fadeCloses = fadeDeadline(take);
   const isEditing = isAdmin && editing;
 
   // The admin's editor supersedes the author's composer, so the admin is not
@@ -229,6 +238,12 @@ export function TakeDetailSheet({
                   <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                     {fadeTerms(take)}
                   </p>
+                  {/* The deadline in full, with its reason. The card has room
+                      only for the date; this is where somebody deciding
+                      whether to press the button can read why there is one. */}
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    {fadeWindowTerms(take)}
+                  </p>
                 </div>
               )}
 
@@ -240,6 +255,14 @@ export function TakeDetailSheet({
                 </FieldRow>
                 <FieldRow label="Resolves">{milestoneLabel(take, seasonConfig)}</FieldRow>
                 <FieldRow label="Posted">{formatDateTime(take.createdAt)}</FieldRow>
+                {/* Only while it is pending: a graded take is frozen by its
+                    grade, and a deadline beside a settled bet reads as though
+                    something is still owed. */}
+                {isPending(take) && fadeCloses && (
+                  <FieldRow label={fadeWindowOpen ? 'Hell Nahs close' : 'Hell Nahs closed'}>
+                    {formatDateTime(fadeCloses)}
+                  </FieldRow>
+                )}
                 {take.editedAt && <FieldRow label="Edited">{formatDateTime(take.editedAt)}</FieldRow>}
                 {take.resolvedAt && <FieldRow label="Graded">{formatDateTime(take.resolvedAt)}</FieldRow>}
               </div>
@@ -315,6 +338,21 @@ export function TakeDetailSheet({
                   </>
                 )}
               </Button>
+            )}
+
+            {/* Why there is no button. Said only to somebody it could have
+                been offered to — a signed-in member, on an ungraded take whose
+                window has run out. A visitor is not missing anything and the
+                sentence would only be noise. */}
+            {!canToggle && user?.id && isPending(take) && !fadeWindowOpen && (
+              <p className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
+                <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  {faded
+                    ? 'Your Hell Nah is locked in — the window closed three days after this take was last edited.'
+                    : 'Hell Nahs closed three days after this take was last edited.'}
+                </span>
+              </p>
             )}
 
             {isAdmin && staked && (

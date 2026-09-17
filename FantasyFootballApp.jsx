@@ -11,10 +11,13 @@ import {
   useAwardBallotSeasons,
   useSeasonConfig,
   useMemberApprovals,
-  countPendingApprovals
+  countPendingApprovals,
+  useTakesBoard
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
+import { useTakesSeen } from './src/hooks/use-takes-seen.js';
+import { countUnseenTakes } from './src/components/takes/seen.js';
 import { viewableResultSeasons } from './src/components/awards/resultsAccess.js';
 import { Card, CardContent } from './src/components/ui/card';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
@@ -124,6 +127,27 @@ const FantasyFootballApp = () => {
   // it costs nothing extra, and disabled for everyone else.
   const { data: approvalRows = [] } = useMemberApprovals({ enabled: isAdmin });
   const pendingApprovals = isAdmin ? countPendingApprovals(approvalRows) : 0;
+
+  // The badge on the Takes tab: predictions posted since this viewer last
+  // opened the board. Takes is the one tab whose contents arrive without the
+  // viewer doing anything — somebody else calls something, and nothing on any
+  // other page says so — which is why it gets a count rather than the dot
+  // Pick'ems carries: that dot means "you owe something", this means "there is
+  // something to read", and the two are answered differently.
+  //
+  // The query is the tab's own cache entry (`qk.takes.board`), borrowed: a
+  // member who sees the badge has already fetched what the tab will render, so
+  // opening Takes costs no request. Disabled for anyone who may not read the
+  // board, for whom RLS returns nothing anyway.
+  //
+  // The mark is per-browser `localStorage` — see `use-takes-seen.js` for why a
+  // read receipt does not earn a table.
+  const { board: takesBoard } = useTakesBoard(seasonId, { enabled: isApproved });
+  const { lastSeenAt: takesLastSeenAt } = useTakesSeen(user?.id);
+  const unseenTakes = useMemo(
+    () => (isApproved ? countUnseenTakes(takesBoard.takes, takesLastSeenAt, user?.id) : 0),
+    [isApproved, takesBoard, takesLastSeenAt, user]
+  );
 
   // Awards outlive the season that produced them. The tab used to be gated
   // solely on the *active* season's release date and voting flag — both off for
@@ -252,8 +276,9 @@ const FantasyFootballApp = () => {
         .map((tab) => ({
           ...tab,
           showNotification: tab.id === 'pickems' && needsPicks,
+          badgeCount: tab.id === 'takes' ? unseenTakes : 0,
         })),
-    [mainTabs, needsPicks]
+    [mainTabs, needsPicks, unseenTakes]
   );
 
   // Mutations arrive as TanStack objects; the tab components still take plain
