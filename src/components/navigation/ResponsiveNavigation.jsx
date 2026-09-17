@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Newspaper, Settings } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Newspaper, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useScrollEdges } from '../../hooks/use-scroll-edges';
 
 /**
  * Navigation, in two forms.
@@ -55,64 +56,137 @@ export const HeaderNav = ({ tabs, activeTab, shouldShowTab = () => true }) => {
   return <DesktopNav tabs={visibleTabs} activeTab={activeTab} />;
 };
 
-const DesktopNav = ({ tabs, activeTab }) => (
-  /*
-    Scrolls rather than overflows. The row gives this element whatever width is
-    left, and eight tabs currently sit well inside it — but a ninth or a longer
-    label should push the page wider, and the honest degradation for a nav that
-    outgrows its line is to scroll it. No `justify-center`: centring an
-    overflowing flex line puts its start at an unreachable negative offset,
-    which CI greps for.
-  */
-  <nav
-    aria-label="Main"
-    className="hidden min-w-0 overflow-x-auto overscroll-x-contain lg:flex lg:items-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-  >
-    {tabs.map((tab) => {
-      const Icon = tab.icon;
-      const isActive = activeTab === tab.id;
-      return (
-        <NavLink
-          key={tab.id}
-          to={`/${tab.id}`}
-          aria-disabled={tab.isDisabled || undefined}
-          onClick={(e) => tab.isDisabled && e.preventDefault()}
-          className={cn(
-            'relative flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors xl:px-3',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            isActive
-              ? 'bg-accent text-accent-foreground'
-              : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-            tab.isDisabled && 'pointer-events-none opacity-50'
-          )}
-        >
-          <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {/* Short label until there is room for the long one.
-              Eight full labels come to ~920px, which at 1280 leaves nothing
-              for the brand, the week control and the account — that shortfall
-              is what the old icon-only tier was papering over. Shortening the
-              long ones ("Statistics" → "Stats") buys room and
-              costs nothing: the full label stays the accessible name, so
-              nothing is hidden from a screen reader, and it returns in full
-              at 2xl where the row can hold it. */}
-          <span className="whitespace-nowrap 2xl:hidden" aria-hidden="true">
-            {tab.shortLabel || tab.label}
-          </span>
-          <span className="hidden whitespace-nowrap 2xl:inline" aria-hidden="true">
-            {tab.label}
-          </span>
-          <span className="sr-only">{tab.label}</span>
-          {tab.showNotification && (
-            <span
-              className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-destructive"
-              aria-label="Needs your attention"
-            />
-          )}
-        </NavLink>
-      );
-    })}
-  </nav>
-);
+/**
+ * The chevron at the edge of a nav that has more behind it.
+ *
+ * Both navs hide their scrollbar — deliberately, a 15px grey trough across the
+ * bottom of the phone tab bar is worse than the problem — and a scroller with
+ * no scrollbar is indistinguishable from content that has simply ended. So the
+ * last visible tab reads as the last tab, and the tabs past it are not
+ * discovered at all. This is the marker that says otherwise: a chevron chip
+ * over a short fade, on whichever side still has tabs behind it, and nothing
+ * at all once that side is exhausted.
+ *
+ * It is also a button, because the same compact widths that cause the overflow
+ * are the ones with a mouse and no horizontal wheel: on a laptop the only way
+ * to reach a tab off the right edge would otherwise be shift+wheel, which is
+ * not something to expect a reader to know. A click scrolls about two thirds
+ * of a viewport, which keeps a tab or two of context.
+ *
+ * `aria-hidden` with `tabIndex={-1}`: every destination is already a link in
+ * the DOM, and a browser scrolls a focused link into view on its own, so to a
+ * keyboard or screen reader this control has nothing to offer and would only
+ * be two more stops before the nav. It is an affordance for pointers only.
+ */
+const NavScrollChevron = ({ side, show, scrollerRef, className }) => {
+  const isStart = side === 'start';
+  const Icon = isStart ? ChevronLeft : ChevronRight;
+
+  return (
+    <button
+      type="button"
+      aria-hidden="true"
+      tabIndex={-1}
+      onClick={() => {
+        const scroller = scrollerRef.current;
+        if (!scroller?.scrollBy) return;
+        const step = Math.max(120, scroller.clientWidth * 0.66);
+        scroller.scrollBy({ left: isStart ? -step : step, behavior: 'smooth' });
+      }}
+      className={cn(
+        // Overlays the edge rather than taking layout width: the tab it covers
+        // is the one that is already half off-screen, and one click brings it
+        // fully into view.
+        'absolute inset-y-0 z-10 flex w-11 items-center from-card via-card/85 to-transparent',
+        'transition-opacity duration-150',
+        isStart ? 'left-0 justify-start bg-gradient-to-r pl-1.5' : 'right-0 justify-end bg-gradient-to-l pr-1.5',
+        show ? 'opacity-100' : 'pointer-events-none opacity-0',
+        className
+      )}
+    >
+      {/* A chip, not a bare glyph. The fade under it carries whatever tab is
+          behind, and a 16px chevron laid straight over a team icon is a smudge;
+          the card surface and hairline ring are what make it read as a control. */}
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-card text-foreground ring-1 ring-border shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]">
+        <Icon className="h-4 w-4" />
+      </span>
+    </button>
+  );
+};
+
+const DesktopNav = ({ tabs, activeTab }) => {
+  const scrollerRef = useRef(null);
+  const edges = useScrollEdges(scrollerRef, tabs.length);
+
+  return (
+    /*
+      Scrolls rather than overflows. The row gives this element whatever width is
+      left, and eight tabs currently sit well inside it — but a ninth or a longer
+      label should push the page wider, and the honest degradation for a nav that
+      outgrows its line is to scroll it. No `justify-center`: centring an
+      overflowing flex line puts its start at an unreachable negative offset,
+      which CI greps for.
+
+      The wrapper exists for the chevrons, which are positioned against it: they
+      have to sit outside the scrolling element, or they would scroll away with
+      the tabs they are pointing at.
+    */
+    <div className="relative hidden min-w-0 flex-1 lg:block">
+      <nav
+        ref={scrollerRef}
+        aria-label="Main"
+        className="flex min-w-0 items-center overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <NavLink
+              key={tab.id}
+              to={`/${tab.id}`}
+              aria-disabled={tab.isDisabled || undefined}
+              onClick={(e) => tab.isDisabled && e.preventDefault()}
+              className={cn(
+                'relative flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors xl:px-3',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isActive
+                  ? 'bg-accent text-accent-foreground'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                tab.isDisabled && 'pointer-events-none opacity-50'
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {/* Short label until there is room for the long one.
+                  Eight full labels come to ~920px, which at 1280 leaves nothing
+                  for the brand, the week control and the account — that shortfall
+                  is what the old icon-only tier was papering over. Shortening the
+                  long ones ("Statistics" → "Stats") buys room and
+                  costs nothing: the full label stays the accessible name, so
+                  nothing is hidden from a screen reader, and it returns in full
+                  at 2xl where the row can hold it. */}
+              <span className="whitespace-nowrap 2xl:hidden" aria-hidden="true">
+                {tab.shortLabel || tab.label}
+              </span>
+              <span className="hidden whitespace-nowrap 2xl:inline" aria-hidden="true">
+                {tab.label}
+              </span>
+              <span className="sr-only">{tab.label}</span>
+              {tab.showNotification && (
+                <span
+                  className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-destructive"
+                  aria-label="Needs your attention"
+                />
+              )}
+            </NavLink>
+          );
+        })}
+      </nav>
+
+      <NavScrollChevron side="start" show={edges.start} scrollerRef={scrollerRef} />
+      <NavScrollChevron side="end" show={edges.end} scrollerRef={scrollerRef} />
+    </div>
+  );
+};
 
 /**
  * The phone tab bar. Scrolls, holds every destination, and lives where the
@@ -134,6 +208,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true }) =>
   const visibleTabs = tabs.filter(shouldShowTab);
   const scrollerRef = useRef(null);
   const activeRef = useRef(null);
+  const edges = useScrollEdges(scrollerRef, visibleTabs.length);
 
   // Bring the active tab into view on mount and whenever it changes — with
   // eight or more destinations the current one is often off-screen after a
@@ -160,55 +235,64 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true }) =>
         'pb-[env(safe-area-inset-bottom)]'
       )}
     >
-      <div
-        ref={scrollerRef}
-        className="flex snap-x snap-mandatory items-stretch gap-0.5 overflow-x-auto overscroll-x-contain px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {visibleTabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <NavLink
-              key={tab.id}
-              to={`/${tab.id}`}
-              ref={isActive ? activeRef : undefined}
-              aria-disabled={tab.isDisabled || undefined}
-              onClick={(e) => tab.isDisabled && e.preventDefault()}
-              className={cn(
-                'relative flex min-h-14 w-[4.5rem] shrink-0 snap-center flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                isActive ? 'text-primary' : 'text-muted-foreground active:bg-accent/50',
-                tab.isDisabled && 'pointer-events-none opacity-50'
-              )}
-            >
-              <span className="relative">
-                <Icon className="h-5 w-5" aria-hidden="true" />
-                {tab.showNotification && (
-                  <span
-                    className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-card"
-                    aria-label="Needs your attention"
-                  />
+      {/* Wrapped so the chevrons have something to position against that does
+          not scroll with the tabs. The bar itself cannot be that element: it
+          is the `fixed` one, and `inset-y-0` on a chevron inside it would
+          include the safe-area padding. */}
+      <div className="relative">
+        <div
+          ref={scrollerRef}
+          className="flex snap-x snap-mandatory items-stretch gap-0.5 overflow-x-auto overscroll-x-contain px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {visibleTabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <NavLink
+                key={tab.id}
+                to={`/${tab.id}`}
+                ref={isActive ? activeRef : undefined}
+                aria-disabled={tab.isDisabled || undefined}
+                onClick={(e) => tab.isDisabled && e.preventDefault()}
+                className={cn(
+                  'relative flex min-h-14 w-[4.5rem] shrink-0 snap-center flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  isActive ? 'text-primary' : 'text-muted-foreground active:bg-accent/50',
+                  tab.isDisabled && 'pointer-events-none opacity-50'
                 )}
-              </span>
-              {/* Drawn: the short label. Announced: the full one. The visible
-                  text is hidden from assistive tech rather than added to it,
-                  or the accessible name would read "Stats Statistics". */}
-              <span
-                aria-hidden="true"
-                className="w-full truncate text-center text-[10px] font-medium leading-tight"
               >
-                {tab.shortLabel || tab.label}
-              </span>
-              <span className="sr-only">{tab.label}</span>
-              {/* The active marker is a bar at the top edge of the tab rather
-                  than a filled pill: at 72px wide a fill leaves no room for
-                  the label to breathe. */}
-              {isActive && (
-                <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary" aria-hidden="true" />
-              )}
-            </NavLink>
-          );
-        })}
+                <span className="relative">
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                  {tab.showNotification && (
+                    <span
+                      className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-card"
+                      aria-label="Needs your attention"
+                    />
+                  )}
+                </span>
+                {/* Drawn: the short label. Announced: the full one. The visible
+                    text is hidden from assistive tech rather than added to it,
+                    or the accessible name would read "Stats Statistics". */}
+                <span
+                  aria-hidden="true"
+                  className="w-full truncate text-center text-[10px] font-medium leading-tight"
+                >
+                  {tab.shortLabel || tab.label}
+                </span>
+                <span className="sr-only">{tab.label}</span>
+                {/* The active marker is a bar at the top edge of the tab rather
+                    than a filled pill: at 72px wide a fill leaves no room for
+                    the label to breathe. */}
+                {isActive && (
+                  <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary" aria-hidden="true" />
+                )}
+              </NavLink>
+            );
+          })}
+        </div>
+
+        <NavScrollChevron side="start" show={edges.start} scrollerRef={scrollerRef} />
+        <NavScrollChevron side="end" show={edges.end} scrollerRef={scrollerRef} />
       </div>
     </nav>
   );

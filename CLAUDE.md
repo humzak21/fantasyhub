@@ -1262,6 +1262,19 @@ never inside the header:** the header has `backdrop-blur`, and `backdrop-filter`
 descendants, which pins the bar directly under the header. Pages must keep the
 bottom padding that clears it.
 
+**Both navs hide their scrollbar, so both say when they are scrolled.** A
+scroller with no scrollbar is indistinguishable from content that ends, and the
+last visible tab reads as the last tab — which is how a phone user never finds
+Takes. `NavScrollChevron` is a chevron chip over a short fade at whichever edge
+still has tabs behind it, driven by `useScrollEdges`
+(`src/hooks/use-scroll-edges.js`): measured from `scrollWidth`/`scrollLeft`,
+never assumed, so nothing renders when the tabs fit and each side disappears as
+it is exhausted. It is a button because a compact laptop window has a mouse and
+no horizontal wheel, and it is `aria-hidden` with `tabIndex={-1}` because every
+destination is already a link and a browser scrolls a focused one into view by
+itself. jsdom measures every box as zero, so a test of this stubs the metrics
+(`navigation/__tests__/NavScrollIndicators.test.jsx`) or asserts nothing.
+
 **Pages use `PageContainer`.** Not a hand-written `container mx-auto px-4
 sm:px-6 lg:px-8`; that string had already drifted across the four places it
 was pasted.
