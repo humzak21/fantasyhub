@@ -7,12 +7,18 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { EmptyState } from '../ui/empty-state';
 import { ScrollHint } from '../ui/scroll-hint';
-import { ResponsiveDataTable } from '../ui/responsive-table';
 import RouteLoading from '../layout/RouteLoading';
 import { cn } from '../../lib/utils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
-import { useAllPickEmWeeks, useSeasonParlayPicks } from '../../../hooks/queries/index.js';
+import {
+  useAllPickEmWeeks,
+  useDivisions,
+  useSeasonParlayPicks,
+  useSeasonTeams
+} from '../../../hooks/queries/index.js';
 import { getDb } from '../../../services/db/index.js';
+import { groupPicksByDivision } from '../../utils/parlayDivisions';
+import { parlayHitRate } from './hitRate.js';
 import { getPositionColor } from '../../utils/positionColors';
 
 /**
@@ -40,6 +46,7 @@ import { getPositionColor } from '../../utils/positionColors';
  */
 const NO_PICKS = [];
 const NO_WEEKS = [];
+const NO_ROWS = [];
 
 const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
   const { isAdmin, isParlayCommissioner, isParlayCommissionerLoading } = useViewer();
@@ -47,6 +54,15 @@ const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
 
   const { data: weeks = NO_WEEKS, isLoading: weeksLoading } = useAllPickEmWeeks(seasonId);
   const { data: picks = NO_PICKS, isLoading: picksLoading } = useSeasonParlayPicks(seasonId);
+
+  // The week's board is split by division, the same way the picks appear on
+  // the Make Picks page — the league runs one parlay per division, so a flat
+  // list of everyone's picks is not the shape of the competition. Which column
+  // a pick belongs in is derived from the member's name matching a
+  // `teams.owner`; see `utils/parlayDivisions.js`. Both hooks share the cache
+  // entries the shell has already filled, so neither costs a request here.
+  const { data: teams = NO_ROWS } = useSeasonTeams(seasonId);
+  const { data: divisions = NO_ROWS } = useDivisions(seasonId);
 
   const [selectedWeek, setSelectedWeek] = useState(null);
   const [displayNames, setDisplayNames] = useState({});
@@ -100,12 +116,21 @@ const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
     [displayNames]
   );
 
+  // `groupPicksByDivision` matches on `displayName`, which the season query
+  // does not carry — the names are resolved separately above — so they are
+  // attached here rather than the grouping being taught a second way in.
   const weekPicks = useMemo(
     () =>
       picks
         .filter((pick) => pick.week === activeWeek)
-        .sort((a, b) => nameFor(a.userId).localeCompare(nameFor(b.userId))),
+        .map((pick) => ({ ...pick, displayName: nameFor(pick.userId) }))
+        .sort((a, b) => a.displayName.localeCompare(b.displayName)),
     [picks, activeWeek, nameFor]
+  );
+
+  const { groups, unassigned } = useMemo(
+    () => groupPicksByDivision(weekPicks, { teams, divisions }),
+    [weekPicks, teams, divisions]
   );
 
   if (!season) {
@@ -131,62 +156,6 @@ const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
       />
     );
   }
-
-  const columns = [
-    {
-      key: 'member',
-      header: 'Member',
-      priority: 'primary',
-      cell: (pick) => <span className="font-medium">{nameFor(pick.userId)}</span>
-    },
-    {
-      key: 'pick',
-      header: 'Pick',
-      priority: 'primary',
-      cell: (pick) => (
-        <span className="flex flex-wrap items-center gap-2">
-          <span>{pick.playerNameRaw}</span>
-          {pick.player?.position && (
-            <span
-              className={cn(
-                'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
-                getPositionColor(pick.player.position)
-              )}
-            >
-              {pick.player.position}
-            </span>
-          )}
-          {pick.player?.teamAbbreviation && (
-            <span className="text-xs text-muted-foreground">
-              {pick.player.teamAbbreviation}
-            </span>
-          )}
-          {/* A free-text pick is flagged because it is the one the commissioner
-              has to look up by hand — no player row means no future
-              auto-grading either. */}
-          {!pick.playerId && (
-            <Badge variant="outline" className="text-[10px]">
-              unmatched
-            </Badge>
-          )}
-        </span>
-      )
-    },
-    {
-      key: 'submitted',
-      header: 'Submitted',
-      cell: (pick) => (
-        <span className="tabular text-xs text-muted-foreground">
-          {pick.submittedAt ? new Date(pick.submittedAt).toLocaleString() : '—'}
-        </span>
-      )
-    },
-    {
-      key: 'result',
-      header: 'Result',
-      cell: (pick) => <GradeCell scoredTd={pick.scoredTd} />
-    }
-  ];
 
   return (
     <div className="space-y-6">
@@ -230,16 +199,12 @@ const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
             onSelect={setSelectedWeek}
           />
 
-          <Card>
-            <CardContent className="p-3 sm:p-4">
-              <ResponsiveDataTable
-                columns={columns}
-                data={weekPicks}
-                rowKey={(pick) => pick.id}
-                empty={`Nobody entered the parlay in week ${activeWeek}.`}
-              />
-            </CardContent>
-          </Card>
+          <WeekBoard
+            week={activeWeek}
+            groups={groups}
+            unassigned={unassigned}
+            total={weekPicks.length}
+          />
 
           <SeasonGrid
             weeks={weekNumbers}
@@ -281,6 +246,126 @@ const WeekSelector = ({ weeks, active, counts, onSelect }) => (
 );
 
 /**
+ * The week's picks, a column per division.
+ *
+ * The same shape as the board on the Make Picks page, and for the same reason:
+ * the league runs one parlay per division, so seven picks in one column is the
+ * unit that either hits or does not. A flat table sorted by name put two
+ * different competitions in one list and left the commissioner counting rows
+ * to see whether a parlay was complete.
+ *
+ * Division names are real here, like every other name on this page. Empty
+ * columns still render — "nobody in Division 2 has entered yet" is the answer
+ * to the question this page is open for.
+ */
+const WeekBoard = ({ week, groups, unassigned, total }) => {
+  if (total === 0 && groups.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-3 sm:p-4">
+          <EmptyState
+            icon={Crosshair}
+            title={`Nobody entered week ${week}`}
+            description="Picks appear here as they are submitted."
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardContent className="space-y-3 p-3 sm:p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="text-base font-semibold text-foreground">Week {week}</h3>
+          <span className="text-xs text-muted-foreground">
+            {total} {total === 1 ? 'pick' : 'picks'} in
+          </span>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          {groups.map((group, index) => (
+            <DivisionColumn
+              key={group.division?.id ?? index}
+              title={group.division?.name || `Division ${index + 1}`}
+              picks={group.picks}
+              emptyText="Nobody in this division has entered yet."
+            />
+          ))}
+
+          {unassigned.length > 0 && (
+            <DivisionColumn
+              className="md:col-span-2"
+              title="Not matched to a division"
+              picks={unassigned}
+              emptyText="Nobody in this division has entered yet."
+            />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+/** One division's parlay: its name, and every pick entered against it. */
+const DivisionColumn = ({ className, title, picks, emptyText }) => (
+  <section
+    aria-label={title}
+    className={cn('rounded-lg border border-border bg-muted/20 p-3', className)}
+  >
+    <div className="mb-1 flex items-baseline justify-between gap-2">
+      <h4 className="truncate text-sm font-semibold text-foreground">{title}</h4>
+      <span className="shrink-0 text-xs tabular text-muted-foreground">{picks.length}</span>
+    </div>
+
+    {picks.length === 0 ? (
+      <p className="py-2 text-sm text-muted-foreground">{emptyText}</p>
+    ) : (
+      <ul className="divide-y divide-border">
+        {picks.map((pick) => (
+          <li key={pick.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm">
+            <span className="min-w-0 flex-1 truncate font-medium">{pick.displayName}</span>
+            <span className="truncate">{pick.playerNameRaw}</span>
+            {pick.player?.position && (
+              <span
+                className={cn(
+                  'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
+                  getPositionColor(pick.player.position)
+                )}
+              >
+                {pick.player.position}
+              </span>
+            )}
+            {pick.player?.teamAbbreviation && (
+              <span className="text-xs text-muted-foreground">{pick.player.teamAbbreviation}</span>
+            )}
+            {/* A free-text pick is flagged because it is the one the
+                commissioner has to look up by hand — no player row means no
+                auto-grading either. */}
+            {!pick.playerId && (
+              <Badge variant="outline" className="text-[10px]">
+                unmatched
+              </Badge>
+            )}
+            <GradeCell scoredTd={pick.scoredTd} />
+            <span className="w-full tabular text-[11px] text-muted-foreground">
+              {pick.submittedAt
+                ? `Submitted ${new Date(pick.submittedAt).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })}`
+                : 'Submission time unknown'}
+            </span>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+);
+
+/**
  * Members down, weeks across.
  *
  * The one view that answers "who keeps forgetting" and "how is everyone
@@ -312,7 +397,7 @@ const SeasonGrid = ({ weeks, picks, nameFor }) => {
             <thead>
               <tr>
                 <th className="sticky left-0 z-10 bg-card px-2 py-1.5 text-left text-[13px] font-medium text-muted-foreground">
-                  Member
+                  Member &middot; TDs hit
                 </th>
                 {weeks.map((week) => (
                   <th
@@ -328,7 +413,10 @@ const SeasonGrid = ({ weeks, picks, nameFor }) => {
               {byUser.map(([userId, weekMap]) => (
                 <tr key={userId}>
                   <td className="sticky left-0 z-10 whitespace-nowrap border-t border-border bg-card px-2 py-1.5 font-medium">
-                    {nameFor(userId)}
+                    <span className="flex items-baseline gap-2">
+                      <span>{nameFor(userId)}</span>
+                      <HitRate picks={Object.values(weekMap)} />
+                    </span>
                   </td>
                   {weeks.map((week) => {
                     const pick = weekMap[week];
@@ -358,6 +446,28 @@ const SeasonGrid = ({ weeks, picks, nameFor }) => {
         </ScrollHint>
       </CardContent>
     </Card>
+  );
+};
+
+/** The rate beside a member's name in the grid. See `hitRate.js`. */
+const HitRate = ({ picks }) => {
+  const rate = parlayHitRate(picks);
+
+  if (!rate) {
+    return (
+      <span className="text-[11px] text-muted-foreground" title="Nothing graded yet">
+        &mdash;
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="text-[11px] tabular text-muted-foreground"
+      title={`${rate.hits} of ${rate.graded} graded picks scored`}
+    >
+      {rate.hits}/{rate.graded} &middot; {rate.percent.toFixed(0)}%
+    </span>
   );
 };
 

@@ -317,20 +317,52 @@ const HEADER_ICON_BUTTON =
 
 const HEADER_ICON_IDLE = 'text-muted-foreground hover:bg-accent/50 hover:text-foreground';
 
-export const SettingsLink = ({ active = false, className }) => (
-  <NavLink
-    to="/settings"
-    aria-label="Settings"
-    title="Settings"
-    className={cn(
-      HEADER_ICON_BUTTON,
-      active ? 'bg-accent text-accent-foreground' : HEADER_ICON_IDLE,
-      className
-    )}
-  >
-    <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
-  </NavLink>
-);
+/**
+ * `badgeCount` is the admin's pending approvals. The cog is Settings' one
+ * entry point, and Approvals is two clicks inside it, so a member waiting for
+ * an account is invisible until the admin happens to go looking — which is
+ * the same failure the per-tab notification dots exist to prevent, on the one
+ * destination that has no tab.
+ *
+ * A number rather than a dot, because "three people are waiting" and "one
+ * person is waiting" are different amounts of owed work, and the count is
+ * already in hand.
+ */
+export const SettingsLink = ({ active = false, badgeCount = 0, badgeLabel, className }) => {
+  const count = Number(badgeCount) || 0;
+  const label = count > 0 ? `Settings (${badgeLabel || `${count} pending`})` : 'Settings';
+
+  return (
+    <NavLink
+      to="/settings"
+      aria-label={label}
+      title={label}
+      className={cn(
+        HEADER_ICON_BUTTON,
+        'relative',
+        active ? 'bg-accent text-accent-foreground' : HEADER_ICON_IDLE,
+        className
+      )}
+    >
+      <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
+      {count > 0 && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            'absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1',
+            'bg-destructive text-[10px] font-semibold leading-none tabular text-white',
+            // The ring separates the badge from the glyph under it; the cog's
+            // teeth are exactly the kind of busy edge a bare dot disappears
+            // against.
+            'ring-2 ring-card'
+          )}
+        >
+          {count > 9 ? '9+' : count}
+        </span>
+      )}
+    </NavLink>
+  );
+};
 
 export const NEWSLETTER_URL = 'https://ogjits.substack.com/';
 

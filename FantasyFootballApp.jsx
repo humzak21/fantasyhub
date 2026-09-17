@@ -9,7 +9,9 @@ import {
   useHasSubmittedPicks,
   useAwardsUnlockStatus,
   useAwardBallotSeasons,
-  useSeasonConfig
+  useSeasonConfig,
+  useMemberApprovals,
+  countPendingApprovals
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
@@ -114,6 +116,14 @@ const FantasyFootballApp = () => {
     useHasSubmittedPicks(seasonId, actualWeek, { enabled: isApproved && Boolean(user) });
 
   const { status: awardsUnlockStatus } = useAwardsUnlockStatus(seasonId);
+
+  // The badge on the cog: accounts waiting on the admin. Settings is not a
+  // tab in either nav, so it has no notification dot of its own, and Approvals
+  // is a panel inside it — a member who signed up stayed invisible until the
+  // admin went looking. Same query key the Approvals panel reads, so opening
+  // it costs nothing extra, and disabled for everyone else.
+  const { data: approvalRows = [] } = useMemberApprovals({ enabled: isAdmin });
+  const pendingApprovals = isAdmin ? countPendingApprovals(approvalRows) : 0;
 
   // Awards outlive the season that produced them. The tab used to be gated
   // solely on the *active* season's release date and voting flag — both off for
@@ -388,7 +398,13 @@ const FantasyFootballApp = () => {
                   is for approved members, like the members-only tabs. */}
               <div className="flex shrink-0 items-center gap-1">
                 {isApproved && <NewsletterLink />}
-                {isAuthenticated && <SettingsLink active={activeTab === 'settings'} />}
+                {isAuthenticated && (
+                  <SettingsLink
+                    active={activeTab === 'settings'}
+                    badgeCount={pendingApprovals}
+                    badgeLabel={`${pendingApprovals} ${pendingApprovals === 1 ? 'account' : 'accounts'} awaiting approval`}
+                  />
+                )}
                 <LoginDropdown />
               </div>
             </div>

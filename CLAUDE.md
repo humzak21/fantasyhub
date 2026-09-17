@@ -969,6 +969,43 @@ Backfilling `player_week_stats` also means a live power-ranking view of a
 2020-25 week now has the roster components it used to drop as unknown; stored
 snapshots are untouched.
 
+### Pick'ems pays one place, twice a season
+
+The season splits into two in-season tourneys — weeks 1-8 for $20 FAAB in the
+current year, weeks 9-17 for $20 FAAB in the next — each needing at least five
+weeks entered to be eligible. `src/components/pickems/tourneys.js` is the one
+statement of that, rendered by `TourneyNote.jsx` on both the Make Picks page
+and the Standings tab. Two copies of a prize rule is how the page ends up
+promising something the league is not paying. Nothing enforces it: the prize is
+settled between people, and `totalWeeksParticipated` is the number the floor is
+read against.
+
+**The podium is one place wide, and everyone level on it has won.**
+`getSeasonPickEmStandings` numbers its rows by array position, exactly as
+`getWeeklyPickEmScores` does, so a rank-based read hands the trophy to
+whichever of two tied members the sort happened to put first —
+`rankSeasonStandings` (`seasonRanks.js`) re-ranks on points with competition
+ranking (1, 2, 2, 4) and marks the tie, which is the "T-1st" the table shows.
+It ranks on points alone: accuracy is the standings' *sort* tiebreak, not a
+tiebreak for the prize. A season with no points scored has no leader. Second
+and third carry their place as plain text — they wore ribbons of their own,
+which said the league pays three places.
+
+**The Submissions tab is a card per member, three across** — the same
+`IndependentColumns` shape as Teams. It used to redraw the *picker* read-only,
+two 15rem team buttons per matchup down the page, which came to roughly 6,000px
+of scrolling to answer "who hasn't picked yet". Both teams and both owners are
+still on every line; the team taken is the line's subject and the other follows
+"over", so which was picked survives without colour. A row with no stored
+winner reads "no pick", never as a vote for team 1.
+
+**The cog carries the admin's pending-approval count.** Settings is in neither
+nav (`inNav: false`), so it has no notification dot of its own and Approvals is
+a panel two clicks inside it — a member who signed up was invisible until the
+admin went looking. `SettingsLink`'s `badgeCount` comes from the shell, off the
+same `useMemberApprovals` query the panel reads, disabled for everyone else.
+The badge is `aria-hidden`, so the reason lives in the link's accessible name.
+
 ### The TD parlay is one row per member per week
 
 Each member names one NFL player they think scores a touchdown. It lives at the
@@ -1051,6 +1088,18 @@ destination: two people can open it, which is thin grounds for a nav item every
 other layout has to make room for, and it belongs beside the form the picks it
 reports on are entered in. PickEmsManager lazy-loads it and passes `embedded`,
 which drops its `PageHeader` so the page is not titled twice.
+
+**Its week board is division columns too**, through the same
+`groupPicksByDivision` the members' board uses — the league runs one parlay per
+division, so seven picks in a column is the unit that hits or does not, and a
+flat table sorted by name put two competitions in one list. The grouping matches
+on `displayName`, which `getSeasonParlayPicks` does not carry, so the dashboard
+attaches the names it already resolved rather than teaching the grouping a
+second way in. **Season at a glance carries each member's TD hit rate**
+(`parlay/hitRate.js`), over *graded* picks only: a NULL `scored_td` is ungraded,
+so counting pending weeks as misses would report a season as worse than it is
+and would move as the grader caught up rather than as the football happened.
+Nothing graded is an em dash, not 0%.
 
 `player_week_stats.pro_team_id` is the join key into `nfl_schedule`, and the
 "vs BUF / @ KC / BYE" chips those slots were reserved for are now wired — see

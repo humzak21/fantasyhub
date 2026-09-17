@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithProviders, screen } from '../../../test/renderWithProviders.jsx';
+import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
 
 const parlay = { getSeasonParlayPicks: vi.fn(async () => []) };
 const pickems = { getAllPickEmWeeks: vi.fn(async () => []) };
@@ -19,12 +19,34 @@ const users = {
   getUserDisplayNames: vi.fn(async () => ({ u1: 'Arya Shah', u2: 'Rohit Ramki' }))
 };
 
+/**
+ * The league's two halves, for the division columns. Same shapes as the
+ * board's own test: teams come back in database shape (`division_id`) because
+ * `getTeamsForSeason` does not `formatFromDatabase` them, divisions camelCased
+ * because `getDivisionsForSeason` does.
+ */
+const teams = {
+  getTeamsForSeason: vi.fn(async () => [
+    { id: 't1', name: 'Team Arya', owner: 'Arya Shah', division_id: 'd1' },
+    { id: 't2', name: 'Team Rohit', owner: 'Rohit Ramki', division_id: 'd2' }
+  ])
+};
+
+const divisions = {
+  getDivisionsForSeason: vi.fn(async () => [
+    { id: 'd1', name: 'The Dawg Pound', displayOrder: 1 },
+    { id: 'd2', name: 'The Kennel', displayOrder: 2 }
+  ])
+};
+
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
     parlay,
     pickems,
     users,
+    teams,
+    divisions,
     seasons: { getActiveSeason: async () => null }
   })
 }));
@@ -123,6 +145,27 @@ describe('ParlayCommissionerDashboard', () => {
     renderWithProviders(<ParlayCommissionerDashboard season={SEASON} />);
 
     expect(await screen.findByText(/no pick.em weeks yet/i)).toBeInTheDocument();
+  });
+
+  it('puts the week\'s picks in their division columns, not one flat list', async () => {
+    renderWithProviders(<ParlayCommissionerDashboard season={SEASON} />);
+
+    // Each column is a labelled region, so a pick can be read as belonging to
+    // the parlay it is actually competing in.
+    const dawgs = await screen.findByRole('region', { name: 'The Dawg Pound' });
+    const kennel = screen.getByRole('region', { name: 'The Kennel' });
+
+    expect(within(dawgs).getByText('Justin Jefferson')).toBeInTheDocument();
+    expect(within(kennel).getByText('Some Rookie')).toBeInTheDocument();
+    expect(within(dawgs).queryByText('Some Rookie')).not.toBeInTheDocument();
+  });
+
+  it('reports a TD hit rate over graded picks only', async () => {
+    renderWithProviders(<ParlayCommissionerDashboard season={SEASON} />);
+
+    // Arya's one graded pick scored; Rohit's only pick is still pending, and a
+    // pending pick is not a miss — see `parlayHitRate`.
+    expect(await screen.findByText(/1\/1 · 100%/)).toBeInTheDocument();
   });
 
   it('says there is nothing to show without an active season', async () => {
