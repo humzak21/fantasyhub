@@ -980,6 +980,25 @@ promising something the league is not paying. Nothing enforces it: the prize is
 settled between people, and `totalWeeksParticipated` is the number the floor is
 read against.
 
+**A record is counted against the games played, never the picks entered.**
+`isDecided` in `services/db/pickems.js` is the single definition — a pick is
+decided once its game is `is_completed`, the same condition `isCorrect`
+already carries — and both `getWeeklyPickEmScores` and
+`getSeasonPickEmStandings` divide by `decidedPicks`/`totalDecidedPicks` rather
+than `totalPicks`. A member who had gone 5-from-7 in week 1 and entered week 2
+before kickoff read as **5/14 at 35.7%**: a record they could not have had,
+which fell every Tuesday as the new week's picks landed and climbed back
+through the weekend. `totalPicks` still travels, because the gap between the
+two is what the tables show as "N pending".
+
+**Percent alone cannot mean "perfect".** A week one game in is 1-from-1 and so
+is 100%. `getWeeklyPickEmScores` reports `isComplete` (every entered pick
+decided), and everything meaning *perfect* checks it — `perfectWeeks` in the
+season standings, and the Results tab's own tile, which would otherwise credit
+a perfect week on Thursday and take it back on Sunday. Participation is the
+other way round: `totalWeeksParticipated` counts weeks *entered*, because the
+tourney floor is about submitting, not about being scored.
+
 **The podium is one place wide, and everyone level on it has won.**
 `getSeasonPickEmStandings` numbers its rows by array position, exactly as
 `getWeeklyPickEmScores` does, so a rank-based read hands the trophy to

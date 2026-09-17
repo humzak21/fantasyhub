@@ -23,6 +23,7 @@ const standing = (userId, displayName, totalPoints, overrides = {}) => ({
   displayName,
   totalPoints,
   totalPicks: 21,
+  totalDecidedPicks: 21,
   totalCorrectPicks: totalPoints,
   totalWeeksParticipated: 3,
   perfectWeeks: 0,
@@ -79,6 +80,32 @@ describe('PickEmsSeasonStandings', () => {
     expect(screen.getByText(/Weeks 9–17/)).toBeInTheDocument();
     expect(screen.getByText(/\$20 FAAB for next year/)).toBeInTheDocument();
     expect(screen.getAllByText(/at least 5 of the/)).toHaveLength(2);
+  });
+
+  it('counts a record against the games played, and says what is still pending', () => {
+    // Week 1 scored 5 from 7, week 2 entered and not kicked off: 5/7, never
+    // 5/14 — the seven unplayed games are not seven wrong answers.
+    renderStandings([
+      standing('a', 'Humza Khalil', 5, {
+        totalPicks: 14,
+        totalDecidedPicks: 7,
+        totalCorrectPicks: 5,
+        totalWeeksParticipated: 2,
+        overallAccuracyPercentage: (5 / 7) * 100
+      })
+    ]);
+
+    const row = rowFor('Humza Khalil');
+    expect(within(row).getByText('5/7 picks')).toBeInTheDocument();
+    expect(within(row).getByText('7 pending')).toBeInTheDocument();
+    expect(within(row).queryByText('5/14 picks')).not.toBeInTheDocument();
+    expect(within(row).getByText('71.4% overall')).toBeInTheDocument();
+  });
+
+  it('says nothing about pending picks once the week has been played', () => {
+    renderStandings([standing('a', 'Humza Khalil', 18)]);
+
+    expect(within(rowFor('Humza Khalil')).queryByText(/pending/)).not.toBeInTheDocument();
   });
 
   it('explains an empty season rather than rendering a bare list', () => {
