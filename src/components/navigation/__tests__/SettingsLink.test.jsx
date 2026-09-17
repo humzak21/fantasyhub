@@ -35,4 +35,25 @@ describe('SettingsLink', () => {
     );
     expect(screen.getByRole('link', { name: 'Settings' })).toHaveClass('bg-accent');
   });
+
+  it('shows nothing when there is nothing waiting', () => {
+    mount(<SettingsLink badgeCount={0} />);
+
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  it('counts what is waiting, and says so in the name', () => {
+    // The badge itself is `aria-hidden` — a bare "3" beside a cog is not a
+    // sentence — so the accessible name is where the reason has to live.
+    mount(<SettingsLink badgeCount={3} badgeLabel="3 accounts awaiting approval" />);
+
+    const link = screen.getByRole('link', { name: 'Settings (3 accounts awaiting approval)' });
+    expect(link).toHaveTextContent('3');
+  });
+
+  it('caps the count rather than widening the header', () => {
+    mount(<SettingsLink badgeCount={42} />);
+
+    expect(screen.getByRole('link', { name: /Settings/ })).toHaveTextContent('9+');
+  });
 });

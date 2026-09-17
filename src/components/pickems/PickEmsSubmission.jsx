@@ -11,6 +11,7 @@ import { cn } from '../../lib/utils';
 import PickEmsSubmitBar from './PickEmsSubmitBar';
 import MatchupResearchSection from './MatchupResearchSection';
 import ParlayPickSection from './ParlayPickSection';
+import TourneyNote from './TourneyNote.jsx';
 
 const PickEmsSubmission = ({
   season,
@@ -260,6 +261,12 @@ const PickEmsSubmission = ({
           </div>
         </CardHeader>
 
+        {/* The tourney rules, where the decision to enter is being made. The
+            Standings tab states the same two prizes from the same module —
+            see `tourneys.js` for why they are not written twice. */}
+        <CardContent>
+          <TourneyNote compact currentWeek={currentWeek} />
+        </CardContent>
       </Card>
 
       {/* Success confirmation */}
