@@ -461,6 +461,22 @@ export async function calculatePickEmResults(ctx, pickEmWeekId) {
   }
 }
 
+/**
+ * A pick is *decided* once its game is over.
+ *
+ * Every score below counts hits against decided picks rather than against
+ * picks entered, which is the same rule the rest of this codebase states as
+ * "unknown is absent, never zero": a game nobody has played is not a miss. A
+ * member who had gone 5-for-7 in week 1 and entered week 2 before kickoff read
+ * as 5/14 at 35.7% — a record they could not have had, and one that fell
+ * further every Tuesday as the new week's picks landed.
+ *
+ * `isCorrect` already requires `is_completed`, so this is the other half of
+ * the same fact and has to come from the same place. Note a tie is decided and
+ * correct for nobody; that is unchanged.
+ */
+const isDecided = (pick) => Boolean(pick?.gameCompleted);
+
 export async function getWeeklyPickEmScores(ctx, pickEmWeekId) {
 
   try {
@@ -479,6 +495,7 @@ export async function getWeeklyPickEmScores(ctx, pickEmWeekId) {
         userScores[userId] = {
           userId,
           totalPicks: 0,
+          decidedPicks: 0,
           correctPicks: 0,
           totalPoints: 0,
           pickEmWeekId
@@ -486,6 +503,7 @@ export async function getWeeklyPickEmScores(ctx, pickEmWeekId) {
       }
 
       userScores[userId].totalPicks++;
+      if (isDecided(pick)) userScores[userId].decidedPicks++;
       if (pick.isCorrect) {
         userScores[userId].correctPicks++;
         userScores[userId].totalPoints += pick.pointsEarned || 1;
@@ -500,7 +518,12 @@ export async function getWeeklyPickEmScores(ctx, pickEmWeekId) {
     const scoresArray = Object.values(userScores).map(score => ({
       ...score,
       displayName: displayNames[score.userId] || `User ${score.userId.slice(0, 8)}`,
-      accuracyPercentage: score.totalPicks > 0 ? (score.correctPicks / score.totalPicks) * 100 : 0
+      // `isComplete` is what separates "7 from 7" from "1 from 1 so far", and
+      // both read as 100%. Anything that means *perfect* has to check it — see
+      // `perfectWeeks` below, and the Results tab's own tile.
+      isComplete: score.totalPicks > 0 && score.decidedPicks === score.totalPicks,
+      accuracyPercentage:
+        score.decidedPicks > 0 ? (score.correctPicks / score.decidedPicks) * 100 : 0
     }));
 
     // Sort by total points (desc), then by correct picks (desc), then by accuracy (desc)
@@ -549,6 +572,7 @@ export async function getSeasonPickEmStandings(ctx, seasonId) {
           userStats[userId] = {
             userId,
             totalPicks: 0,
+            totalDecidedPicks: 0,
             totalCorrectPicks: 0,
             totalPoints: 0,
             totalWeeksParticipated: new Set(),
@@ -558,17 +582,23 @@ export async function getSeasonPickEmStandings(ctx, seasonId) {
         }
 
         userStats[userId].totalPicks++;
+        if (isDecided(pick)) userStats[userId].totalDecidedPicks++;
         if (pick.isCorrect) {
           userStats[userId].totalCorrectPicks++;
           userStats[userId].totalPoints += pick.pointsEarned || 1;
         }
+        // Participation is *entering*, not being scored. The tourney floor is
+        // read against this number, and a member who submitted on Tuesday has
+        // played that week whether or not a ball has been thrown.
         userStats[userId].totalWeeksParticipated.add(week.week_number);
       });
 
-      // Check for perfect weeks
+      // Check for perfect weeks. `isComplete` is the guard: a week where the
+      // Thursday game is the only one played is 1-from-1 and therefore 100%,
+      // and crediting that as a perfect week would take it back on Sunday.
       const weekScores = await getWeeklyPickEmScores(ctx, week.id);
       weekScores.forEach(score => {
-        if (score.accuracyPercentage === 100 && userStats[score.userId]) {
+        if (score.isComplete && score.accuracyPercentage === 100 && userStats[score.userId]) {
           userStats[score.userId].perfectWeeks++;
         }
       });
@@ -582,12 +612,20 @@ export async function getSeasonPickEmStandings(ctx, seasonId) {
     const standingsArray = Object.values(userStats).map(stats => ({
       userId: stats.userId,
       displayName: displayNames[stats.userId] || `User ${stats.userId.slice(0, 8)}`,
+      // `totalPicks` is picks *entered* and `totalDecidedPicks` is the ones
+      // that have been played. The standings show the second as the
+      // denominator; the gap between them is what the table reports as
+      // pending, so both have to travel.
       totalPicks: stats.totalPicks,
+      totalDecidedPicks: stats.totalDecidedPicks,
       totalCorrectPicks: stats.totalCorrectPicks,
       totalPoints: stats.totalPoints,
       totalWeeksParticipated: stats.totalWeeksParticipated.size,
       perfectWeeks: stats.perfectWeeks,
-      overallAccuracyPercentage: stats.totalPicks > 0 ? (stats.totalCorrectPicks / stats.totalPicks) * 100 : 0
+      overallAccuracyPercentage:
+        stats.totalDecidedPicks > 0
+          ? (stats.totalCorrectPicks / stats.totalDecidedPicks) * 100
+          : 0
     }));
 
     // Sort by total points, then by accuracy

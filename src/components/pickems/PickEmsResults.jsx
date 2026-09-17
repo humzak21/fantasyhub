@@ -8,6 +8,28 @@ import {
 } from 'lucide-react';
 import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUtils';
 
+/**
+ * Picks that have been played, and picks still waiting on a game.
+ *
+ * The same rule the season standings use: a hit is counted against games that
+ * have finished, never against games that have merely been picked. The
+ * fallback covers a score row from before the data layer carried the second
+ * number. See `isDecided` in `services/db/pickems.js`.
+ */
+const decidedPicks = (score) => score.decidedPicks ?? score.totalPicks ?? 0;
+const pendingPicks = (score) => Math.max(0, (score.totalPicks ?? 0) - decidedPicks(score));
+
+/** A week is perfect only once every game in it has been played. */
+const isPerfect = (score) => Boolean(score.isComplete) && score.accuracyPercentage === 100;
+
+/** The league's accuracy this week, over the members who have a figure. */
+const averageAccuracy = (scores) => {
+  const scored = scores.filter((score) => decidedPicks(score) > 0);
+  if (scored.length === 0) return '—';
+  const mean = scored.reduce((sum, score) => sum + score.accuracyPercentage, 0) / scored.length;
+  return `${mean.toFixed(1)}%`;
+};
+
 const PickEmsResults = ({
   season,
   currentWeek,
@@ -142,8 +164,11 @@ const PickEmsResults = ({
                           <div className="font-medium">
                             {getMaskedUserName(score.displayName, score.userId, user, isAdmin, teamOwnerNames)}
                           </div>
-                          <div className="text-sm text-muted-foreground">
-                            {score.correctPicks}/{score.totalPicks} correct
+                          <div className="text-sm tabular text-muted-foreground">
+                            {score.correctPicks}/{decidedPicks(score)} correct
+                            {pendingPicks(score) > 0 && (
+                              <span> &middot; {pendingPicks(score)} pending</span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -288,18 +313,24 @@ const PickEmsResults = ({
                     <div className="text-sm text-muted-foreground">Top Score</div>
                   </div>
 
+                  {/* Averaged over the members who have something decided.
+                      Before a game has been played nobody does, and folding
+                      them in at 0% would read as the whole league having got
+                      everything wrong. */}
                   <div className="text-center">
                     <div className="text-2xl font-bold text-primary">
-                      {formatAccuracy(
-                        weeklyScores.reduce((sum, s) => sum + s.accuracyPercentage, 0) / weeklyScores.length
-                      )}
+                      {averageAccuracy(weeklyScores)}
                     </div>
                     <div className="text-sm text-muted-foreground">Avg Accuracy</div>
                   </div>
 
                   <div className="text-center">
+                    {/* Only once the week is over. Mid-week, a member whose
+                        single played game went their way is 1-from-1 and reads
+                        as 100% — a perfect week this tile would then take back
+                        on Sunday. */}
                     <div className="text-2xl font-bold text-primary">
-                      {weeklyScores.filter(s => s.accuracyPercentage === 100).length}
+                      {weeklyScores.filter(isPerfect).length}
                     </div>
                     <div className="text-sm text-muted-foreground">Perfect Weeks</div>
                   </div>

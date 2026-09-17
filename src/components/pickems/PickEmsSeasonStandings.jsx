@@ -12,6 +12,15 @@ import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUti
 import { rankSeasonStandings, ordinal } from './seasonRanks.js';
 import TourneyNote from './TourneyNote.jsx';
 
+/**
+ * Picks that have actually been played, and picks still waiting on a game.
+ *
+ * The data layer supplies `totalDecidedPicks`; the fallback is for a row from
+ * before it did, where the two were the same number by assumption.
+ */
+const decidedPicks = (standing) => standing.totalDecidedPicks ?? standing.totalPicks ?? 0;
+const pendingPicks = (standing) => Math.max(0, (standing.totalPicks ?? 0) - decidedPicks(standing));
+
 const PickEmsSeasonStandings = ({
   season,
   currentWeek,
@@ -200,7 +209,15 @@ const PickEmsSeasonStandings = ({
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-sm text-muted-foreground">
-                          <span>{standing.totalCorrectPicks}/{standing.totalPicks} picks</span>
+                          {/* Decided picks, not picks entered. A week whose
+                              games have not kicked off yet is not seven
+                              misses — see `pendingPicks`. */}
+                          <span className="tabular">
+                            {standing.totalCorrectPicks}/{decidedPicks(standing)} picks
+                          </span>
+                          {pendingPicks(standing) > 0 && (
+                            <span className="tabular">{pendingPicks(standing)} pending</span>
+                          )}
                           <span>{standing.totalWeeksParticipated} weeks</span>
                           {standing.perfectWeeks > 0 && (
                             <span className="flex items-center gap-1">

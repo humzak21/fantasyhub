@@ -83,3 +83,73 @@ describe('PickEmsResults pick breakdown', () => {
     expect(valueFor(row, 'Chosen:')).toBe(masked);
   });
 });
+
+/**
+ * The week's leaderboard has the same denominator problem the season
+ * standings had: mid-week, a member who had picked seven games and seen one
+ * played read as 1/7 at 14.3%. A hit is counted against games that have
+ * finished — and, the half that is easy to lose the other way, a week that is
+ * one game old must not be credited as perfect just because that one game
+ * went right.
+ */
+const score = (overrides) => ({
+  userId: 'user-aaaaaaaa',
+  displayName: 'Humza Khalil',
+  weeklyRank: 1,
+  totalPicks: 7,
+  decidedPicks: 7,
+  correctPicks: 7,
+  totalPoints: 7,
+  isComplete: true,
+  accuracyPercentage: 100,
+  ...overrides,
+});
+
+const renderWeekly = (weeklyScores) =>
+  render(
+    <PickEmsResults
+      currentWeek={2}
+      resultsAvailable
+      weeklyScores={weeklyScores}
+      allPicks={[]}
+      isAdmin
+    />
+  );
+
+describe('PickEmsResults weekly leaderboard', () => {
+  it('counts a record against the games played, and flags what is pending', () => {
+    renderWeekly([
+      score({ totalPicks: 7, decidedPicks: 2, correctPicks: 1, totalPoints: 1, isComplete: false, accuracyPercentage: 50 }),
+    ]);
+
+    expect(screen.getByText(/1\/2 correct/)).toBeInTheDocument();
+    expect(screen.getByText(/5 pending/)).toBeInTheDocument();
+    expect(screen.queryByText(/1\/7 correct/)).not.toBeInTheDocument();
+  });
+
+  it('does not call a week perfect while games are still to play', () => {
+    renderWeekly([
+      score({ decidedPicks: 1, correctPicks: 1, totalPoints: 1, isComplete: false, accuracyPercentage: 100 }),
+    ]);
+
+    // 1 from 1 is 100%, which is why the tile cannot read the percentage alone.
+    const perfect = screen.getByText('Perfect Weeks').previousElementSibling;
+    expect(perfect).toHaveTextContent('0');
+  });
+
+  it('calls it perfect once every game has been played', () => {
+    renderWeekly([score()]);
+
+    const perfect = screen.getByText('Perfect Weeks').previousElementSibling;
+    expect(perfect).toHaveTextContent('1');
+  });
+
+  it('reports no league accuracy before a game has been played, rather than 0%', () => {
+    renderWeekly([
+      score({ decidedPicks: 0, correctPicks: 0, totalPoints: 0, isComplete: false, accuracyPercentage: 0 }),
+    ]);
+
+    const average = screen.getByText('Avg Accuracy').previousElementSibling;
+    expect(average).toHaveTextContent('—');
+  });
+});
