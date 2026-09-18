@@ -708,7 +708,10 @@ export async function getPickEmWeeklyBreakdown(ctx, seasonId) {
 export async function getPickEmGameData(ctx, seasonId, weekNumber) {
 
   try {
-    // Get games for the week to use for pick'ems
+    // Get games for the week to use for pick'ems. `franchise_id` rides along
+    // because a team's colour and avatar are keyed on it (`teamColors.js`);
+    // without it the form's teams fell back to an owner-keyed hue that did not
+    // match the same franchise on Schedule.
     const { data, error } = await ctx.client
       .from('games')
       .select(`
@@ -720,8 +723,8 @@ export async function getPickEmGameData(ctx, seasonId, weekNumber) {
         team2_score,
         is_completed,
         winner_team_id,
-        team1:teams!games_team1_id_fkey(id, name, owner),
-        team2:teams!games_team2_id_fkey(id, name, owner)
+        team1:teams!games_team1_id_fkey(id, name, owner, franchise_id),
+        team2:teams!games_team2_id_fkey(id, name, owner, franchise_id)
       `)
       .eq('season_id', seasonId)
       .eq('week', weekNumber)

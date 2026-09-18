@@ -1100,6 +1100,27 @@ still on every line; the team taken is the line's subject and the other follows
 "over", so which was picked survives without colour. A row with no stored
 winner reads "no pick", never as a vote for team 1.
 
+**How the league picked appears once the window closes.** On Make Picks,
+between the week's card and the TD parlay, `LeaguePickSplit.jsx` shows one box
+per team, with the share of the week's picks that team got. The boxes sit in
+two rows of seven, one matchup per column (team 1 on top), and its explainer
+(`LeaguePickSplitNote`) is the last box inside the week's card. The list stays
+in matchup order and `grid-flow-col grid-rows-2` pours it down the columns, so
+the reading order and the pairing agree. Before the window closes it renders
+nothing and issues no request.
+
+- **The wait is the page's, not the database's.** `pick_em_submissions` is
+  public-read, so holding the split back hides nothing from PostgREST. What it
+  prevents is the split steering picks that can still change. "Closed" is the
+  `status` test the parlay's `isRevealed` makes, on the object
+  PickEmsSubmission passes to both.
+- **A share counts that game's picks, not everyone who submitted.**
+  `summarizePickSplit` (`pickSplit.js`, pure and tested) keeps a matchup's two
+  shares summing to 100 even if a game changed after somebody submitted. A game
+  nobody picked has a `null` share, never 0%.
+- **`isByeGame` in the same module is the only bye test.** The form uses it
+  too, so the matchups in the row and the matchups on the form cannot disagree.
+
 **The cog carries the admin's pending-approval count.** Settings is in neither
 nav (`inNav: false`), so it has no notification dot of its own and Approvals is
 a panel two clicks inside it — a member who signed up was invisible until the

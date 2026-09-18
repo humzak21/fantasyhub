@@ -80,7 +80,11 @@ export function useUserPicks(pickEmWeekId, { enabled = true } = {}) {
   });
 }
 
-/** Everyone's picks — only meaningful once the week's results are revealed. */
+/**
+ * Everyone's picks for a week. The Make Picks page's split row
+ * (`LeaguePickSplit`) enables it once the week's window closes, and not while
+ * picks can still change.
+ */
 export function useAllPicks(pickEmWeekId, { enabled = true } = {}) {
   return useQuery({
     queryKey: qk.pickems.allPicks(pickEmWeekId),
