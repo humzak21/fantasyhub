@@ -2,8 +2,6 @@ import { BarChart3, Table2, Trophy } from 'lucide-react';
 
 import PageHeader from '../layout/PageHeader';
 import { Button } from '../ui/button';
-import { Switch } from '../ui/switch';
-import { Label } from '../ui/label';
 
 /**
  * The rankings page header.
@@ -21,15 +19,11 @@ import { Label } from '../ui/label';
  * @param {number} week - the week being viewed
  * @param {'table'|'analysis'} view
  * @param {Function} onViewChange
- * @param {boolean} showAdvanced
- * @param {Function} onShowAdvancedChange
  */
 export function RankingsHeader({
   week,
   view,
   onViewChange,
-  showAdvanced,
-  onShowAdvancedChange,
 }) {
   const isTable = view === 'table';
 
@@ -39,39 +33,24 @@ export function RankingsHeader({
       title={`Week ${week} Power Rankings`}
       description="Power rankings from across the league!"
       actions={
-        <>
-          {isTable && (
-            <div className="flex items-center gap-2">
-              <Switch
-                id="advanced-stats"
-                checked={showAdvanced}
-                onCheckedChange={onShowAdvancedChange}
-              />
-              <Label htmlFor="advanced-stats" className="cursor-pointer whitespace-nowrap text-sm">
-                Advanced stats
-              </Label>
-            </div>
+        <Button
+          onClick={() => onViewChange(isTable ? 'analysis' : 'table')}
+          variant="outline"
+          size="sm"
+          className="shrink-0 whitespace-nowrap"
+        >
+          {isTable ? (
+            <>
+              <BarChart3 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              Analysis
+            </>
+          ) : (
+            <>
+              <Table2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
+              Table
+            </>
           )}
-
-          <Button
-            onClick={() => onViewChange(isTable ? 'analysis' : 'table')}
-            variant="outline"
-            size="sm"
-            className="shrink-0 whitespace-nowrap"
-          >
-            {isTable ? (
-              <>
-                <BarChart3 className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                Analysis
-              </>
-            ) : (
-              <>
-                <Table2 className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                Table
-              </>
-            )}
-          </Button>
-        </>
+        </Button>
       }
     />
   );
