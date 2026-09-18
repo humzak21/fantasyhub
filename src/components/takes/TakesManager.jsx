@@ -14,9 +14,9 @@ import {
   useSeasonConfig,
   useTakeActivity,
   useTakesBoard,
-  useTakesMutations
+  useTakesMutations,
+  useTakesSeen
 } from '../../../hooks/queries/index.js';
-import { useTakesSeen } from '../../hooks/use-takes-seen.js';
 import { AddTakeDialog } from './AddTakeDialog.jsx';
 import { HellNahDialog } from './HellNahDialog.jsx';
 import { shouldConfirmHellNah, suppressHellNahConfirm } from './confirmPreference.js';
@@ -85,11 +85,22 @@ export function TakesManager({ season, loading }) {
   // take's own timestamp rather than the clock — see `newestTakeAt` — and it
   // is set once the board has actually rendered, not while it is loading,
   // because a skeleton is not a read.
-  const { markSeen } = useTakesSeen(user?.id);
+  //
+  // The write lands in the query cache the shell's badge reads, so the count
+  // clears without anything being passed between the two.
+  //
+  // It waits on `isMarkLoading` as well as on the board, and that is not
+  // belt-and-braces: `markSeen` skips a mark that would not move forward, and
+  // it can only know that once the stored one has arrived. Firing early posts
+  // a write on every cold load — harmless, since the RPC keeps
+  // `greatest(stored, incoming)`, but a request whose answer is already known.
+  // `isMarkLoading` in the dependency array is what re-runs this once it lands.
+  const { markSeen, isMarkLoading } = useTakesSeen(user?.id, { enabled: isApproved });
   const newestAt = useMemo(() => newestTakeAt(takes), [takes]);
   useEffect(() => {
-    if (!boardLoading && newestAt) markSeen(newestAt);
-  }, [boardLoading, newestAt, markSeen]);
+    if (!isApproved || boardLoading || isMarkLoading || !newestAt) return;
+    markSeen(newestAt);
+  }, [isApproved, boardLoading, isMarkLoading, newestAt, markSeen]);
 
   // The sheet and the composer hold an *id*, not a row. After a mutation the
   // board refetches and hands back a new object; holding the row itself would

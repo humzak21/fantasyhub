@@ -98,7 +98,7 @@ export {
   useAwardsMutations
 } from './useAwards.js';
 
-export { useTakesBoard, useTakeActivity, useTakesMutations } from './useTakes.js';
+export { useTakesBoard, useTakeActivity, useTakesSeen, useTakesMutations } from './useTakes.js';
 
 export { useSyncRuns, useAutomationHealth } from './useAutomations.js';
 

@@ -514,16 +514,42 @@ dot, deliberately: the dot means "you owe something" and is answered by acting,
 this means "there is something to read" and is answered by looking.
 `src/components/takes/seen.js` is the pure rule (your own takes never count; an
 edit does not make a take new again; an unknown mark means the whole board is
-unread), `use-takes-seen.js` the store, and `badgeCount` on a nav item the
-render. The shell borrows the tab's own query key, so a member who sees the
-badge has already fetched what the tab will draw.
+unread), and `badgeCount` on a nav item is the render. The shell borrows the
+tab's own query key, so a member who sees the badge has already fetched what
+the tab will draw.
 
-- **The read receipt is per-browser `localStorage`, on purpose.** Nothing is
-  owed on the strength of it and nothing else reads it, so it does not earn a
-  table, an RLS policy and a write on every visit to a tab. The cost is that
-  reading the board on a phone leaves the laptop's badge up.
+**The mark is a `take_views` row, one per member** — it follows the person, not
+the browser (`20260917130000_take_views.sql`). It shipped in `localStorage` for
+about a day, which meant reading the board on a phone left the laptop's badge
+up and clearing site data started the count from the whole board again.
+
+- **One row per member, not one per member per season.** The tab renders only
+  the active season, so one board is ever on screen, and the mark is an
+  absolute instant: every take in a past season was posted before it by
+  construction. A season picker on the tab is what would earn the column.
+- **The mark never moves backwards, and `mark_takes_seen()` is why.** It writes
+  `greatest(stored, incoming)`, because two devices are what this row exists to
+  serve and they do not take turns — a laptop left open on a stale board would
+  otherwise un-see what the phone just read. An RPC rather than an upsert
+  purely because PostgREST cannot say `greatest` in a DO UPDATE. It is
+  **SECURITY INVOKER**, unlike the submit RPCs: it touches only the caller's
+  own row, so `take_views`' policies already are the rule and making it DEFINER
+  would mean restating the approval guard somewhere it could disagree.
+- **Nobody reads anybody else's, including the admin.** `takes` and
+  `take_participants` are public reads; who has *looked* at them is not, and
+  there is deliberately no admin policy on this table.
 - **The mark is the newest take's own timestamp, never `Date.now()`.** A clock
   ahead of the database's would mark takes seen before they were written.
+- **`useTakesSeen` holds both halves**, keyed `['takes', 'seen', userId]` —
+  outside the `['takes', seasonId, …]` prefix on purpose, so a Hell Nah does
+  not invalidate it. The shell reads it, the tab writes it, and one cache entry
+  is what lets those two trees agree with nothing passed between them. The
+  write puts the RPC's return value straight into the cache rather than
+  invalidating, since the stored mark is already in hand.
+- **The tab waits for the stored mark before writing one.** Firing on the board
+  alone posts a write on every cold load, because "would this move forward" is
+  unanswerable until the current mark has arrived. Harmless — `greatest()`
+  catches it — but a request whose answer is already known.
 
 **Sort order is app-side on purpose.** `milestoneSortKey` is a pure function
 over a league-sized board, so a future `nfl_game` take can sort by kickoff

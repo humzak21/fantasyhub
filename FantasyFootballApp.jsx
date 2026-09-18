@@ -12,11 +12,11 @@ import {
   useSeasonConfig,
   useMemberApprovals,
   countPendingApprovals,
-  useTakesBoard
+  useTakesBoard,
+  useTakesSeen
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
-import { useTakesSeen } from './src/hooks/use-takes-seen.js';
 import { countUnseenTakes } from './src/components/takes/seen.js';
 import { viewableResultSeasons } from './src/components/awards/resultsAccess.js';
 import { Card, CardContent } from './src/components/ui/card';
@@ -137,16 +137,28 @@ const FantasyFootballApp = () => {
   //
   // The query is the tab's own cache entry (`qk.takes.board`), borrowed: a
   // member who sees the badge has already fetched what the tab will render, so
-  // opening Takes costs no request. Disabled for anyone who may not read the
-  // board, for whom RLS returns nothing anyway.
+  // opening Takes costs no request. Both are disabled for anyone who may not
+  // read the board, for whom RLS returns nothing anyway.
   //
-  // The mark is per-browser `localStorage` — see `use-takes-seen.js` for why a
-  // read receipt does not earn a table.
+  // The mark is a `take_views` row, so it follows the member rather than the
+  // browser, and the tab's write lands in this same cache entry — which is the
+  // whole reason the badge clears here when the board is read over there.
   const { board: takesBoard } = useTakesBoard(seasonId, { enabled: isApproved });
-  const { lastSeenAt: takesLastSeenAt } = useTakesSeen(user?.id);
+  const { lastSeenAt: takesLastSeenAt, isMarkLoading: takesMarkLoading } = useTakesSeen(
+    user?.id,
+    { enabled: isApproved }
+  );
+
+  // Nothing until the mark has arrived. A null mark means "never looked",
+  // which is the whole board unread — indistinguishable from a fetch still in
+  // flight, and the difference between the badge being right and it flashing
+  // "9+" on every cold load before settling to nothing.
   const unseenTakes = useMemo(
-    () => (isApproved ? countUnseenTakes(takesBoard.takes, takesLastSeenAt, user?.id) : 0),
-    [isApproved, takesBoard, takesLastSeenAt, user]
+    () =>
+      isApproved && !takesMarkLoading
+        ? countUnseenTakes(takesBoard.takes, takesLastSeenAt, user?.id)
+        : 0,
+    [isApproved, takesMarkLoading, takesBoard, takesLastSeenAt, user]
   );
 
   // Awards outlive the season that produced them. The tab used to be gated

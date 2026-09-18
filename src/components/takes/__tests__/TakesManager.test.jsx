@@ -19,7 +19,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
 
-const takes = { getTakesForSeason: vi.fn(), addFade: vi.fn() };
+const takes = {
+  getTakesForSeason: vi.fn(),
+  addFade: vi.fn(),
+  getTakeViewMark: vi.fn(),
+  markTakesSeen: vi.fn()
+};
 
 // The approval answer, per test. The board is members-only and "member" means
 // approved: a signed-in account the admin has not approved yet must read as a
@@ -103,6 +108,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   takes.getTakesForSeason.mockResolvedValue(BOARD);
   takes.addFade.mockResolvedValue({ id: 'new-fade' });
+  // Never looked before: the resting state for a member whose `take_views` row
+  // does not exist yet.
+  takes.getTakeViewMark.mockResolvedValue(null);
+  takes.markTakesSeen.mockImplementation(async (at) => at);
   auth = { user: null, isAuthenticated: false, isAdmin: false, loading: false };
   // Both the "seen" mark and the confirmation opt-out live here, and both are
   // keyed per user — a test that inherited either would be testing the
@@ -409,6 +418,71 @@ describe('TakesManager, the Hell Nah confirmation', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(takes.addFade).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('TakesManager, the read mark', () => {
+  // Opening the tab is what clears the nav badge, and the badge is drawn by
+  // the shell — two trees that never meet. What connects them is the query
+  // cache, so what is asserted here is the write: that reading the board
+  // records a `take_views` mark, and which mark it records.
+
+  beforeEach(() => {
+    approved = true;
+    signInAsReader();
+  });
+
+  it('records the newest take on the board once it has rendered', async () => {
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    // The newest take's own `createdAt`, never `Date.now()`: a browser clock
+    // ahead of the database's would mark takes seen before they were written.
+    const newest = BOARD.takes.reduce(
+      (latest, take) => (take.createdAt > latest ? take.createdAt : latest),
+      BOARD.takes[0].createdAt
+    );
+
+    await vi.waitFor(() => expect(takes.markTakesSeen).toHaveBeenCalledWith(newest));
+  });
+
+  it('records nothing for a viewer with no mark to keep', async () => {
+    // Signed out, and signed-in-but-unapproved: RLS gives both of them a board
+    // of nothing, so a receipt would describe nothing. Asserted because the
+    // write is refused at the database either way, and a request that can only
+    // fail is one nobody should be making.
+    approved = false;
+    auth = { user: null, isAuthenticated: false, isAdmin: false, loading: false };
+
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    expect(takes.markTakesSeen).not.toHaveBeenCalled();
+    expect(takes.getTakeViewMark).not.toHaveBeenCalled();
+  });
+
+  it('does not re-record a mark that would not move forward', async () => {
+    // The board is refetched on focus and after every write, and a take's
+    // timestamp does not change — so without this the tab would post the same
+    // mark over and over. The database keeps `greatest()` regardless; this is
+    // about not asking it to.
+    takes.getTakeViewMark.mockResolvedValue(new Date().toISOString());
+
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    // Give the effect every chance to fire: it runs on the board arriving and
+    // again on the mark arriving.
+    await vi.waitFor(() => expect(takes.getTakeViewMark).toHaveBeenCalled());
+    expect(takes.markTakesSeen).not.toHaveBeenCalled();
+  });
+
+  it('records nothing while the board is still loading', async () => {
+    // A skeleton is not a read. Without this the mark would land on a member
+    // who opened the tab and left before it painted.
+    renderWithProviders(<TakesManager season={SEASON} loading />);
+
+    expect(takes.markTakesSeen).not.toHaveBeenCalled();
   });
 });
 

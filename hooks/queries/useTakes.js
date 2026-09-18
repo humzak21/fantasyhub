@@ -6,6 +6,10 @@
  * detail sheet is a cache read rather than a second round trip — a take is
  * never fetched on its own, which is why there is no per-take key.
  *
+ * The board's *read mark* (`useTakesSeen`) is here too rather than in a store
+ * of its own: the shell reads it and the tab writes it, and one query key is
+ * what lets those two trees agree without a context between them.
+ *
  * There is deliberately **no optimistic update on the Hell Nah**. Nothing else
  * in this codebase does optimistic writes, the board is one small query to
  * refetch, and a fade can be legitimately refused by the database — the take
@@ -14,6 +18,7 @@
  * answer than a button that is briefly disabled.
  */
 
+import { useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { getDb } from '../../services/db/index.js';
@@ -60,6 +65,71 @@ export function useTakeActivity(seasonId, takeId) {
   });
 
   return { ...query, activity: query.data ?? EMPTY_ACTIVITY };
+}
+
+/**
+ * When this member last read the board, and how to say they just have.
+ *
+ * Both halves live in one hook because both callers need both ends of it: the
+ * shell reads the mark to size the nav badge, the tab writes it, and they are
+ * two trees that never meet. TanStack is what connects them — one cache entry
+ * under `qk.takes.seen`, so the tab's write repaints the shell's badge with no
+ * prop, context or event bus in between. That is the job the old
+ * `localStorage` store did with a listener set, done by the layer that already
+ * does it.
+ *
+ * `enabled` rather than an internal `isApproved` check: the caller knows, and
+ * a member who may not read the board has no mark worth fetching.
+ *
+ * **`markSeen` writes the response into the cache instead of invalidating.**
+ * `mark_takes_seen` returns the stored mark — which is not always what was
+ * sent, since the database keeps whichever is newer — so the answer is already
+ * in hand and a refetch would be a second round trip to learn it. This is not
+ * an optimistic update: nothing is written to the cache before the server has
+ * agreed, which is the same rule the mutations below follow.
+ */
+export function useTakesSeen(userId, { enabled = true } = {}) {
+  const queryClient = useQueryClient();
+  const queryKey = qk.takes.seen(userId);
+
+  const query = useQuery({
+    queryKey,
+    queryFn: async () => (await db().takes.getTakeViewMark()) ?? null,
+    enabled: Boolean(userId) && enabled
+  });
+
+  const mutation = useMutation({
+    mutationFn: (lastSeenAt) => db().takes.markTakesSeen(lastSeenAt),
+    onSuccess: (stored) => queryClient.setQueryData(queryKey, stored ?? null)
+  });
+
+  const { mutate } = mutation;
+  const markSeen = useCallback(
+    (lastSeenAt) => {
+      if (!userId || !lastSeenAt) return;
+
+      // The same "never backwards" rule the RPC enforces, applied before the
+      // request rather than after it. The database is what makes it true under
+      // a race between two devices; this is what stops the tab re-sending the
+      // same mark on every render of a board that has not changed.
+      const current = queryClient.getQueryData(queryKey);
+      if (current && new Date(lastSeenAt) <= new Date(current)) return;
+
+      mutate(lastSeenAt);
+    },
+    [userId, queryClient, queryKey, mutate]
+  );
+
+  return {
+    ...query,
+    lastSeenAt: query.data ?? null,
+    // Until the mark has arrived the honest answer is "not known yet", and a
+    // null would read as "never looked" — which is the whole board unread. The
+    // badge waits rather than flashing a count it is about to withdraw, the
+    // same trap as `isApproved` before `isApprovalLoading` clears.
+    isMarkLoading: query.isPending && Boolean(userId) && enabled,
+    markSeen
+  };
 }
 
 /**
