@@ -7,12 +7,14 @@
  * league-sized dataset, and keeping it in JavaScript is what lets a future
  * `nfl_game` take sort by kickoff without a schema migration.
  *
- * `canEditTake`, `canDeleteTake` and `canFade` are **mirrors** of the RLS
- * policies, not the rules themselves. The database is what actually refuses a
- * late edit or a fade on an unstaked take; these exist so the UI does not offer
- * a button that is going to fail.
+ * `canEditTake`, `canDeleteTake`, `canFade` and `canWithdrawFade` are
+ * **mirrors** of the RLS policies, not the rules themselves. The database is
+ * what actually refuses a late edit, a fade on an unstaked take, or either
+ * side of a Hell Nah once the take's three-day window has run out; these exist
+ * so the UI does not offer a button that is going to fail.
  */
 
+import { formatDateTime } from '../../lib/utils';
 import { listWeeks } from '../../../utils/seasonConfig.js';
 import { getWeekLabel } from '../../../utils/weekLabelUtils.js';
 
@@ -33,6 +35,22 @@ export const MAX_WAGER = 200;
  * policy; changing one without the other gives the reader a button that fails.
  */
 export const EDIT_WINDOW_MS = 72 * 60 * 60 * 1000;
+
+/**
+ * How long a take stays open to Hell Nahs, measured from the last time it
+ * moved. Mirrors the `now() < coalesce(t.edited_at, t.created_at) + interval
+ * '72 hours'` clause that the `take_participants insert own` **and**
+ * `take_participants withdraw own` policies both carry.
+ *
+ * Two rules, one window, on purpose. A take whose wording is settled is a
+ * fixed bet, and both sides of a fixed bet have to be settled with it: if
+ * fading closed but withdrawing stayed open, somebody could watch three weeks
+ * of football and then quietly step off a take that was going to hit. The
+ * clock runs from the *edit* rather than the posting because rewording a take
+ * changes what was agreed to — the people already on the other side of it are
+ * now fading a different sentence, so they get the window back.
+ */
+export const FADE_WINDOW_MS = 72 * 60 * 60 * 1000;
 
 /**
  * Sort position. Weeks sort by their own number; the two terminal milestones
@@ -160,16 +178,58 @@ export function hasWager(take) {
 }
 
 /**
+ * When this take stops accepting Hell Nahs, as a timestamp — the last edit, or
+ * the posting if it was never edited, plus the window. Returns null for a take
+ * carrying no usable date, which `isFadeWindowOpen` reads as closed rather
+ * than as forever.
+ */
+export function fadeDeadline(take) {
+  const moved = take?.editedAt || take?.createdAt;
+  if (!moved) return null;
+
+  const at = new Date(moved).getTime();
+  return Number.isNaN(at) ? null : at + FADE_WINDOW_MS;
+}
+
+/** Is this take still inside its Hell Nah window? */
+export function isFadeWindowOpen(take, now = Date.now()) {
+  const deadline = fadeDeadline(take);
+  return deadline !== null && now < deadline;
+}
+
+/**
  * May the viewer say Hell Nah to it? Signed in, not their own, still ungraded,
- * and there is a wager to fade — the four clauses of the
- * `take_participants insert own` policy, restated for the button's benefit.
+ * there is a wager to fade, and the window is still open — the five clauses of
+ * the `take_participants insert own` policy, restated for the button's benefit.
  *
  * The wager clause is the one that matters most here. Nothing is staked on a
  * bare take, so there is no side to take and no payout to owe; offering the
  * button anyway would produce a row the database now refuses.
  */
-export function canFade(take, user) {
-  return Boolean(user?.id) && !isAuthor(take, user) && isPending(take) && hasWager(take);
+export function canFade(take, user, now = Date.now()) {
+  return (
+    Boolean(user?.id) &&
+    !isAuthor(take, user) &&
+    isPending(take) &&
+    hasWager(take) &&
+    isFadeWindowOpen(take, now)
+  );
+}
+
+/**
+ * May the viewer take their own Hell Nah back? The same window, which is the
+ * whole point of it: a fade is withdrawable for three days and then it is a
+ * position, not an opinion. Mirrors `take_participants withdraw own`.
+ *
+ * Deliberately not "the inverse of canFade" — this one does not care about the
+ * wager. A take whose stake was cleared with fades still on it leaves rows
+ * behind, and the people holding them must still be able to step off inside
+ * the window.
+ */
+export function canWithdrawFade(take, user, now = Date.now()) {
+  return (
+    Boolean(user?.id) && hasFaded(take, user) && isPending(take) && isFadeWindowOpen(take, now)
+  );
 }
 
 /** Is this viewer already on the other side of it? */
@@ -189,6 +249,35 @@ export function fadeCount(take) {
  */
 export function fadeTerms(take) {
   return `Say Hell Nah and you're taking the other side: if this take hits, you owe ${take?.wager}. If it misses, the author owes you.`;
+}
+
+/**
+ * The deadline, in as few words as a card can spare: one muted line under the
+ * Hell Nah row that every signed-in reader gets, whether or not there is a
+ * button beside it. A take whose window has closed looks exactly like one
+ * whose window is open minus a button, and "the button is missing" is not
+ * something a reader should have to infer.
+ */
+export function fadeWindowNote(take, now = Date.now()) {
+  const deadline = fadeDeadline(take);
+  if (deadline === null) return null;
+
+  return now < deadline
+    ? `Hell Nahs close ${formatDateTime(deadline)}`
+    : `Hell Nahs closed ${formatDateTime(deadline)}`;
+}
+
+/**
+ * The window, in words, for wherever there is room for the reason as well as
+ * the fact. Kept apart from `fadeTerms` because the deadline is a different
+ * kind of fact — what it costs does not change, when you can still change your
+ * mind does — and the closed phrasing has to read as final rather than as an
+ * instruction.
+ */
+export function fadeWindowTerms(take, now = Date.now()) {
+  return isFadeWindowOpen(take, now)
+    ? 'Hell Nahs close 3 days after the take was last edited. Until then you can take yours back; after that it is locked in either way.'
+    : 'Hell Nahs are closed on this take — it has been more than 3 days since it was last edited, so nobody can join and nobody can back out.';
 }
 
 /**

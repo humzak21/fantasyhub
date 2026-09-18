@@ -469,6 +469,88 @@ PostgREST directly and a rule that only exists in a component is not a rule:
   benefit — showing a button whose only outcome is an error is the bug it
   prevents. Changing a policy means changing the mirror.
 
+**A Hell Nah closes three days after the take last moved, both ways.**
+`20260917120000_takes_hell_nah_window.sql` adds
+`now() < coalesce(edited_at, created_at) + interval '72 hours'` to
+`take_participants insert own` *and* `take_participants withdraw own`, and the
+pair is the point: a window that shut for joining but stayed open for leaving
+would let the side with something to lose step off once the football had
+answered the question. Before it, a take resolving at the end of the season
+took fresh fades in December and released them just as late.
+
+- **The clock runs from the edit, not from the posting.** `set_take_edited_at()`
+  stamps `edited_at` only when the body or the wager actually changes, so a
+  grade or a milestone move reopens nothing — but a reworded take is a
+  different sentence from the one people faded, and everybody, including those
+  already on it, gets three days on the new wording.
+- **The admin is untouched.** `take_participants admin write` is a separate
+  permissive `FOR ALL` policy and permissive policies OR together, so a genuine
+  mistake stays fixable on a take of any age without a migration.
+- `FADE_WINDOW_MS`, `fadeDeadline`, `canFade` and `canWithdrawFade` in
+  `milestones.js` are the mirror; `supabase/tests/database/take_hell_nah_window.test.sql`
+  is what makes the rule true. Note the withdraw half cannot be asserted with
+  `throws_ok` — a DELETE that RLS refuses matches no rows and reports success.
+- **Recreating either policy means re-copying `is_approved_member()`.** Both
+  carry it since `20260903120000_member_approvals.sql`, and a policy is
+  replaced whole rather than amended, so the clause easiest to lose while
+  rewriting for something else is the one added last.
+
+**A Hell Nah is confirmed before it is written.** It is the only control in the
+app that commits the viewer to paying somebody, and now the only one with a
+deadline on changing their mind, so `HellNahDialog` restates the price and the
+deadline over the take's own wording at the moment of the click — a sentence on
+a card is read when the card is new, and the button is pressed weeks later.
+Both call sites route through `requestFade` in `TakesManager`: a dialog per
+component would be a second answer to "has this member opted out", and the
+board renders a dozen cards beside the one sheet. The checkbox
+(`confirmPreference.js`) is a **preference, not a rule** — it suppresses the
+explanation and nothing else, which is why it may live in `localStorage`, and
+why it is keyed per user within a browser.
+
+**The Takes tab carries a count of what the viewer has not read.** It is the
+one tab whose contents arrive without the viewer doing anything, and nothing
+else on the site says a take has been posted. A count rather than Pick'ems'
+dot, deliberately: the dot means "you owe something" and is answered by acting,
+this means "there is something to read" and is answered by looking.
+`src/components/takes/seen.js` is the pure rule (your own takes never count; an
+edit does not make a take new again; an unknown mark means the whole board is
+unread), and `badgeCount` on a nav item is the render. The shell borrows the
+tab's own query key, so a member who sees the badge has already fetched what
+the tab will draw.
+
+**The mark is a `take_views` row, one per member** — it follows the person, not
+the browser (`20260917130000_take_views.sql`). It shipped in `localStorage` for
+about a day, which meant reading the board on a phone left the laptop's badge
+up and clearing site data started the count from the whole board again.
+
+- **One row per member, not one per member per season.** The tab renders only
+  the active season, so one board is ever on screen, and the mark is an
+  absolute instant: every take in a past season was posted before it by
+  construction. A season picker on the tab is what would earn the column.
+- **The mark never moves backwards, and `mark_takes_seen()` is why.** It writes
+  `greatest(stored, incoming)`, because two devices are what this row exists to
+  serve and they do not take turns — a laptop left open on a stale board would
+  otherwise un-see what the phone just read. An RPC rather than an upsert
+  purely because PostgREST cannot say `greatest` in a DO UPDATE. It is
+  **SECURITY INVOKER**, unlike the submit RPCs: it touches only the caller's
+  own row, so `take_views`' policies already are the rule and making it DEFINER
+  would mean restating the approval guard somewhere it could disagree.
+- **Nobody reads anybody else's, including the admin.** `takes` and
+  `take_participants` are public reads; who has *looked* at them is not, and
+  there is deliberately no admin policy on this table.
+- **The mark is the newest take's own timestamp, never `Date.now()`.** A clock
+  ahead of the database's would mark takes seen before they were written.
+- **`useTakesSeen` holds both halves**, keyed `['takes', 'seen', userId]` —
+  outside the `['takes', seasonId, …]` prefix on purpose, so a Hell Nah does
+  not invalidate it. The shell reads it, the tab writes it, and one cache entry
+  is what lets those two trees agree with nothing passed between them. The
+  write puts the RPC's return value straight into the cache rather than
+  invalidating, since the stored mark is already in hand.
+- **The tab waits for the stored mark before writing one.** Firing on the board
+  alone posts a write on every cold load, because "would this move forward" is
+  unanswerable until the current mark has arrived. Harmless — `greatest()`
+  catches it — but a request whose answer is already known.
+
 **Sort order is app-side on purpose.** `milestoneSortKey` is a pure function
 over a league-sized board, so a future `nfl_game` take can sort by kickoff
 without a generated column to migrate — which is also why

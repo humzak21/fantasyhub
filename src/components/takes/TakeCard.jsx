@@ -9,10 +9,13 @@ import {
   STATUS_BADGE,
   STATUS_LABEL,
   canFade,
+  canWithdrawFade,
   fadeCount,
   fadeTerms,
+  fadeWindowNote,
   hasFaded,
-  hasWager
+  hasWager,
+  isPending
 } from './milestones.js';
 
 /**
@@ -42,7 +45,14 @@ export function TakeCard({ take, displayNames = {}, onOpen, onFade, onWithdraw, 
   const staked = hasWager(take);
   const count = fadeCount(take);
   const faded = hasFaded(take, user);
-  const canToggle = canFade(take, user);
+
+  // The two sides of the Hell Nah are separate questions now: joining needs a
+  // wager and an open window, leaving needs only the window. A viewer who
+  // faded a take whose window has since closed keeps the state and loses the
+  // button — which is the rule, not a rendering accident, so it is said rather
+  // than left to a disabled control.
+  const canToggle = faded ? canWithdrawFade(take, user) : canFade(take, user);
+  const windowNote = user?.id && isPending(take) ? fadeWindowNote(take) : null;
 
   const handleToggle = (event) => {
     event.stopPropagation();
@@ -109,34 +119,53 @@ export function TakeCard({ take, displayNames = {}, onOpen, onFade, onWithdraw, 
           the author cannot fade their own, but they need to see the six people
           who did, because that is who they owe. */}
       {staked && (
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
-            <ThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
-            {count} {count === 1 ? 'hell nah' : 'hell nahs'}
-          </span>
+        <>
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
+              <ThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
+              {count} {count === 1 ? 'hell nah' : 'hell nahs'}
+            </span>
 
-          {canToggle && (
-            <Button
-              variant={faded ? 'secondary' : 'outline'}
-              size="sm"
-              onClick={handleToggle}
-              disabled={pending}
-              className="gap-1.5"
-            >
-              {faded ? (
-                <>
+            {canToggle ? (
+              <Button
+                variant={faded ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={handleToggle}
+                disabled={pending}
+                className="gap-1.5"
+              >
+                {faded ? (
+                  <>
+                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                    Hell Nah&apos;d
+                  </>
+                ) : (
+                  <>
+                    <ThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    Hell Nah
+                  </>
+                )}
+              </Button>
+            ) : (
+              // Your fade survives the window that took the button away, and
+              // the card has to keep saying so — this is the one place a
+              // reader checks whether they are on the hook for this take.
+              // Pending only: a graded take is frozen by its grade and says so
+              // in the status badge, which is the older rule and still right.
+              faded && isPending(take) && (
+                <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[13px] text-muted-foreground">
                   <Check className="h-3.5 w-3.5" aria-hidden="true" />
                   Hell Nah&apos;d
-                </>
-              ) : (
-                <>
-                  <ThumbsDown className="h-3.5 w-3.5" aria-hidden="true" />
-                  Hell Nah
-                </>
-              )}
-            </Button>
-          )}
-        </div>
+                </span>
+              )
+            )}
+          </div>
+
+          {/* Shown open or closed, and to the author as well: once the window
+              shuts their bet is fixed, which is the thing they most want to
+              know about their own take. */}
+          {windowNote && <p className="mt-1.5 text-xs text-muted-foreground">{windowNote}</p>}
+        </>
       )}
     </div>
   );

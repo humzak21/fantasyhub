@@ -11,6 +11,10 @@
  * directly, and a rule that only exists in a component is not a rule. What is
  * here is request shape: which columns go up, and which filter has to be
  * present for a write to mean what it says.
+ *
+ * The read mark at the foot of the file is the same story: `mark_takes_seen`
+ * exists because "keep whichever is newer" cannot be said in a PostgREST
+ * upsert, not because the client is being trusted to decide it.
  */
 
 import { formatForDatabase, formatFromDatabase } from './caseMap.js';
@@ -418,6 +422,60 @@ export async function removeFadeFor(ctx, { takeId, userId }) {
     return true;
   } catch (error) {
     throwDbError(error, 'Remove Hell Nah');
+  }
+}
+
+/**
+ * When this member last read the board, as an ISO string, or null if they
+ * never have.
+ *
+ * `maybeSingle`, not `single`: no row is the normal state for a member who has
+ * not opened the tab, and PostgREST answers a zero-row `single` with an error.
+ * A signed-out caller gets null without a request — RLS would return nothing
+ * anyway, and asking is a round trip to be told what is already known.
+ */
+export async function getTakeViewMark(ctx) {
+  try {
+    const { data: { session } } = await ctx.client.auth.getSession();
+    if (!session?.user?.id) return null;
+
+    const { data, error } = await ctx.client
+      .from('take_views')
+      .select('last_seen_at')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    return data?.last_seen_at ?? null;
+  } catch (error) {
+    throwDbError(error, 'Get takes read mark');
+  }
+}
+
+/**
+ * Record that this member has seen every take posted up to `lastSeenAt`, and
+ * return the stored mark.
+ *
+ * Through `mark_takes_seen` rather than an upsert, because the rule is
+ * `greatest(stored, incoming)` and PostgREST cannot express that in a DO
+ * UPDATE — two devices are the whole point of this row and the staler one must
+ * not win by arriving last. The function returns what it stored, so the caller
+ * can put the answer into its cache rather than following the write with a
+ * read.
+ */
+export async function markTakesSeen(ctx, lastSeenAt) {
+  try {
+    if (!lastSeenAt) throw new Error('A read mark needs a timestamp');
+
+    const { data, error } = await ctx.client.rpc('mark_takes_seen', {
+      p_last_seen_at: new Date(lastSeenAt).toISOString()
+    });
+
+    if (error) throw error;
+
+    return data ?? null;
+  } catch (error) {
+    throwDbError(error, 'Mark takes seen');
   }
 }
 

@@ -187,11 +187,20 @@ export const qk = {
    * fetching it again — but its activity log is keyed per take, because that is
    * the one part of a take nothing else on the page displays and so the one
    * part worth deferring until somebody opens it.
+   *
+   * `seen` is the deliberate exception to the `seasonId` shape, and it is
+   * `pickems.userPicks`' arrangement for the same reason: a member's read mark
+   * (`take_views`) belongs to the person rather than to a season, and it must
+   * *not* be swept up by the mutations' `qk.takes.season(seasonId)` — fading a
+   * take does not change when you last read the board. `['takes', 'seen', …]`
+   * misses that prefix because `'seen'` is not a season id, which is exactly
+   * the property being relied on.
    */
   takes: {
     ...scope('takes'),
     board: (seasonId) => ['takes', seasonId, 'board'],
-    activity: (seasonId, takeId) => ['takes', seasonId, 'activity', takeId]
+    activity: (seasonId, takeId) => ['takes', seasonId, 'activity', takeId],
+    seen: (userId) => ['takes', 'seen', userId]
   },
 
   /**
