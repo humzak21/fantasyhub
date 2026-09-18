@@ -165,6 +165,16 @@ select is(
 -- `take_participants admin write` is a separate permissive FOR ALL policy, and
 -- permissive policies OR together -- which is what keeps a genuine mistake
 -- fixable on a take of any age without a migration.
+--
+-- Back-dating again, so the claims are cleared first. `reset role` restores
+-- the role and *not* `request.jwt.claims`, which still hold the fader's JWT
+-- from section 3 -- and `takes_guard_author_update` asks `can_write_league()`,
+-- which reads that JWT rather than the role, sees a member, and refuses the
+-- `created_at` change. An empty claim is what it treats as a direct backend
+-- connection. The back-date at the top of the file needed none of this only
+-- because no claims had been set yet.
+
+set local request.jwt.claims to '';
 
 update public.takes set created_at = now() - interval '9 days', edited_at = null
 where id = '33333333-3333-4333-8333-333333333333';
