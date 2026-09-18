@@ -2337,6 +2337,24 @@ export type Database = {
           },
         ]
       }
+      take_views: {
+        Row: {
+          last_seen_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          last_seen_at: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          last_seen_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       takes: {
         Row: {
           body: string
@@ -4204,6 +4222,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      mark_takes_seen: { Args: { p_last_seen_at: string }; Returns: string }
       refresh_season_stats: { Args: { season_id: string }; Returns: undefined }
       refresh_team_stats: { Args: { team_id: string }; Returns: undefined }
       save_enhanced_power_rankings_snapshot: {
