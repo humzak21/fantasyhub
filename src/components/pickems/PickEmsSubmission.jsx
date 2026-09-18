@@ -12,13 +12,22 @@ import PickEmsSubmitBar from './PickEmsSubmitBar';
 import MatchupResearchSection from './MatchupResearchSection';
 import ParlayPickSection from './ParlayPickSection';
 import TourneyNote from './TourneyNote.jsx';
+import LeaguePickSplit, { LeaguePickSplitNote } from './LeaguePickSplit.jsx';
+import { isByeGame } from './pickSplit.js';
+
+/**
+ * The `userPicks` default, shared. The reset effect below is keyed on
+ * `userPicks` and sets state, so a fresh `[]` per render re-ran it on every
+ * render, forever — the page hung whenever the prop was left out.
+ */
+const NO_PICKS = [];
 
 const PickEmsSubmission = ({
   season,
   currentWeek,
   pickEmWeek,
   games,
-  userPicks = [],
+  userPicks = NO_PICKS,
   onSubmitPicks,
   loading = false,
   canSubmit = false,
@@ -91,7 +100,7 @@ const PickEmsSubmission = ({
 
     // Validate that all selectable games (non-bye) have picks
     const picksArray = games
-      .filter(game => !game.isCompleted && !isByeWeek(game)) // Only submit picks for incomplete, non-bye games
+      .filter(game => !game.isCompleted && !isByeGame(game)) // Only submit picks for incomplete, non-bye games
       .map(game => {
         const pick = picks[game.id];
         if (!pick?.predictedWinnerTeamId) {
@@ -211,16 +220,14 @@ const PickEmsSubmission = ({
     }
   };
 
-  // Helper function to determine if a game is a bye week
-  const isByeWeek = (game) => {
-    return game.type === 'bye' || !game.team2 || game.team2 === null;
-  };
-
   const status = getPickEmStatus();
+  // The same test ParlayPickSection's `isRevealed` makes over this `status`:
+  // one window, stated by the form that owns it.
+  const picksClosed = status.status === 'closed' || status.status === 'completed';
   const totalPicks = Object.keys(picks).length;
   const availableGames = games.filter(game => !game.isCompleted);
-  const selectableGames = availableGames.filter(game => !isByeWeek(game));
-  const byeGames = availableGames.filter(game => isByeWeek(game));
+  const selectableGames = availableGames.filter(game => !isByeGame(game));
+  const byeGames = availableGames.filter(game => isByeGame(game));
 
 
   return (
@@ -263,11 +270,27 @@ const PickEmsSubmission = ({
 
         {/* The tourney rules, where the decision to enter is being made. The
             Standings tab states the same two prizes from the same module —
-            see `tourneys.js` for why they are not written twice. */}
-        <CardContent>
+            see `tourneys.js` for why they are not written twice.
+
+            Once the window closes, the note on how the league picked sits
+            under them: the last thing in this card, directly above the row
+            it explains. */}
+        <CardContent className="space-y-3">
           <TourneyNote compact currentWeek={currentWeek} />
+          <LeaguePickSplitNote pickEmWeek={pickEmWeek} games={games} closed={picksClosed} />
         </CardContent>
       </Card>
+
+      {/* How the league picked, between the week's card and the parlay. It
+          renders nothing until the window closes — see LeaguePickSplit. Once
+          the week is scored this page gives way to Results, which shows the
+          same boxes with the winners marked. */}
+      <LeaguePickSplit
+        pickEmWeek={pickEmWeek}
+        games={games}
+        closed={picksClosed}
+        week={currentWeek}
+      />
 
       {/* Success confirmation */}
       {showConfirmation && (
@@ -341,7 +364,7 @@ const PickEmsSubmission = ({
       ) : (
         <div className="space-y-4">
           {availableGames.map((game, index) => {
-            const isBye = isByeWeek(game);
+            const isBye = isByeGame(game);
             // One expression for "may this viewer change this pick", instead
             // of the same four-clause condition repeated in each button's
             // onClick, its `disabled` and twice more in its class string.
