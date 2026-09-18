@@ -22,30 +22,12 @@ import { HellNahDialog } from './HellNahDialog.jsx';
 import { shouldConfirmHellNah, suppressHellNahConfirm } from './confirmPreference.js';
 import { TakeDetailSheet } from './TakeDetailSheet.jsx';
 import { TakesBoard } from './TakesBoard.jsx';
+import { TakesRules } from './TakesRules.jsx';
 import { newestTakeAt } from './seen.js';
 
-/**
- * What the page says the game is.
- *
- * The reward tiers and the payout warning are league rules, not UI copy, and
- * nothing in this system enforces them — no column holds a FAAB balance and
- * grading a take moves no money. They live here, above the board, because the
- * board is where somebody decides how far out to call something, and a rule
- * nobody reads before posting is a rule that gets argued about after.
- *
- * A plain string rather than JSX so the apostrophes need no escaping and the
- * whole of it is one thing to edit.
- */
-const TAKES_DESCRIPTION =
-  'Call it before it happens. Rewards vary based on length of take. A take for the ' +
-  'upcoming week is $5 FAAB, 3+ weeks out is $10, and anything higher is 15 FAAB, ' +
-  'potentially coming for the next season, with cash rewards also in play. You can also ' +
-  "bet FAAB, pubes, actual dollars (make sure to specify) in your take if you'd like to " +
-  "win money from those who think your take won't hit. Be warned though, you have to pay " +
-  'out everyone who wins off your take if you lose. ' +
-  'Hell Nahs close 3 days after a take was last edited: until then you can say Hell Nah ' +
-  'to anyone else\u2019s staked take, or take yours back. Once that window shuts nobody ' +
-  'can join and nobody can back out, so both sides are locked in until the take is graded.';
+/** One line, as `PageHeader` asks. The rules themselves are `TakesRules`,
+ *  under it — what you can win, what you can bet, and how it works. */
+const TAKES_DESCRIPTION = 'Call it before it happens.';
 
 /**
  * The Takes tab.
@@ -230,7 +212,9 @@ export function TakesManager({ season, loading }) {
           </p>
         )
       }
-    />
+    >
+      <TakesRules />
+    </PageHeader>
   );
 
   // Never `return null`, which renders a blank tab. The header is known before

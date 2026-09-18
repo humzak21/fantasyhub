@@ -140,11 +140,28 @@ describe('TakesManager, signed out', () => {
     expect(screen.queryByRole('button', { name: /post a take/i })).not.toBeInTheDocument();
   });
 
+  it('states what a take can win, what it can bet, and how it works', async () => {
+    renderTab();
+    await screen.findByText('Nobody goes 14-0');
+
+    const rules = screen.getByRole('region', { name: 'How takes work' });
+    for (const title of ['What you can win', 'What you can bet', 'How it works']) {
+      expect(within(rules).getByRole('heading', { name: title })).toBeInTheDocument();
+    }
+    expect(within(rules).getByText(/you pay out every one of them/i)).toBeInTheDocument();
+  });
+
   it('orders sections by when takes resolve, not by when they were posted', async () => {
     renderTab();
     await screen.findByText('Nobody goes 14-0');
 
-    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    // The rules above the board carry headings of their own; this is about
+    // the board's sections.
+    const rules = screen.getByRole('region', { name: 'How takes work' });
+    const headings = screen
+      .getAllByRole('heading', { level: 2 })
+      .filter((h) => !rules.contains(h))
+      .map((h) => h.textContent);
     // 'late' was posted first but resolves last, so week 3 leads.
     expect(headings).toEqual(['Week 3', 'End of season']);
   });
@@ -261,8 +278,8 @@ describe('TakesManager, signed in', () => {
     renderTab();
     await screen.findByText('Somebody wins it from the 6 seed');
 
-    // Scoped to the card: the page description explains the Hell Nah window
-    // to everybody, so an unscoped /hell nah/ now matches the header.
+    // Scoped to the card: the rules above the board explain the Hell Nah
+    // window to everybody, so an unscoped /hell nah/ matches those.
     const card = screen.getByText('Somebody wins it from the 6 seed').closest('[role="button"]');
     expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
     expect(within(card).queryByText(/hell nah/i)).not.toBeInTheDocument();
