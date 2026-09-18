@@ -36,7 +36,6 @@ const RANKING_COMPONENTS = Object.entries(POWER_RANKING_WEIGHTS)
 const PowerRankingsTable = ({
   rankings = [],
   onEditTeam,
-  showAdvanced = false,
   currentWeek = 1,
   loading = false,
   initializing = false,
@@ -97,9 +96,9 @@ const PowerRankingsTable = ({
    * every cell becomes an unlabelled figure.
    *
    * `priority` is the whole design decision. Rank, team and the power rating
-   * are what the page is *for*, so they are the card header. The traditional
-   * stats are what people scan, so they are a two-column grid. The advanced
-   * stats are a deliberate opt-in even on desktop, so they fold away.
+   * are what the page is *for*, so they are the card header. Every other stat
+   * is shown in full — there is no advanced-stats toggle and no "More"
+   * disclosure on the card — so each is plain `secondary`.
    */
   const columns = [
     {
@@ -206,104 +205,106 @@ const PowerRankingsTable = ({
       headerClassName: 'text-center',
       cell: (team) => <StreakChip streak={team.currentStreak} />,
     },
-    ...(showAdvanced ? [
-      {
-        key: 'playoffOdds',
-        header: 'Playoff odds',
-        priority: 'detail',
-        className: 'text-right',
-        headerClassName: 'text-right',
-        cell: (team) => {
-          const odds = Number(team.playoffOdds) || 0;
-          return (
-            <div className="ml-auto min-w-[4.5rem] space-y-1">
-              <NumberText value={odds} variant="percent" decimals={0} className="font-semibold" />
-              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className={
-                    odds >= 80
-                      ? 'h-full rounded-full bg-success'
-                      : odds >= 40
-                        ? 'h-full rounded-full bg-info'
-                        : 'h-full rounded-full bg-muted-foreground/50'
-                  }
-                  style={{ width: `${Math.min(100, odds)}%` }}
-                />
-              </div>
+    {
+      key: 'playoffOdds',
+      header: 'Playoff odds',
+      className: 'text-right',
+      headerClassName: 'text-right',
+      cell: (team) => {
+        const odds = Number(team.playoffOdds) || 0;
+        return (
+          <div className="ml-auto min-w-[4.5rem] space-y-1">
+            <NumberText value={odds} variant="percent" decimals={0} className="font-semibold" />
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={
+                  odds >= 80
+                    ? 'h-full rounded-full bg-success'
+                    : odds >= 40
+                      ? 'h-full rounded-full bg-info'
+                      : 'h-full rounded-full bg-muted-foreground/50'
+                }
+                style={{ width: `${Math.min(100, odds)}%` }}
+              />
             </div>
-          );
-        },
+          </div>
+        );
       },
-      {
-        key: 'form',
-        header: 'Form',
-        priority: 'detail',
-        className: 'text-center',
-        headerClassName: 'text-center',
-        cell: (team) => {
-          const form = formBadge(team.recentForm);
-          return <Badge variant={form.variant}>{form.label}</Badge>;
-        },
+    },
+    {
+      key: 'form',
+      header: 'Form',
+      className: 'text-center',
+      headerClassName: 'text-center',
+      cell: (team) => {
+        const form = formBadge(team.recentForm);
+        return <Badge variant={form.variant}>{form.label}</Badge>;
       },
-      {
-        key: 'quality',
-        header: 'QW / BL',
-        cardLabel: 'Quality wins / bad losses',
-        priority: 'detail',
-        className: 'text-center',
-        headerClassName: 'text-center',
-        cell: (team) => (
-          <span className="tabular text-sm">
-            <span className="text-success">{team.qualityWins || 0}</span>
-            <span className="text-muted-foreground"> / </span>
-            <span className="text-destructive">{team.badLosses || 0}</span>
-          </span>
-        ),
-      },
-      {
-        key: 'projected',
-        header: 'Proj',
-        cardLabel: 'Projected total',
-        priority: 'detail',
-        className: 'text-right',
-        headerClassName: 'text-right',
-        // This team's own projected starter total for the week, so the Next
-        // column's opponent figure has something to be read against. Null is
-        // the em dash — a historical view, or no resolvable starters — never 0.
-        cell: (team) => (
-          <NumberText
-            value={team.powerRatingComponents?.projectedStarterTotal}
-            className="font-medium"
-          />
-        ),
-      },
-      {
-        key: 'nextMatchup',
-        header: 'Next',
-        cardLabel: 'Next matchup',
-        priority: 'detail',
-        className: 'text-right',
-        headerClassName: 'text-right',
-        cell: (team) => {
-          const opponentId = team.powerRatingComponents?.nextOpponentTeamId ?? null;
-          const opponent = opponentId != null
-            ? rankings.find((r) => (r.teamId ?? r.id) === opponentId)
-            : null;
-          if (!opponent) return <span className="text-muted-foreground">—</span>;
+    },
+    {
+      key: 'quality',
+      header: 'QW / BL',
+      cardLabel: 'Quality wins / bad losses',
+      className: 'text-center',
+      // Wide enough that "QW / BL" stays on one line; at the auto width the
+      // header broke after every word.
+      headerClassName: 'text-center min-w-[92px]',
+      cell: (team) => (
+        <span className="tabular text-sm">
+          <span className="text-success">{team.qualityWins || 0}</span>
+          <span className="text-muted-foreground"> / </span>
+          <span className="text-destructive">{team.badLosses || 0}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'projected',
+      header: 'Proj',
+      cardLabel: 'Projected total',
+      className: 'text-right',
+      headerClassName: 'text-right',
+      // This team's own projected starter total for the week, so the Next
+      // column's opponent figure has something to be read against. Null is
+      // the em dash — a historical view, or no resolvable starters — never 0.
+      cell: (team) => (
+        <NumberText
+          value={team.powerRatingComponents?.projectedStarterTotal}
+          className="font-medium"
+        />
+      ),
+    },
+    {
+      key: 'nextMatchup',
+      header: 'Next',
+      cardLabel: 'Next matchup',
+      cardClassName: 'col-span-2',
+      className: 'text-right',
+      headerClassName: 'text-right',
+      cell: (team) => {
+        const opponentId = team.powerRatingComponents?.nextOpponentTeamId ?? null;
+        const opponent = opponentId != null
+          ? rankings.find((r) => (r.teamId ?? r.id) === opponentId)
+          : null;
+        if (!opponent) return <span className="text-muted-foreground">—</span>;
 
-          return (
-            <span className="whitespace-nowrap text-sm">
-              {getMaskedTeamName(opponent, user, isAdmin, teamOwnerNames)}
+        // Wraps rather than widening the table: a long opponent name used to
+        // be the widest cell in the row and pushed every column apart. The
+        // projection stays glued to its separator so a break falls inside the
+        // name, never between the dot and the number.
+        return (
+          <span className="inline-block max-w-[10rem] whitespace-normal text-sm">
+            {getMaskedTeamName(opponent, user, isAdmin, teamOwnerNames)}
+            <span className="whitespace-nowrap">
               <span className="text-muted-foreground"> · </span>
               <NumberText
                 value={team.powerRatingComponents?.nextOpponentProjected}
                 className="text-muted-foreground"
               />
             </span>
-          );
-        },
+          </span>
+        );
       },
-    ] : []),
+    },
     ...(onEditTeam ? [
       {
         key: 'actions',
@@ -329,59 +330,57 @@ const PowerRankingsTable = ({
         rowClassName={(team) => getUserTeamHighlightClasses(isUserTeam(team, user))}
       />
 
-      {showAdvanced && (
-        <Card>
-          <CardContent className="pt-4 sm:pt-6">
-            <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-              <Trophy className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-              How the rating is built
-            </h4>
+      <Card>
+        <CardContent className="pt-4 sm:pt-6">
+          <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+            <Trophy className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            How the rating is built
+          </h4>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div>
-                <h5 className="mb-2 text-sm font-medium">Columns</h5>
-                <dl className="space-y-1.5 text-sm">
-                  {[
-                    ['Luck', 'Wins above or below what all-play analysis expects'],
-                    ['Playoff odds', 'Probability of making the six-team playoff field'],
-                    ['Form', 'Direction over the last four weeks'],
-                    ['QW / BL', 'Quality wins and bad losses'],
-                    ['Proj', 'This team’s projected starter total for the week'],
-                    ['Next', 'This week’s opponent and their projected starter total'],
-                  ].map(([term, definition]) => (
-                    <div key={term} className="flex gap-2">
-                      <dt className="w-28 shrink-0 font-medium">{term}</dt>
-                      <dd className="text-muted-foreground">{definition}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-
-              {/* Algorithm components, straight from the weights themselves */}
-              <div>
-                <h5 className="mb-2 text-sm font-medium">Components</h5>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  {RANKING_COMPONENTS.map((component) => (
-                    <div key={component.key}>
-                      <strong className="text-foreground">
-                        {component.label} ({component.weightLabel}):
-                      </strong>{' '}
-                      {component.description}
-                    </div>
-                  ))}
-                  <div className="pt-2">
-                    Components are each scaled 0–100 across the league, then weighted. A
-                    component with no data for the week shown — roster figures before the
-                    2026 season, or any component in week 1 — is dropped and the remaining
-                    weights are rescaled, rather than being counted as a zero. NFL Schedule
-                    also drops on historical views and on seasons without FPI data.
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div>
+              <h5 className="mb-2 text-sm font-medium">Columns</h5>
+              <dl className="space-y-1.5 text-sm">
+                {[
+                  ['Luck', 'Wins above or below what all-play analysis expects'],
+                  ['Playoff odds', 'Probability of making the six-team playoff field'],
+                  ['Form', 'Direction over the last four weeks'],
+                  ['QW / BL', 'Quality wins and bad losses'],
+                  ['Proj', 'This team’s projected starter total for the week'],
+                  ['Next', 'This week’s opponent and their projected starter total'],
+                ].map(([term, definition]) => (
+                  <div key={term} className="flex gap-2">
+                    <dt className="w-28 shrink-0 font-medium">{term}</dt>
+                    <dd className="text-muted-foreground">{definition}</dd>
                   </div>
+                ))}
+              </dl>
+            </div>
+
+            {/* Algorithm components, straight from the weights themselves */}
+            <div>
+              <h5 className="mb-2 text-sm font-medium">Components</h5>
+              <div className="space-y-1 text-xs text-muted-foreground">
+                {RANKING_COMPONENTS.map((component) => (
+                  <div key={component.key}>
+                    <strong className="text-foreground">
+                      {component.label} ({component.weightLabel}):
+                    </strong>{' '}
+                    {component.description}
+                  </div>
+                ))}
+                <div className="pt-2">
+                  Components are each scaled 0–100 across the league, then weighted. A
+                  component with no data for the week shown — roster figures before the
+                  2026 season, or any component in week 1 — is dropped and the remaining
+                  weights are rescaled, rather than being counted as a zero. NFL Schedule
+                  also drops on historical views and on seasons without FPI data.
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

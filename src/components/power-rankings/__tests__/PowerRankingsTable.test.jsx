@@ -96,9 +96,9 @@ describe('PowerRankingsTable', () => {
     expect(within(table()).getAllByText('t1')).toHaveLength(2);
   });
 
-  it('labels every component from the weights, in the advanced legend', () => {
+  it('labels every component from the weights, in the legend', () => {
     renderWithProviders(
-      <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />
+      <PowerRankingsTable rankings={[team()]} currentWeek={4} />
     );
 
     for (const [key, weight] of Object.entries(POWER_RANKING_WEIGHTS)) {
@@ -110,7 +110,7 @@ describe('PowerRankingsTable', () => {
 
   it('describes playoff odds by the field, not by a division place', () => {
     renderWithProviders(
-      <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />
+      <PowerRankingsTable rankings={[team()]} currentWeek={4} />
     );
 
     // The legend said "finishing top 3 in the division", which stopped being
@@ -123,7 +123,7 @@ describe('PowerRankingsTable', () => {
 
   it('names no component the calculator no longer produces', () => {
     renderWithProviders(
-      <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />
+      <PowerRankingsTable rankings={[team()]} currentWeek={4} />
     );
 
     for (const stale of ['Performance (25%):', 'Team Strength (20%):', 'Clutch (5%):']) {
@@ -133,7 +133,7 @@ describe('PowerRankingsTable', () => {
 
   it('explains that missing components are dropped rather than zeroed', () => {
     renderWithProviders(
-      <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />
+      <PowerRankingsTable rankings={[team()]} currentWeek={4} />
     );
 
     expect(screen.getByText(/remaining\s+weights are rescaled/i)).toBeInTheDocument();
@@ -178,7 +178,7 @@ describe('PowerRankingsTable', () => {
         powerRatingComponents: { ...team().powerRatingComponents, projectedStarterTotal: 124.36 },
       });
       renderWithProviders(
-        <PowerRankingsTable rankings={[withProjection]} currentWeek={4} showAdvanced />
+        <PowerRankingsTable rankings={[withProjection]} currentWeek={4} />
       );
       expect(within(table()).getByText('124.4')).toBeInTheDocument();
     });
@@ -187,7 +187,7 @@ describe('PowerRankingsTable', () => {
       // The fixture has no projectedStarterTotal at all — a historical view,
       // or a team with no resolvable starters.
       renderWithProviders(
-        <PowerRankingsTable rankings={[team()]} currentWeek={4} showAdvanced />
+        <PowerRankingsTable rankings={[team()]} currentWeek={4} />
       );
       expect(within(table()).getAllByText('—').length).toBeGreaterThan(0);
     });
@@ -201,7 +201,7 @@ describe('PowerRankingsTable', () => {
         },
       });
       renderWithProviders(
-        <PowerRankingsTable rankings={[viewer, opponent()]} currentWeek={4} showAdvanced />
+        <PowerRankingsTable rankings={[viewer, opponent()]} currentWeek={4} />
       );
       // Signed out, so the opponent's name masks to its truncated id; the
       // projection keeps the one-decimal policy.

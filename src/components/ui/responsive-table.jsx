@@ -56,6 +56,8 @@ import {
  * @property {string} [headerClassName] applied to the <th>
  * @property {boolean} [sticky]       pin this column while scrolling (>= md)
  * @property {string} [cardLabel]     label on the card when `header` is an icon
+ * @property {string} [cardClassName] applied to the stat block on the card,
+ *   e.g. `col-span-2` for a value that needs more than one grid cell
  */
 
 /**
@@ -200,7 +202,7 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
           )}
         >
           {secondary.map((c) => (
-            <div key={c.key} className="min-w-0">
+            <div key={c.key} className={cn('min-w-0', c.cardClassName)}>
               <dt className="truncate text-xs font-medium text-muted-foreground">
                 {c.cardLabel ?? c.header}
               </dt>
@@ -231,7 +233,7 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
           {open && (
             <dl className="mt-1 grid grid-cols-3 gap-x-3 gap-y-2.5 border-t border-border/60 pt-3 xs:grid-cols-4">
               {detail.map((c) => (
-                <div key={c.key} className="min-w-0">
+                <div key={c.key} className={cn('min-w-0', c.cardClassName)}>
                   <dt className="truncate text-xs font-medium text-muted-foreground">
                     {c.cardLabel ?? c.header}
                   </dt>

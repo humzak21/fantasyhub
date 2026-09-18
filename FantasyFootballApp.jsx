@@ -184,7 +184,6 @@ const FantasyFootballApp = () => {
   const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
 
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
-  const [showAdvancedStats, setShowAdvancedStats] = useState(false);
   const [standingsOpen, setStandingsOpen] = useState(false);
 
   // Check if awards are accessible
@@ -490,14 +489,11 @@ const FantasyFootballApp = () => {
                     week={viewedWeek}
                     view={rankingsView}
                     onViewChange={setRankingsView}
-                    showAdvanced={showAdvancedStats}
-                    onShowAdvancedChange={setShowAdvancedStats}
                   />
                   {rankingsView === 'table' ? (
                     <PowerRankingsTable
                       rankings={weeklyRankings}
                       currentWeek={viewedWeek}
-                      showAdvanced={showAdvancedStats}
                       loading={rankingsLoading}
                       initializing={isLoading}
                     />
