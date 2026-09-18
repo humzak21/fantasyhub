@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { AlertCircle, CheckCircle2, Users } from 'lucide-react';
+import { AlertCircle, Users } from 'lucide-react';
 
 import { Card } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
+import { badgeVariants } from '../ui/badge';
 import { NumberText } from '../ui/number-text';
 import { ScrollHint } from '../ui/scroll-hint';
 import { TeamAvatar } from '../ui/team-identity';
@@ -10,82 +11,95 @@ import { cn } from '../../lib/utils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { useAllPicks } from '../../../hooks/queries/index.js';
 import { getMaskedOwnerName, getMaskedTeamName } from '../../utils/displayNameUtils';
-import { summarizePickSplit } from './pickSplit.js';
+import { isByeGame, summarizePickSplit } from './pickSplit.js';
 
 /**
  * How the league picked this week: one box per team, two rows of seven, with
- * the share of the picks that team got under its name. Shown on the Make
- * Picks page between the week's card and the TD parlay, from the moment the
- * window closes.
+ * the share of the picks that team got under its name, and a W on each
+ * matchup's winner once the week is scored.
+ *
+ * It appears in two places, one after the other in a week's life: on Make
+ * Picks between the week's card and the TD parlay, from the moment the window
+ * closes; then, because a scored week swaps Make Picks for Results, at the top
+ * of the Results tab, where the winners are marked. Each page decides `closed`
+ * — Make Picks from its own status, Results from `resultsAvailable` — and the
+ * explainer (`LeaguePickSplitNote`) goes in that page's header card.
  *
  * **The wait is the page's, not the database's.** `pick_em_submissions` has
- * been public-read since the baseline, so holding the row back until the
+ * been public-read since the baseline, so holding the boxes back until the
  * window closes hides nothing from somebody reading PostgREST directly. It is
  * there so the split cannot steer anybody's picks while they can still be
- * changed, and "closed" is the same test ParlayPickSection's `isRevealed`
- * makes over the same `status` object — one window, stated once, by the form
- * that owns it.
+ * changed.
  *
- * The row and its explainer (`LeaguePickSplitNote`, in the week's card above)
- * render in different cards, so each calls `useLeaguePickSplit`; both read the
- * one `qk.pickems.allPicks` cache entry, so that is one request, and it is not
- * issued at all while the window is open.
+ * The boxes and their explainer render in different cards, so each calls
+ * `useLeaguePickSplit`; both read the one `qk.pickems.allPicks` cache entry,
+ * so that is one request, and it is not issued at all while the window is
+ * open.
  */
 
 /** One shared empty array, so the memo below does not see a new one each render. */
 const EMPTY = [];
 
-const isClosed = (status) => status?.status === 'closed' || status?.status === 'completed';
+function useLeaguePickSplit({ pickEmWeek, games, closed }) {
+  const list = games ?? EMPTY;
+  const hasMatchups = list.some((game) => !isByeGame(game));
+  const shown = Boolean(pickEmWeek) && Boolean(closed) && hasMatchups;
 
-function useLeaguePickSplit({ pickEmWeek, games, status }) {
-  const { user } = useViewer();
-  const closed = Boolean(pickEmWeek) && isClosed(status);
   const { data: picks = EMPTY, isLoading, isError } = useAllPicks(pickEmWeek?.id, {
-    enabled: closed
+    enabled: shown
   });
 
-  const summary = useMemo(
-    () => summarizePickSplit(games ?? EMPTY, picks, user?.id ?? null),
-    [games, picks, user?.id]
-  );
+  const summary = useMemo(() => summarizePickSplit(list, picks), [list, picks]);
 
-  return { closed, summary, isLoading, isError };
+  return { shown, summary, isLoading, isError };
 }
 
 /**
- * The explainer, as a small box inside the week's card — directly above the
- * row it describes. Renders whenever the row does, including while the picks
- * load, when it simply leaves out the count.
+ * The winner's mark: a green W, as a scoreboard would print it. One component
+ * for the box and for the explainer that names it, so the two cannot drift.
+ */
+export function WinnerMark({ className }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(badgeVariants({ variant: 'success' }), 'px-1.5 font-semibold', className)}
+    >
+      W
+    </span>
+  );
+}
+
+/**
+ * The explainer, as a small box inside the page's header card — directly
+ * above the boxes it describes. Renders whenever they do, including while the
+ * picks load, when it simply leaves out the count.
  *
  * @param {object} props
  * @param {object|null} props.pickEmWeek
  * @param {Array<object>} props.games - the week's games
- * @param {{ status: string }} props.status - PickEmsSubmission's own status
+ * @param {boolean} props.closed - the week's pick'em window has closed
  */
-export function LeaguePickSplitNote({ pickEmWeek, games, status, className }) {
-  const { closed, summary, isLoading, isError } = useLeaguePickSplit({ pickEmWeek, games, status });
+export function LeaguePickSplitNote({ pickEmWeek, games, closed, className }) {
+  const { shown, summary, isLoading, isError } = useLeaguePickSplit({ pickEmWeek, games, closed });
 
-  if (!closed || summary.matchups.length === 0) return null;
+  if (!shown) return null;
 
   const { submitted } = summary;
   const counted = !isLoading && !isError;
-  const hasOwnPick = summary.matchups.some((matchup) =>
-    matchup.sides.some((side) => side.isViewerPick)
-  );
+  const nobody = counted && submitted === 0;
+  const scored = summary.matchups.every((matchup) => matchup.decided);
 
   let body;
-  if (counted && submitted === 0) {
+  if (nobody) {
     body = 'Picks are locked, and nobody submitted any this week.';
   } else if (counted) {
     body =
       `Picks are locked, and ${submitted} ${submitted === 1 ? 'member' : 'members'} submitted. ` +
-      'Each box below shows the percentage of those submissions that picked that team to ' +
-      'win, and each column is one matchup.' +
-      (hasOwnPick ? ' A check marks your own pick.' : '');
+      'Each box below shows the percentage of those submissions that picked that team to win.';
   } else {
     body =
       'Picks are locked. Each box below shows the percentage of this week’s submissions ' +
-      'that picked that team to win, and each column is one matchup.';
+      'that picked that team to win.';
   }
 
   return (
@@ -95,6 +109,13 @@ export function LeaguePickSplitNote({ pickEmWeek, games, status, className }) {
         How the league picked
       </p>
       <p className="mt-1.5 text-muted-foreground">{body}</p>
+      {!nobody && (
+        <p className="mt-1.5 text-muted-foreground">
+          {scored ? '' : 'Once the week is scored, '}
+          <WinnerMark className="mx-0.5 align-baseline" />
+          <span className="sr-only">{scored ? 'A W' : 'a W'}</span> marks each matchup’s winner.
+        </p>
+      )}
     </div>
   );
 }
@@ -116,14 +137,14 @@ export function LeaguePickSplitNote({ pickEmWeek, games, status, className }) {
  * @param {object} props
  * @param {object|null} props.pickEmWeek
  * @param {Array<object>} props.games - the week's games; byes are skipped
- * @param {{ status: string }} props.status - PickEmsSubmission's own status
+ * @param {boolean} props.closed - the week's pick'em window has closed
  * @param {number} props.week
  */
-export default function LeaguePickSplit({ pickEmWeek, games, status, week }) {
+export default function LeaguePickSplit({ pickEmWeek, games, closed, week }) {
   const { user, isAdmin, teamOwnerNames } = useViewer();
-  const { closed, summary, isLoading, isError } = useLeaguePickSplit({ pickEmWeek, games, status });
+  const { shown, summary, isLoading, isError } = useLeaguePickSplit({ pickEmWeek, games, closed });
 
-  if (!closed || summary.matchups.length === 0) return null;
+  if (!shown) return null;
 
   if (isError) {
     return (
@@ -169,7 +190,8 @@ export default function LeaguePickSplit({ pickEmWeek, games, status, week }) {
  * The name keeps a two-line slot whatever its length, so every box's figures
  * sit on one line across the row. The side with fewer picks is muted rather
  * than the leader coloured: which team the league backed is a matter of
- * weight, and the share has no good or bad direction to colour.
+ * weight, and the share has no good or bad direction to colour. The W is the
+ * one thing here that is a result, so it is the one thing in a status colour.
  */
 const TeamBox = ({ side, viewer }) => {
   const name = getMaskedTeamName(side.team, viewer.user, viewer.isAdmin, viewer.teamOwnerNames);
@@ -177,11 +199,10 @@ const TeamBox = ({ side, viewer }) => {
 
   return (
     <Card className="relative flex h-full flex-col items-center px-2.5 py-3.5 text-center">
-      {side.isViewerPick && (
+      {side.won && (
         <>
-          {/* The picker's own mark for a chosen team, in the viewer's colour. */}
-          <CheckCircle2 className="absolute right-2.5 top-2.5 h-4 w-4 text-primary" aria-hidden="true" />
-          <span className="sr-only">Your pick: </span>
+          <WinnerMark className="absolute right-2 top-2" />
+          <span className="sr-only">Won: </span>
         </>
       )}
 
@@ -213,7 +234,7 @@ const TeamBox = ({ side, viewer }) => {
 /**
  * The same box with bars where the words go. Built from the same slots — each
  * bar is its line's own type size around a non-breaking space — so it is the
- * real box's height by construction and the row does not jump when the picks
+ * real box's height by construction and the grid does not jump when the picks
  * arrive.
  */
 const TeamBoxSkeleton = () => (

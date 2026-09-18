@@ -1,10 +1,11 @@
 /**
  * How the league picked a week, matchup by matchup.
  *
- * Once a week's pick'ems close, the Make Picks page shows every matchup with
- * the share of the league that took each side. This is the arithmetic behind
- * that row, kept pure so it is tested without a database — the same split as
- * `weekWinners.js` and the component that renders it.
+ * Once a week's pick'ems close, every team gets a box with the share of the
+ * league that took it — on Make Picks until the week is scored, then on the
+ * Results tab with each matchup's winner marked. This is the arithmetic behind
+ * those boxes, kept pure so it is tested without a database — the same split
+ * as `weekWinners.js` and the component that renders it.
  *
  * A share is counted against the picks entered *for that game*, not against
  * everyone who submitted. In a normal week those are the same number — the
@@ -14,6 +15,10 @@
  *
  * A game nobody picked has no split: both shares are `null`, never 0. "Nobody
  * took this team" and "nobody picked this game at all" are different facts.
+ *
+ * A side has `won` only once its game is completed and names it the winner. A
+ * game still to be scored, and a tie, have no winner — neither side may read
+ * as one.
  */
 
 /**
@@ -36,13 +41,14 @@ export function isByeGame(game) {
  * @property {number} count - picks that took this team
  * @property {number|null} share - 0-100, or null when the game has no picks
  * @property {boolean} trails - strictly fewer picks than the other side
- * @property {boolean} isViewerPick - the viewer's own pick
+ * @property {boolean} won - the game is completed and this team won it
  */
 
 /**
  * @typedef {object} PickSplitMatchup
  * @property {string} gameId
  * @property {number} total - picks entered for this game
+ * @property {boolean} decided - the game is completed (a tie included)
  * @property {[PickSplitSide, PickSplitSide]} sides - team 1 first, as in the form
  */
 
@@ -53,22 +59,16 @@ const teamIdOf = (game, slot) => game[`team${slot}`]?.id ?? game[`team${slot}Id`
  *   returns them; byes are skipped
  * @param {Array<object>} picks - every member's picks for the week, as
  *   `getAllPicksForWeek` returns them
- * @param {string|null} [viewerId] - marks the viewer's own pick in each matchup
  * @returns {{ submitted: number, matchups: PickSplitMatchup[] }} `submitted`
  *   is how many members picked at least one of these matchups
  */
-export function summarizePickSplit(games = [], picks = [], viewerId = null) {
+export function summarizePickSplit(games = [], picks = []) {
   const tallies = new Map(
     games
       .filter((game) => !isByeGame(game))
       .map((game) => [
         game.id,
-        {
-          game,
-          teamIds: [teamIdOf(game, 1), teamIdOf(game, 2)],
-          counts: [0, 0],
-          viewerTeamId: null
-        }
+        { game, teamIds: [teamIdOf(game, 1), teamIdOf(game, 2)], counts: [0, 0] }
       ])
   );
   const members = new Set();
@@ -85,20 +85,21 @@ export function summarizePickSplit(games = [], picks = [], viewerId = null) {
 
     tally.counts[index] += 1;
     if (pick.userId) members.add(pick.userId);
-    if (viewerId && pick.userId === viewerId) tally.viewerTeamId = teamId;
   }
 
-  const matchups = [...tallies.values()].map(({ game, teamIds, counts, viewerTeamId }) => {
+  const matchups = [...tallies.values()].map(({ game, teamIds, counts }) => {
     const total = counts[0] + counts[1];
+    const decided = Boolean(game.isCompleted);
+    const winnerId = decided ? game.winnerTeamId ?? null : null;
     const side = (index) => ({
       team: game[`team${index + 1}`],
       count: counts[index],
       share: total > 0 ? (counts[index] / total) * 100 : null,
       trails: counts[index] < counts[1 - index],
-      isViewerPick: viewerTeamId !== null && viewerTeamId === teamIds[index]
+      won: winnerId !== null && winnerId === teamIds[index]
     });
 
-    return { gameId: game.id, total, sides: [side(0), side(1)] };
+    return { gameId: game.id, total, decided, sides: [side(0), side(1)] };
   });
 
   return { submitted: members.size, matchups };

@@ -3,8 +3,8 @@
  *
  * What must not break: a share is counted against the picks entered for that
  * game, so a matchup's two shares add up to 100; a game nobody picked has no
- * share rather than 0%; byes are not matchups; and the viewer's own pick is
- * marked on the side they took.
+ * share rather than 0%; byes are not matchups; and a winner is marked only
+ * once its game is scored, never in a tie.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -127,17 +127,32 @@ describe('summarizePickSplit', () => {
     expect(submitted).toBe(2);
   });
 
-  it('marks the viewer\'s own pick, and nothing for a viewer who did not pick', () => {
-    const picks = [pick('u1', 'g1', 't2'), pick('u2', 'g1', 't1')];
+  it('marks the winner of a scored game, whichever side the league backed', () => {
+    const scored = [{ ...GAMES[0], isCompleted: true, winnerTeamId: 't2' }, GAMES[1]];
+    const { matchups } = summarizePickSplit(scored, [
+      pick('u1', 'g1', 't1'),
+      pick('u2', 'g1', 't1')
+    ]);
 
-    const mine = summarizePickSplit(GAMES, picks, 'u1').matchups[0];
-    expect(mine.sides.map((side) => side.isViewerPick)).toEqual([false, true]);
+    expect(matchups[0].decided).toBe(true);
+    expect(matchups[0].sides.map((side) => side.won)).toEqual([false, true]);
+  });
 
-    const theirs = summarizePickSplit(GAMES, picks, 'u9').matchups[0];
-    expect(theirs.sides.some((side) => side.isViewerPick)).toBe(false);
+  it('marks no winner before a game is scored', () => {
+    // A winner id on an unfinished row must not be believed.
+    const early = [{ ...GAMES[0], isCompleted: false, winnerTeamId: 't1' }];
+    const [matchup] = summarizePickSplit(early, []).matchups;
 
-    const signedOut = summarizePickSplit(GAMES, picks).matchups[0];
-    expect(signedOut.sides.some((side) => side.isViewerPick)).toBe(false);
+    expect(matchup.decided).toBe(false);
+    expect(matchup.sides.some((side) => side.won)).toBe(false);
+  });
+
+  it('marks no winner for a tie, which is still a scored game', () => {
+    const tie = [{ ...GAMES[0], isCompleted: true, winnerTeamId: null }];
+    const [matchup] = summarizePickSplit(tie, []).matchups;
+
+    expect(matchup.decided).toBe(true);
+    expect(matchup.sides.some((side) => side.won)).toBe(false);
   });
 
   it('reads the stored winner when the joined team id is absent', () => {

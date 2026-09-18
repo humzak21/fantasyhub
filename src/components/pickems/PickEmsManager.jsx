@@ -355,6 +355,7 @@ const PickEmsManager = ({
               season={season}
               currentWeek={currentWeek}
               pickEmWeek={pickEmWeek}
+              games={games}
               weeklyScores={weeklyScores}
               allPicks={allPicks}
               loading={dataLoading}

@@ -7,6 +7,11 @@ import {
   CheckCircle2, XCircle, Clock, Calendar, BarChart3
 } from 'lucide-react';
 import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUtils';
+import LeaguePickSplit, { LeaguePickSplitNote } from './LeaguePickSplit.jsx';
+import { isByeGame } from './pickSplit.js';
+
+/** The `games` default, shared, so a missing prop is not a new array each render. */
+const NO_GAMES = [];
 
 /**
  * Picks that have been played, and picks still waiting on a game.
@@ -34,6 +39,7 @@ const PickEmsResults = ({
   season,
   currentWeek,
   pickEmWeek,
+  games = NO_GAMES,
   weeklyScores = [],
   allPicks = [],
   loading = false,
@@ -110,7 +116,23 @@ const PickEmsResults = ({
             See how everyone performed this week
           </CardDescription>
         </CardHeader>
+
+        {/* The explainer for the boxes below, as it is on Make Picks. The
+            content block is conditional because an empty one would still
+            carry its padding. */}
+        {games.some((game) => !isByeGame(game)) && (
+          <CardContent>
+            <LeaguePickSplitNote pickEmWeek={pickEmWeek} games={games} closed />
+          </CardContent>
+        )}
       </Card>
+
+      {/* How the league picked, with each matchup's winner marked — the boxes
+          Make Picks showed from the close, carried here because a scored week
+          swaps that page for this one. Above the inner tabs, so they stay put
+          whichever of the two is open. `closed` is a given on this branch:
+          results are only available after the window shuts. */}
+      <LeaguePickSplit pickEmWeek={pickEmWeek} games={games} closed week={currentWeek} />
 
       {/* Results tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>

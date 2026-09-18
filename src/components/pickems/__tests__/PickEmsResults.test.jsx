@@ -1,8 +1,27 @@
 import React from 'react';
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
-import PickEmsResults from '../PickEmsResults';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderWithProviders as render, screen, fireEvent, within } from '../../../test/renderWithProviders.jsx';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
+
+// The page mounts "how the league picked", which reads the viewer and a query,
+// so it renders through the providers and needs the db they reach.
+const pickems = { getAllPicksForWeek: vi.fn(async () => []) };
+
+vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  getDb: () => ({
+    pickems,
+    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true },
+    seasons: { getActiveSeason: async () => null }
+  })
+}));
+
+const { default: PickEmsResults } = await import('../PickEmsResults');
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  pickems.getAllPicksForWeek.mockResolvedValue([]);
+});
 
 const pick = (overrides) => ({
   submissionId: 's1',
@@ -151,5 +170,83 @@ describe('PickEmsResults weekly leaderboard', () => {
 
     const average = screen.getByText('Avg Accuracy').previousElementSibling;
     expect(average).toHaveTextContent('—');
+  });
+});
+
+/**
+ * A scored week swaps Make Picks for this tab, so "how the league picked"
+ * comes with it: explained in the header card, the boxes directly under it
+ * and above the Weekly Results / Pick Breakdown tabs, so they stay in view
+ * whichever of the two is open — and here each matchup's winner wears a W.
+ */
+describe('PickEmsResults league split', () => {
+  const GAMES = [
+    {
+      id: 'g1',
+      isCompleted: true,
+      winnerTeamId: 't2',
+      team1Id: 't1',
+      team2Id: 't2',
+      team1: { id: 't1', name: 'Gridiron Gang', owner: 'Humza Khalil' },
+      team2: { id: 't2', name: 'Waiver Wire Wizards', owner: 'Arya Shah' }
+    }
+  ];
+
+  const renderScored = () =>
+    render(
+      <PickEmsResults
+        currentWeek={3}
+        pickEmWeek={{ id: 'pew-3', seasonId: 'season-1', weekNumber: 3 }}
+        games={GAMES}
+        resultsAvailable
+        weeklyScores={[score()]}
+        allPicks={[]}
+        isAdmin
+      />
+    );
+
+  beforeEach(() => {
+    pickems.getAllPicksForWeek.mockResolvedValue([
+      { userId: 'u1', gameId: 'g1', pickedTeamId: 't1', predictedWinnerTeamId: 't1' },
+      { userId: 'u2', gameId: 'g1', pickedTeamId: 't1', predictedWinnerTeamId: 't1' }
+    ]);
+  });
+
+  it('sits under the results header and above the results, with the winner marked', async () => {
+    renderScored();
+
+    const grid = await screen.findByRole('list', { name: 'How the league picked week 3' });
+    const header = screen.getByText(/Pick'ems Results - Week 3/).closest('.rounded-xl');
+    const tabs = screen.getByRole('tablist');
+
+    expect(header).toContainElement(screen.getByText('How the league picked'));
+    expect(header).not.toContainElement(grid);
+    const follows = (a, b) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(header, grid)).toBe(true);
+    expect(follows(grid, tabs)).toBe(true);
+
+    // Nobody picked the Wizards, and they won.
+    await vi.waitFor(() => expect(grid).toHaveTextContent('100.0%'));
+    const [gang, wizards] = within(grid).getAllByRole('listitem');
+    expect(gang).not.toHaveTextContent('Won:');
+    expect(wizards).toHaveTextContent('Won:');
+    expect(wizards).toHaveTextContent('0.0%');
+  });
+
+  it('stays in view on the pick breakdown', async () => {
+    renderScored();
+
+    await screen.findByRole('list', { name: 'How the league picked week 3' });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Pick Breakdown/ }), { button: 0 });
+
+    expect(screen.getByRole('list', { name: 'How the league picked week 3' })).toBeInTheDocument();
+  });
+
+  it('shows neither without the week\'s games, and asks for nothing', () => {
+    render(<PickEmsResults currentWeek={3} resultsAvailable weeklyScores={[score()]} isAdmin />);
+
+    expect(screen.queryByText('How the league picked')).not.toBeInTheDocument();
+    expect(pickems.getAllPicksForWeek).not.toHaveBeenCalled();
   });
 });

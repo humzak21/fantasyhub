@@ -1100,20 +1100,28 @@ still on every line; the team taken is the line's subject and the other follows
 "over", so which was picked survives without colour. A row with no stored
 winner reads "no pick", never as a vote for team 1.
 
-**How the league picked appears once the window closes.** On Make Picks,
-between the week's card and the TD parlay, `LeaguePickSplit.jsx` shows one box
-per team, with the share of the week's picks that team got. The boxes sit in
-two rows of seven, one matchup per column (team 1 on top), and its explainer
-(`LeaguePickSplitNote`) is the last box inside the week's card. The list stays
-in matchup order and `grid-flow-col grid-rows-2` pours it down the columns, so
-the reading order and the pairing agree. Before the window closes it renders
-nothing and issues no request.
+**How the league picked appears once the window closes.** `LeaguePickSplit.jsx`
+shows one box per team, with the share of the week's picks that team got. The
+boxes sit in two rows of seven, one matchup per column (team 1 on top). The
+list stays in matchup order and `grid-flow-col grid-rows-2` pours it down the
+columns, so the reading order and the pairing agree. Its explainer
+(`LeaguePickSplitNote`) goes inside the page's header card. Before the window
+closes it renders nothing and issues no request.
 
+- **It follows the week across two pages.** On Make Picks it sits between the
+  week's card and the TD parlay from the close. A scored week swaps Make Picks
+  for Results (`resultsAvailable`), so the same boxes sit on Results too,
+  under the "Pick'ems Results" card and above the Weekly Results / Pick
+  Breakdown tabs, where a green W (`WinnerMark`) marks each matchup's winner.
+  Each page passes `closed`: Make Picks from its own status (the test the
+  parlay's `isRevealed` makes), Results from `resultsAvailable`.
+- **A W needs a completed game with a winner.** `won` in `summarizePickSplit`
+  requires `isCompleted` as well as `winnerTeamId`, so an unscored game and a
+  tie mark nobody. The explainer says "once the week is scored" until every
+  matchup is decided.
 - **The wait is the page's, not the database's.** `pick_em_submissions` is
   public-read, so holding the split back hides nothing from PostgREST. What it
-  prevents is the split steering picks that can still change. "Closed" is the
-  `status` test the parlay's `isRevealed` makes, on the object
-  PickEmsSubmission passes to both.
+  prevents is the split steering picks that can still change.
 - **A share counts that game's picks, not everyone who submitted.**
   `summarizePickSplit` (`pickSplit.js`, pure and tested) keeps a matchup's two
   shares summing to 100 even if a game changed after somebody submitted. A game

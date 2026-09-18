@@ -221,6 +221,9 @@ const PickEmsSubmission = ({
   };
 
   const status = getPickEmStatus();
+  // The same test ParlayPickSection's `isRevealed` makes over this `status`:
+  // one window, stated by the form that owns it.
+  const picksClosed = status.status === 'closed' || status.status === 'completed';
   const totalPicks = Object.keys(picks).length;
   const availableGames = games.filter(game => !game.isCompleted);
   const selectableGames = availableGames.filter(game => !isByeGame(game));
@@ -274,16 +277,18 @@ const PickEmsSubmission = ({
             it explains. */}
         <CardContent className="space-y-3">
           <TourneyNote compact currentWeek={currentWeek} />
-          <LeaguePickSplitNote pickEmWeek={pickEmWeek} games={games} status={status} />
+          <LeaguePickSplitNote pickEmWeek={pickEmWeek} games={games} closed={picksClosed} />
         </CardContent>
       </Card>
 
       {/* How the league picked, between the week's card and the parlay. It
-          renders nothing until the window closes — see LeaguePickSplit. */}
+          renders nothing until the window closes — see LeaguePickSplit. Once
+          the week is scored this page gives way to Results, which shows the
+          same boxes with the winners marked. */}
       <LeaguePickSplit
         pickEmWeek={pickEmWeek}
         games={games}
-        status={status}
+        closed={picksClosed}
         week={currentWeek}
       />
 
