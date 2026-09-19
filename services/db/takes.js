@@ -59,7 +59,7 @@ export async function getTakesForSeason(ctx, seasonId) {
   try {
     const { data, error } = await ctx.client
       .from('takes')
-      .select('*, take_participants(id, user_id, created_at)')
+      .select('*, take_participants(id, user_id, side, wager, created_at)')
       .eq('season_id', seasonId)
       .order('created_at', { ascending: false });
 
@@ -173,6 +173,11 @@ export async function deleteTake(ctx, takeId) {
   }
 }
 
+/** The two sides a member can take on somebody else's take. Mirrors
+ *  `take_participants_side_check`. */
+const SIDE_NAH = 'nah';
+const SIDE_YEAH = 'yeah';
+
 /**
  * Say Hell Nah to somebody else's take — fade it, and take on their wager.
  *
@@ -180,7 +185,11 @@ export async function deleteTake(ctx, takeId) {
  * checks it against the parent take, so a wrong value is rejected rather than
  * stored. A repeat hits `take_participants_take_user_key` and comes back as a
  * duplicate — which is the correct answer to "fade a take you have already
- * faded", so it is surfaced rather than swallowed.
+ * faded", so it is surfaced rather than swallowed. The same key refuses a
+ * Hell Nah from somebody who has already said Hell Yeah: one side per member.
+ *
+ * `side` is sent even though the column defaults to it. The default exists
+ * for the build that predates Hell Yeah; this one says what it means.
  *
  * Nothing here checks that the take carries a wager. That clause lives in the
  * `take_participants insert own` policy, where a hand-rolled POST meets it too;
@@ -190,7 +199,7 @@ export async function addFade(ctx, { takeId, seasonId }) {
   try {
     if (!takeId || !seasonId) throw new Error('A Hell Nah needs a take and a season');
 
-    const payload = formatForDatabase({ takeId, seasonId });
+    const payload = formatForDatabase({ takeId, seasonId, side: SIDE_NAH });
 
     const { data, error } = await ctx.client
       .from('take_participants')
@@ -207,31 +216,82 @@ export async function addFade(ctx, { takeId, seasonId }) {
 }
 
 /**
- * Take back your own Hell Nah.
+ * Say Hell Yeah to somebody else's take — back it, optionally with a stake of
+ * your own.
+ *
+ * The stake is optional and normalized exactly like a take's: a blank box is
+ * no stake, and no stake is NULL. It is a show of confidence, not a bet — no
+ * Hell Nah ever owes it — so it is allowed on any take, staked or not.
+ */
+export async function addHellYeah(ctx, { takeId, seasonId, wager = null }) {
+  try {
+    if (!takeId || !seasonId) throw new Error('A Hell Yeah needs a take and a season');
+
+    const payload = formatForDatabase({
+      takeId,
+      seasonId,
+      side: SIDE_YEAH,
+      wager: normalizeWager(wager)
+    });
+
+    const { data, error } = await ctx.client
+      .from('take_participants')
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return formatFromDatabase(data);
+  } catch (error) {
+    throwDbError(error, 'Hell Yeah');
+  }
+}
+
+/**
+ * Take back your own row on a take, on one side.
  *
  * The `user_id` filter is load-bearing and is *not* a duplicate of RLS. For an
  * ordinary member the `take_participants withdraw own` policy already narrows
  * the delete to their own row — but the admin also holds a `FOR ALL` policy, so
- * for them an unfiltered delete on `take_id` would wipe every fade on that
- * take. The filter is what makes this function mean "mine" for everybody.
+ * for them an unfiltered delete on `take_id` would wipe every row on that take.
+ * The filter is what makes this function mean "mine" for everybody.
+ *
+ * The `side` filter is what makes "take back my Hell Nah" unable to delete a
+ * Hell Yeah, whatever a stale screen thought the viewer was holding.
  */
+async function removeOwn(ctx, takeId, side) {
+  if (!takeId) throw new Error('A take id is required');
+
+  const userId = (await ctx.client.auth.getUser()).data.user?.id;
+  if (!userId) throw new Error('User not authenticated');
+
+  const { error } = await ctx.client
+    .from('take_participants')
+    .delete()
+    .eq('take_id', takeId)
+    .eq('user_id', userId)
+    .eq('side', side);
+
+  if (error) throw error;
+  return true;
+}
+
+/** Take back your own Hell Nah. */
 export async function removeFade(ctx, takeId) {
   try {
-    if (!takeId) throw new Error('A take id is required');
-
-    const userId = (await ctx.client.auth.getUser()).data.user?.id;
-    if (!userId) throw new Error('User not authenticated');
-
-    const { error } = await ctx.client
-      .from('take_participants')
-      .delete()
-      .eq('take_id', takeId)
-      .eq('user_id', userId);
-
-    if (error) throw error;
-    return true;
+    return await removeOwn(ctx, takeId, SIDE_NAH);
   } catch (error) {
     throwDbError(error, 'Take back Hell Nah');
+  }
+}
+
+/** Take back your own Hell Yeah, stake and all. */
+export async function removeHellYeah(ctx, takeId) {
+  try {
+    return await removeOwn(ctx, takeId, SIDE_YEAH);
+  } catch (error) {
+    throwDbError(error, 'Take back Hell Yeah');
   }
 }
 
@@ -391,7 +451,7 @@ export async function addFadeFor(ctx, { takeId, seasonId, userId }) {
 
     const { data, error } = await ctx.client
       .from('take_participants')
-      .insert(formatForDatabase({ takeId, seasonId, userId }))
+      .insert(formatForDatabase({ takeId, seasonId, userId, side: SIDE_NAH }))
       .select()
       .single();
 
@@ -404,9 +464,10 @@ export async function addFadeFor(ctx, { takeId, seasonId, userId }) {
 }
 
 /**
- * Remove somebody's Hell Nah. The `user_id` filter is the whole of what makes
- * this one member's row — see `removeFade` for why RLS will not narrow it for
- * the admin.
+ * Remove somebody's Hell Nah or Hell Yeah — whichever they hold, since a
+ * member holds one row per take. The `user_id` filter is the whole of what
+ * makes this one member's row — see `removeOwn` for why RLS will not narrow it
+ * for the admin.
  */
 export async function removeFadeFor(ctx, { takeId, userId }) {
   try {
@@ -421,7 +482,7 @@ export async function removeFadeFor(ctx, { takeId, userId }) {
     if (error) throw error;
     return true;
   } catch (error) {
-    throwDbError(error, 'Remove Hell Nah');
+    throwDbError(error, 'Remove from take');
   }
 }
 

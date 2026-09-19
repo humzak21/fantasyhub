@@ -19,6 +19,7 @@ import {
 } from '../../../hooks/queries/index.js';
 import { AddTakeDialog } from './AddTakeDialog.jsx';
 import { HellNahDialog } from './HellNahDialog.jsx';
+import { HellYeahDialog } from './HellYeahDialog.jsx';
 import { shouldConfirmHellNah, suppressHellNahConfirm } from './confirmPreference.js';
 import { TakeDetailSheet } from './TakeDetailSheet.jsx';
 import { TakesBoard } from './TakesBoard.jsx';
@@ -33,9 +34,9 @@ const TAKES_DESCRIPTION = 'Call it before it happens.';
  * The Takes tab.
  *
  * Predictions the league posts against a milestone — a week, the end of the
- * regular season, the end of the season — that members read, and that any
- * other member can fade with a Hell Nah when the author has staked something on
- * it. The board sorts by when a take comes due, not by when it was written.
+ * regular season, the end of the season — that members read, back with a Hell
+ * Yeah, and fade with a Hell Nah when the author has staked something on it.
+ * The board sorts by when a take comes due, not by when it was written.
  *
  * Identity comes from `useViewer()`, never from props, and all data goes
  * through the query hooks. This deliberately does not follow `PickEmsManager`'s
@@ -60,6 +61,8 @@ export function TakesManager({ season, loading }) {
   // Which take is waiting on its Hell Nah confirmation. An id, like the other
   // two, so the dialog reads the fresh row after a refetch.
   const [confirmingFadeId, setConfirmingFadeId] = useState(null);
+  // And which one is being asked whether it wants a stake with its Hell Yeah.
+  const [stakingHellYeahId, setStakingHellYeahId] = useState(null);
 
   const { takes, displayNames } = board;
 
@@ -99,6 +102,10 @@ export function TakesManager({ season, loading }) {
     () => takes.find((take) => take.id === confirmingFadeId) ?? null,
     [takes, confirmingFadeId]
   );
+  const stakingHellYeahTake = useMemo(
+    () => takes.find((take) => take.id === stakingHellYeahId) ?? null,
+    [takes, stakingHellYeahId]
+  );
 
   // Deferred until a take is open — the log appears nowhere else, and `enabled`
   // inside the hook makes a null id the resting state rather than a bug. It
@@ -117,6 +124,8 @@ export function TakesManager({ season, loading }) {
     deleteTake,
     fade,
     withdrawFade,
+    hellYeah,
+    withdrawHellYeah,
     resolveTake,
     reopenTake,
     adminUpdateTake,
@@ -129,6 +138,8 @@ export function TakesManager({ season, loading }) {
   const pendingTakeId =
     (fade.isPending && fade.variables?.takeId) ||
     (withdrawFade.isPending && withdrawFade.variables?.takeId) ||
+    (hellYeah.isPending && hellYeah.variables?.takeId) ||
+    (withdrawHellYeah.isPending && withdrawHellYeah.variables?.takeId) ||
     (resolveTake.isPending && resolveTake.variables?.takeId) ||
     (reopenTake.isPending && reopenTake.variables?.takeId) ||
     (addFadeFor.isPending && addFadeFor.variables?.takeId) ||
@@ -167,6 +178,22 @@ export function TakesManager({ season, loading }) {
     setConfirmingFadeId(null);
     await run(fade, { takeId: take.id }, 'Could not fade that take');
   };
+
+  /**
+   * Every Hell Yeah goes through here, for the same reason every Hell Nah goes
+   * through `requestFade`: the card and the sheet open one dialog, which asks
+   * whether the backer wants to add a stake of their own. Nothing is written
+   * until they answer — with a stake, or by skipping it.
+   */
+  const requestHellYeah = (take) => setStakingHellYeahId(take.id);
+
+  const confirmHellYeah = async (take, wager) => {
+    setStakingHellYeahId(null);
+    await run(hellYeah, { takeId: take.id, wager }, 'Could not Hell Yeah that take');
+  };
+
+  const withdrawHellYeahFor = (take) =>
+    run(withdrawHellYeah, { takeId: take.id }, 'Could not take that back');
 
   const openComposer = () => {
     setEditingId(null);
@@ -252,6 +279,8 @@ export function TakesManager({ season, loading }) {
         onOpen={(take) => setSelectedId(take.id)}
         onFade={requestFade}
         onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
+        onHellYeah={requestHellYeah}
+        onWithdrawHellYeah={withdrawHellYeahFor}
         pendingTakeId={pendingTakeId}
         emptyAction={isApproved ? addTakeButton : null}
       />
@@ -279,6 +308,16 @@ export function TakesManager({ season, loading }) {
         pending={fade.isPending}
       />
 
+      <HellYeahDialog
+        take={stakingHellYeahTake}
+        open={Boolean(stakingHellYeahTake)}
+        onOpenChange={(open) => {
+          if (!open) setStakingHellYeahId(null);
+        }}
+        onConfirm={confirmHellYeah}
+        pending={hellYeah.isPending}
+      />
+
       <TakeDetailSheet
         take={selectedTake}
         displayNames={displayNames}
@@ -291,6 +330,8 @@ export function TakesManager({ season, loading }) {
         }}
         onFade={requestFade}
         onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
+        onHellYeah={requestHellYeah}
+        onWithdrawHellYeah={withdrawHellYeahFor}
         onEdit={(take) => {
           setEditingId(take.id);
           setComposerOpen(true);

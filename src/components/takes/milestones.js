@@ -7,11 +7,13 @@
  * league-sized dataset, and keeping it in JavaScript is what lets a future
  * `nfl_game` take sort by kickoff without a schema migration.
  *
- * `canEditTake`, `canDeleteTake`, `canFade` and `canWithdrawFade` are
- * **mirrors** of the RLS policies, not the rules themselves. The database is
- * what actually refuses a late edit, a fade on an unstaked take, or either
- * side of a Hell Nah once the take's three-day window has run out; these exist
- * so the UI does not offer a button that is going to fail.
+ * `canEditTake`, `canDeleteTake`, `canFade`, `canWithdrawFade`,
+ * `canHellYeah` and `canWithdrawHellYeah` are **mirrors**
+ * of the RLS policies, not the rules themselves. The database is what actually
+ * refuses a late edit, a fade on an unstaked take, a second side on the same
+ * take, or joining or leaving either side once the take's three-day window has
+ * run out; these exist so the UI does not offer a button that is going to
+ * fail.
  */
 
 import { formatDateTime } from '../../lib/utils';
@@ -37,10 +39,11 @@ export const MAX_WAGER = 200;
 export const EDIT_WINDOW_MS = 72 * 60 * 60 * 1000;
 
 /**
- * How long a take stays open to Hell Nahs, measured from the last time it
- * moved. Mirrors the `now() < coalesce(t.edited_at, t.created_at) + interval
- * '72 hours'` clause that the `take_participants insert own` **and**
- * `take_participants withdraw own` policies both carry.
+ * How long a take stays open to Hell Nahs and Hell Yeahs, measured from the
+ * last time it moved. Mirrors the `now() < coalesce(t.edited_at, t.created_at)
+ * + interval '72 hours'` clause that the `take_participants insert own` **and**
+ * `take_participants withdraw own` policies both carry — for both sides, since
+ * a Hell Yeah is a row in the same table.
  *
  * Two rules, one window, on purpose. A take whose wording is settled is a
  * fixed bet, and both sides of a fixed bet have to be settled with it: if
@@ -197,10 +200,39 @@ export function isFadeWindowOpen(take, now = Date.now()) {
   return deadline !== null && now < deadline;
 }
 
+/** Hell Nah and Hell Yeah, as `take_participants.side` spells them. */
+export const SIDE_NAH = 'nah';
+export const SIDE_YEAH = 'yeah';
+
 /**
- * May the viewer say Hell Nah to it? Signed in, not their own, still ungraded,
- * there is a wager to fade, and the window is still open — the five clauses of
- * the `take_participants insert own` policy, restated for the button's benefit.
+ * Which side a row is on. A row with no `side` is a Hell Nah: that is what
+ * every row was before Hell Yeah existed, and what the column defaults to.
+ */
+export function sideOf(participant) {
+  return participant?.side === SIDE_YEAH ? SIDE_YEAH : SIDE_NAH;
+}
+
+/** Everyone fading it. */
+export function fades(take) {
+  return (take?.takeParticipants || []).filter((p) => sideOf(p) === SIDE_NAH);
+}
+
+/** Everyone backing it. */
+export function hellYeahs(take) {
+  return (take?.takeParticipants || []).filter((p) => sideOf(p) === SIDE_YEAH);
+}
+
+/** Is the viewer on either side of it? One side per member, by the unique key. */
+export function hasTakenSide(take, user) {
+  if (!user?.id) return false;
+  return (take?.takeParticipants || []).some((participant) => participant.userId === user.id);
+}
+
+/**
+ * May the viewer say Hell Nah to it? Signed in, not their own, not already on
+ * a side, still ungraded, there is a wager to fade, and the window is still
+ * open — the `take_participants insert own` policy and the unique key,
+ * restated for the button's benefit.
  *
  * The wager clause is the one that matters most here. Nothing is staked on a
  * bare take, so there is no side to take and no payout to owe; offering the
@@ -210,6 +242,7 @@ export function canFade(take, user, now = Date.now()) {
   return (
     Boolean(user?.id) &&
     !isAuthor(take, user) &&
+    !hasTakenSide(take, user) &&
     isPending(take) &&
     hasWager(take) &&
     isFadeWindowOpen(take, now)
@@ -235,21 +268,65 @@ export function canWithdrawFade(take, user, now = Date.now()) {
 /** Is this viewer already on the other side of it? */
 export function hasFaded(take, user) {
   if (!user?.id) return false;
-  return (take?.takeParticipants || []).some((participant) => participant.userId === user.id);
+  return fades(take).some((participant) => participant.userId === user.id);
+}
+
+/** Is this viewer backing it? */
+export function hasHellYeahed(take, user) {
+  if (!user?.id) return false;
+  return hellYeahs(take).some((participant) => participant.userId === user.id);
 }
 
 /** How many people are fading it — and so how many the author owes if it misses. */
 export function fadeCount(take) {
-  return (take?.takeParticipants || []).length;
+  return fades(take).length;
+}
+
+/** How many people are backing it. */
+export function hellYeahCount(take) {
+  return hellYeahs(take).length;
 }
 
 /**
- * What the fade costs, said once so the card, the sheet and the composer
- * cannot drift into three different promises about the same click.
+ * May the viewer say Hell Yeah to it? Signed in, not their own, not already on
+ * a side, still ungraded, and inside the window. Unlike a Hell Nah it needs no
+ * wager: at its core a Hell Yeah is just "good call", and that can be said of
+ * any take — with or without a stake of the backer's own, which nobody owes.
+ */
+export function canHellYeah(take, user, now = Date.now()) {
+  return (
+    Boolean(user?.id) &&
+    !isAuthor(take, user) &&
+    !hasTakenSide(take, user) &&
+    isPending(take) &&
+    isFadeWindowOpen(take, now)
+  );
+}
+
+/** May the viewer take their Hell Yeah back? The same window as a Hell Nah. */
+export function canWithdrawHellYeah(take, user, now = Date.now()) {
+  return (
+    Boolean(user?.id) && hasHellYeahed(take, user) && isPending(take) && isFadeWindowOpen(take, now)
+  );
+}
+
+/**
+ * What the fade costs, said once so the card, the sheet and the dialog cannot
+ * drift into three different promises about the same click. The author's
+ * stake and nothing else: a backer's stake is never owed by a Hell Nah.
  */
 export function fadeTerms(take) {
   return `Say Hell Nah and you're taking the other side: if this take hits, you owe ${take?.wager}. If it misses, the author owes you.`;
 }
+
+/**
+ * What a stake on a Hell Yeah means — the sentence the dialog has to get
+ * across before somebody types into the box. It is a show of confidence and
+ * nothing more; saying that it is not a bet is the point, since the author's
+ * stake right above the box *is* one.
+ */
+export const HELL_YEAH_STAKE_TERMS =
+  "It's a show of confidence, not a bet: it shows next to your name, and nobody owes anybody over it — the Hell Nahs never owe you, and you never owe them.";
 
 /**
  * The deadline, in as few words as a card can spare: one muted line under the
@@ -262,9 +339,16 @@ export function fadeWindowNote(take, now = Date.now()) {
   const deadline = fadeDeadline(take);
   if (deadline === null) return null;
 
+  const what = sidesLabel(take);
   return now < deadline
-    ? `Hell Nahs close ${formatDateTime(deadline)}`
-    : `Hell Nahs closed ${formatDateTime(deadline)}`;
+    ? `${what} close ${formatDateTime(deadline)}`
+    : `${what} closed ${formatDateTime(deadline)}`;
+}
+
+/** What the window covers on this take, as a plural noun phrase: Hell Nahs
+ *  only exist on a staked one. */
+export function sidesLabel(take) {
+  return hasWager(take) ? 'Hell Yeahs and Hell Nahs' : 'Hell Yeahs';
 }
 
 /**
@@ -275,9 +359,10 @@ export function fadeWindowNote(take, now = Date.now()) {
  * instruction.
  */
 export function fadeWindowTerms(take, now = Date.now()) {
+  const what = sidesLabel(take);
   return isFadeWindowOpen(take, now)
-    ? 'Hell Nahs close 3 days after the take was last edited. Until then you can take yours back; after that it is locked in either way.'
-    : 'Hell Nahs are closed on this take — it has been more than 3 days since it was last edited, so nobody can join and nobody can back out.';
+    ? `${what} close 3 days after the take was last edited. Until then you can take yours back; after that it is locked in either way.`
+    : `${what} are closed on this take — it has been more than 3 days since it was last edited, so nobody can join and nobody can back out.`;
 }
 
 /**

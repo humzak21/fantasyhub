@@ -20,6 +20,7 @@ import { makeCtx } from './fakeClient.js';
 import {
   addFade,
   addFadeFor,
+  addHellYeah,
   adminUpdateTake,
   createTake,
   deleteTake,
@@ -27,6 +28,7 @@ import {
   getTakesForSeason,
   removeFade,
   removeFadeFor,
+  removeHellYeah,
   reopenTake,
   resolveTake,
   updateTake
@@ -234,7 +236,7 @@ describe('addFade', () => {
     await addFade(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID });
 
     const [call] = ctx.client.callsFor('take_participants', 'insert');
-    expect(call.payload).toEqual({ take_id: TAKE_ID, season_id: SEASON_ID });
+    expect(call.payload).toEqual({ take_id: TAKE_ID, season_id: SEASON_ID, side: 'nah' });
     expect(Object.hasOwn(call.payload, 'user_id')).toBe(false);
   });
 });
@@ -249,13 +251,55 @@ describe('removeFade', () => {
     // Not redundant with RLS. The admin's `FOR ALL` policy matches every row on
     // the take, so without this filter their own withdrawal would delete
     // everybody else's Hell Nah too.
-    expect(call.filters).toEqual({ take_id: TAKE_ID, user_id: USER_ID });
+    expect(call.filters).toEqual({ take_id: TAKE_ID, user_id: USER_ID, side: 'nah' });
   });
 
   it('refuses a signed-out caller without a round trip', async () => {
     const ctx = makeCtx({});
     await expect(removeFade(ctx, TAKE_ID)).rejects.toThrow();
     expect(ctx.client.callsFor('take_participants', 'delete')).toHaveLength(0);
+  });
+});
+
+describe('addHellYeah', () => {
+  const insertCtx = () =>
+    makeCtx(
+      { 'take_participants.insert': () => [{ id: 'p3', take_id: TAKE_ID, user_id: USER_ID }] },
+      { session }
+    );
+
+  it('sends the side and the stake', async () => {
+    const ctx = insertCtx();
+
+    await addHellYeah(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID, wager: '  $10 ' });
+
+    const [call] = ctx.client.callsFor('take_participants', 'insert');
+    expect(call.payload).toEqual({
+      take_id: TAKE_ID,
+      season_id: SEASON_ID,
+      side: 'yeah',
+      wager: '$10'
+    });
+  });
+
+  it('sends a skipped stake as null, never as an empty string', async () => {
+    const ctx = insertCtx();
+
+    await addHellYeah(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID, wager: '   ' });
+
+    const [call] = ctx.client.callsFor('take_participants', 'insert');
+    expect(call.payload.wager).toBeNull();
+  });
+});
+
+describe('removeHellYeah', () => {
+  it('filters on the caller and the side, so it cannot take back a Hell Nah', async () => {
+    const ctx = makeCtx({ 'take_participants.delete': () => [] }, { session });
+
+    await removeHellYeah(ctx, TAKE_ID);
+
+    const [call] = ctx.client.callsFor('take_participants', 'delete');
+    expect(call.filters).toEqual({ take_id: TAKE_ID, user_id: USER_ID, side: 'yeah' });
   });
 });
 
@@ -375,7 +419,7 @@ describe('addFadeFor', () => {
     await addFadeFor(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID, userId: OTHER_ID });
 
     const [call] = ctx.client.callsFor('take_participants', 'insert');
-    expect(call.payload).toEqual({ take_id: TAKE_ID, season_id: SEASON_ID, user_id: OTHER_ID });
+    expect(call.payload).toEqual({ take_id: TAKE_ID, season_id: SEASON_ID, user_id: OTHER_ID, side: 'nah' });
   });
 });
 

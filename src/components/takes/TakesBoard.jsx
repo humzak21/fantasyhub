@@ -23,6 +23,8 @@ export function TakesBoard({
   onOpen,
   onFade,
   onWithdraw,
+  onHellYeah,
+  onWithdrawHellYeah,
   pendingTakeId,
   emptyAction
 }) {
@@ -59,6 +61,8 @@ export function TakesBoard({
                 onOpen={onOpen}
                 onFade={onFade}
                 onWithdraw={onWithdraw}
+                onHellYeah={onHellYeah}
+                onWithdrawHellYeah={onWithdrawHellYeah}
                 pending={pendingTakeId === take.id}
               />
             ))}
