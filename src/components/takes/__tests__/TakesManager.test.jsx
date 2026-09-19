@@ -318,7 +318,7 @@ describe('TakesManager, the Hell Nah window', () => {
     await screen.findByText('Somebody wins it from the 6 seed');
 
     expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/^Hell Yeahs and Hell Nahs closed /)).toBeInTheDocument();
+    expect(screen.getByText(/^Hell Nahs and Hell Yeah stakes closed /)).toBeInTheDocument();
   });
 
   it('gives the window back when the take is edited', async () => {
@@ -333,7 +333,7 @@ describe('TakesManager, the Hell Nah window', () => {
     await screen.findByText('Somebody wins it from the 6 seed');
 
     expect(screen.getByRole('button', { name: /^hell nah$/i })).toBeInTheDocument();
-    expect(screen.getByText(/^Hell Yeahs and Hell Nahs close /)).toBeInTheDocument();
+    expect(screen.getByText(/^Hell Nahs and Hell Yeah stakes close /)).toBeInTheDocument();
   });
 
   it('keeps a fade visible but unwithdrawable after the window', async () => {
@@ -356,7 +356,7 @@ describe('TakesManager, the Hell Nah window', () => {
     const chip = screen.getByText(/hell nah'd/i);
     expect(chip.tagName).toBe('SPAN');
     expect(chip.closest('button')).toBeNull();
-    expect(screen.getByText(/^Hell Yeahs and Hell Nahs closed /)).toBeInTheDocument();
+    expect(screen.getByText(/^Hell Nahs and Hell Yeah stakes closed /)).toBeInTheDocument();
   });
 });
 
@@ -504,6 +504,24 @@ describe('TakesManager, Hell Yeah', () => {
     await user.click(within(dialog).getByRole('button', { name: /hell yeah with stake/i }));
 
     expect(takes.addHellYeah).toHaveBeenCalledWith({ takeId: 'bare', seasonId: 's1', wager: '$5' });
+  });
+
+  it('still offers a Hell Yeah after the window, landing it without a stake', async () => {
+    // Only the stake has a window. Past it there is nothing to ask, so the
+    // dialog stays shut and the Hell Yeah is written as a plain one.
+    takes.getTakesForSeason.mockResolvedValue({
+      takes: [{ ...BOARD.takes[0], id: 'stale', createdAt: hoursAgo(80), takeParticipants: [] }],
+      displayNames: BOARD.displayNames
+    });
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^hell yeah$/i }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(takes.addHellYeah).toHaveBeenCalledWith({ takeId: 'stale', seasonId: 's1' });
   });
 
   it('says in the dialog that a Hell Yeah stake is not owed by anyone', async () => {

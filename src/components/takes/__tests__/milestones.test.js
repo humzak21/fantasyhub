@@ -22,6 +22,7 @@ import {
   canEditTake,
   canFade,
   canHellYeah,
+  canStakeHellYeah,
   canWithdrawFade,
   canWithdrawHellYeah,
   fadeCount,
@@ -278,8 +279,8 @@ describe('the Hell Nah window', () => {
   });
 
   it('says which side of the deadline the take is on', () => {
-    expect(fadeWindowNote(staked(), INSIDE)).toMatch(/^Hell Yeahs and Hell Nahs close /);
-    expect(fadeWindowNote(staked(), OUTSIDE)).toMatch(/^Hell Yeahs and Hell Nahs closed /);
+    expect(fadeWindowNote(staked(), INSIDE)).toMatch(/^Hell Nahs and Hell Yeah stakes close /);
+    expect(fadeWindowNote(staked(), OUTSIDE)).toMatch(/^Hell Nahs and Hell Yeah stakes closed /);
     expect(fadeWindowNote(take({ createdAt: null }), INSIDE)).toBe(null);
   });
 });
@@ -323,11 +324,19 @@ describe('Hell Yeah', () => {
     expect(canHellYeah(take({ wager: '$20' }), OTHER, INSIDE)).toBe(true);
   });
 
-  it('refuses the author, a visitor, a graded take and a closed window', () => {
-    expect(canHellYeah(take(), USER, INSIDE)).toBe(false);
-    expect(canHellYeah(take(), null, INSIDE)).toBe(false);
-    expect(canHellYeah(take({ status: 'correct' }), OTHER, INSIDE)).toBe(false);
-    expect(canHellYeah(take(), OTHER, OUTSIDE)).toBe(false);
+  it('refuses the author, a visitor and a graded take', () => {
+    expect(canHellYeah(take(), USER)).toBe(false);
+    expect(canHellYeah(take(), null)).toBe(false);
+    expect(canHellYeah(take({ status: 'correct' }), OTHER)).toBe(false);
+  });
+
+  it('can be given at any time; only a stake has the window', () => {
+    // Support is welcome whenever somebody comes round to a call. What the
+    // window stops is a stake declared once the answer is known.
+    expect(canHellYeah(take(), OTHER)).toBe(true);
+    expect(canStakeHellYeah(take(), INSIDE)).toBe(true);
+    expect(canStakeHellYeah(take(), OUTSIDE)).toBe(false);
+    expect(canStakeHellYeah(take({ editedAt: '2026-09-04T12:00:00Z' }), OUTSIDE)).toBe(true);
   });
 
   it('keeps each member to one side', () => {
@@ -356,11 +365,18 @@ describe('Hell Yeah', () => {
     expect(hellYeahCount(legacy)).toBe(0);
   });
 
-  it('withdraws inside the same window as a Hell Nah', () => {
+  it('takes back a plain Hell Yeah any time before grading', () => {
     const board = take({ takeParticipants: [yeah(OTHER.id)] });
     expect(canWithdrawHellYeah(board, OTHER, INSIDE)).toBe(true);
-    expect(canWithdrawHellYeah(board, OTHER, OUTSIDE)).toBe(false);
+    expect(canWithdrawHellYeah(board, OTHER, OUTSIDE)).toBe(true);
+    expect(canWithdrawHellYeah({ ...board, status: 'correct' }, OTHER, INSIDE)).toBe(false);
     expect(canWithdrawHellYeah(board, THIRD, INSIDE)).toBe(false);
+  });
+
+  it('locks a staked Hell Yeah in once the window closes, like a Hell Nah', () => {
+    const board = take({ takeParticipants: [yeah(OTHER.id, '$10')] });
+    expect(canWithdrawHellYeah(board, OTHER, INSIDE)).toBe(true);
+    expect(canWithdrawHellYeah(board, OTHER, OUTSIDE)).toBe(false);
   });
 
   it('never tells a fader they owe a backer', () => {
@@ -371,8 +387,8 @@ describe('Hell Yeah', () => {
     expect(fadeTerms(backed)).not.toMatch(/\$10/);
   });
 
-  it('names only Hell Yeahs in the window note of an unstaked take', () => {
-    expect(fadeWindowNote(take(), INSIDE)).toMatch(/^Hell Yeahs close /);
+  it('names only Hell Yeah stakes in the window note of an unstaked take', () => {
+    expect(fadeWindowNote(take(), INSIDE)).toMatch(/^Hell Yeah stakes close /);
   });
 });
 

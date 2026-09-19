@@ -511,10 +511,12 @@ took fresh fades in December and released them just as late.
 **Hell Yeah is the other side, and it is a row in the same table.**
 `20260918120000_takes_hell_yeah.sql` adds `take_participants.side` (`'nah'` /
 `'yeah'`) and `take_participants.wager`. At its core a Hell Yeah is support —
-"good call" — and it can be said of any take, staked or not. Every Hell Yeah
-opens `HellYeahDialog`, which asks whether the backer wants to add a stake of
-their own; it is labelled optional, blank means none, and "Just Hell Yeah" is
-a button of its own.
+"good call" — and it can be said of any take, staked or not, **at any time
+before the take is graded**. Inside the take's window, a Hell Yeah opens
+`HellYeahDialog`, which asks whether the backer wants to add a stake of their
+own; it is labelled optional, blank means none, and "Just Hell Yeah" is a
+button of its own. After the window there is nothing to ask, so the Hell Yeah
+lands on the click.
 
 - **A backer's stake is a show of confidence, not a bet. Hell Nahs never owe
   a backer.** The stake shows beside the backer's name in the sheet and
@@ -523,10 +525,15 @@ a button of its own.
   needs no other side, it is allowed on an unstaked take too.
 - **One side per member.** The existing UNIQUE (take_id, user_id) now means
   that; switching sides is a withdrawal and a fresh row.
-- **The same window, both sides.** The insert and withdraw policies' 72-hour
-  clause applies to Hell Yeahs exactly as to Hell Nahs. The insert policy's
-  wager clause is per side: a Hell Nah needs `takes.wager`; a Hell Yeah needs
-  nothing. `take_participants_wager_check` keeps a stake off a Hell Nah.
+- **The window binds the stake, not the Hell Yeah**
+  (`20260919120000_takes_hell_yeah_any_time.sql`). A plain Hell Yeah is open
+  until grading, to give and to take back. A *staked* Hell Yeah keeps the
+  72-hour window both ways, exactly as a Hell Nah does: it can only be given
+  inside the window, and it cannot be withdrawn once the window has closed. The
+  insert policy's wager clause is per side: a Hell Nah needs `takes.wager`; a
+  Hell Yeah needs nothing. `take_participants_wager_check` keeps a stake off a
+  Hell Nah. `canStakeHellYeah` is the window's mirror, and it decides whether
+  the dialog opens.
 - **`side` defaults to `'nah'` for the rollout**, because a browser still on
   the previous build sends no side and every row it writes is a Hell Nah. The
   client sends `side` explicitly, and `sideOf` reads a missing side as `'nah'`.
@@ -535,7 +542,7 @@ a button of its own.
 - The log writes `backed` / `unbacked`, with the stake in `changes.wager.to`.
   `log_take_participant_event()`'s "could a member have done this" now carries
   the window clause too, which the Hell Nah window migration had left out.
-- `canHellYeah` and `canWithdrawHellYeah` in
+- `canHellYeah`, `canStakeHellYeah` and `canWithdrawHellYeah` in
   `milestones.js` are the mirror; `supabase/tests/database/take_hell_yeah.test.sql`
   is what makes it true. Every Hell Yeah routes through `requestHellYeah` in
   `TakesManager`, for the reason every Hell Nah routes through `requestFade`.
