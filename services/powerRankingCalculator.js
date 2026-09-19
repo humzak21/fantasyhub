@@ -1108,11 +1108,13 @@ export class PowerRankingCalculator {
       return emptyOdds;
     }
 
+    // The viewed week, not the actual one: the odds rebuild records from the
+    // games before it, so a past week shows the odds as they stood then.
     const playoffCalculator = new PlayoffOddsCalculator(
       this.teams,
       this.games,
       this.divisions,
-      this.currentWeek,
+      this.viewingWeek,
       this.regularSeasonWeeks,
       this.seasonYear
     );

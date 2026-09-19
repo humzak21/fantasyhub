@@ -379,6 +379,19 @@ are load-bearing:
   projections, which is also why `byeExposure` rides along at zero weight as a
   diagnostic instead of being a penalty.
 
+**Playoff odds read 100 only when clinched and 0 only when eliminated.**
+`services/playoffOddsCalculator.js` simulates the rest of the regular season
+(`SIMULATIONS` seeded runs; each team scores from a normal around its own
+average regressed `PRIOR_WEEKS` weeks toward the league's, both calibrated on
+2020-25) and awards the field by the same rule `computeSeeds` uses (top three
+per division through 2025). `mathematicalStatus` then decides certainty:
+every outcome when ≤ `EXACT_OUTCOME_LIMIT` games remain, an independent bound
+before that, with any tie on record resolved against the team for a clinch
+and for it for an elimination, because points for is still to be scored.
+Everything else is held to 1-99. It replaced a heuristic whose clamp put 1-0
+teams at 100% after week 1. Records are rebuilt from `games` before the
+viewed week, so a past week shows the odds as they stood then.
+
 **`player_week_stats`** is one row per player per week: team, lineup slot,
 whether they started, actual and projected points. It is the grain neither
 `players` (a global last-write-wins snapshot) nor `rosters` (wiped every sync)
