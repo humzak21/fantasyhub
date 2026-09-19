@@ -253,6 +253,47 @@ export function describeTakeEvent(event, { actorName, subjectName, nameOf, seaso
       };
     }
 
+    // Hell Yeah, the same shape as Hell Nah. A backed row carries the stake
+    // the backer added, if any — a show of confidence nobody owes — and the log
+    // is the only record of what it was when they gave it.
+    case 'backed': {
+      const onBehalf = Boolean(
+        subjectName && (asAdmin || (actorName && subjectName !== actorName))
+      );
+      return {
+        kind: 'backed',
+        title: onBehalf
+          ? `${who} added a Hell Yeah for ${subjectName}`
+          : `${subjectName || who} said Hell Yeah`,
+        fields: changes.wager?.to
+          ? [
+              {
+                key: 'wager',
+                label: 'Stake',
+                from: null,
+                to: wagerText(changes.wager.to),
+                multiline: false
+              }
+            ]
+          : [],
+        note
+      };
+    }
+
+    case 'unbacked': {
+      const onBehalf = Boolean(
+        subjectName && (asAdmin || (actorName && subjectName !== actorName))
+      );
+      return {
+        kind: 'unbacked',
+        title: onBehalf
+          ? `${who} removed ${subjectName}'s Hell Yeah`
+          : `${subjectName || who} took back their Hell Yeah`,
+        fields: [],
+        note
+      };
+    }
+
     default:
       return {
         kind: 'unknown',

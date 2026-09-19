@@ -10,7 +10,7 @@
  * of its own: the shell reads it and the tab writes it, and one query key is
  * what lets those two trees agree without a context between them.
  *
- * There is deliberately **no optimistic update on the Hell Nah**. Nothing else
+ * There is deliberately **no optimistic update on Hell Nah or Hell Yeah**. Nothing else
  * in this codebase does optimistic writes, the board is one small query to
  * refetch, and a fade can be legitimately refused by the database — the take
  * was graded a second ago, the author cleared their wager, or it turns out to
@@ -163,6 +163,14 @@ export function useTakesMutations(seasonId) {
     }),
     withdrawFade: useMutation({
       mutationFn: ({ takeId }) => db().takes.removeFade(takeId),
+      onSuccess: invalidate
+    }),
+    hellYeah: useMutation({
+      mutationFn: ({ takeId, wager }) => db().takes.addHellYeah({ takeId, seasonId, wager }),
+      onSuccess: invalidate
+    }),
+    withdrawHellYeah: useMutation({
+      mutationFn: ({ takeId }) => db().takes.removeHellYeah(takeId),
       onSuccess: invalidate
     }),
     resolveTake: useMutation({

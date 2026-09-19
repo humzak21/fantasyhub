@@ -346,9 +346,9 @@ export const PASSIVE_AUTOMATIONS = [
     id: 'trigger-take-events',
     name: 'log_take_event / log_take_participant_event / set_take_edited_at',
     where: 'Database · takes, take_participants',
-    fires: 'On insert, update or delete of a take or a +1',
+    fires: 'On insert, update or delete of a take, a Hell Nah or a Hell Yeah',
     does:
-      'Appends the take_events activity log (posted, edited with a from/to diff, graded, faded, unfaded) ' +
+      'Appends the take_events activity log (posted, edited with a from/to diff, graded, faded, unfaded, backed, unbacked) ' +
       'and stamps edited_at when the body or wager moves. Nothing else may write take_events.',
     verify: 'An edit with no matching take_events row.'
   },

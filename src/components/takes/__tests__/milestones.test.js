@@ -21,13 +21,18 @@ import {
   canDeleteTake,
   canEditTake,
   canFade,
+  canHellYeah,
   canWithdrawFade,
+  canWithdrawHellYeah,
   fadeCount,
   fadeDeadline,
+  fadeTerms,
   fadeWindowNote,
   groupByMilestone,
   hasFaded,
+  hasHellYeahed,
   hasWager,
+  hellYeahCount,
   isFadeWindowOpen,
   milestoneLabel,
   milestoneSortKey
@@ -273,8 +278,8 @@ describe('the Hell Nah window', () => {
   });
 
   it('says which side of the deadline the take is on', () => {
-    expect(fadeWindowNote(staked(), INSIDE)).toMatch(/^Hell Nahs close /);
-    expect(fadeWindowNote(staked(), OUTSIDE)).toMatch(/^Hell Nahs closed /);
+    expect(fadeWindowNote(staked(), INSIDE)).toMatch(/^Hell Yeahs and Hell Nahs close /);
+    expect(fadeWindowNote(staked(), OUTSIDE)).toMatch(/^Hell Yeahs and Hell Nahs closed /);
     expect(fadeWindowNote(take({ createdAt: null }), INSIDE)).toBe(null);
   });
 });
@@ -297,6 +302,77 @@ describe('hell nah counting', () => {
     expect(hasFaded(faded, OTHER)).toBe(true);
     expect(hasFaded(faded, USER)).toBe(false);
     expect(hasFaded(faded, null)).toBe(false);
+  });
+});
+
+describe('Hell Yeah', () => {
+  const THIRD = { id: 'user-3' };
+  const yeah = (userId, wager = null) => ({
+    id: `y-${userId}`,
+    userId,
+    side: 'yeah',
+    wager,
+    createdAt: '2026-09-01T13:00:00Z'
+  });
+  const nah = (userId) => ({ id: `n-${userId}`, userId, side: 'nah', createdAt: '2026-09-01T13:00:00Z' });
+
+  it('can back any take, staked or not', () => {
+    // At its core a Hell Yeah is just "good call" — unlike a Hell Nah, it
+    // needs nothing staked.
+    expect(canHellYeah(take(), OTHER, INSIDE)).toBe(true);
+    expect(canHellYeah(take({ wager: '$20' }), OTHER, INSIDE)).toBe(true);
+  });
+
+  it('refuses the author, a visitor, a graded take and a closed window', () => {
+    expect(canHellYeah(take(), USER, INSIDE)).toBe(false);
+    expect(canHellYeah(take(), null, INSIDE)).toBe(false);
+    expect(canHellYeah(take({ status: 'correct' }), OTHER, INSIDE)).toBe(false);
+    expect(canHellYeah(take(), OTHER, OUTSIDE)).toBe(false);
+  });
+
+  it('keeps each member to one side', () => {
+    const board = take({ wager: '$20', takeParticipants: [yeah(OTHER.id), nah(THIRD.id)] });
+
+    expect(canFade(board, OTHER, INSIDE)).toBe(false);
+    expect(canHellYeah(board, THIRD, INSIDE)).toBe(false);
+  });
+
+  it('counts each side separately', () => {
+    const board = take({
+      wager: '$20',
+      takeParticipants: [yeah(OTHER.id, '$10'), yeah('user-4'), nah(THIRD.id)]
+    });
+
+    expect(hellYeahCount(board)).toBe(2);
+    expect(fadeCount(board)).toBe(1);
+    expect(hasHellYeahed(board, OTHER)).toBe(true);
+    expect(hasFaded(board, OTHER)).toBe(false);
+    expect(hasFaded(board, THIRD)).toBe(true);
+  });
+
+  it('reads a row with no side as a Hell Nah, as every row before Hell Yeah was', () => {
+    const legacy = take({ wager: '$20', takeParticipants: [{ id: 'p1', userId: OTHER.id }] });
+    expect(hasFaded(legacy, OTHER)).toBe(true);
+    expect(hellYeahCount(legacy)).toBe(0);
+  });
+
+  it('withdraws inside the same window as a Hell Nah', () => {
+    const board = take({ takeParticipants: [yeah(OTHER.id)] });
+    expect(canWithdrawHellYeah(board, OTHER, INSIDE)).toBe(true);
+    expect(canWithdrawHellYeah(board, OTHER, OUTSIDE)).toBe(false);
+    expect(canWithdrawHellYeah(board, THIRD, INSIDE)).toBe(false);
+  });
+
+  it('never tells a fader they owe a backer', () => {
+    // A backer's stake is a show of confidence: the Hell Nah price is the
+    // author's stake and nothing else, however many backers added one.
+    const backed = take({ wager: '$20', takeParticipants: [yeah(OTHER.id, '$10')] });
+    expect(fadeTerms(backed)).toBe(fadeTerms(take({ wager: '$20' })));
+    expect(fadeTerms(backed)).not.toMatch(/\$10/);
+  });
+
+  it('names only Hell Yeahs in the window note of an unstaked take', () => {
+    expect(fadeWindowNote(take(), INSIDE)).toMatch(/^Hell Yeahs close /);
   });
 });
 

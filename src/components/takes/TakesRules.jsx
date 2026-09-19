@@ -80,6 +80,16 @@ export function TakesRules({ className }) {
           <li>
             If it misses, <span className="text-foreground">you pay out every one of them</span>.
           </li>
+          <li>
+            Like someone&rsquo;s take? Say <span className="text-foreground">Hell Yeah</span> to
+            back it &mdash; on any take, staked or not. That&rsquo;s all a Hell Yeah has to be.
+          </li>
+          <li>
+            You&rsquo;ll be asked if you want to add a stake of your own.{' '}
+            <span className="text-foreground">It&rsquo;s optional</span> &mdash; skip it and your
+            Hell Yeah still counts. A Hell Yeah stake is a show of confidence, not a bet: it shows
+            next to your name, and <span className="text-foreground">Hell Nahs never owe it</span>.
+          </li>
         </RuleList>
       </RulesPanel>
 
@@ -96,10 +106,14 @@ export function TakesRules({ className }) {
           </li>
           <li>You can delete your own take any time before it&rsquo;s graded.</li>
           <li>
-            You can say Hell Nah, or take yours back, for {days(FADE_WINDOW_MS)} after the take was
-            last edited. After that both sides are locked in until it&rsquo;s graded.
+            You can say Hell Yeah or Hell Nah, or take yours back, for {days(FADE_WINDOW_MS)} after
+            the take was last edited. After that both sides are locked in until it&rsquo;s graded.
           </li>
-          <li>Editing a take reopens Hell Nahs for another {days(FADE_WINDOW_MS)}, for everyone.</li>
+          <li>You can be on one side of a take, not both, and not on your own.</li>
+          <li>
+            Editing a take reopens Hell Yeahs and Hell Nahs for another {days(FADE_WINDOW_MS)}, for
+            everyone.
+          </li>
         </RuleList>
       </RulesPanel>
     </section>

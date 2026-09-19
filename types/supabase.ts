@@ -2289,22 +2289,28 @@ export type Database = {
           created_at: string | null
           id: string
           season_id: string
+          side: string
           take_id: string
           user_id: string
+          wager: string | null
         }
         Insert: {
           created_at?: string | null
           id?: string
           season_id: string
+          side?: string
           take_id: string
           user_id?: string
+          wager?: string | null
         }
         Update: {
           created_at?: string | null
           id?: string
           season_id?: string
+          side?: string
           take_id?: string
           user_id?: string
+          wager?: string | null
         }
         Relationships: [
           {

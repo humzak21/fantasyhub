@@ -6,6 +6,7 @@ import {
   Pencil,
   RotateCcw,
   ThumbsDown,
+  ThumbsUp,
   Undo2
 } from 'lucide-react';
 
@@ -16,10 +17,11 @@ import { describeTakeEvent, sortEventsNewestFirst } from './activity.js';
 
 /**
  * Icon and tint per kind of act. Colour here is doing the job CLAUDE.md
- * reserves it for — direction, not decoration: a grade and a fade are the two
- * entries that change what a take is *worth* to somebody, and they are the two
- * that carry a hue. Posting, editing and reopening are neutral events and are
- * drawn neutral.
+ * reserves it for — direction, not decoration: a grade, a fade and a backing
+ * are the entries that change what a take is *worth* to somebody, and they are
+ * the ones that carry a hue — a Hell Yeah and a Hell Nah the two ends of one
+ * scale. Posting, editing, reopening and withdrawals are neutral events and
+ * are drawn neutral.
  */
 const EVENT_STYLE = {
   posted: { Icon: Flame, tint: 'text-primary' },
@@ -28,6 +30,8 @@ const EVENT_STYLE = {
   reopened: { Icon: RotateCcw, tint: 'text-muted-foreground' },
   faded: { Icon: ThumbsDown, tint: 'text-destructive' },
   unfaded: { Icon: Undo2, tint: 'text-muted-foreground' },
+  backed: { Icon: ThumbsUp, tint: 'text-success' },
+  unbacked: { Icon: Undo2, tint: 'text-muted-foreground' },
   unknown: { Icon: History, tint: 'text-muted-foreground' }
 };
 

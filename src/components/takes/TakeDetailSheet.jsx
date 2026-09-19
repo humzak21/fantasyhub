@@ -9,6 +9,7 @@ import {
   RotateCcw,
   ShieldCheck,
   ThumbsDown,
+  ThumbsUp,
   Trash2,
   X
 } from 'lucide-react';
@@ -51,15 +52,22 @@ import {
   canDeleteTake,
   canEditTake,
   canFade,
+  canHellYeah,
   canWithdrawFade,
+  canWithdrawHellYeah,
   fadeDeadline,
   fadeTerms,
   fadeWindowTerms,
+  fades,
   hasFaded,
+  hasHellYeahed,
   hasWager,
+  hellYeahs,
+  isAuthor,
   isFadeWindowOpen,
   isPending,
-  milestoneLabel
+  milestoneLabel,
+  sidesLabel
 } from './milestones.js';
 
 const FieldRow = ({ label, children }) => (
@@ -68,6 +76,55 @@ const FieldRow = ({ label, children }) => (
     <span className="text-right text-sm text-foreground">{children}</span>
   </div>
 );
+
+/**
+ * Who is on one side of a take, with the stake a backer added beside their
+ * name, and — for the admin — a control to remove each row.
+ */
+function ParticipantList({ participants, nameOf, isAdmin, pending, removeLabel, onRemove }) {
+  return (
+    <ul className="space-y-1.5">
+      {participants.map((participant) => {
+        const name = nameOf(participant.userId);
+        return (
+          <li
+            key={participant.id ?? participant.userId}
+            className="flex items-center justify-between gap-4 text-sm"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-foreground">{name}</span>
+              {participant.wager && (
+                <span className="flex items-baseline gap-1 text-xs text-muted-foreground">
+                  <Coins className="h-3 w-3 shrink-0 translate-y-0.5 text-warning" aria-hidden="true" />
+                  <span className="break-words">
+                    Would put <span className="text-foreground">{participant.wager}</span> on it
+                  </span>
+                </span>
+              )}
+            </span>
+            <span className="flex shrink-0 items-center gap-1">
+              <span className="text-[11px] text-muted-foreground">
+                {formatDate(participant.createdAt)}
+              </span>
+              {isAdmin && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  aria-label={`Remove ${name}'s ${removeLabel}`}
+                  disabled={pending}
+                  onClick={() => onRemove?.(participant.userId)}
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </Button>
+              )}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 /**
  * The admin placing a Hell Nah for somebody. Offered only on a staked take —
@@ -145,6 +202,8 @@ export function TakeDetailSheet({
   onOpenChange,
   onFade,
   onWithdraw,
+  onHellYeah,
+  onWithdrawHellYeah,
   onEdit,
   onDelete,
   onResolve,
@@ -171,13 +230,19 @@ export function TakeDetailSheet({
   const nameOf = (userId) =>
     getMaskedUserName(displayNames[userId], userId, user, isAdmin, teamOwnerNames);
 
-  const participants = take.takeParticipants || [];
+  const participants = fades(take);
+  const backers = hellYeahs(take);
   const staked = hasWager(take);
   const faded = hasFaded(take, user);
+  const yeahed = hasHellYeahed(take, user);
 
   // Joining and leaving are two rules sharing one window — see `canWithdrawFade`.
   const canToggle = faded ? canWithdrawFade(take, user) : canFade(take, user);
+  const canToggleYeah = yeahed ? canWithdrawHellYeah(take, user) : canHellYeah(take, user);
   const fadeWindowOpen = isFadeWindowOpen(take);
+  // Why a member who could otherwise have acted has no button: the window.
+  // Not said to a visitor or on a graded take, where nothing is missing.
+  const windowClosedForViewer = Boolean(user?.id) && isPending(take) && !fadeWindowOpen;
   const fadeCloses = fadeDeadline(take);
   const isEditing = isAdmin && editing;
 
@@ -259,7 +324,9 @@ export function TakeDetailSheet({
                     grade, and a deadline beside a settled bet reads as though
                     something is still owed. */}
                 {isPending(take) && fadeCloses && (
-                  <FieldRow label={fadeWindowOpen ? 'Hell Nahs close' : 'Hell Nahs closed'}>
+                  <FieldRow
+                    label={`${sidesLabel(take)} ${fadeWindowOpen ? 'close' : 'closed'}`}
+                  >
                     {formatDateTime(fadeCloses)}
                   </FieldRow>
                 )}
@@ -268,6 +335,66 @@ export function TakeDetailSheet({
               </div>
             </>
           )}
+
+          {/* Every take can be backed, so this section is always here. A
+              backer's stake sits beside their name — a show of confidence,
+              which is the only thing it is; nobody owes it. */}
+          <div>
+            <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold text-foreground">
+              <ThumbsUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+              Hell yeah&apos;d by {backers.length}
+            </h3>
+
+            {backers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nobody has backed this yet.</p>
+            ) : (
+              <ParticipantList
+                participants={backers}
+                nameOf={nameOf}
+                isAdmin={isAdmin}
+                pending={pending}
+                removeLabel="Hell Yeah"
+                onRemove={(userId) => onAdminRemoveFade?.(take, userId)}
+              />
+            )}
+
+            {canToggleYeah && (
+              <Button
+                variant={yeahed ? 'secondary' : 'outline'}
+                size="sm"
+                className="mt-4 gap-1.5"
+                onClick={() => (yeahed ? onWithdrawHellYeah?.(take) : onHellYeah?.(take))}
+                disabled={pending}
+              >
+                {yeahed ? (
+                  <>
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    Take it back
+                  </>
+                ) : (
+                  <>
+                    <ThumbsUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    Hell Yeah
+                  </>
+                )}
+              </Button>
+            )}
+
+            {/* Staying on the fence is not the same as having nothing to do,
+                so the reason goes to a member who has taken neither side as
+                well as to a backer — but not to somebody on the Hell Nah
+                side, who is told under that section instead. */}
+            {!canToggleYeah && windowClosedForViewer && !faded && !isAuthor(take, user) && (
+              <p className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
+                <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span>
+                  {yeahed
+                    ? 'Your Hell Yeah is locked in — the window closed three days after this take was last edited.'
+                    : 'Hell Yeahs closed three days after this take was last edited.'}
+                </span>
+              </p>
+            )}
+          </div>
 
           {/* Nothing staked, nothing to fade — so this whole section is absent
               rather than an empty roster on a take that could never have one.
@@ -286,36 +413,14 @@ export function TakeDetailSheet({
                 Nobody has taken the other side of this yet.
               </p>
             ) : (
-              <ul className="space-y-1.5">
-                {participants.map((participant) => {
-                  const name = nameOf(participant.userId);
-                  return (
-                    <li
-                      key={participant.id ?? participant.userId}
-                      className="flex items-center justify-between gap-4 text-sm"
-                    >
-                      <span className="truncate text-foreground">{name}</span>
-                      <span className="flex shrink-0 items-center gap-1">
-                        <span className="text-[11px] text-muted-foreground">
-                          {formatDate(participant.createdAt)}
-                        </span>
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            aria-label={`Remove ${name}'s Hell Nah`}
-                            disabled={pending}
-                            onClick={() => onAdminRemoveFade?.(take, participant.userId)}
-                          >
-                            <X className="h-3.5 w-3.5" aria-hidden="true" />
-                          </Button>
-                        )}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+              <ParticipantList
+                participants={participants}
+                nameOf={nameOf}
+                isAdmin={isAdmin}
+                pending={pending}
+                removeLabel="Hell Nah"
+                onRemove={(userId) => onAdminRemoveFade?.(take, userId)}
+              />
             )}
 
             {canToggle && (
@@ -344,7 +449,7 @@ export function TakeDetailSheet({
                 been offered to — a signed-in member, on an ungraded take whose
                 window has run out. A visitor is not missing anything and the
                 sentence would only be noise. */}
-            {!canToggle && user?.id && isPending(take) && !fadeWindowOpen && (
+            {!canToggle && windowClosedForViewer && !yeahed && (
               <p className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>
@@ -391,8 +496,8 @@ export function TakeDetailSheet({
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete this take?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        It disappears from the board along with every Hell Nah on it. This cannot
-                        be undone.
+                        It disappears from the board along with every Hell Yeah and Hell Nah on
+                        it. This cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

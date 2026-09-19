@@ -22,6 +22,7 @@ import { renderWithProviders, screen, within } from '../../../test/renderWithPro
 const takes = {
   getTakesForSeason: vi.fn(),
   addFade: vi.fn(),
+  addHellYeah: vi.fn(),
   getTakeViewMark: vi.fn(),
   markTakesSeen: vi.fn()
 };
@@ -108,6 +109,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   takes.getTakesForSeason.mockResolvedValue(BOARD);
   takes.addFade.mockResolvedValue({ id: 'new-fade' });
+  takes.addHellYeah.mockResolvedValue({ id: 'new-yeah' });
   // Never looked before: the resting state for a member whose `take_views` row
   // does not exist yet.
   takes.getTakeViewMark.mockResolvedValue(null);
@@ -316,7 +318,7 @@ describe('TakesManager, the Hell Nah window', () => {
     await screen.findByText('Somebody wins it from the 6 seed');
 
     expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/^Hell Nahs closed /)).toBeInTheDocument();
+    expect(screen.getByText(/^Hell Yeahs and Hell Nahs closed /)).toBeInTheDocument();
   });
 
   it('gives the window back when the take is edited', async () => {
@@ -331,7 +333,7 @@ describe('TakesManager, the Hell Nah window', () => {
     await screen.findByText('Somebody wins it from the 6 seed');
 
     expect(screen.getByRole('button', { name: /^hell nah$/i })).toBeInTheDocument();
-    expect(screen.getByText(/^Hell Nahs close /)).toBeInTheDocument();
+    expect(screen.getByText(/^Hell Yeahs and Hell Nahs close /)).toBeInTheDocument();
   });
 
   it('keeps a fade visible but unwithdrawable after the window', async () => {
@@ -354,7 +356,7 @@ describe('TakesManager, the Hell Nah window', () => {
     const chip = screen.getByText(/hell nah'd/i);
     expect(chip.tagName).toBe('SPAN');
     expect(chip.closest('button')).toBeNull();
-    expect(screen.getByText(/^Hell Nahs closed /)).toBeInTheDocument();
+    expect(screen.getByText(/^Hell Yeahs and Hell Nahs closed /)).toBeInTheDocument();
   });
 });
 
@@ -435,6 +437,106 @@ describe('TakesManager, the Hell Nah confirmation', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(takes.addFade).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('TakesManager, Hell Yeah', () => {
+  beforeEach(() => {
+    approved = true;
+    signInAsReader();
+  });
+
+  it('says in the rules that a Hell Yeah stake is optional', async () => {
+    renderTab();
+    await screen.findByText('Nobody goes 14-0');
+
+    const rules = screen.getByRole('region', { name: 'How takes work' });
+    expect(within(rules).getByText(/skip it and your Hell Yeah still counts/i)).toBeInTheDocument();
+  });
+
+  it('asks about a stake on a staked take, and lets the viewer skip it', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell yeah$/i }));
+
+    // Nothing is written on the first click — the question comes first.
+    expect(takes.addHellYeah).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/\(optional\)/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/leave it blank to skip/i)).toBeInTheDocument();
+    // Adding a stake needs one: the button is off until something is typed.
+    expect(within(dialog).getByRole('button', { name: /hell yeah with stake/i })).toBeDisabled();
+
+    await user.click(within(dialog).getByRole('button', { name: /just hell yeah/i }));
+
+    expect(takes.addHellYeah).toHaveBeenCalledWith({ takeId: 'late', seasonId: 's1', wager: null });
+  });
+
+  it('sends the stake when the viewer adds one', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell yeah$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.type(within(dialog).getByLabelText(/your stake/i), '$10');
+    await user.click(within(dialog).getByRole('button', { name: /hell yeah with stake/i }));
+
+    expect(takes.addHellYeah).toHaveBeenCalledWith({ takeId: 'late', seasonId: 's1', wager: '$10' });
+  });
+
+  it('asks about a stake on an unstaked take too, since nobody owes it', async () => {
+    takes.getTakesForSeason.mockResolvedValue({
+      takes: [{ ...BOARD.takes[0], id: 'bare', wager: null, takeParticipants: [] }],
+      displayNames: BOARD.displayNames
+    });
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell yeah$/i }));
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).queryByText(/the author has/i)).not.toBeInTheDocument();
+    await user.type(within(dialog).getByLabelText(/your stake/i), '$5');
+    await user.click(within(dialog).getByRole('button', { name: /hell yeah with stake/i }));
+
+    expect(takes.addHellYeah).toHaveBeenCalledWith({ takeId: 'bare', seasonId: 's1', wager: '$5' });
+  });
+
+  it('says in the dialog that a Hell Yeah stake is not owed by anyone', async () => {
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell yeah$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+
+    expect(within(dialog).getByText(/show of confidence, not a bet/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Hell Nahs never owe you/i)).toBeInTheDocument();
+  });
+
+  it('offers no Hell Nah to somebody already backing the take', async () => {
+    takes.getTakesForSeason.mockResolvedValue({
+      takes: [
+        {
+          ...BOARD.takes[0],
+          takeParticipants: [
+            { id: 'y1', userId: READER, side: 'yeah', wager: '$10', createdAt: hoursAgo(1) }
+          ]
+        }
+      ],
+      displayNames: BOARD.displayNames
+    });
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    expect(screen.getByRole('button', { name: /^hell yeah'd$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
+    // The Hell Nah price on the card stays the author's stake alone.
+    expect(screen.getByText(/you owe \$20\. If it misses, the author owes you\./)).toBeInTheDocument();
   });
 });
 
