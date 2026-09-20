@@ -25,6 +25,7 @@ import { groupPicksByDivision } from '../../utils/parlayDivisions';
 import { getPositionColor } from '../../utils/positionColors';
 import { OpponentChip } from '../ui/opponent-chip';
 import { ParlayPickStatus } from './LiveTdIndicator.jsx';
+import { pickOutcome } from './liveTdOutcome.js';
 
 /**
  * The weekly TD parlay, at the foot of the pick'ems form.
@@ -219,8 +220,19 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
 };
 
 /** The pick as stored, with its live status and, once graded, the final grade. */
-const CurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade, live }) => (
-  <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
+const CurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade, live }) => {
+  const outcome = pickOutcome({ scoredTd: pick.scoredTd, live });
+  return (
+  <div
+    className={cn(
+      'flex flex-wrap items-center gap-3 rounded-lg border p-3',
+      outcome === 'hit'
+        ? 'border-success/40 bg-success/15'
+        : outcome === 'miss'
+          ? 'border-destructive/40 bg-destructive/15'
+          : 'border-border bg-muted/30'
+    )}
+  >
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
         <span className="truncate font-semibold">{pick.playerNameRaw}</span>
@@ -260,7 +272,8 @@ const CurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade, live }) => (
       <Lock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     )}
   </div>
-);
+  );
+};
 
 /**
  * Name entry: autocomplete over the synced `players` table, with the typed text
@@ -543,8 +556,22 @@ const DivisionColumn = ({ className, title, picks, showGrades, liveStatus, viewe
       <p className="py-2 text-sm text-muted-foreground">{emptyText}</p>
     ) : (
       <ul className="divide-y divide-border">
-        {picks.map((pick) => (
-          <li key={pick.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+        {picks.map((pick) => {
+          // The whole row goes green once a TD is on the board and red once the
+          // game is final with none — a faster read than the trailing icon
+          // alone. Undecided rows stay neutral (see `pickOutcome`). The
+          // negative margin lets the tint reach the column's padded edges so it
+          // reads as a filled row rather than an inset chip.
+          const outcome = pickOutcome({ scoredTd: pick.scoredTd, live: liveStatus?.[pick.id] });
+          return (
+          <li
+            key={pick.id}
+            className={cn(
+              'flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm',
+              outcome === 'hit' && '-mx-3 bg-success/15 px-3',
+              outcome === 'miss' && '-mx-3 bg-destructive/15 px-3'
+            )}
+          >
             <span className="min-w-0 flex-1 truncate text-muted-foreground">
               {getMaskedUserName(
                 pick.displayName,
@@ -576,7 +603,8 @@ const DivisionColumn = ({ className, title, picks, showGrades, liveStatus, viewe
               showPendingDash={showGrades}
             />
           </li>
-        ))}
+          );
+        })}
       </ul>
     )}
   </section>
