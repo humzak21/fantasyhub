@@ -176,6 +176,46 @@ export async function getSeasonParlayPicks(ctx, seasonId) {
 }
 
 /**
+ * The week's live TD status, via the `parlay-live` edge function.
+ *
+ * The client never touches ESPN. It asks the edge function, which pulls ESPN at
+ * most once every 30 minutes during game windows, shares the result across every
+ * viewer through `parlay_live_snapshot`, and returns the tiny per-pick answer.
+ * So this is a small, fast, shared read — the app's latency profile is unchanged
+ * and ESPN sees a couple of dozen calls a Sunday, not one per viewer.
+ *
+ * Live status is best-effort and unofficial: a failure here must never break the
+ * board, so it degrades to "nothing live" rather than throwing. The official
+ * grade on the pick rows is untouched and always wins in the UI.
+ *
+ * `nflWeek`/`year` pin the scoreboard to the right slate; both are optional —
+ * ESPN defaults to the current week, which is the one being played.
+ *
+ * @param {object} ctx
+ * @param {string} pickEmWeekId
+ * @param {{ nflWeek?: number|null, year?: number|null }} [options]
+ * @returns {Promise<{ status: object, live: boolean, refreshedAt: string|null }>}
+ */
+export async function getLiveStatus(ctx, pickEmWeekId, { nflWeek = null, year = null } = {}) {
+  if (!pickEmWeekId) return { status: {}, live: false, refreshedAt: null };
+
+  const { data, error } = await ctx.client.functions.invoke('parlay-live', {
+    body: { pickEmWeekId, nflWeek, year }
+  });
+
+  if (error) {
+    log.warn(`live status unavailable for pick'em week ${pickEmWeekId}: ${error.message}`);
+    return { status: {}, live: false, refreshedAt: null };
+  }
+
+  return {
+    status: data?.status ?? {},
+    live: Boolean(data?.live),
+    refreshedAt: data?.refreshedAt ?? null
+  };
+}
+
+/**
  * The picks an automated grader can act on: ungraded, matched to a player, and
  * in a week that is over.
  *

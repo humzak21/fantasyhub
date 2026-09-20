@@ -82,6 +82,8 @@ export {
   useSetParlayCommissioners
 } from './useParlay.js';
 
+export { useParlayLive } from './useParlayLive.js';
+
 export {
   countPendingApprovals,
   useIsApprovedMember,
