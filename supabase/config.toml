@@ -13,3 +13,10 @@ major_version = 17
 
 [db.migrations]
 schema_paths = []
+
+# The TD parlay's live tracker. Public, because the parlay board is public — a
+# signed-out viewer's `functions.invoke` call must not be rejected for lack of a
+# user JWT. The function reads only public data and writes only its own snapshot
+# table (as the service role); there is nothing here to protect behind auth.
+[functions.parlay-live]
+verify_jwt = false

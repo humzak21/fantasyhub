@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, Check, X, Loader2, Lock, Pencil, AlertCircle } from 'lucide-react';
+import { Crosshair, Loader2, Lock, Pencil, AlertCircle } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -14,6 +14,7 @@ import {
   useDivisions,
   useMyParlayPick,
   useNflOpponentMap,
+  useParlayLive,
   useParlayWeekPicks,
   usePlayerSearch,
   useSeasonTeams,
@@ -23,6 +24,8 @@ import { getMaskedDivisionName, getMaskedUserName } from '../../utils/displayNam
 import { groupPicksByDivision } from '../../utils/parlayDivisions';
 import { getPositionColor } from '../../utils/positionColors';
 import { OpponentChip } from '../ui/opponent-chip';
+import { ParlayPickStatus } from './LiveTdIndicator.jsx';
+import { pickOutcome } from './liveTdOutcome.js';
 
 /**
  * The weekly TD parlay, at the foot of the pick'ems form.
@@ -92,6 +95,17 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
 
   const submit = useSubmitParlayPick(pickEmWeek?.seasonId ?? null);
 
+  // Live TD status, from ESPN's public scoreboard, once the picks are locked and
+  // the games are being played. Unofficial and client-polled — it fills the gap
+  // between the Thursday deadline and Tuesday's grade, and the official grade
+  // wins the moment it exists. See `hooks/queries/useParlayLive.js`.
+  const { data: liveData } = useParlayLive(pickEmWeek?.id, {
+    seasonYear,
+    weekNumber,
+    enabled: isRevealed
+  });
+  const liveStatus = liveData?.status;
+
   // A week with no pick'em row has no parlay. Not an empty state — there is
   // nothing here to have a state about.
   if (!pickEmWeek) return null;
@@ -131,6 +145,12 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
             <Badge variant={isOpen ? 'default' : isRevealed ? 'outline' : 'secondary'}>
               {isOpen ? 'Open' : isRevealed ? 'Locked' : 'Not open yet'}
             </Badge>
+            {liveData?.live && (
+              <Badge variant="success" className="gap-1.5">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" aria-hidden="true" />
+                Live
+              </Badge>
+            )}
             {status?.timeInfo && (
               <span className="text-xs text-muted-foreground">{status.timeInfo}</span>
             )}
@@ -163,6 +183,7 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
             canEdit={isOpen}
             onEdit={() => setIsEditing(true)}
             showGrade={isRevealed}
+            live={liveStatus?.[myPick.id]}
           />
         )}
 
@@ -190,6 +211,7 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
           unassigned={unassigned}
           total={leaguePicks.length}
           showGrades={isRevealed}
+          liveStatus={liveStatus}
           viewer={{ user, isAdmin, teamOwnerNames }}
         />
       </CardContent>
@@ -197,9 +219,20 @@ const ParlayPickSection = ({ pickEmWeek, seasonYear = null, status, weekNumber }
   );
 };
 
-/** The pick as stored, with its grade once the week is graded. */
-const CurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade }) => (
-  <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
+/** The pick as stored, with its live status and, once graded, the final grade. */
+const CurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade, live }) => {
+  const outcome = pickOutcome({ scoredTd: pick.scoredTd, live });
+  return (
+  <div
+    className={cn(
+      'flex flex-wrap items-center gap-3 rounded-lg border p-3',
+      outcome === 'hit'
+        ? 'border-success/40 bg-success/15'
+        : outcome === 'miss'
+          ? 'border-destructive/40 bg-destructive/15'
+          : 'border-border bg-muted/30'
+    )}
+  >
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
         <span className="truncate font-semibold">{pick.playerNameRaw}</span>
@@ -223,7 +256,11 @@ const CurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade }) => (
           </Badge>
         )}
       </div>
-      {showGrade && <GradeBadge scoredTd={pick.scoredTd} className="mt-2" />}
+      {(showGrade || live) && (
+        <div className="mt-2">
+          <ParlayPickStatus scoredTd={pick.scoredTd} live={live} showPendingDash={showGrade} />
+        </div>
+      )}
     </div>
 
     {canEdit ? (
@@ -235,13 +272,7 @@ const CurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade }) => (
       <Lock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
     )}
   </div>
-);
-
-/** ✓ TD / ✗ No TD / Pending. NULL is ungraded, not "no touchdown". */
-const GradeBadge = ({ scoredTd, className }) => {
-  if (scoredTd === true) return <Badge variant="success" className={className}>Scored a TD</Badge>;
-  if (scoredTd === false) return <Badge variant="destructive" className={className}>No TD</Badge>;
-  return <Badge variant="secondary" className={className}>Pending</Badge>;
+  );
 };
 
 /**
@@ -445,7 +476,7 @@ const PlayerPicker = ({ initialQuery, opponents = {}, submitting, onSubmit, onCa
  * type — and putting them in a division we guessed at would misreport who is
  * competing with whom.
  */
-const LeaguePicks = ({ groups, unassigned, total, showGrades, viewer }) => {
+const LeaguePicks = ({ groups, unassigned, total, showGrades, liveStatus, viewer }) => {
   const hasDivisions = groups.length > 0;
 
   return (
@@ -479,6 +510,7 @@ const LeaguePicks = ({ groups, unassigned, total, showGrades, viewer }) => {
               )}
               picks={group.picks}
               showGrades={showGrades}
+              liveStatus={liveStatus}
               viewer={viewer}
               emptyText="Nobody in this division has picked yet."
             />
@@ -492,6 +524,7 @@ const LeaguePicks = ({ groups, unassigned, total, showGrades, viewer }) => {
               title="Not matched to a division"
               picks={unassigned}
               showGrades={showGrades}
+              liveStatus={liveStatus}
               viewer={viewer}
             />
           )}
@@ -509,7 +542,7 @@ const LeaguePicks = ({ groups, unassigned, total, showGrades, viewer }) => {
  * it belongs to, which is the only thing the two-column layout conveys and the
  * one thing a linear read of a flat list would lose.
  */
-const DivisionColumn = ({ className, title, picks, showGrades, viewer, emptyText }) => (
+const DivisionColumn = ({ className, title, picks, showGrades, liveStatus, viewer, emptyText }) => (
   <section
     aria-label={title}
     className={cn('rounded-lg border border-border bg-muted/20 p-3', className)}
@@ -523,8 +556,22 @@ const DivisionColumn = ({ className, title, picks, showGrades, viewer, emptyText
       <p className="py-2 text-sm text-muted-foreground">{emptyText}</p>
     ) : (
       <ul className="divide-y divide-border">
-        {picks.map((pick) => (
-          <li key={pick.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+        {picks.map((pick) => {
+          // The whole row goes green once a TD is on the board and red once the
+          // game is final with none — a faster read than the trailing icon
+          // alone. Undecided rows stay neutral (see `pickOutcome`). The
+          // negative margin lets the tint reach the column's padded edges so it
+          // reads as a filled row rather than an inset chip.
+          const outcome = pickOutcome({ scoredTd: pick.scoredTd, live: liveStatus?.[pick.id] });
+          return (
+          <li
+            key={pick.id}
+            className={cn(
+              'flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm',
+              outcome === 'hit' && '-mx-3 bg-success/15 px-3',
+              outcome === 'miss' && '-mx-3 bg-destructive/15 px-3'
+            )}
+          >
             <span className="min-w-0 flex-1 truncate text-muted-foreground">
               {getMaskedUserName(
                 pick.displayName,
@@ -545,29 +592,22 @@ const DivisionColumn = ({ className, title, picks, showGrades, viewer, emptyText
                 {pick.player.position}
               </span>
             )}
-            {/* A grade before the week has played would be a claim about a game
-                nobody has watched; ungraded renders as the em dash either way. */}
-            {showGrades && <GradeIcon scoredTd={pick.scoredTd} />}
+            {/* Official grade wins; a live overlay fills the gap before it, and
+                a pending dash shows once the picks are locked. The component
+                keeps that precedence so a game in progress never reads as a
+                settled result. */}
+            <ParlayPickStatus
+              scoredTd={pick.scoredTd}
+              live={liveStatus?.[pick.id]}
+              compact
+              showPendingDash={showGrades}
+            />
           </li>
-        ))}
+          );
+        })}
       </ul>
     )}
   </section>
 );
-
-/** The compact grade, for a list where a full badge per row would be noise. */
-const GradeIcon = ({ scoredTd }) => {
-  if (scoredTd === true) {
-    return <Check className="h-4 w-4 shrink-0 text-success" aria-label="Scored a touchdown" />;
-  }
-  if (scoredTd === false) {
-    return <X className="h-4 w-4 shrink-0 text-destructive" aria-label="No touchdown" />;
-  }
-  return (
-    <span className="shrink-0 text-xs text-muted-foreground" aria-label="Not yet graded">
-      &mdash;
-    </span>
-  );
-};
 
 export default ParlayPickSection;

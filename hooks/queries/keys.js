@@ -126,7 +126,14 @@ export const qk = {
     ...scope('parlay'),
     season: (seasonId) => ['parlay', seasonId, 'season'],
     myPick: (pickEmWeekId, userId = null) => ['parlay', 'myPick', pickEmWeekId, userId],
-    weekPicks: (pickEmWeekId) => ['parlay', 'weekPicks', pickEmWeekId]
+    weekPicks: (pickEmWeekId) => ['parlay', 'weekPicks', pickEmWeekId],
+    /**
+     * The week's live TD status, from ESPN's public API. Volatile and
+     * client-polled — `useParlayLive` owns its own interval and never touches
+     * `scored_td`, so no mutation invalidates this; it simply refetches while a
+     * game is live and stops when none is.
+     */
+    live: (pickEmWeekId) => ['parlay', 'live', pickEmWeekId]
   },
 
   /**
