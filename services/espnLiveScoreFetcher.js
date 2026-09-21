@@ -12,7 +12,13 @@
  * minutes and only during game windows, and every viewer reads the shared
  * result from `parlay_live_snapshot`. So there is no per-browser fan-out, no
  * CORS to depend on, and no way for the poll to scale with the audience.
- * Verified auth-free 2026-09-20: plain GET, no headers beyond Accept.
+ *
+ * Host matters: this uses `site.web.api.espn.com`, the same datacenter-friendly
+ * host `espnFpiFetcher.js` uses, NOT `site.api.espn.com`. The latter serves the
+ * identical scoreboard/summary payloads but 403s requests from datacenter IPs
+ * (including Supabase's edge egress), which broke the first deploy on
+ * 2026-09-21; `site.web.api` serves them. A browser-like User-Agent is sent for
+ * the same reason. Both are auth-free, plain GETs.
  *
  * Nothing here parses. `services/espnLiveScoreMapper.js` turns the payloads into
  * a per-pick status and is the pure, tested half — the same split as the
@@ -20,9 +26,22 @@
  */
 
 const SCOREBOARD_URL =
-  'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+  'https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
 const SUMMARY_URL =
-  'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary';
+  'https://site.web.api.espn.com/apis/site/v2/sports/football/nfl/summary';
+
+/**
+ * ESPN's `site.api.espn.com` returns 403 to requests it does not recognize as a
+ * browser — a default `Deno/x` or `node` User-Agent from a datacenter IP is
+ * refused, even though the endpoint needs no auth. A browser-like User-Agent
+ * (and Accept) is what the edge function needs to be served, and costs nothing
+ * when the same code runs locally. See the 403 this fixed on 2026-09-21.
+ */
+const BROWSER_HEADERS = {
+  Accept: 'application/json, text/plain, */*',
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+};
 
 /**
  * The week's games, with each one's live status.
@@ -50,7 +69,7 @@ export async function fetchNflScoreboard({ week = null, year = null, fetchImpl =
   const query = params.toString();
   const url = query ? `${SCOREBOARD_URL}?${query}` : SCOREBOARD_URL;
 
-  const response = await fetchImpl(url, { method: 'GET', headers: { Accept: 'application/json' } });
+  const response = await fetchImpl(url, { method: 'GET', headers: BROWSER_HEADERS });
 
   if (!response.ok) {
     throw new Error(`ESPN scoreboard request failed: ${response.status} - ${response.statusText}`);
@@ -80,7 +99,7 @@ export async function fetchGameSummary(eventId, { fetchImpl = fetch } = {}) {
   if (!eventId) throw new Error('An event id is required');
 
   const url = `${SUMMARY_URL}?event=${encodeURIComponent(eventId)}`;
-  const response = await fetchImpl(url, { method: 'GET', headers: { Accept: 'application/json' } });
+  const response = await fetchImpl(url, { method: 'GET', headers: BROWSER_HEADERS });
 
   if (!response.ok) {
     throw new Error(
