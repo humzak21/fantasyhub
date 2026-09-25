@@ -58,6 +58,7 @@ Deno.serve(async (req) => {
   const pickEmWeekId = body?.pickEmWeekId;
   if (!pickEmWeekId) return json({ error: 'pickEmWeekId is required' }, 400);
 
+  try {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -135,6 +136,13 @@ Deno.serve(async (req) => {
   });
 
   return json({ status, live, refreshedAt: now.toISOString(), fromCache: false });
+  } catch (e) {
+    // Log the full error to the function's server-side logs; return only a
+    // short message so nothing internal leaks to the client. The client's
+    // getLiveStatus treats any non-2xx as "no live data" and degrades quietly.
+    console.error('parlay-live failed:', e);
+    return json({ error: String(e?.message ?? e) }, 500);
+  }
 });
 
 // Referenced only so `REFRESH_TTL_MS` is part of this module's contract with the
