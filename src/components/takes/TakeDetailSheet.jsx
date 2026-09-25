@@ -63,7 +63,6 @@ import {
   hasHellYeahed,
   hasWager,
   hellYeahs,
-  isAuthor,
   isFadeWindowOpen,
   isPending,
   milestoneLabel,
@@ -380,18 +379,25 @@ export function TakeDetailSheet({
               </Button>
             )}
 
-            {/* Staying on the fence is not the same as having nothing to do,
-                so the reason goes to a member who has taken neither side as
-                well as to a backer — but not to somebody on the Hell Nah
-                side, who is told under that section instead. */}
-            {!canToggleYeah && windowClosedForViewer && !faded && !isAuthor(take, user) && (
+            {/* A Hell Yeah is open until grading; only its stake has a
+                window. So once the window shuts there are two things worth
+                saying: to a backer who staked, that it is locked in; to
+                somebody who can still Hell Yeah, that it will be without a
+                stake — the dialog does not open, and the button alone would
+                not say why. */}
+            {windowClosedForViewer && yeahed && !canToggleYeah && (
               <p className="mt-4 flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
                 <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>
-                  {yeahed
-                    ? 'Your Hell Yeah is locked in — the window closed three days after this take was last edited.'
-                    : 'Hell Yeahs closed three days after this take was last edited.'}
+                  Your Hell Yeah and its stake are locked in — the window closed three days after
+                  this take was last edited.
                 </span>
+              </p>
+            )}
+            {windowClosedForViewer && !yeahed && canToggleYeah && (
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Stakes closed three days after this take was last edited. You can still Hell Yeah
+                it without one.
               </p>
             )}
           </div>

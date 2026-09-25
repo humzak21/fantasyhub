@@ -100,9 +100,11 @@ export function HellYeahDialog({ take, open, onOpenChange, onConfirm, pending })
 
         {deadline && (
           <p className="text-sm text-muted-foreground">
-            You can take it back until{' '}
+            Stakes close{' '}
             <span className="text-foreground">{formatDateTime(deadline)}</span> &mdash; three days
-            after the take was last edited. After that it is locked in.
+            after the take was last edited. A Hell Yeah with a stake can be taken back until then
+            and is locked in after; one without a stake can be taken back any time before the
+            take is graded.
           </p>
         )}
 

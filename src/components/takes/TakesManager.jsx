@@ -21,6 +21,7 @@ import { AddTakeDialog } from './AddTakeDialog.jsx';
 import { HellNahDialog } from './HellNahDialog.jsx';
 import { HellYeahDialog } from './HellYeahDialog.jsx';
 import { shouldConfirmHellNah, suppressHellNahConfirm } from './confirmPreference.js';
+import { canStakeHellYeah } from './milestones.js';
 import { TakeDetailSheet } from './TakeDetailSheet.jsx';
 import { TakesBoard } from './TakesBoard.jsx';
 import { TakesRules } from './TakesRules.jsx';
@@ -181,11 +182,18 @@ export function TakesManager({ season, loading }) {
 
   /**
    * Every Hell Yeah goes through here, for the same reason every Hell Nah goes
-   * through `requestFade`: the card and the sheet open one dialog, which asks
-   * whether the backer wants to add a stake of their own. Nothing is written
-   * until they answer — with a stake, or by skipping it.
+   * through `requestFade`. Inside the take's window it opens one dialog, which
+   * asks whether the backer wants to add a stake of their own, and nothing is
+   * written until they answer. Once the window has closed a stake is no longer
+   * possible, so there is nothing to ask and the Hell Yeah lands on the click.
    */
-  const requestHellYeah = (take) => setStakingHellYeahId(take.id);
+  const requestHellYeah = (take) => {
+    if (canStakeHellYeah(take)) {
+      setStakingHellYeahId(take.id);
+      return;
+    }
+    return run(hellYeah, { takeId: take.id }, 'Could not Hell Yeah that take');
+  };
 
   const confirmHellYeah = async (take, wager) => {
     setStakingHellYeahId(null);

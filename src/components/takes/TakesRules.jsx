@@ -82,10 +82,12 @@ export function TakesRules({ className }) {
           </li>
           <li>
             Like someone&rsquo;s take? Say <span className="text-foreground">Hell Yeah</span> to
-            back it &mdash; on any take, staked or not. That&rsquo;s all a Hell Yeah has to be.
+            back it &mdash; on any take, staked or not, any time before it&rsquo;s graded.
+            That&rsquo;s all a Hell Yeah has to be.
           </li>
           <li>
-            You&rsquo;ll be asked if you want to add a stake of your own.{' '}
+            Within {days(FADE_WINDOW_MS)} of the take&rsquo;s last edit, you&rsquo;ll be asked if
+            you want to add a stake of your own.{' '}
             <span className="text-foreground">It&rsquo;s optional</span> &mdash; skip it and your
             Hell Yeah still counts. A Hell Yeah stake is a show of confidence, not a bet: it shows
             next to your name, and <span className="text-foreground">Hell Nahs never owe it</span>.
@@ -106,13 +108,15 @@ export function TakesRules({ className }) {
           </li>
           <li>You can delete your own take any time before it&rsquo;s graded.</li>
           <li>
-            You can say Hell Yeah or Hell Nah, or take yours back, for {days(FADE_WINDOW_MS)} after
-            the take was last edited. After that both sides are locked in until it&rsquo;s graded.
+            You can say Hell Nah or add a Hell Yeah stake, or take yours back, for{' '}
+            {days(FADE_WINDOW_MS)} after the take was last edited. After that they&rsquo;re locked
+            in until it&rsquo;s graded. A Hell Yeah without a stake can be given or taken back any
+            time before then.
           </li>
           <li>You can be on one side of a take, not both, and not on your own.</li>
           <li>
-            Editing a take reopens Hell Yeahs and Hell Nahs for another {days(FADE_WINDOW_MS)}, for
-            everyone.
+            Editing a take reopens Hell Nahs and Hell Yeah stakes for another{' '}
+            {days(FADE_WINDOW_MS)}, for everyone.
           </li>
         </RuleList>
       </RulesPanel>

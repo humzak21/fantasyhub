@@ -289,25 +289,43 @@ export function hellYeahCount(take) {
 
 /**
  * May the viewer say Hell Yeah to it? Signed in, not their own, not already on
- * a side, still ungraded, and inside the window. Unlike a Hell Nah it needs no
- * wager: at its core a Hell Yeah is just "good call", and that can be said of
- * any take — with or without a stake of the backer's own, which nobody owes.
+ * a side, and still ungraded — **at any time**, window or not. Unlike a Hell
+ * Nah it needs no wager: at its core a Hell Yeah is just "good call", and that
+ * can be said of any take, whenever somebody comes round to it. Only a stake
+ * on it has a deadline; see `canStakeHellYeah`.
  */
-export function canHellYeah(take, user, now = Date.now()) {
+export function canHellYeah(take, user) {
   return (
-    Boolean(user?.id) &&
-    !isAuthor(take, user) &&
-    !hasTakenSide(take, user) &&
-    isPending(take) &&
-    isFadeWindowOpen(take, now)
+    Boolean(user?.id) && !isAuthor(take, user) && !hasTakenSide(take, user) && isPending(take)
   );
 }
 
-/** May the viewer take their Hell Yeah back? The same window as a Hell Nah. */
+/**
+ * May a Hell Yeah given now carry a stake? Only inside the take's window — the
+ * same three days as a Hell Nah. Confidence declared once the football has
+ * answered the question is not confidence. Mirrors the window clause the
+ * `take_participants insert own` policy applies to a staked Hell Yeah.
+ */
+export function canStakeHellYeah(take, now = Date.now()) {
+  return isFadeWindowOpen(take, now);
+}
+
+/** The viewer's own Hell Yeah row, or null. */
+export function ownHellYeah(take, user) {
+  if (!user?.id) return null;
+  return hellYeahs(take).find((participant) => participant.userId === user.id) ?? null;
+}
+
+/**
+ * May the viewer take their Hell Yeah back? A plain one, any time until the
+ * take is graded; a staked one, only inside the window — once it closes the
+ * stake is locked in, exactly like a Hell Nah. Mirrors `take_participants
+ * withdraw own`.
+ */
 export function canWithdrawHellYeah(take, user, now = Date.now()) {
-  return (
-    Boolean(user?.id) && hasHellYeahed(take, user) && isPending(take) && isFadeWindowOpen(take, now)
-  );
+  const mine = ownHellYeah(take, user);
+  if (!mine || !isPending(take)) return false;
+  return !mine.wager || isFadeWindowOpen(take, now);
 }
 
 /**
@@ -345,10 +363,11 @@ export function fadeWindowNote(take, now = Date.now()) {
     : `${what} closed ${formatDateTime(deadline)}`;
 }
 
-/** What the window covers on this take, as a plural noun phrase: Hell Nahs
- *  only exist on a staked one. */
+/** What the window covers on this take, as a plural noun phrase. Hell Nahs
+ *  only exist on a staked one, and a plain Hell Yeah is not covered at all —
+ *  only a Hell Yeah's stake is. */
 export function sidesLabel(take) {
-  return hasWager(take) ? 'Hell Yeahs and Hell Nahs' : 'Hell Yeahs';
+  return hasWager(take) ? 'Hell Nahs and Hell Yeah stakes' : 'Hell Yeah stakes';
 }
 
 /**
@@ -360,9 +379,10 @@ export function sidesLabel(take) {
  */
 export function fadeWindowTerms(take, now = Date.now()) {
   const what = sidesLabel(take);
+  const plain = 'A Hell Yeah without a stake stays open until the take is graded.';
   return isFadeWindowOpen(take, now)
-    ? `${what} close 3 days after the take was last edited. Until then you can take yours back; after that it is locked in either way.`
-    : `${what} are closed on this take — it has been more than 3 days since it was last edited, so nobody can join and nobody can back out.`;
+    ? `${what} close 3 days after the take was last edited. Until then you can take yours back; after that it is locked in either way. ${plain}`
+    : `${what} are closed on this take — it has been more than 3 days since it was last edited, so nobody can add one and nobody can back out. ${plain}`;
 }
 
 /**

@@ -1,13 +1,15 @@
 -- Hell Yeah: backing a take, with a stake of your own if you want one.
 --
--- What `20260918120000_takes_hell_yeah.sql` makes true, asserted where the
+-- What `20260918120000_takes_hell_yeah.sql` and
+-- `20260919120000_takes_hell_yeah_any_time.sql` make true, asserted where the
 -- anon key cannot get round it:
 --
 --   * a Hell Yeah lands on any take, staked or not, with or without a stake
 --     of its own -- that stake is a show of confidence nobody owes;
 --   * a Hell Nah never carries a stake of its own;
 --   * one side per member -- a backer cannot also fade;
---   * the three-day window binds Hell Yeahs exactly as it binds Hell Nahs;
+--   * a plain Hell Yeah is open until grading, both ways; the three-day
+--     window binds only a *staked* one, both ways, as it binds a Hell Nah;
 --   * a client that sends no side (the build before this one) still writes a
 --     Hell Nah;
 --   * the log calls it `backed`, with the stake, and `unbacked`.
@@ -18,7 +20,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(12);
+select plan(16);
 
 insert into auth.users (id, email)
 values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'author@example.com'),
@@ -78,10 +80,56 @@ select throws_ok(
      values ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111', 'nah') $$,
   '23505', null, 'and the backer cannot also say Hell Nah to it');
 
+-- The window binds the stake, not the Hell Yeah.
 select throws_ok(
+  $$ insert into public.take_participants (take_id, season_id, side, wager)
+     values ('44444444-4444-4444-8444-444444444444', '11111111-1111-4111-8111-111111111111', 'yeah', '$10') $$,
+  '42501', null, 'a take last moved four days ago accepts no staked Hell Yeah');
+
+select lives_ok(
   $$ insert into public.take_participants (take_id, season_id, side)
      values ('44444444-4444-4444-8444-444444444444', '11111111-1111-4111-8111-111111111111', 'yeah') $$,
-  '42501', null, 'a take last moved four days ago accepts no Hell Yeah');
+  'but a plain Hell Yeah lands on it whenever');
+
+delete from public.take_participants
+where take_id = '44444444-4444-4444-8444-444444444444';
+
+reset role;
+
+select is(
+  (select count(*)::int from public.take_participants
+    where take_id = '44444444-4444-4444-8444-444444444444'),
+  0, 'and a plain Hell Yeah can be taken back after the window too');
+
+-- A staked one placed while the window was open is locked in once it closes.
+-- Placed as postgres: the take is already past its window.
+insert into public.take_participants (take_id, season_id, user_id, side, wager)
+values ('44444444-4444-4444-8444-444444444444', '11111111-1111-4111-8111-111111111111',
+        'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'yeah', '$10');
+
+set local request.jwt.claims to
+  '{"role":"authenticated","sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","email":"backer@example.com"}';
+set local role authenticated;
+
+delete from public.take_participants
+where take_id = '44444444-4444-4444-8444-444444444444';
+
+reset role;
+
+select is(
+  (select count(*)::int from public.take_participants
+    where take_id = '44444444-4444-4444-8444-444444444444'),
+  1, 'while a staked Hell Yeah cannot be withdrawn once the window has closed');
+
+-- A Hell Nah on the same old take is still refused: its window is unchanged.
+set local request.jwt.claims to
+  '{"role":"authenticated","sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","email":"fader@example.com"}';
+set local role authenticated;
+
+select throws_ok(
+  $$ insert into public.take_participants (take_id, season_id, side)
+     values ('44444444-4444-4444-8444-444444444444', '11111111-1111-4111-8111-111111111111', 'nah') $$,
+  '42501', null, 'a Hell Nah still closes with the window');
 
 reset role;
 
