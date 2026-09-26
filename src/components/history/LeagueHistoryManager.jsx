@@ -275,6 +275,8 @@ const LeagueHistoryManager = ({
               user={user}
               isAdmin={isAdmin}
               teamOwnerNames={teamOwnerNames}
+              franchises={franchises}
+              onSelectFranchise={setSelectedFranchiseId}
               onBack={() => setSelectedFranchiseId(null)}
             />
           )}
