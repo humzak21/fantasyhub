@@ -913,6 +913,43 @@ book's source would work too but carries lineups and transaction events.
 colours its seasons by their place on the league calendar (2023 is one hue on
 every profile); several teams wear their franchise hue, older seasons fainter.
 
+### The franchise profile opens week by week
+
+Below its season table, a franchise profile has **Week by week**
+(`src/components/history/franchises/weeks/`): pick a season (from the table or
+the section's picker) and a week, and see the franchise as it stood then —
+result, power rank and standing by record, the lineup with each player's
+opponent, TDs and in-league rank, why the snapshot ranked it there, and the
+moves it made. Every player opens a sheet with his week, his season and every
+stint he has had in this league. Any viewer can open any franchise; names go
+through the masking helpers like everywhere else. The profile header switches
+franchise without the round trip to the leaderboards.
+
+- **One read per season, league-wide.** `history.getSeasonWeekSource` reads the
+  season's teams, games, `player_week_stats`, `team_week_lineups`,
+  `power_rankings_history` and `transaction_events` once, cached under
+  `qk.history.seasonWeeks(seasonId)`; `buildSeasonIndex` indexes it in
+  `select`. Switching franchise inside a season fetches nothing, and a
+  player's weekly rank needs the league anyway. A completed season is cached
+  for good; the active one refetches on focus.
+- **Nothing is year-gated, so next season needs no code.** The seasons come from
+  the franchise's season history, the weeks from the season row plus the rows
+  that exist, and each part of a week appears when its table has a row for it.
+  `utils/franchiseWeeks.js` is the pure half and its tests include a season
+  with a year nobody has played.
+- **A postseason week is named by its game, not the calendar.**
+  `gamePhaseLabel` reads `games.type`: the calendar calls the last week
+  "Championship" for everybody, and for most of the league it is a
+  consolation game.
+- **A settled zero with no stat line is "did not play".** A settled week stores
+  0 for every rostered player, including the one on IR. The lineup shows
+  that 0, because ESPN's matchup counted it. `appeared` keeps those weeks out
+  of player ranks, averages and best/worst, so an injury does not read as a
+  bad game.
+- **"Rank that week" is among players on a league roster that week**, the only
+  players stored, and the sheet says so. No projections anywhere: nobody
+  archived them.
+
 ### The record book is computed on read
 
 History → Records is every record as a leaderboard — top 5, opening to 20 (10

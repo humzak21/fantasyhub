@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Trophy, TrendingUp, Award, Calendar, Target, Users, Crown, Medal, Activity } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { ResponsiveDataTable } from '../../ui/responsive-table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import {
   BarChart,
   Bar,
@@ -20,6 +21,7 @@ import { formatWinPercentage, formatPoints, formatRecord, formatYearRange, forma
 import { TRANSACTION_COLORS } from '../../../../types/index.js';
 import { AXIS_STYLE, GRID_STYLE } from '../utils/chartHelpers';
 import RecordTrendChart from './RecordTrendChart';
+import FranchiseWeekByWeek from './weeks/FranchiseWeekByWeek';
 
 const FranchiseProfile = ({
   franchise,
@@ -27,12 +29,44 @@ const FranchiseProfile = ({
   user = null,
   isAdmin = false,
   teamOwnerNames = [],
+  franchises = [],
+  onSelectFranchise = null,
   onBack = () => {}
 }) => {
   const { data: franchiseData, isLoading: loading } = useFranchiseProfile(franchiseId);
   const { data: transactionHistory = [] } = useFranchiseTransactions(franchiseId);
 
   const rivalries = franchiseData?.rivalries ?? null;
+
+  // The week view's season list is the franchise's own season history, newest
+  // first — so a season the sync writes next year appears here by existing.
+  const weekSeasons = useMemo(
+    () =>
+      (franchiseData?.seasonHistory ?? [])
+        .filter((row) => row.season?.id)
+        .map((row) => ({ id: row.season.id, year: row.season.year, isCurrent: Boolean(row.is_current_season) }))
+        .sort((a, b) => b.year - a.year),
+    [franchiseData]
+  );
+  const [pickedSeasonId, setPickedSeasonId] = useState(null);
+  // Switching franchise keeps the season when the new one played it too.
+  const weekSeasonId = weekSeasons.some((s) => s.id === pickedSeasonId)
+    ? pickedSeasonId
+    : weekSeasons[0]?.id ?? null;
+  const weekSectionRef = useRef(null);
+  const openSeasonWeeks = (seasonId) => {
+    setPickedSeasonId(seasonId);
+    weekSectionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
+
+  const viewer = useMemo(() => ({ user, isAdmin, teamOwnerNames }), [user, isAdmin, teamOwnerNames]);
+  const franchiseOptions = useMemo(
+    () =>
+      franchises
+        .map((f) => ({ id: f.id, name: getMaskedFranchiseName(f, user, isAdmin, teamOwnerNames), active: f.is_active }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [franchises, user, isAdmin, teamOwnerNames]
+  );
 
   if (loading && !franchiseData) {
     return (
@@ -209,11 +243,26 @@ const FranchiseProfile = ({
   return (
     <div className="space-y-6">
       {/* Back button and header */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Leaderboards
         </Button>
+        {/* Any franchise's profile is one pick away, without the round trip. */}
+        {onSelectFranchise && franchiseOptions.length > 1 && (
+          <Select value={franchiseId ?? undefined} onValueChange={onSelectFranchise}>
+            <SelectTrigger className="h-9 w-full sm:w-[240px]" aria-label="Franchise">
+              <SelectValue placeholder="Franchise" />
+            </SelectTrigger>
+            <SelectContent>
+              {franchiseOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Franchise header card */}
@@ -323,13 +372,26 @@ const FranchiseProfile = ({
                 columns={seasonColumns}
                 data={sortedSeasonHistory}
                 rowClassName={(season) => seasonRowClass(season)}
+                onRowClick={(season) => season.season?.id && openSeasonWeeks(season.season.id)}
               />
             </div>
           ) : (
             <p className="text-muted-foreground text-center py-8">No season history available</p>
           )}
+          {seasonHistory.length > 0 && (
+            <p className="mt-2 text-xs text-muted-foreground">Select a season to open it week by week.</p>
+          )}
         </CardContent>
       </Card>
+
+      <FranchiseWeekByWeek
+        ref={weekSectionRef}
+        franchiseId={franchiseId}
+        seasons={weekSeasons}
+        seasonId={weekSeasonId}
+        onSeasonChange={setPickedSeasonId}
+        viewer={viewer}
+      />
 
       {/* Transaction Activity Chart */}
       {transactionHistory.length > 0 && (

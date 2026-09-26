@@ -785,3 +785,249 @@ export async function getRecordTrendSource(ctx) {
     throwDbError(error, 'Get record trend source');
   }
 }
+
+// ---------------------------------------------------------------------------
+// Week by week
+// ---------------------------------------------------------------------------
+
+/**
+ * One season, every franchise, week by week — the source of the franchise
+ * profile's week-by-week view, in the shape `utils/franchiseWeeks.js` reads.
+ *
+ * League-wide rather than per franchise, for two reasons. Switching the profile
+ * to another team inside the same season should fetch nothing; and a player's
+ * rank in a week is a comparison against every rostered player that week, so
+ * the whole league's lineups are needed anyway.
+ *
+ * Nothing here knows what year it is. Every table read is one the weekly sync
+ * already writes — `games` (scores), `player_week_stats` and
+ * `team_week_lineups` (playerStats / finalizePrev), `power_rankings_history`
+ * (snapshot), `transaction_events` (transactions) — so a new week is in this
+ * source the Tuesday after it is played. What a week can show is decided by
+ * which rows exist, never by the season's year.
+ *
+ * Each read that can pass PostgREST's 1,000-row cap goes through `selectAll`:
+ * a season of player-weeks is ~4,000 rows.
+ */
+export async function getSeasonWeekSource(ctx, seasonId) {
+  try {
+    const client = ctx.client;
+
+    const [season, franchises, teams, games, playerWeeks, lineups, ranks, events] = await Promise.all([
+      (async () => unwrap(
+        await client
+          .from('seasons')
+          .select('id, year, espn_season_year, regular_season_weeks, playoff_weeks, total_weeks, is_completed')
+          .eq('id', seasonId)
+          .maybeSingle(),
+        'Get week-by-week season'
+      ))(),
+      getFranchises(ctx),
+      selectAll(() => client
+        .from('teams')
+        .select('id, season_id, franchise_id, name, owner')
+        .eq('season_id', seasonId)
+        .order('id')),
+      selectAll(() => client
+        .from('games')
+        .select('id, week, type, team1_id, team2_id, team1_score, team2_score, is_blowout, is_close')
+        .eq('season_id', seasonId)
+        .order('id')),
+      selectAll(() => client
+        .from('player_week_stats')
+        .select(`
+          id, week, team_id, player_id, position, roster_slot, started,
+          actual_points, pro_team_id, stat_breakdown,
+          player:players ( name, team_abbreviation )
+        `)
+        .eq('season_id', seasonId)
+        .order('id')),
+      selectAll(() => client
+        .from('team_week_lineups')
+        .select('week, team_id, starter_points, optimal_points, bench_points, starters_scoring')
+        .eq('season_id', seasonId)
+        .order('id')),
+      selectAll(() => client
+        .from('power_rankings_history')
+        .select(`
+          id, week_number, team_id, rank, power_rating, components, snapshot_type,
+          performance_score, team_strength, strength_of_schedule, momentum_score,
+          consistency_score, clutch_score, all_play_win_pct
+        `)
+        .eq('season_id', seasonId)
+        .order('id')),
+      selectAll(() => client
+        .from('transaction_events')
+        .select('id, type, team_id, franchise_id, franchise_ids, scoring_period, bid_amount, processed_at, espn_player_ids, player_from_franchise_ids, player_to_franchise_ids')
+        .eq('season_id', seasonId)
+        .order('id'))
+    ]);
+
+    if (!season) return null;
+
+    const players = await getPlayers(ctx, events.flatMap((event) => event.espn_player_ids ?? []));
+
+    return {
+      season: {
+        id: season.id,
+        year: season.year,
+        nflSeasonYear: season.espn_season_year ?? season.year,
+        regularSeasonWeeks: season.regular_season_weeks,
+        playoffWeeks: season.playoff_weeks,
+        totalWeeks: season.total_weeks,
+        isCompleted: Boolean(season.is_completed)
+      },
+      franchises: franchises.map(franchiseRef),
+      teams: teams.map((row) => ({
+        id: row.id,
+        franchiseId: row.franchise_id,
+        name: row.name,
+        owner: row.owner
+      })),
+      games: games.map((row) => ({
+        id: row.id,
+        week: row.week,
+        type: row.type,
+        team1Id: row.team1_id,
+        team2Id: row.team2_id,
+        team1Score: num(row.team1_score),
+        team2Score: num(row.team2_score),
+        isBlowout: Boolean(row.is_blowout),
+        isClose: Boolean(row.is_close)
+      })),
+      playerWeeks: playerWeeks.map((row) => ({
+        week: row.week,
+        teamId: row.team_id,
+        playerId: row.player_id,
+        name: row.player?.name ?? null,
+        position: row.position,
+        slot: row.roster_slot,
+        started: Boolean(row.started),
+        actualPoints: num(row.actual_points),
+        proTeamId: row.pro_team_id,
+        proTeam: row.player?.team_abbreviation ?? null,
+        statBreakdown: row.stat_breakdown ?? null
+      })),
+      lineups: lineups.map((row) => ({
+        week: row.week,
+        teamId: row.team_id,
+        starterPoints: num(row.starter_points),
+        optimalPoints: num(row.optimal_points),
+        benchPoints: num(row.bench_points),
+        startersScoring: row.starters_scoring
+      })),
+      ranks: ranks.map((row) => ({
+        week: row.week_number,
+        teamId: row.team_id,
+        rank: row.rank,
+        powerRating: num(row.power_rating),
+        snapshotType: row.snapshot_type,
+        components: row.components ?? null,
+        // A snapshot written before 2026-08-10 has these columns instead of
+        // `components`; they name an older formula and are shown as such.
+        legacy: row.components ? null : {
+          performanceScore: num(row.performance_score),
+          teamStrength: num(row.team_strength),
+          strengthOfSchedule: num(row.strength_of_schedule),
+          momentumScore: num(row.momentum_score),
+          consistencyScore: num(row.consistency_score),
+          clutchScore: num(row.clutch_score),
+          allPlayWinPct: num(row.all_play_win_pct)
+        }
+      })),
+      events: events.map((row) => ({
+        id: row.id,
+        type: row.type,
+        week: row.scoring_period,
+        teamId: row.team_id,
+        franchiseId: row.franchise_id,
+        franchiseIds: row.franchise_ids ?? [],
+        bidAmount: num(row.bid_amount),
+        processedAt: row.processed_at,
+        players: (row.espn_player_ids ?? []).map((espnPlayerId, i) => ({
+          espnPlayerId,
+          name: players.get(espnPlayerId)?.name ?? null,
+          position: players.get(espnPlayerId)?.position ?? null,
+          // Null on a row stored before direction was; shown without a side.
+          from: row.player_from_franchise_ids ? row.player_from_franchise_ids[i] ?? null : undefined,
+          to: row.player_to_franchise_ids ? row.player_to_franchise_ids[i] ?? null : undefined
+        }))
+      }))
+    };
+  } catch (error) {
+    throwDbError(error, 'Get season week source');
+  }
+}
+
+/**
+ * Every week one player was rostered in this league, across every season —
+ * the player sheet's career and roster history.
+ *
+ * `player_week_stats` only holds players while they are on a league roster, so
+ * a week this returns nothing for is a week nobody here had him, not a zero.
+ */
+export async function getPlayerCareer(ctx, playerId) {
+  try {
+    const client = ctx.client;
+
+    const [player, rows] = await Promise.all([
+      (async () => unwrap(
+        await client
+          .from('players')
+          .select('id, name, position, team_abbreviation')
+          .eq('id', playerId)
+          .maybeSingle(),
+        'Get career player'
+      ))(),
+      selectAll(() => client
+        .from('player_week_stats')
+        .select('id, season_id, week, team_id, started, actual_points, stat_breakdown, position')
+        .eq('player_id', playerId)
+        .order('id'))
+    ]);
+
+    const teamIds = [...new Set(rows.map((row) => row.team_id))];
+    const seasonIds = [...new Set(rows.map((row) => row.season_id))];
+
+    const [teams, seasons] = await Promise.all([
+      teamIds.length
+        ? (async () => unwrap(
+            await client.from('teams').select('id, franchise_id, name, owner').in('id', teamIds),
+            'Get career teams'
+          ) ?? [])()
+        : [],
+      seasonIds.length
+        ? (async () => unwrap(
+            await client.from('seasons').select('id, year').in('id', seasonIds),
+            'Get career seasons'
+          ) ?? [])()
+        : []
+    ]);
+
+    const teamById = new Map(teams.map((team) => [team.id, team]));
+    const yearById = new Map(seasons.map((season) => [season.id, season.year]));
+
+    return {
+      player: player
+        ? { id: player.id, name: player.name, position: player.position, proTeam: player.team_abbreviation }
+        : null,
+      weeks: rows.map((row) => {
+        const team = teamById.get(row.team_id);
+        return {
+          seasonId: row.season_id,
+          year: yearById.get(row.season_id) ?? null,
+          week: row.week,
+          teamId: row.team_id,
+          franchiseId: team?.franchise_id ?? null,
+          teamName: team?.name ?? null,
+          owner: team?.owner ?? null,
+          started: Boolean(row.started),
+          actualPoints: num(row.actual_points),
+          hasStatLine: row.stat_breakdown != null
+        };
+      })
+    };
+  } catch (error) {
+    throwDbError(error, 'Get player career');
+  }
+}
