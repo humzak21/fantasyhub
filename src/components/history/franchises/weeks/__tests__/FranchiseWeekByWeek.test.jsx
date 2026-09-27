@@ -114,6 +114,23 @@ describe('FranchiseWeekByWeek', () => {
     expect(screen.queryByText(/Owner C/)).not.toBeInTheDocument();
   });
 
+  it('charts standing alone for a season with no power-rank snapshots', async () => {
+    renderView();
+    expect(await screen.findByText('Standing by week, by record')).toBeInTheDocument();
+    expect(screen.queryByText('Power rank by week')).not.toBeInTheDocument();
+  });
+
+  it('charts power rank with standing beneath it once the season has snapshots', async () => {
+    const snapshot = (week, rank) => ({ week, teamId: 'tA', rank, powerRating: 50, snapshotType: 'backfill', components: {}, legacy: null });
+    history.getSeasonWeekSource.mockResolvedValue({ ...SOURCE, ranks: [snapshot(1, 2), snapshot(2, 1)] });
+    renderView();
+
+    const power = await screen.findByText('Power rank by week');
+    const standing = screen.getByText('Standing by week, by record');
+    // Power rank first, standing under it.
+    expect(power.compareDocumentPosition(standing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('says so when the franchise had no team that season', async () => {
     renderWithProviders(
       <FranchiseWeekByWeek franchiseId="fZ" seasons={SEASONS} seasonId="s30" onSeasonChange={() => {}} viewer={MEMBER} />

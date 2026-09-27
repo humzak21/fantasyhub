@@ -166,6 +166,19 @@ export function rankPlayersForWeek(rows = []) {
 }
 
 /**
+ * Which fifth of his position a player's week fell in: 0 is the top fifth,
+ * 4 the bottom. By share of the pool rather than raw rank, because the pools
+ * differ — QB16 of 25 and RB16 of 60 are not the same week. Null without a
+ * rank. A pool of one is the top.
+ */
+export function rankTier(rank) {
+  if (!rank || !isNumber(rank.positional) || !isNumber(rank.positionalOf) || rank.positionalOf < 1) return null;
+  if (rank.positionalOf === 1) return 0;
+  const share = (rank.positional - 1) / (rank.positionalOf - 1);
+  return Math.min(4, Math.floor(share * 5));
+}
+
+/**
  * Index a season's source for lookups by team, week and player. The one pass
  * everything below reads from, run once per fetch (it is the query's `select`).
  */

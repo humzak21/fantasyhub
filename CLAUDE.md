@@ -57,6 +57,11 @@ no application server. The weekly ESPN sync runs as a GitHub Actions cron
   and `team_week_lineups` through the sync's own `syncPlayerStats`.
   `[year] [week]`, `--dry-run`. Run once on 2026-09-15; see "Lineups and
   transactions go back to 2020".
+- `npm run backfill-power-rankings` - Snapshot the weeks of a completed season
+  that have no `power_rankings_history` row, through the historical
+  calculator, as `backfill`. `<year>`, `--dry-run`; `--replace` rewrites every
+  week so the season is one formula. Run for 2025 with `--replace` on
+  2026-09-27; see "The franchise profile opens week by week".
 
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
@@ -949,6 +954,38 @@ franchise without the round trip to the leaderboards.
 - **"Rank that week" is among players on a league roster that week**, the only
   players stored, and the sheet says so. No projections anywhere: nobody
   archived them.
+- **The season is two charts: power rank (orange) when the season has any
+  snapshot, and standing by record (blue, `--chart-2`) always, beneath it.**
+  Each point carries the week's W/L above it. They were one chart that chose
+  its series with `arc.some(powerRank)`, so a season with *some* snapshots
+  plotted power rank alone and the line stopped where the snapshots did.
+  A snapshot's week N is the ranking *going into* week N (week 1 rows have 0
+  games played), while standing at week N is *after* week N's game.
+- **2025's power ranks are all reconstructed, in the current formula.** It was
+  snapshotted by hand for weeks 1-6 only (`manual`, 2025-10-07, the retired
+  `*_score` columns) and never again — the weekly cron came with the 2026
+  refactor. On 2026-09-27 `backfill-power-rankings 2025 --replace` rewrote
+  every week on the historical path (`saveHistoricalPowerRankingsSnapshot` →
+  `calculateRankingsForViewedWeek`) as `snapshot_type = 'backfill'`
+  (`20260927120000_power_rankings_backfill_snapshot_type.sql`), so the season
+  is one formula. **Week 1 has no row on purpose**: going into it nobody has
+  played, the projections the live snapshot would use were never archived,
+  and all fourteen teams rate exactly 50 — any order would be the sort's. The
+  writer stores nothing for a week whose ratings are all equal. The live
+  snapshot writer cannot backfill: it reads today's rosters, projections and
+  FPI. 2020-24 have no snapshots and chart standing only.
+- **The lineup is one grid** (`LINEUP_GRID` in `WeekDossier.jsx`): header,
+  starters and bench share a column template and every cell always renders,
+  so a row without a TD or a rank cannot shift the columns after it. The NFL
+  team is tinted by `utils/nflTeamColors.js` (each team's hue in oklch, lifted
+  to a lightness that reads on black). **Wk rank** is the player's rank at his
+  position that week only, heat-mapped by `rankTier` — which fifth of that
+  position's pool he fell in, not the raw number, because QB16 of 25 and RB16
+  of 60 are different weeks.
+- **`getPlayerWeekStats` is paged** (`selectAll`). A season passes 1,000
+  `player_week_stats` rows during week 6; before 2026-09-27 the read was a
+  plain select, so every ranking from week 7 on — the live tab and the weekly
+  snapshot included — got weeks 1-5 and froze its roster components there.
 
 ### The record book is computed on read
 
