@@ -17,6 +17,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { getDb } from '../../services/db/index.js';
 import { buildRecordBook } from '../../utils/recordBook/index.js';
 import { buildRecordTrends } from '../../utils/recordTrend.js';
+import { buildSeasonIndex } from '../../utils/franchiseWeeks.js';
 import { buildComparisonFacts } from '../../utils/statComparison/index.js';
 import { qk } from './keys.js';
 
@@ -175,6 +176,37 @@ export function useFranchiseTransactions(franchiseId) {
     queryKey: qk.history.franchiseTransactions(franchiseId),
     queryFn: () => db().transactions.getFranchiseTransactionHistory(franchiseId),
     enabled: Boolean(franchiseId),
+    ...STABLE
+  });
+}
+
+/**
+ * One season, week by week, for the franchise profile. The raw source is
+ * indexed once per fetch in `select` (`buildSeasonIndex`), so moving between
+ * weeks or franchises inside a season is a lookup, not a request.
+ *
+ * Freshness follows how the data moves. A completed season never changes, so
+ * it is cached for good. A season in progress gains a week every Tuesday from
+ * the sync, out of process — there is no mutation to invalidate on — so it
+ * goes stale after a minute and refetches when the window regains focus.
+ */
+export function useSeasonWeeks(seasonId, { isCompleted = false, enabled = true } = {}) {
+  return useQuery({
+    queryKey: qk.history.seasonWeeks(seasonId),
+    queryFn: () => db().history.getSeasonWeekSource(seasonId),
+    select: buildSeasonIndex,
+    enabled: Boolean(seasonId) && enabled,
+    staleTime: isCompleted ? Infinity : 60 * 1000,
+    refetchOnWindowFocus: !isCompleted
+  });
+}
+
+/** A player's league career, for the player sheet. Fetched when it opens. */
+export function usePlayerCareer(playerId, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: qk.history.playerCareer(playerId),
+    queryFn: () => db().history.getPlayerCareer(playerId),
+    enabled: Boolean(playerId) && enabled,
     ...STABLE
   });
 }

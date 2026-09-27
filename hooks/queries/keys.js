@@ -227,7 +227,15 @@ export const qk = {
     recordTrends: () => ['history', 'recordTrends'],
     franchiseProfile: (franchiseId) => ['history', 'franchise', franchiseId],
     transactionLeaderboard: () => ['history', 'transactions'],
-    franchiseTransactions: (franchiseId) => ['history', 'transactions', franchiseId]
+    franchiseTransactions: (franchiseId) => ['history', 'transactions', franchiseId],
+    /**
+     * One season, every franchise, week by week — the franchise profile's
+     * week view. League-wide on purpose: switching teams inside a season
+     * fetches nothing, and a player's weekly rank is a league comparison.
+     */
+    seasonWeeks: (seasonId) => ['history', 'seasonWeeks', seasonId],
+    /** Every week one player was rostered in the league, across seasons. */
+    playerCareer: (playerId) => ['history', 'player', playerId]
   },
 
   /**

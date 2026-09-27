@@ -117,5 +117,7 @@ export {
   useStatComparison,
   useFranchiseProfile,
   useTransactionLeaderboard,
-  useFranchiseTransactions
+  useFranchiseTransactions,
+  useSeasonWeeks,
+  usePlayerCareer
 } from './useLeagueHistory.js';
