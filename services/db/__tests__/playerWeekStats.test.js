@@ -267,6 +267,26 @@ describe('getPlayerWeekStats', () => {
     const ctx = makeCtx({ 'player_week_stats.select': () => [] });
     expect(await getPlayerWeekStats(ctx, SEASON)).toEqual({});
   });
+
+  it('reads past the 1,000-row cap, which a season crosses by week 6', async () => {
+    // ~190 rows a week: eight weeks is 1,520. Served a page at a time, as
+    // PostgREST does, so an unpaged read would see weeks 1-5 and part of 6.
+    const season = Array.from({ length: 1520 }, (_, i) => ({
+      team_id: 'team-a',
+      week: Math.floor(i / 190) + 1,
+      player_id: `p${i}`,
+      started: true,
+      actual_points: 10
+    }));
+    const ctx = makeCtx({
+      'player_week_stats.select': ({ range }) => (range ? season.slice(range[0], range[1] + 1) : season.slice(0, 1000))
+    });
+
+    const grouped = await getPlayerWeekStats(ctx, SEASON);
+
+    expect(Object.keys(grouped['team-a']).map(Number)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(grouped['team-a'][8]).toHaveLength(190);
+  });
 });
 
 /**

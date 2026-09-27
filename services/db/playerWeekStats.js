@@ -18,6 +18,7 @@ import { buildTeamIndex } from '../espnGameMapper.js';
 import { summarizeTeamWeek } from '../lineupSummary.js';
 import { formatFromDatabase } from './caseMap.js';
 import { throwDbError } from './errors.js';
+import { selectAll } from './paging.js';
 import { getNFLTeamAbbreviation, mapESPNInjuryStatus, mapESPNRosterSlot } from './espnMapping.js';
 import { createLogger } from './logger.js';
 
@@ -272,19 +273,20 @@ export async function upsertPlayerWeekStats(ctx, seasonId, week, mappedRows = []
  */
 export async function getPlayerWeekStats(ctx, seasonId, { throughWeek = null } = {}) {
   try {
-    let query = ctx.client
-      .from('player_week_stats')
-      .select('*')
-      .eq('season_id', seasonId);
-
-    if (throughWeek != null) query = query.lt('week', throughWeek);
-
-    const { data, error } = await query.order('week', { ascending: true });
-
-    if (error) throw error;
+    // Paged: a season is ~190 rows a week, so weeks 1-6 already pass
+    // PostgREST's silent 1,000-row cap. Unpaged, every view from week 7 on
+    // got the same first thousand rows and the roster components froze there.
+    const data = await selectAll(() => {
+      let query = ctx.client
+        .from('player_week_stats')
+        .select('*')
+        .eq('season_id', seasonId);
+      if (throughWeek != null) query = query.lt('week', throughWeek);
+      return query.order('week', { ascending: true }).order('id', { ascending: true });
+    });
 
     const byTeam = {};
-    for (const row of data || []) {
+    for (const row of data) {
       const team = (byTeam[row.team_id] ??= {});
       (team[row.week] ??= []).push(formatFromDatabase(row));
     }

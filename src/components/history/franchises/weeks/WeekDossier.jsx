@@ -6,6 +6,8 @@ import { OpponentChip } from '../../../ui/opponent-chip';
 import { PlayerPoints } from '../../../ui/player-points';
 import { cn } from '../../../../lib/utils';
 import { getPositionColor } from '../../../../utils/positionColors';
+import { nflTeamColor } from '../../../../../utils/nflTeamColors.js';
+import { rankTier } from '../../../../../utils/franchiseWeeks.js';
 import { EMPTY, formatDelta, formatFraction, formatOrdinal, formatPoints, formatRecord, formatScore } from '../../../../utils/format';
 import { getMaskedFranchiseName } from '../../utils/privacyHelpers';
 import { useNflOpponentMap } from '../../../../../hooks/queries/index.js';
@@ -168,6 +170,7 @@ function Lineup({ dossier, opponents, onPlayer }) {
         </p>
       ) : (
         <>
+          <LineupHeader />
           <ul aria-label="Starters">
             {lineup.starters.map((row) => (
               <PlayerRow key={row.playerId} row={row} opponent={opponents[row.proTeamId]} onPlayer={onPlayer} />
@@ -191,6 +194,9 @@ function Lineup({ dossier, opponents, onPlayer }) {
             <Total label="Left on bench" value={formatPoints(totals?.benchPoints)} />
             <Total label="Efficiency" value={formatFraction(totals?.efficiency)} />
           </dl>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Wk rank is the player&apos;s rank at his position for this week only, among players on a league roster.
+          </p>
           {corrected && (
             <p className="mt-2 text-xs text-muted-foreground">
               The game score ({formatScore(matchup.pointsFor)}) includes a stat correction ESPN applied to the matchup but not to player lines.
@@ -209,39 +215,84 @@ const Total = ({ label, value }) => (
   </div>
 );
 
+/**
+ * One column template for the header, the starters and the bench, so every
+ * row lines up whether or not it has a TD or a rank. Team and opponent drop
+ * below `sm`, where the name needs the room.
+ */
+const LINEUP_GRID =
+  'grid grid-cols-[2.75rem_minmax(0,1fr)_1.75rem_3.25rem_3rem] items-center gap-x-2 ' +
+  'sm:grid-cols-[2.75rem_minmax(0,1fr)_2.5rem_3.5rem_1.75rem_3.25rem_3rem] sm:gap-x-3';
+
+// Literal class names: a class built at runtime generates no CSS.
+const RANK_HEAT = [
+  'bg-success/25 text-success',
+  'bg-success/10 text-success',
+  'bg-muted text-foreground',
+  'bg-warning/15 text-warning',
+  'bg-destructive/15 text-destructive'
+];
+
+function LineupHeader() {
+  return (
+    <div className={cn(LINEUP_GRID, 'border-b border-border pb-1.5 text-xs font-medium text-muted-foreground')}>
+      <span>Slot</span>
+      <span>Player</span>
+      <span className="hidden sm:block">Team</span>
+      <span className="hidden text-right sm:block">Opp</span>
+      <span className="text-right" title="Touchdowns scored (rushing and receiving)">TD</span>
+      <span className="text-right" title="Rank at his position this week, among players on a league roster">Wk rank</span>
+      <span className="text-right">Pts</span>
+    </div>
+  );
+}
+
 function PlayerRow({ row, opponent, onPlayer, bench = false }) {
   const rank = row.rank;
+  const tier = rankTier(rank);
+  const teamColor = nflTeamColor(row.proTeam);
   return (
     <li className="border-b border-border/60 last:border-0">
       <button
         type="button"
         onClick={() => onPlayer?.(row)}
-        className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none sm:gap-3 pointer-coarse:py-3"
+        className={cn(
+          LINEUP_GRID,
+          'w-full py-2 text-left text-sm hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none pointer-coarse:py-3'
+        )}
       >
         <span
           className={cn(
-            'inline-flex w-11 shrink-0 justify-center rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
+            'inline-flex w-11 justify-center rounded px-1 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
             getPositionColor(bench ? row.position : row.slot)
           )}
         >
           {bench ? row.slot === 'IR' ? 'IR' : 'BE' : row.slot}
         </span>
-        <span className={cn('min-w-0 flex-1 truncate', !bench && 'font-medium text-foreground')}>{row.name ?? 'Unknown player'}</span>
-        <span className="hidden w-10 shrink-0 text-right text-xs text-muted-foreground sm:inline">{row.proTeam ?? ''}</span>
-        <span className="hidden w-14 shrink-0 text-right sm:inline-block">
+        <span className={cn('min-w-0 truncate', !bench && 'font-medium text-foreground')}>{row.name ?? 'Unknown player'}</span>
+        <span
+          className={cn('hidden text-xs font-semibold sm:block', !teamColor && 'text-muted-foreground', bench && 'opacity-70')}
+          style={teamColor ? { color: teamColor } : undefined}
+        >
+          {row.proTeam ?? ''}
+        </span>
+        <span className="hidden justify-end sm:flex">
           <OpponentChip entry={opponent} />
         </span>
-        {row.touchdowns > 0 && (
-          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.06em] text-success">
-            {row.touchdowns} TD
-          </span>
-        )}
-        {rank && (
-          <span className="w-12 shrink-0 text-right text-xs text-muted-foreground tabular" title={`#${rank.overall} overall that week`}>
-            {row.position}{rank.positional}
-          </span>
-        )}
-        <PlayerPoints actualPoints={row.actualPoints} className="w-12 shrink-0 text-right" />
+        <span className="text-right text-xs font-semibold text-success tabular">
+          {row.touchdowns > 0 ? row.touchdowns : ''}
+        </span>
+        <span className="flex justify-end">
+          {rank && (
+            <span
+              className={cn('w-12 rounded px-1 py-0.5 text-center text-xs font-medium tabular', RANK_HEAT[tier] ?? 'text-muted-foreground', bench && 'opacity-80')}
+              title={`${row.position}${rank.positional} of ${rank.positionalOf} this week · #${rank.overall} overall`}
+            >
+              {row.position}{rank.positional}
+            </span>
+          )}
+        </span>
+        <PlayerPoints actualPoints={row.actualPoints} className="text-right" />
       </button>
     </li>
   );
@@ -263,7 +314,7 @@ function WhyRanked({ power }) {
         <p className="text-sm text-muted-foreground">No component breakdown was stored for this week.</p>
       ) : power.legacy ? (
         <>
-          <p className="mb-2 text-xs text-muted-foreground">An older ranking formula, shown under its own names.</p>
+          <p className="mb-2 text-xs text-muted-foreground">2025 uses an older power ranking formula that doesn&apos;t account for player rankings and NFL schedules.</p>
           <dl className="space-y-1 text-sm">
             {power.items.map((item) => (
               <div key={item.key} className="flex justify-between gap-3">

@@ -376,6 +376,34 @@ export async function getPowerRankingsHistory(ctx, seasonId, weekNumber = null) 
   }
 }
 
+/**
+ * The `power_rankings_history` rows for one week's rankings. Shared by the
+ * weekly snapshot and the historical backfill so both store the same shape.
+ */
+export function snapshotRows(seasonId, weekNumber, rankings, snapshotType) {
+  return rankings.map((team) => ({
+    season_id: seasonId,
+    week_number: weekNumber,
+    team_id: team.teamId || team.id,
+    rank: team.rank,
+    power_rating: team.powerRating,
+    // The eight legacy `*_score` columns are left NULL: they named a set of
+    // components that no longer exists, and writing zeros into them would
+    // make a missing component indistinguishable from a scored one. The
+    // components the calculator actually produced go in the jsonb column,
+    // already camelCase — `formatFromDatabase` leaves those keys alone.
+    components: team.powerRatingComponents ?? null,
+    wins: team.wins,
+    losses: team.losses,
+    ties: team.ties,
+    points_for: team.pointsFor,
+    points_against: team.pointsAgainst,
+    win_percentage: team.winPercentage,
+    point_differential: team.pointDifferential,
+    snapshot_type: snapshotType
+  }));
+}
+
 export async function saveWeeklyPowerRankingsSnapshot(ctx, seasonId, weekNumber, snapshotType = 'weekly') {
 
   try {
@@ -399,33 +427,7 @@ export async function saveWeeklyPowerRankingsSnapshot(ctx, seasonId, weekNumber,
       log.warn(`could not clear week ${weekNumber} snapshot before rewriting it:`, deleteError.message);
     }
 
-    // Prepare snapshot data - only store current week's rankings
-    // Rank changes will be calculated dynamically when fetching data
-    const snapshotData = powerRankings.map((team) => {
-      const teamId = team.teamId || team.id;
-
-      return {
-        season_id: seasonId,
-        week_number: weekNumber,
-        team_id: teamId,
-        rank: team.rank,
-        power_rating: team.powerRating,
-        // The eight legacy `*_score` columns are left NULL: they named a set of
-        // components that no longer exists, and writing zeros into them would
-        // make a missing component indistinguishable from a scored one. The
-        // components the calculator actually produced go in the jsonb column,
-        // already camelCase — `formatFromDatabase` leaves those keys alone.
-        components: team.powerRatingComponents ?? null,
-        wins: team.wins,
-        losses: team.losses,
-        ties: team.ties,
-        points_for: team.pointsFor,
-        points_against: team.pointsAgainst,
-        win_percentage: team.winPercentage,
-        point_differential: team.pointDifferential,
-        snapshot_type: snapshotType
-      };
-    });
+    const snapshotData = snapshotRows(seasonId, weekNumber, powerRankings, snapshotType);
 
     // Insert new snapshot data
     const { data, error } = await ctx.client
@@ -439,6 +441,64 @@ export async function saveWeeklyPowerRankingsSnapshot(ctx, seasonId, weekNumber,
   } catch (error) {
     throwDbError(error, 'Save power rankings snapshot');
     return 0;
+  }
+}
+
+/**
+ * Snapshot a week that has already been played, as the ranking stood going
+ * into it — the same meaning as a weekly row, whose week N counts games
+ * before N. For a week nobody snapshotted at the time.
+ *
+ * It goes through `calculateRankingsForViewedWeek` rather than the live path
+ * `saveWeeklyPowerRankingsSnapshot` uses: the live path reads today's rosters,
+ * projections and FPI, which would stamp a present-day guess onto a past week.
+ * `currentWeek` must be past `weekNumber` so the calculator stays historical;
+ * the live-only components then come back null, never fabricated.
+ *
+ * Deletes only with `replace`, which rewrites the week in one formula (and
+ * clears a week there is nothing to rank on). Without it a week that already
+ * holds a snapshot is refused by `rankings_week_team_unique`.
+ *
+ * @returns {Promise<object[]>} the rows, written or (with `dryRun`) not
+ */
+export async function saveHistoricalPowerRankingsSnapshot(
+  ctx,
+  seasonId,
+  weekNumber,
+  { currentWeek, snapshotType = 'backfill', replace = false, dryRun = false }
+) {
+  if (!(currentWeek > weekNumber)) {
+    throw new Error(`A historical snapshot of week ${weekNumber} needs a current week after it, got ${currentWeek}`);
+  }
+
+  try {
+    const rankings = await calculateRankingsForViewedWeek(ctx, seasonId, {
+      week: weekNumber,
+      viewingWeek: weekNumber,
+      currentWeek
+    });
+    let rows = snapshotRows(seasonId, weekNumber, rankings ?? [], snapshotType);
+    // Going into week 1 there is nothing to rank on — no games, and nobody
+    // archived the projections the live snapshot uses — so every team rates
+    // the same and the order would be the sort's, not a ranking. Store none.
+    if (rows.length > 1 && new Set(rows.map((row) => row.power_rating)).size === 1) rows = [];
+    if (dryRun) return rows;
+
+    if (replace) {
+      const { error: deleteError } = await ctx.client
+        .from('power_rankings_history')
+        .delete()
+        .eq('season_id', seasonId)
+        .eq('week_number', weekNumber);
+      if (deleteError) throw deleteError;
+    }
+    if (rows.length === 0) return rows;
+
+    const { data, error } = await ctx.client.from('power_rankings_history').insert(rows).select();
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    throwDbError(error, `Save historical power rankings snapshot for week ${weekNumber}`);
   }
 }
 

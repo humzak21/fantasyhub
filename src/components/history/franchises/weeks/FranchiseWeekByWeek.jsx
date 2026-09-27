@@ -1,6 +1,6 @@
 import { forwardRef, useMemo, useState } from 'react';
 import { CalendarRange, ChevronLeft, ChevronRight } from 'lucide-react';
-import { CartesianGrid, Line, LineChart, ReferenceLine, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, LabelList, Line, LineChart, ReferenceLine, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { Button } from '../../../ui/button';
 import { EmptyState } from '../../../ui/empty-state';
@@ -19,8 +19,6 @@ import {
 } from '../../../../../utils/franchiseWeeks.js';
 import WeekDossier from './WeekDossier';
 import PlayerSheet from './PlayerSheet';
-
-const SERIES = 'var(--chart-1)';
 
 /**
  * The franchise profile's week view: pick a season, pick a week, and see the
@@ -203,6 +201,23 @@ function WeekChip({ week, selected, onSelect }) {
   );
 }
 
+const ARC_SERIES = {
+  powerRank: {
+    caption: 'Power rank by week',
+    stroke: 'var(--chart-1)',
+    describe: (value) => `#${value} power rank`
+  },
+  // Always blue, in every season, so standing reads as the same line whether
+  // it sits under a power-rank chart or stands alone.
+  standing: {
+    caption: 'Standing by week, by record',
+    stroke: 'var(--chart-2)',
+    describe: (value) => `${formatOrdinal(value)} by record`
+  }
+};
+
+const RESULT_FILL = { W: 'var(--success)', L: 'var(--destructive)', T: 'var(--muted-foreground)' };
+
 function ArcTooltip({ active, payload, field }) {
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
@@ -211,36 +226,66 @@ function ArcTooltip({ active, payload, field }) {
     <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
       <div className="font-medium text-foreground">{row.label}</div>
       <div className="text-muted-foreground">
-        {value != null ? `${field === 'powerRank' ? `#${value} power rank` : `${formatOrdinal(value)} by record`}` : 'No rank'}
+        {value != null ? ARC_SERIES[field].describe(value) : 'No rank'}
         {row.result ? ` · ${RESULT_TEXT[row.result]}` : ''}
       </div>
     </div>
   );
 }
 
+/** The week's result above its point, so the season reads at a glance. */
+function ResultMark({ x, y, value }) {
+  if (!value || x == null || y == null) return null;
+  return (
+    <text
+      x={x}
+      y={y - 9}
+      textAnchor="middle"
+      fontSize={10}
+      fontWeight={600}
+      fill={RESULT_FILL[value] ?? 'var(--muted-foreground)'}
+      aria-hidden="true"
+    >
+      {value}
+    </text>
+  );
+}
+
 /**
- * The season in one line: power rank where a snapshot exists, otherwise the
- * standing by record — the caption says which. Clicking a week opens it.
+ * The season in lines. Power rank appears when the season has snapshots; the
+ * standing by record always does, beneath it. Clicking a week opens it.
  */
 function SeasonArc({ arc, week, teamCount, onSelect }) {
+  const hasPowerRank = arc.some((a) => a.powerRank != null);
+  return (
+    <>
+      {hasPowerRank && (
+        <ArcChart arc={arc} field="powerRank" week={week} teamCount={teamCount} onSelect={onSelect} hint />
+      )}
+      <ArcChart arc={arc} field="standing" week={week} teamCount={teamCount} onSelect={onSelect} hint={!hasPowerRank} />
+    </>
+  );
+}
+
+function ArcChart({ arc, field, week, teamCount, onSelect, hint }) {
   const axis = useMobileAxis();
-  const field = arc.some((a) => a.powerRank != null) ? 'powerRank' : 'standing';
   const plotted = arc.filter((a) => a[field] != null);
   if (plotted.length < 2) return null;
 
+  const { caption, stroke } = ARC_SERIES[field];
   const worst = Math.max(teamCount ?? 0, ...plotted.map((a) => a[field]));
-  const caption = field === 'powerRank' ? 'Power rank by week' : 'Standing by week, by record';
 
   return (
     <div className="rounded-xl border border-border bg-card p-3 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:p-4">
       <div className="mb-1 flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">{caption}</h3>
-        <span className="text-xs text-muted-foreground">Tap a week to open it</span>
+        {hint && <span className="text-xs text-muted-foreground">Tap a week to open it</span>}
       </div>
       <ChartContainer config={{}} className="h-[140px] w-full sm:h-[170px]">
         <LineChart
           data={arc}
-          margin={{ top: 8, right: 12, bottom: 0, left: 0 }}
+          // Room above the top point for its result mark.
+          margin={{ top: 20, right: 12, bottom: 0, left: 0 }}
           onClick={(state) => {
             const next = Number(state?.activeLabel);
             if (Number.isFinite(next)) onSelect(next);
@@ -265,13 +310,15 @@ function SeasonArc({ arc, week, teamCount, onSelect }) {
           <Line
             type="linear"
             dataKey={field}
-            stroke={SERIES}
+            stroke={stroke}
             strokeWidth={2}
             connectNulls
-            dot={{ r: 3, fill: SERIES, strokeWidth: 0 }}
+            dot={{ r: 3, fill: stroke, strokeWidth: 0 }}
             activeDot={{ r: 5, strokeWidth: 0 }}
             isAnimationActive={false}
-          />
+          >
+            <LabelList dataKey="result" content={<ResultMark />} />
+          </Line>
         </LineChart>
       </ChartContainer>
     </div>

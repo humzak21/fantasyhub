@@ -12,7 +12,8 @@ import {
   buildPlayerSeason,
   buildPlayerCareer,
   gamePhaseLabel,
-  appeared
+  appeared,
+  rankTier
 } from '../franchiseWeeks.js';
 
 /**
@@ -123,6 +124,29 @@ describe('rankPlayersForWeek', () => {
       { playerId: 'c', position: 'WR', actualPoints: 5 }
     ]);
     expect([ranks.get('a').overall, ranks.get('b').overall, ranks.get('c').overall]).toEqual([1, 1, 3]);
+  });
+});
+
+describe('rankTier', () => {
+  const tier = (positional, positionalOf) => rankTier({ positional, positionalOf });
+
+  it('splits a position into fifths by share of its pool', () => {
+    expect(tier(1, 25)).toBe(0);
+    expect(tier(5, 25)).toBe(0);
+    expect(tier(6, 25)).toBe(1);
+    expect(tier(13, 25)).toBe(2);
+    expect(tier(25, 25)).toBe(4);
+  });
+
+  it('reads the same rank differently in a deeper pool', () => {
+    expect(tier(16, 25)).toBe(3);
+    expect(tier(16, 60)).toBe(1);
+  });
+
+  it('is null without a rank, and the top for a pool of one', () => {
+    expect(rankTier(null)).toBeNull();
+    expect(tier(null, 10)).toBeNull();
+    expect(tier(1, 1)).toBe(0);
   });
 });
 
