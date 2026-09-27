@@ -348,15 +348,6 @@ const FranchiseProfile = ({
         </Card>
       </div>
 
-      {/* Keyed on the franchise so another profile starts from its own team. */}
-      <RecordTrendChart
-        key={franchiseId}
-        franchiseId={franchiseId}
-        user={user}
-        isAdmin={isAdmin}
-        teamOwnerNames={teamOwnerNames}
-      />
-
       {/* Season-by-season history */}
       <Card>
         <CardHeader>
@@ -391,6 +382,15 @@ const FranchiseProfile = ({
         seasonId={weekSeasonId}
         onSeasonChange={setPickedSeasonId}
         viewer={viewer}
+      />
+
+      {/* Keyed on the franchise so another profile starts from its own team. */}
+      <RecordTrendChart
+        key={franchiseId}
+        franchiseId={franchiseId}
+        user={user}
+        isAdmin={isAdmin}
+        teamOwnerNames={teamOwnerNames}
       />
 
       {/* Transaction Activity Chart */}
