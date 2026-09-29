@@ -6,8 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a React-based fantasy football power rankings application built with
 Vite, Tailwind CSS, and Supabase. It deploys as a **static bundle** — there is
-no application server. The weekly ESPN sync runs as a GitHub Actions cron
-(`.github/workflows/sync-week.yml`), not as an in-process scheduler.
+no application server. The weekly ESPN sync runs as a GitHub Actions workflow
+(`.github/workflows/sync-week.yml`) that Supabase's pg_cron dispatches on
+schedule, not as an in-process scheduler — see "The crons are Supabase's
+clock, GitHub's runners".
 
 ## Available Commands
 
@@ -227,13 +229,18 @@ NULL `pick_em_weeks.user_id` — the column was NOT NULL until
 first Tuesday the step had a row to create, that refused the insert and week 2
 never opened while the run reported success. A column the service role writes
 through a default of `auth.uid()` must be nullable;
-`supabase/tests/database/pick_em_weeks_service_role.test.sql` asserts it. Note the window still *opens* at `pickem_open_time`
+`supabase/tests/database/pick_em_weeks_service_role.test.sql` asserts it.
+**That migration merged on 2026-09-15 and was not applied until 2026-09-29**,
+so week 3 failed identically and weeks 3 and 4 were opened by hand. A
+merged migration is not an applied one: the migrations are applied by hand
+through the Supabase MCP, so after merging one, check
+`supabase_migrations.schema_migrations` or the change itself. Note the window still *opens* at `pickem_open_time`
 (04:00 by default) while the row appears at the 05:00 run; nothing reads the
 row in that hour, but a season that wants the two to coincide sets the open
 time to 05:00.
 
 **`finalizePrev` is why the week's real numbers exist at all.** The cron runs
-Tuesday 05:00 ET (10:00 UTC, so 06:00 during daylight time — GitHub cron has
+Tuesday 05:00 ET (10:00 UTC, so 06:00 during daylight time — pg_cron has
 no zones, and this is the hour that is never earlier than 05:00 ET) and
 `deriveCurrentWeek` rolls over at Tuesday 00:00 ET, so
 every scheduled run targets the week that has just *begun* — and `getSingleWeek`
@@ -254,6 +261,48 @@ has rosters, projections and the NFL calendar but the season row still says
 overridable: forcing past it would not sync early, it would sync an arbitrary
 week. Never set `--force` on the cron; the quiet out-of-season exit is the
 whole point there.
+
+### The crons are Supabase's clock, GitHub's runners
+
+Neither ESPN workflow has a `schedule:` trigger, and that is on purpose.
+GitHub's cron is best-effort, and through September 2026 it started the
+daily refresh (16:40 UTC) **112-335 minutes late** — on every game Sunday it
+landed during the early games it exists to precede — and the weekly sync
+(Tuesday 10:00 UTC) 241-286 minutes late. The run was *created* that late,
+so no runner, queue or concurrency setting could get the time back.
+
+`20260929120000_cron_dispatch_workflows.sql` moved the clock: two pg_cron
+jobs, named for the automations (`weekly-sync`, `daily-refresh`), call
+`private.dispatch_github_workflow(file)`, which POSTs GitHub's
+`workflow_dispatch` API through pg_net. A dispatch starts within seconds.
+Everything else — the secrets, the Actions log, the `espn-write`
+concurrency group, `scripts/sync-week.js` — is unchanged.
+
+- **The dispatch sends `inputs.trigger = 'cron'`,** and each workflow passes
+  `--manual` only when that input is not `cron`. Every run is a
+  `workflow_dispatch` now, so `github.event_name` can no longer tell a
+  person from the clock; without the input every run would log as manual and
+  the dashboard, which counts only `trigger = 'cron'` runs toward a slot,
+  would call every slot missed while every run happened.
+- **The token is a fine-grained GitHub PAT** scoped to this repository with
+  *Actions: read and write*, stored in Vault as
+  `github_actions_dispatch_token` — never in a migration or the repo. Missing,
+  the function raises and `cron.job_run_details` records it. Expired or
+  revoked, it does *not* raise (pg_net is asynchronous): GitHub's 401 sits in
+  `net._http_response` for six hours, and the dashboard's "missed" warning
+  after the three-hour grace is the durable signal. A 422 there means the
+  workflow on `main` lacks the `trigger` input.
+- **`private`, not `public`,** because PostgREST exposes `public`, and
+  nothing the anon key reaches should be able to start a production sync.
+  Execute is revoked from `public`, `anon` and `authenticated` as well.
+- **A schedule lives in two places:** the pg_cron job (`cron.schedule` upserts
+  by name, so a new migration re-schedules) and `schedule` in `AUTOMATIONS`
+  (`automationCatalog.js`), which is how the dashboard knows what a slot is.
+  `supabase/tests/database/cron_dispatch.test.sql` pins the former to the
+  values the latter holds; change all three together.
+- **pg_cron runs in UTC** (`cron.timezone` is GMT on Supabase), as GitHub's
+  cron did, so the "never earlier than 05:00 ET" and "never later than
+  12:40 ET" reasoning on each workflow is unchanged.
 
 ### One path from ESPN into `games`
 `services/db/games.js::upsertEspnGames` is the only writer of ESPN schedule
@@ -447,8 +496,7 @@ managed to look complete while being wrong.
 writes `rosters` once, Tuesday 05:00 ET, but managers change lineups right up
 to kickoff and waivers clear on Wednesday, so a present-tense refresh runs
 **every day at 16:40 UTC** — 12:40 PM ET under daylight time, 11:40 AM ET
-after, never later than twenty minutes before the early Sunday kickoffs
-(twenty, not five, because GitHub cron starts late under load). It
+after, never later than twenty minutes before the early Sunday kickoffs. It
 runs `pickEmWeek`, rosters, `parlayGrades` and **transactions**, and passes
 `--skip-scores --skip-player-stats --skip-finalize-prev --skip-nfl-schedule
 --skip-nfl-ratings --skip-snapshot`, which skips the matchup fetch entirely.
@@ -803,7 +851,8 @@ it back in the dropdown, and do not give it a header of its own —
 
 **Settings → Automations** (`src/components/admin/AutomationsDashboard.jsx`)
 is the inventory of every job that runs without a person: the three GitHub
-Actions workflows, the database triggers, CI and Dependabot — what each
+Actions workflows, the pg_cron jobs that dispatch two of them, the database
+triggers, CI and Dependabot — what each
 pulls, what it writes, its last run, and what to do when it did not run.
 Rules that are load-bearing:
 
@@ -830,10 +879,11 @@ Rules that are load-bearing:
   week, and say so per table.
 - **A slot is missed only in season, and only after three hours' grace.**
   Out of season the script exits before opening a row by design, so "no run
-  this week" is *idle*, not a failure. GitHub cron starts late under load;
-  a cron run more than an hour past its slot is *late*, and a daily refresh
-  that late is a warning because it lands after the Sunday kickoffs it
-  exists to precede.
+  this week" is *idle*, not a failure. A cron run more than an hour past
+  its slot is *late*, and a daily refresh that late is a warning because it
+  lands after the Sunday kickoffs it exists to precede. Since the dispatch
+  moved to pg_cron a late run means GitHub queued it or pg_cron fired late;
+  a missed one usually means the dispatch token.
 - **The week strip is the same schedule, projected.** `upcomingSchedule`
   lays the next seven *local* calendar days out, today first, with every
   cron slot on each in the viewer's zone, labelled with the automation's

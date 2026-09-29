@@ -30,16 +30,26 @@ name: Daily ESPN refresh
 # so re-running is how you fix a failed run, same as everywhere else here.
 
 on:
-  schedule:
-    # 16:40 UTC every day = 12:40 PM ET while daylight time holds (through the
-    # first Sunday of November), 11:40 AM ET after. Cron is UTC only, so this
-    # is the hour that is never *later* than 12:40 ET — twenty minutes before
-    # the early Sunday kickoffs, which is the deadline the lineup changes this
-    # exists to catch are made against. Twenty rather than five because GitHub
-    # schedules are best-effort and start several minutes late under load; if
-    # the Sunday run still lands after 1:00, move it earlier, not later.
-    - cron: '40 16 * * *'
+  # No `schedule:` on purpose. GitHub's cron started this job two to five hours
+  # late through September 2026 — on every game Sunday it landed during the
+  # early games — so Supabase's pg_cron keeps the clock instead and dispatches
+  # this workflow with `trigger: cron`. See
+  # supabase/migrations/20260929120000_cron_dispatch_workflows.sql.
+  #
+  # 16:40 UTC every day = 12:40 PM ET while daylight time holds (through the
+  # first Sunday of November), 11:40 AM ET after. pg_cron is UTC, so this is
+  # the hour that is never *later* than 12:40 ET — twenty minutes before the
+  # early Sunday kickoffs, which is the deadline the lineup changes this
+  # exists to catch are made against. A dispatch starts within seconds, so the
+  # margin is now for the job itself, not for the scheduler.
   workflow_dispatch:
+    inputs:
+      trigger:
+        description: 'Who started this run. The Supabase cron sends "cron"; leave it on "manual".'
+        required: false
+        default: manual
+        type: choice
+        options: [manual, cron]
 
 concurrency:
   # Shared with sync-week and sync-schedule. This does not write `games`, but
@@ -69,8 +79,8 @@ jobs:
       # season, and the roster step skips itself once the playoffs start, so
       # this stays quiet for most of the year without a condition here.
       #
-      # `--manual` only on a button press, as in sync-week.yml, so the
-      # `sync_runs` log can tell a scheduled run from a person.
+      # `--manual` unless the Supabase cron dispatched it, as in sync-week.yml,
+      # so the `sync_runs` log can tell a scheduled run from a person.
       - name: Refresh rosters and transactions
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -85,4 +95,4 @@ jobs:
             --skip-nfl-schedule \
             --skip-nfl-ratings \
             --skip-snapshot \
-            ${{ github.event_name == 'workflow_dispatch' && '--manual' || '' }}
+            ${{ inputs.trigger != 'cron' && '--manual' || '' }}
