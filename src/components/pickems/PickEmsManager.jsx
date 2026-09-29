@@ -15,9 +15,10 @@ import PickEmsAdminSubmissions from './PickEmsAdminSubmissions';
 import PickEmsSeasonStandings from './PickEmsSeasonStandings';
 import PreviousWeekWinners from './PreviousWeekWinners';
 
-// The commissioner view is two people's tab, so it is not in everyone's
-// pick'ems chunk. It used to be its own lazy route on the app shell; moving it
-// here must not undo that.
+// The TD parlay board stays in its own chunk: most visits open Make Picks or
+// Results and never reach it, and its season grid is the heaviest thing on
+// the page. It used to be its own lazy route on the app shell; moving it here
+// must not undo that.
 const ParlayCommissionerDashboard = lazy(() => import('../parlay/ParlayCommissionerDashboard.jsx'));
 import { getDb } from '../../../services/db/index.js';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
@@ -31,7 +32,7 @@ const PickEmsManager = ({
   preloadedData = null,
   preloadingInProgress = false,
 }) => {
-  const { user, isAdmin, teamOwnerNames, isParlayCommissioner } = useViewer();
+  const { user, isAdmin, teamOwnerNames } = useViewer();
   const [activeTab, setActiveTab] = useState('picks');
   const [pickEmWeek, setPickEmWeek] = useState(null);
   const [games, setGames] = useState([]);
@@ -317,15 +318,15 @@ const PickEmsManager = ({
                 Submissions
               </TabsTrigger>
             )}
-            {/* The league-wide parlay view. `isParlayCommissioner` already
-                folds the admin in — do not add `isAdmin ||` here, which is the
-                substitution that keeps the role separate from the admin's
-                write paths. */}
-            {isParlayCommissioner && (
-              <TabsTrigger value="parlay" icon={<Crosshair />}>
-                TD Parlay
-              </TabsTrigger>
-            )}
+            {/* The league-wide parlay view, open to everyone who can open
+                Pick'ems. It was the commissioner's tab until 2026-09-29, but
+                `td_parlay_picks` has been public-read since the board started
+                showing picks as they are submitted, so the gate hid nothing
+                from PostgREST — it only kept members from a view of their own
+                competition. Do not gate it on `isParlayCommissioner` again. */}
+            <TabsTrigger value="parlay" icon={<Crosshair />}>
+              TD Parlay
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="picks">
@@ -393,13 +394,11 @@ const PickEmsManager = ({
             </TabsContent>
           )}
 
-          {isParlayCommissioner && (
-            <TabsContent value="parlay">
-              <Suspense fallback={<RouteLoading />}>
-                <ParlayCommissionerDashboard season={season} embedded />
-              </Suspense>
-            </TabsContent>
-          )}
+          <TabsContent value="parlay">
+            <Suspense fallback={<RouteLoading />}>
+              <ParlayCommissionerDashboard season={season} embedded />
+            </Suspense>
+          </TabsContent>
         </Tabs>
       )}
 

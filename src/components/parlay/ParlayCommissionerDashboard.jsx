@@ -22,19 +22,25 @@ import { parlayHitRate } from './hitRate.js';
 import { getPositionColor } from '../../utils/positionColors';
 
 /**
- * The parlay commissioner's view: everyone's picks, by week and across the
- * season.
+ * The TD parlay board: everyone's picks, by week and across the season.
+ *
+ * Open to every viewer who can open Pick'ems. It was the commissioner's page
+ * until 2026-09-29, and the name is kept so the file's history stays
+ * findable — but the gate is gone on purpose. `td_parlay_picks` has been
+ * `USING (true)` since the members' board started showing picks as they are
+ * submitted, so refusing the page here hid nothing from PostgREST; it only
+ * kept members from seeing the competition they are in. The commissioner
+ * still gets a badge, because they are the person who grades what is shown.
  *
  * Read-only, and not because the UI omits the buttons — `td_parlay_picks` has
- * no write policy naming the commissioner, so a hand-rolled request from this
- * page would be refused. The absence of controls here is a description of that,
- * not the enforcement of it.
+ * no user write policy at all, so a hand-rolled request from this page would
+ * be refused. The absence of controls here is a description of that, not the
+ * enforcement of it.
  *
- * Real names appear here and only here. The masking helpers everywhere else
- * take `isAdmin`; this page passes `true` in that position because the whole
- * point of the page is knowing who picked what. That substitution stays local —
- * folding the commissioner into the global `isAdmin` would unmask the entire
- * league to them and hand them the admin's write paths besides.
+ * Names are the members' display names, resolved through the same public-safe
+ * RPC the Make Picks board uses, and division names are the season's own.
+ * Nothing here goes through the `getMasked*` helpers: a member reading their
+ * own competition is meant to see who picked what.
  */
 /**
  * Shared empty arrays for the `data = []` defaults below.
@@ -49,7 +55,10 @@ const NO_WEEKS = [];
 const NO_ROWS = [];
 
 const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
-  const { isAdmin, isParlayCommissioner, isParlayCommissionerLoading } = useViewer();
+  // Only for the badge. The page no longer waits on the role: a viewer who
+  // may open Pick'ems may read this, and the badge popping in a beat later is
+  // the right trade against holding the whole board for an RPC.
+  const { isAdmin, isParlayCommissioner } = useViewer();
   const seasonId = season?.id ?? null;
 
   const { data: weeks = NO_WEEKS, isLoading: weeksLoading } = useAllPickEmWeeks(seasonId);
@@ -143,18 +152,8 @@ const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
     );
   }
 
-  if (isParlayCommissionerLoading || weeksLoading || picksLoading) {
+  if (weeksLoading || picksLoading) {
     return <RouteLoading />;
-  }
-
-  if (!isAdmin && !isParlayCommissioner) {
-    return (
-      <EmptyState
-        icon={Crosshair}
-        title="Not available"
-        description="This page is for the league's parlay commissioner."
-      />
-    );
   }
 
   return (
@@ -168,7 +167,7 @@ const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
           <p className="text-sm text-muted-foreground">
             {`Every member's touchdown pick, ${season.name || season.year}.`}
           </p>
-          {!isAdmin && <Badge variant="info">Commissioner</Badge>}
+          {isParlayCommissioner && !isAdmin && <Badge variant="info">Commissioner</Badge>}
         </div>
       ) : (
         <PageHeader
@@ -176,7 +175,7 @@ const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
           title="TD Parlay"
           description={`Every member's touchdown pick, ${season.name || season.year}.`}
           badge={
-            !isAdmin ? <Badge variant="info">Commissioner</Badge> : null
+            isParlayCommissioner && !isAdmin ? <Badge variant="info">Commissioner</Badge> : null
           }
         />
       )}

@@ -239,11 +239,12 @@ const FantasyFootballApp = () => {
       // audience.
       { id: 'takes', label: 'Takes', icon: Flame, requiresSeason: true, requiresAuth: false, customAccess: isApproved },
       { id: 'playoffs', label: 'Playoffs', icon: TrendingUp, requiresSeason: true, requiresAuth: false, customAccess: isApproved },
-      // The league-wide TD parlay view is not a destination of its own. It
-      // lives inside Pick'ems, next to Submissions, beside the form the picks
-      // it reports on are entered in — two people can open it, which is thin
-      // grounds for a nav item every other layout has to make room for.
-      // Approved members only, and then the release rules above still decide.
+      // The league-wide TD parlay board is not a destination of its own. It
+      // lives inside Pick'ems as a tab beside the form the picks it reports
+      // on are entered in, open to everyone who can open Pick'ems — so its
+      // audience is this tab's audience, and it needs no entry here.
+      // Awards: approved members only, and then the release rules above
+      // still decide.
       { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isApproved && awardsAccessible },
       // Settings is a tab — same route table, same guard, same shell — but
       // not a nav item: `inNav: false` keeps it out of the header list and
