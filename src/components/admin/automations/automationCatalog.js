@@ -32,10 +32,25 @@ const HOUR = 60 * MINUTE;
 
 /** A `running` row older than this was never closed: the job died or timed out. */
 export const STALLED_AFTER_MS = 30 * MINUTE;
-/** How long after a slot a cron run may still land before it counts as missed. */
-export const MISSED_GRACE_MS = 3 * HOUR;
-/** A cron run this far past its slot is worth a note. */
-export const LATE_AFTER_MINUTES = 60;
+/**
+ * How long after a slot a cron run may still land before it counts as missed.
+ *
+ * pg_cron dispatches on the minute and a dispatched run opens its `sync_runs`
+ * row a minute or two later, once `npm ci` is done. The longest legitimate
+ * wait is the `espn-write` concurrency group: a run queued behind another
+ * ESPN job waits out at most that job's 15-minute timeout. Thirty minutes
+ * covers both, and flags a failed Sunday dispatch at 17:10 UTC rather than
+ * after the early games. It was three hours while GitHub's own cron started
+ * runs two to five hours late.
+ */
+export const MISSED_GRACE_MS = 30 * MINUTE;
+/**
+ * A cron run this far past its slot is worth a note. About five times a
+ * normal dispatch-to-start, so it fires only when the run waited on
+ * something. Past twenty minutes the daily refresh has landed after the
+ * 17:00 UTC kickoffs, which is the warning `buildRecommendations` raises.
+ */
+export const LATE_AFTER_MINUTES = 10;
 
 // ---------------------------------------------------------------------------
 // The steps of scripts/sync-week.js, in the order they run.
@@ -990,19 +1005,24 @@ export function buildRecommendations({
       }
     }
     if (lagMinutes != null && lagMinutes > LATE_AFTER_MINUTES && status !== 'missed') {
-      const sunday = automation.id === 'daily-refresh';
+      const daily = automation.id === 'daily-refresh';
+      const afterKickoff = daily && lagMinutes > 20;
+      const consequence = afterKickoff
+        ? 'The daily refresh is timed to land twenty minutes before the early Sunday kickoffs; this one ' +
+          'landed after 17:00 UTC, so on a Sunday the lineups it captured were already locked. '
+        : daily
+          ? 'It still landed before the early Sunday kickoffs. '
+          : 'Harmless unless the pick\'em window opens before the row is created. ';
       push({
         id: `${automation.id}-late`,
-        severity: sunday && lagMinutes > 20 ? 'warning' : 'info',
+        severity: afterKickoff ? 'warning' : 'info',
         automationId: automation.id,
         title: `${automation.name} started ${lagMinutes} minutes after its slot`,
-        detail: sunday
-          ? 'The daily refresh is timed to land twenty minutes before the early Sunday kickoffs. A lag this ' +
-            'size means the Sunday lineups it captures are already locked. The Supabase cron dispatches on ' +
-            'the minute, so a lag this size is GitHub queueing the run or a pg_cron job that fired late: ' +
-            'check cron.job_run_details, then the Actions log.'
-          : 'The Supabase cron dispatches on the minute, so a lag this size is GitHub queueing the run or a ' +
-            'pg_cron job that fired late. Harmless unless the pick\'em window opens before the row is created.'
+        detail:
+          consequence +
+          'The Supabase cron dispatches on the minute, so the run waited on something: another espn-write ' +
+          'job, GitHub\'s queue, or a pg_cron job that fired late. cron.job_run_details and the Actions log ' +
+          'say which.'
       });
     }
   }

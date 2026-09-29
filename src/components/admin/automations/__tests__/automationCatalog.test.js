@@ -238,7 +238,7 @@ describe('summarizeAutomation', () => {
 
   it('is not missed inside the grace window', () => {
     const summary = summarizeAutomation(daily, [run({ steps: DAILY_STEPS, startedAt: '2026-09-15T16:45:00Z' })], {
-      now: new Date('2026-09-16T17:30:00Z'),
+      now: new Date('2026-09-16T17:00:00Z'),
       state: 'in-season'
     });
     expect(summary.status).toBe('healthy');
@@ -355,6 +355,22 @@ describe('buildRecommendations', () => {
     expect(rec.severity).toBe('warning');
     expect(rec.title).toMatch(/167 minutes/);
   });
+
+  it('calls a dispatched run late past ten minutes, and a warning only once it lands after kickoff', () => {
+    const lateBy = (minutes) => {
+      const startedAt = new Date(Date.parse('2026-09-16T16:40:00Z') + minutes * 60_000).toISOString();
+      const recs = buildRecommendations({
+        summaries: summaries([run(), run({ id: 'd', steps: DAILY_STEPS, startedAt })]),
+        health: HEALTHY, config: CONFIG, state: 'in-season', actualWeek: 2, now: NOW
+      });
+      return recs.find((r) => r.id === 'daily-refresh-late') ?? null;
+    };
+    expect(lateBy(3)).toBeNull();
+    expect(lateBy(15)).toMatchObject({ severity: 'info' });
+    expect(lateBy(15).detail).toMatch(/before the early Sunday kickoffs/);
+    expect(lateBy(25)).toMatchObject({ severity: 'warning' });
+    expect(lateBy(25).detail).toMatch(/already locked/);
+  });
 });
 
 describe('upcomingSchedule', () => {
@@ -377,15 +393,15 @@ describe('upcomingSchedule', () => {
   });
 
   it("marks today's elapsed slots by what the log says", () => {
-    // Thursday 17:30 UTC: the 16:40 daily slot is 50 minutes behind us.
-    const now = new Date('2026-09-17T17:30:00Z');
+    // Thursday 17:00 UTC: the 16:40 daily slot is 20 minutes behind us, inside the grace.
+    const now = new Date('2026-09-17T17:00:00Z');
     const todaySlot = (days) =>
       days[0].occurrences.find((o) => o.automationId === 'daily-refresh' && o.at.toISOString() === '2026-09-17T16:40:00.000Z');
 
     const ranRun = run({ id: 'd', steps: DAILY_STEPS, startedAt: '2026-09-17T16:52:00Z' });
     expect(todaySlot(upcomingSchedule({ now, runs: [ranRun], state: 'in-season' })).status).toBe('ran');
     expect(todaySlot(upcomingSchedule({ now, runs: [], state: 'in-season' })).status).toBe('due');
-    expect(todaySlot(upcomingSchedule({ now: new Date('2026-09-17T21:00:00Z'), runs: [], state: 'in-season' })).status).toBe('missed');
+    expect(todaySlot(upcomingSchedule({ now: new Date('2026-09-17T17:30:00Z'), runs: [], state: 'in-season' })).status).toBe('missed');
     expect(todaySlot(upcomingSchedule({ now, runs: [], state: 'not-started' })).status).toBe('idle');
   });
 

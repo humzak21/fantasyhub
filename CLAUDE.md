@@ -290,7 +290,7 @@ concurrency group, `scripts/sync-week.js` — is unchanged.
   the function raises and `cron.job_run_details` records it. Expired or
   revoked, it does *not* raise (pg_net is asynchronous): GitHub's 401 sits in
   `net._http_response` for six hours, and the dashboard's "missed" warning
-  after the three-hour grace is the durable signal. A 422 there means the
+  after the thirty-minute grace is the durable signal. A 422 there means the
   workflow on `main` lacks the `trigger` input.
 - **`private`, not `public`,** because PostgREST exposes `public`, and
   nothing the anon key reaches should be able to start a production sync.
@@ -877,13 +877,17 @@ Rules that are load-bearing:
   week, roster and transaction timestamps, NFL calendar rows, FPI week,
   which `pick_em_weeks` exist, pending parlay grades — against the calendar
   week, and say so per table.
-- **A slot is missed only in season, and only after three hours' grace.**
+- **A slot is missed only in season, and only after thirty minutes' grace.**
   Out of season the script exits before opening a row by design, so "no run
-  this week" is *idle*, not a failure. A cron run more than an hour past
-  its slot is *late*, and a daily refresh that late is a warning because it
-  lands after the Sunday kickoffs it exists to precede. Since the dispatch
-  moved to pg_cron a late run means GitHub queued it or pg_cron fired late;
-  a missed one usually means the dispatch token.
+  this week" is *idle*, not a failure. A cron run more than ten minutes past
+  its slot is *late* (a note), and a daily refresh more than twenty is a
+  warning because it lands after the 17:00 UTC kickoffs it exists to
+  precede. The grace was three hours and "late" an hour while GitHub's own
+  cron started runs two to five hours late; pg_cron dispatches on the
+  minute, and the longest legitimate wait is the `espn-write` concurrency
+  group (a 15-minute job timeout). So a late run waited on something, and a
+  missed one usually means the dispatch token. `MISSED_GRACE_MS` and
+  `LATE_AFTER_MINUTES` in `automationCatalog.js` are the definitions.
 - **The week strip is the same schedule, projected.** `upcomingSchedule`
   lays the next seven *local* calendar days out, today first, with every
   cron slot on each in the viewer's zone, labelled with the automation's

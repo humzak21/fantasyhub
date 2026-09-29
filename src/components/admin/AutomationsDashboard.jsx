@@ -29,6 +29,7 @@ import { EmptyState } from '../ui/empty-state';
 import { cn, formatDateTime } from '../../lib/utils';
 import { useAutomationReport } from './automations/useAutomationReport.js';
 import {
+  MISSED_GRACE_MS,
   PASSIVE_AUTOMATIONS,
   STEPS,
   summarizeRunSteps,
@@ -640,7 +641,7 @@ const PassiveList = () => (
 
 const OCCURRENCE = {
   ran: { label: 'ran', className: 'border-success/30 bg-success/10', dot: 'bg-success', meaning: 'A scheduled run started within six hours of this slot.' },
-  due: { label: 'due', className: 'border-info/30 bg-info/10', dot: 'bg-info', meaning: 'The slot has passed; the run is still inside its three-hour grace.' },
+  due: { label: 'due', className: 'border-info/30 bg-info/10', dot: 'bg-info', meaning: `The slot has passed; the run is still inside its ${MISSED_GRACE_MS / 60_000}-minute grace.` },
   missed: { label: 'missed', className: 'border-destructive/40 bg-destructive/10', dot: 'bg-destructive', meaning: 'Grace is up and no run landed.' },
   idle: { label: 'exits quietly', className: 'border-border bg-muted/40', dot: 'bg-muted-foreground', meaning: 'Out of season: the cron fires, the script exits without writing.' },
   upcoming: { label: null, keyLabel: 'not run yet', className: 'border-primary/30 bg-primary/10', dot: 'bg-primary', meaning: 'Scheduled and still ahead.' }
