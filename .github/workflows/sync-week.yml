@@ -8,16 +8,18 @@ name: Weekly ESPN sync
 # The job takes no arguments: it resolves the active season and the current week
 # from the database. Every step is an idempotent upsert against ESPN, so a
 # failed run is fixed by re-running it — use the "Run workflow" button.
+#
+# Every run is a `workflow_dispatch`: a person's, or the Supabase cron's.
 
 on:
-  schedule:
-    # 10:00 UTC Tuesday = 05:00 EST / 06:00 EDT. Cron here is always UTC;
-    # GitHub does not do zones, so this is the hour that is never *earlier*
-    # than 05:00 ET across the season — the buffer exists for the Tuesdays
-    # when ESPN clears a late waiver run after Monday night football, and it
-    # is also when the week's pick'em row is created (the `pickEmWeek` step),
-    # so nobody has to open it by hand.
-    - cron: '0 10 * * 2'
+  # No `schedule:` on purpose. GitHub's cron started this job four to five
+  # hours late through September 2026, so Supabase's pg_cron keeps the clock
+  # instead: at 10:00 UTC every Tuesday (05:00 EST / 06:00 EDT — the hour that
+  # is never earlier than 05:00 ET, a buffer for the Tuesdays ESPN clears a
+  # late waiver run after Monday night football) it dispatches this workflow
+  # with `trigger: cron`. That is also when the week's pick'em row is created
+  # (the `pickEmWeek` step), so nobody has to open it by hand. See
+  # supabase/migrations/20260929120000_cron_dispatch_workflows.sql.
   workflow_dispatch:
     inputs:
       week:
@@ -29,6 +31,12 @@ on:
         required: false
         default: false
         type: boolean
+      trigger:
+        description: 'Who started this run. The Supabase cron sends "cron"; leave it on "manual".'
+        required: false
+        default: manual
+        type: choice
+        options: [manual, cron]
 
 concurrency:
   # Two syncs writing the same week's scores would race, and so would a schedule
@@ -61,4 +69,4 @@ jobs:
           node scripts/sync-week.js \
             ${{ inputs.week }} \
             ${{ inputs.dry_run == true && '--dry-run' || '' }} \
-            ${{ github.event_name == 'workflow_dispatch' && '--manual' || '' }}
+            ${{ inputs.trigger != 'cron' && '--manual' || '' }}

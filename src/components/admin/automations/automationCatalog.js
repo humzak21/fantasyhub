@@ -32,10 +32,25 @@ const HOUR = 60 * MINUTE;
 
 /** A `running` row older than this was never closed: the job died or timed out. */
 export const STALLED_AFTER_MS = 30 * MINUTE;
-/** How long after a slot a cron run may still land before it counts as missed. */
-export const MISSED_GRACE_MS = 3 * HOUR;
-/** A cron run this far past its slot is worth a note. */
-export const LATE_AFTER_MINUTES = 60;
+/**
+ * How long after a slot a cron run may still land before it counts as missed.
+ *
+ * pg_cron dispatches on the minute and a dispatched run opens its `sync_runs`
+ * row a minute or two later, once `npm ci` is done. The longest legitimate
+ * wait is the `espn-write` concurrency group: a run queued behind another
+ * ESPN job waits out at most that job's 15-minute timeout. Thirty minutes
+ * covers both, and flags a failed Sunday dispatch at 17:10 UTC rather than
+ * after the early games. It was three hours while GitHub's own cron started
+ * runs two to five hours late.
+ */
+export const MISSED_GRACE_MS = 30 * MINUTE;
+/**
+ * A cron run this far past its slot is worth a note. About five times a
+ * normal dispatch-to-start, so it fires only when the run waited on
+ * something. Past twenty minutes the daily refresh has landed after the
+ * 17:00 UTC kickoffs, which is the warning `buildRecommendations` raises.
+ */
+export const LATE_AFTER_MINUTES = 10;
 
 // ---------------------------------------------------------------------------
 // The steps of scripts/sync-week.js, in the order they run.
@@ -206,7 +221,9 @@ export const STEPS = {
 
 /**
  * `schedule` is the cron in UTC, decomposed so `lastScheduledSlot` can find
- * the slot a run belongs to without a cron parser. `skips` are the steps the
+ * the slot a run belongs to without a cron parser. It must match the pg_cron
+ * job of the same name (the automation's `id`), which is what dispatches the
+ * workflow — see 20260929120000_cron_dispatch_workflows.sql. `skips` are the steps the
  * workflow passes `--skip-*` for, which is also the signature `classifyRun`
  * looks for.
  */
@@ -223,7 +240,7 @@ export const AUTOMATIONS = [
       dow: 2,
       hour: 10,
       minute: 0,
-      human: 'Tuesdays at 10:00 UTC (05:00 EST / 06:00 EDT)'
+      human: 'Tuesdays at 10:00 UTC (05:00 EST / 06:00 EDT), dispatched by Supabase pg_cron'
     },
     timeoutMinutes: 15,
     concurrency: 'espn-write',
@@ -256,7 +273,7 @@ export const AUTOMATIONS = [
       dow: null,
       hour: 16,
       minute: 40,
-      human: 'Every day at 16:40 UTC (12:40 PM EDT / 11:40 AM EST)'
+      human: 'Every day at 16:40 UTC (12:40 PM EDT / 11:40 AM EST), dispatched by Supabase pg_cron'
     },
     timeoutMinutes: 10,
     concurrency: 'espn-write',
@@ -270,7 +287,7 @@ export const AUTOMATIONS = [
       "result: scores, player stats and the ranking snapshot move once a week, on Tuesday.",
     notes: [
       'Same script as the weekly sync with six --skip flags, so a sync_runs row is attributed to this job by those flags.',
-      'Timed to land twenty minutes before the early Sunday kickoffs; GitHub cron starts late under load, which is why the margin exists.',
+      'Timed to land twenty minutes before the early Sunday kickoffs. Supabase dispatches it on the minute; GitHub\'s own cron started it two to five hours late, which is why it no longer has one.',
       'Also re-runs the pick\'em-week check and the parlay grader, so a Tuesday miss on either is caught the same day.'
     ]
   },
@@ -374,6 +391,20 @@ export const PASSIVE_AUTOMATIONS = [
       'is_completed. A season with games still to play is skipped silently. The result is reported on the ' +
       'returned season as finalizedPrevious / finalizeError.',
     verify: 'Settings → Seasons shows the previous season as completed with a champion.'
+  },
+  {
+    id: 'cron-dispatch',
+    name: 'pg_cron → workflow dispatch',
+    where: 'Database · cron.job, private.dispatch_github_workflow',
+    fires: 'At each ESPN job\'s slot (weekly-sync, daily-refresh), in UTC',
+    does:
+      'Keeps the clock for the two ESPN workflows. Each pg_cron job calls GitHub\'s workflow_dispatch API ' +
+      'with trigger = cron, so the run starts within seconds and logs as a cron run. GitHub\'s own schedule ' +
+      'started them two to five hours late and has been removed. Needs the fine-grained GitHub token in Vault ' +
+      'as github_actions_dispatch_token (Actions: read and write on this repository only).',
+    verify:
+      'A slot marked missed. cron.job_run_details shows whether the job ran; net._http_response keeps GitHub\'s ' +
+      'answer for six hours (204 is success, 401 an expired token, 422 a workflow without the trigger input).'
   },
   {
     id: 'ci',
@@ -931,10 +962,11 @@ export function buildRecommendations({
         automationId: automation.id,
         title: `${automation.name} did not run for its last slot`,
         detail:
-          `No cron run has landed since ${missedSlot.toISOString()}. Either GitHub did not fire the ` +
-          'schedule (a repository with no pushes for 60 days has its schedules disabled), the job failed ' +
-          'before it could open a sync_runs row (check the Actions log), or the script exited early because ' +
-          'the season row says not started or completed.',
+          `No cron run has landed since ${missedSlot.toISOString()}. Either the Supabase cron did not ` +
+          'dispatch the workflow (the github_actions_dispatch_token in Vault is missing, expired or revoked — ' +
+          'cron.job_run_details and, for six hours, net._http_response say which), the job failed before it ' +
+          'could open a sync_runs row (check the Actions log), or the script exited early because the season ' +
+          'row says not started or completed.',
         actions: [
           { label: 'Check the Actions log', href: workflowUrl(automation.workflowFile) },
           runAction(automation)
@@ -973,18 +1005,24 @@ export function buildRecommendations({
       }
     }
     if (lagMinutes != null && lagMinutes > LATE_AFTER_MINUTES && status !== 'missed') {
-      const sunday = automation.id === 'daily-refresh';
+      const daily = automation.id === 'daily-refresh';
+      const afterKickoff = daily && lagMinutes > 20;
+      const consequence = afterKickoff
+        ? 'The daily refresh is timed to land twenty minutes before the early Sunday kickoffs; this one ' +
+          'landed after 17:00 UTC, so on a Sunday the lineups it captured were already locked. '
+        : daily
+          ? 'It still landed before the early Sunday kickoffs. '
+          : 'Harmless unless the pick\'em window opens before the row is created. ';
       push({
         id: `${automation.id}-late`,
-        severity: sunday && lagMinutes > 20 ? 'warning' : 'info',
+        severity: afterKickoff ? 'warning' : 'info',
         automationId: automation.id,
         title: `${automation.name} started ${lagMinutes} minutes after its slot`,
-        detail: sunday
-          ? 'The daily refresh is timed to land twenty minutes before the early Sunday kickoffs. A lag this ' +
-            'size means the Sunday lineups it captures are already locked. GitHub schedules are best-effort; ' +
-            'move the cron earlier in .github/workflows/daily-refresh.yml rather than later.'
-          : 'GitHub schedules are best-effort and start late under load. Harmless unless the pick\'em window ' +
-            'opens before the row is created.'
+        detail:
+          consequence +
+          'The Supabase cron dispatches on the minute, so the run waited on something: another espn-write ' +
+          'job, GitHub\'s queue, or a pg_cron job that fired late. cron.job_run_details and the Actions log ' +
+          'say which.'
       });
     }
   }
