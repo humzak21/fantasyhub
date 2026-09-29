@@ -1,11 +1,12 @@
 /**
- * The commissioner dashboard.
+ * The TD parlay board.
  *
- * The load-bearing assertion is the access one: this page shows real names, so
- * a viewer who is neither the admin nor the commissioner must not reach it —
- * and the *reason* they cannot is RLS, which returns them no rows regardless.
- * The check here is that the page says so instead of rendering an empty table
- * that reads as "nobody has picked".
+ * The load-bearing assertion is the access one, and since 2026-09-29 it runs
+ * the other way: an ordinary member — not the admin, not the commissioner —
+ * sees every pick under its owner's name. The page used to turn them away,
+ * which hid nothing (`td_parlay_picks` is public-read) and kept members from
+ * the competition they are in. The commissioner is told apart by a badge and
+ * nothing else.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -128,14 +129,28 @@ describe('ParlayCommissionerDashboard', () => {
     expect(screen.queryByText('No TD')).not.toBeInTheDocument();
   });
 
-  it('turns an ordinary viewer away instead of showing an empty table', async () => {
+  it('shows an ordinary member the whole board, under real names', async () => {
     users.isParlayCommissioner.mockResolvedValue(false);
-    parlay.getSeasonParlayPicks.mockResolvedValue([]);
 
     renderWithProviders(<ParlayCommissionerDashboard season={SEASON} />);
 
-    expect(await screen.findByText(/parlay commissioner/i)).toBeInTheDocument();
-    expect(screen.queryByText('Justin Jefferson')).not.toBeInTheDocument();
+    expect(await screen.findAllByText('Justin Jefferson')).not.toHaveLength(0);
+    expect(screen.getAllByText('Rohit Ramki').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/not available/i)).not.toBeInTheDocument();
+  });
+
+  it('badges the commissioner and nobody else', async () => {
+    renderWithProviders(<ParlayCommissionerDashboard season={SEASON} />);
+    expect(await screen.findByText('Commissioner')).toBeInTheDocument();
+  });
+
+  it('shows no commissioner badge to an ordinary member', async () => {
+    users.isParlayCommissioner.mockResolvedValue(false);
+
+    renderWithProviders(<ParlayCommissionerDashboard season={SEASON} />);
+
+    await screen.findAllByText('Justin Jefferson');
+    expect(screen.queryByText('Commissioner')).not.toBeInTheDocument();
   });
 
   it('explains an empty season rather than rendering a bare table', async () => {

@@ -115,7 +115,11 @@ export function ViewerProvider({ children }) {
        */
       isTeamOwner: Boolean(isAuthenticated && user && isUserATeamOwner(user, teamOwnerNames)),
       /**
-       * May this viewer see everyone's TD parlay picks?
+       * Is this viewer the TD parlay's commissioner?
+       *
+       * Not "may they see everyone's picks" — every member can, since
+       * 2026-09-29, on the Pick'ems TD Parlay tab. The flag names the person
+       * who grades them, and the board shows it as a badge.
        *
        * The admin is folded in here, as they are in every `getMasked*` helper —
        * but only here. The reverse must not happen: a commissioner is not an

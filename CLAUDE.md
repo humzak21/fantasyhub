@@ -1381,23 +1381,29 @@ sync's `parlayGrades` step" under the NFL-data notes below.
 
 **The commissioner is a role, not an admin.** `league_roles` +
 `is_parlay_commissioner()` exist because `is_admin()` is a single hardcoded
-email and the parlay needs people who can *read* everyone's picks without
-gaining the league's write paths. Grants are keyed on `user_id`, so they survive
+email and the parlay needs a person who grades it without gaining the
+league's write paths. Grants are keyed on `user_id`, so they survive
 an email change, and the admin assigns them in **Settings → Roles**
 (`src/components/admin/LeagueRolesManager.jsx`) — the role changes hands and
 more than one person can hold it, so it is a UI, not a migration. The picker's
 member list comes from `list_league_members()`, whose `is_admin()` guard is in
 its `WHERE` clause: a non-admin gets an empty list, not an error.
 `isParlayCommissioner` on `useViewer()` folds the admin in; **never fold the
-commissioner into `isAdmin`** — the dashboard passes the flag into `getMasked*`
-locally, and that substitution stays local.
+commissioner into `isAdmin`**.
 
-Their league-wide view (`src/components/parlay/ParlayCommissionerDashboard.jsx`)
-is a **tab inside Pick'ems, next to Submissions**, not a top-level nav
-destination: two people can open it, which is thin grounds for a nav item every
-other layout has to make room for, and it belongs beside the form the picks it
-reports on are entered in. PickEmsManager lazy-loads it and passes `embedded`,
-which drops its `PageHeader` so the page is not titled twice.
+**The TD Parlay tab is every member's, not the commissioner's**
+(since 2026-09-29). `src/components/parlay/ParlayCommissionerDashboard.jsx`
+keeps its name for history's sake, but it is a **tab inside Pick'ems, next to
+Standings**, shown to everyone who can open Pick'ems — so its audience is the
+Pick'ems tab's audience (approved members), and nothing on it is masked or
+withheld: every pick, name, division column, grade and hit rate. The role's
+only remaining trace on the page is the **Commissioner** badge. The gate it
+used to carry hid nothing — `td_parlay_picks` has been `USING (true)` since
+`20260902150000_parlay_picks_visible_as_submitted` — and kept members from a
+view of their own competition. Do not gate it on `isParlayCommissioner`
+again; the page no longer waits on `isParlayCommissionerLoading` either.
+PickEmsManager lazy-loads it and passes `embedded`, which drops its
+`PageHeader` so the page is not titled twice.
 
 **Its week board is division columns too**, through the same
 `groupPicksByDivision` the members' board uses — the league runs one parlay per
