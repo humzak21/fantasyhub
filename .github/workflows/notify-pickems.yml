@@ -1,0 +1,70 @@
+name: Pick'em notifications
+
+# Push notifications to members' phones: "pick'ems are open" and "pick'ems
+# close in a few hours and you haven't picked".
+#
+# No `schedule:`, like the ESPN jobs: Supabase's pg_cron dispatches this at
+# two fixed slots (Tuesdays 14:00 UTC, Thursdays 21:30 UTC), and the script
+# decides from the open pick'em week what, if anything, is due. A slot with
+# nothing due sends nothing, and a re-run sends nothing twice — every send is
+# claimed in `notification_log` first. See
+# supabase/migrations/20261002120000_push_notifications.sql.
+#
+# Run it by hand to send what is due now, to see what would be sent
+# (dry run), or to send yourself a test notification (test_email).
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: 'Who started this run. The Supabase cron sends "cron"; leave it on "manual".'
+        required: false
+        default: manual
+        type: choice
+        options: [manual, cron]
+      dry_run:
+        description: 'Only print what would be sent.'
+        required: false
+        default: false
+        type: boolean
+      test_email:
+        description: 'Send one test notification to this member''s devices instead (their sign-in email).'
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  # Its own group: this reads pick'em tables and writes only its own log, so
+  # it has no reason to wait behind an ESPN sync.
+  group: notify-pickems
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Send due notifications
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          TEST_EMAIL: ${{ inputs.test_email }}
+        run: |
+          if [ -n "$TEST_EMAIL" ]; then
+            node scripts/send-notifications.js --test "$TEST_EMAIL"
+          else
+            node scripts/send-notifications.js ${{ inputs.dry_run && '--dry-run' || '' }}
+          fi

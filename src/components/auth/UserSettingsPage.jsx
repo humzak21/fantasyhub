@@ -19,6 +19,7 @@ import AutomationsDashboard, { ColourKey } from '../admin/AutomationsDashboard.j
 import { useAutomationReport } from '../admin/automations/useAutomationReport.js'
 import ApprovalPendingNotice from './ApprovalPendingNotice.jsx'
 import ChangePasswordForm from './ChangePasswordForm.jsx'
+import NotificationsCard from './NotificationsCard.jsx'
 import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
 
 export const UserSettingsPage = () => {
@@ -385,6 +386,10 @@ export const UserSettingsPage = () => {
                 </form>
               </CardContent>
             </Card>
+
+            {/* Push notifications. Per device, and on an iPhone only in the
+                Home Screen app; see src/utils/pushNotifications.js. */}
+            <NotificationsCard />
 
             {/* Password. Before 2026-09-04 the only way to change one was
                 the reset link, which signed you in and then offered nothing

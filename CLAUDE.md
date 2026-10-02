@@ -1983,6 +1983,63 @@ route, no migration. Rules that are load-bearing:
   limit for sending emails" above the built-in cap. Password-reset email goes
   through the same path and gains the same headroom.
 
+### Push notifications go to the Home Screen app
+
+Most of the league opens the site on an iPhone, and iOS (16.4+) delivers Web
+Push only to a site added to the Home Screen and opened from that icon — a
+Safari tab has no `PushManager`. So the feature is three halves:
+
+- **The app.** `public/manifest.webmanifest` (`display: standalone`, icons
+  `icon-192.png` / `icon-512.png`) is what makes the Home Screen icon open as
+  an app; a shortcut added before it existed opens Safari and has to be
+  re-added. `public/sw.js` handles `push` and `notificationclick` and has
+  **no `fetch` handler and no cache, on purpose**: the bundle deploys several
+  times a week and a caching worker would pin members to a stale build.
+  `registerServiceWorker()` runs once from `src/main.jsx`.
+- **The opt-in.** Settings → Profile → Notifications (`NotificationsCard`)
+  renders `resolvePushState` (`src/utils/pushNotifications.js`): *install*
+  (an iPhone outside the app — add to Home Screen, sign in), *denied* (only
+  iOS Settings can undo it), *off*, *on*. Permission is requested on the tap,
+  because iOS refuses a prompt that does not follow one. Topics are **per
+  device**. Approved members only — the topics are about pick'ems.
+  **Magic links cannot sign the app in**: iOS opens email links in Safari,
+  whose storage the Home Screen app does not share, so the card tells members
+  to use their password there.
+- **The sender.** `push_subscriptions` (`20261002120000_push_notifications.sql`)
+  is written only through `save_push_subscription()` — SECURITY DEFINER
+  because `endpoint` is unique and a phone that signs in as somebody else must
+  *move* the row — and read/deleted own-row by members, all rows by the
+  service role. pg_cron dispatches `.github/workflows/notify-pickems.yml`
+  (jobs `notify-pickems-open`, Tuesday 14:00 UTC; `notify-pickems-closing`,
+  Thursday 21:30 UTC) through `private.dispatch_github_workflow`, and
+  `scripts/send-notifications.js` sends with `web-push`.
+
+Rules that are load-bearing:
+
+- **The planner decides what is due, not the slot.** `planPickemNotifications`
+  (`services/notificationPlanner.js`, pure) reads the pick'em week whose
+  window contains *now*: "open" while the window is open, "closing" inside
+  `CLOSING_LEAD_HOURS` (6) of the deadline to members with no
+  `pick_em_submissions` row, and never "open" once "closing" is due. A slot
+  with nothing due sends nothing. Moving `pickem_close_time` far from 8 PM ET
+  means moving the Thursday slot too, or the reminder never lands in the
+  window.
+- **Claim, then send.** `notification_log` is unique on (kind, season, week)
+  and the script inserts its row *before* sending, so a re-run, a manual press
+  and a race all send once. The row then records delivered / failed / removed.
+- **404 and 410 delete the device** (`isGoneStatus`); every other failure
+  leaves it. A browser subscription with no stored row reads as *off*, and
+  turning on again re-saves the same subscription.
+- **The VAPID key pair is split across two places.** The public key is in
+  `src/utils/pushNotifications.js` (public by design, overridable with
+  `VITE_VAPID_PUBLIC_KEY`); the private key is the `VAPID_PRIVATE_KEY`
+  Actions secret beside `VAPID_PUBLIC_KEY` and `VAPID_SUBJECT`. Rotating
+  means changing both, after which every member turns notifications on again.
+- **Testing a real push:** run the workflow with `test_email` set to a
+  member's sign-in email; `dry_run` prints what is due without sending or
+  claiming. The card's "Show a test notification" is local and only proves
+  the app may display one.
+
 ### Password reset is a login, and the page makes it set a password
 
 A Supabase recovery link is not "prove it's you, then choose a password". It

@@ -11,6 +11,7 @@ import { ViewerProvider } from './contexts/ViewerContext.jsx'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
 import { Toaster } from './components/ui/sonner.jsx'
 import '../globals.css'
+import { registerServiceWorker } from './utils/pushNotifications.js'
 
 // One client for the process. Created here rather than at module scope in
 // queryClient.js so tests can mount a tree with their own.
@@ -40,3 +41,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </ErrorBoundary>
   </React.StrictMode>,
 )
+
+// Push notifications only; the worker caches nothing (see public/sw.js).
+registerServiceWorker()
