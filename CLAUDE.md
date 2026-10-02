@@ -234,7 +234,15 @@ through a default of `auth.uid()` must be nullable;
 so week 3 failed identically and weeks 3 and 4 were opened by hand. A
 merged migration is not an applied one: the migrations are applied by hand
 through the Supabase MCP, so after merging one, check
-`supabase_migrations.schema_migrations` or the change itself. Note the window still *opens* at `pickem_open_time`
+`supabase_migrations.schema_migrations` or the change itself. **Through the
+Supabase MCP, any statement containing `DROP` hangs and times out** (it waits
+on a confirmation that never arrives), and the whole call is rolled back —
+measured 2026-10-02, where `apply_migration` and `execute_sql` both timed out
+on a `DROP POLICY IF EXISTS` and ran everything else instantly. Apply a
+migration whose `DROP`s are no-ops (a brand-new table's `DROP POLICY IF
+EXISTS`) without those lines, and anything with a real `DROP` through the
+dashboard's SQL editor. The MCP records the version as the apply time, not
+the file's, as it always has here. Note the window still *opens* at `pickem_open_time`
 (04:00 by default) while the row appears at the 05:00 run; nothing reads the
 row in that hour, but a season that wants the two to coincide sets the open
 time to 05:00.
@@ -2014,6 +2022,13 @@ Safari tab has no `PushManager`. So the feature is three halves:
   Thursday 21:30 UTC) through `private.dispatch_github_workflow`, and
   `scripts/send-notifications.js` sends with `web-push`.
 
+**Live since 2026-10-02** (#115): the migration is applied (recorded as
+`20261002045759 push_notifications`, without its no-op `DROP POLICY` lines —
+see the MCP note under "Scripts write to production"), the pg_cron jobs
+`notify-pickems-open` / `notify-pickems-closing` are active, and test pushes
+from the workflow were delivered to two members' iPhones. The first scheduled
+send is the Tuesday after.
+
 Rules that are load-bearing:
 
 - **The planner decides what is due, not the slot.** `planPickemNotifications`
@@ -2033,8 +2048,14 @@ Rules that are load-bearing:
 - **The VAPID key pair is split across two places.** The public key is in
   `src/utils/pushNotifications.js` (public by design, overridable with
   `VITE_VAPID_PUBLIC_KEY`); the private key is the `VAPID_PRIVATE_KEY`
-  Actions secret beside `VAPID_PUBLIC_KEY` and `VAPID_SUBJECT`. Rotating
-  means changing both, after which every member turns notifications on again.
+  Actions secret beside `VAPID_PUBLIC_KEY`. Rotating means changing both,
+  after which every member turns notifications on again.
+- **`VAPID_SUBJECT` is deliberately unset.** The script falls back to
+  `https://ogjits.com`. On 2026-10-02 the secret's value made Apple refuse
+  every send with `403 {"reason":"BadJwtToken"}` while the same keys signed
+  successfully with `https://ogjits.com` or `mailto:name@domain` (no space
+  after the colon); deleting the secret fixed it. A `BadJwtToken` from
+  `web.push.apple.com` means the subject or the key pair, never the device.
 - **Testing a real push:** run the workflow with `test_email` set to a
   member's sign-in email; `dry_run` prints what is due without sending or
   claiming. The card's "Show a test notification" is local and only proves
