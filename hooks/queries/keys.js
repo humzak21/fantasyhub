@@ -143,7 +143,15 @@ export const qk = {
   viewer: {
     all: ['viewer'],
     parlayCommissioner: (userId) => ['viewer', 'parlayCommissioner', userId],
-    approved: (userId) => ['viewer', 'approved', userId]
+    approved: (userId) => ['viewer', 'approved', userId],
+    /**
+     * This device's push notification state: what the browser holds and what
+     * the server has stored for it. Per device, not just per user — a member
+     * can have notifications on for their phone and off for their laptop —
+     * but the endpoint is not known until the query has asked the browser, so
+     * the key carries the user and the query answers for this device.
+     */
+    push: (userId) => ['viewer', 'push', userId]
   },
 
   /**

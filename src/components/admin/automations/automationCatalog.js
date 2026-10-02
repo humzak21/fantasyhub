@@ -396,7 +396,7 @@ export const PASSIVE_AUTOMATIONS = [
     id: 'cron-dispatch',
     name: 'pg_cron → workflow dispatch',
     where: 'Database · cron.job, private.dispatch_github_workflow',
-    fires: 'At each ESPN job\'s slot (weekly-sync, daily-refresh), in UTC',
+    fires: 'At each job\'s slot (weekly-sync, daily-refresh, notify-pickems-open, notify-pickems-closing), in UTC',
     does:
       'Keeps the clock for the two ESPN workflows. Each pg_cron job calls GitHub\'s workflow_dispatch API ' +
       'with trigger = cron, so the run starts within seconds and logs as a cron run. GitHub\'s own schedule ' +
@@ -405,6 +405,21 @@ export const PASSIVE_AUTOMATIONS = [
     verify:
       'A slot marked missed. cron.job_run_details shows whether the job ran; net._http_response keeps GitHub\'s ' +
       'answer for six hours (204 is success, 401 an expired token, 422 a workflow without the trigger input).'
+  },
+  {
+    id: 'push-notifications',
+    name: "Pick'em notifications",
+    where: 'GitHub Actions · notify-pickems.yml, dispatched by pg_cron',
+    fires: 'Tuesdays 14:00 UTC and Thursdays 21:30 UTC (pg_cron jobs notify-pickems-open / notify-pickems-closing)',
+    does:
+      "Sends push notifications to members' phones: \"pick'ems are open\" once the week's window opens, and " +
+      "\"pick'ems close soon\" in the six hours before the deadline to members who have not picked. The script " +
+      'decides what is due from the open pick_em_weeks row, so a slot with nothing due sends nothing; each send is ' +
+      'claimed in notification_log first, so a re-run never repeats one. Needs the VAPID_PUBLIC_KEY, ' +
+      'VAPID_PRIVATE_KEY and VAPID_SUBJECT secrets.',
+    verify:
+      'notification_log has a row per kind per week with delivered / failed / removed counts. Run the workflow with ' +
+      'test_email set to send yourself a test, or dry_run to see what is due.'
   },
   {
     id: 'ci',

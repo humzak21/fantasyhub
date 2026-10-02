@@ -67,7 +67,8 @@
     "serve": "^14.2.6",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.2.0",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
