@@ -29,6 +29,9 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+
 concurrency:
   # Its own group, apart from notify-pickems: a burst of Hell Nahs replacing
   # each other's pending run is the point here, and must never replace a
