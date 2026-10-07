@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 
 import {
   CLOSING_LEAD_HOURS,
+  TAKE_EVENT_MAX_AGE_HOURS,
   TOPICS,
   formatDeadline,
   isGoneStatus,
-  planPickemNotifications
+  planPickemNotifications,
+  planTakeNotifications,
+  previewTake
 } from '../notificationPlanner.js';
 
 // Week 5, 2026: opens Tuesday 06 Oct 04:00 EDT, closes Thursday 08 Oct 20:00 EDT.
@@ -106,5 +109,117 @@ describe('isGoneStatus', () => {
     expect(isGoneStatus(404)).toBe(true);
     expect(isGoneStatus(429)).toBe(false);
     expect(isGoneStatus(500)).toBe(false);
+  });
+});
+
+describe('planTakeNotifications', () => {
+  const NOW = new Date('2026-10-07T18:00:00Z');
+  const minutesAgo = (m) => new Date(NOW.getTime() - m * 60_000);
+  const TAKE = { id: 't1', authorId: 'author', body: 'Bijan finishes as the RB1.', wager: '$20' };
+  const everything = [TOPICS.pickemsOpen, TOPICS.pickemsClosing, TOPICS.takesNew, TOPICS.takesReactions];
+  const event = (eventType, subjectId, extra = {}) => ({
+    id: `e-${eventType}-${subjectId}`,
+    takeId: 't1',
+    seasonId: 's26',
+    eventType,
+    subjectId,
+    createdAt: minutesAgo(2),
+    ...extra
+  });
+  const plan = (overrides) => planTakeNotifications({
+    now: NOW,
+    takes: new Map([['t1', TAKE]]),
+    subscriptions: [sub('author', everything), sub('sam', everything), sub('lee', [TOPICS.pickemsOpen])],
+    displayNames: { author: 'Humza', sam: 'Sam', lee: 'Lee' },
+    ...overrides
+  });
+
+  it('announces a new take to everyone with it on, except the author', () => {
+    const plans = plan({ events: [event('posted', 'author')] });
+    expect(plans).toHaveLength(1);
+    expect(plans[0]).toMatchObject({ kind: TOPICS.takesNew, eventId: 'e-posted-author', seasonId: 's26' });
+    expect(plans[0].recipients.map((r) => r.userId)).toEqual(['sam']);
+    expect(plans[0].payload).toEqual({
+      title: 'New take from Humza',
+      body: '“Bijan finishes as the RB1.” · $20 on it',
+      url: '/takes?take=t1',
+      tag: 'take-t1'
+    });
+  });
+
+  it('tells only the author about a Hell Nah, with what it means for their stake', () => {
+    const plans = plan({
+      events: [event('faded', 'sam')],
+      participants: [{ takeId: 't1', userId: 'sam', side: 'nah', wager: null }]
+    });
+    expect(plans).toHaveLength(1);
+    expect(plans[0].kind).toBe(TOPICS.takesReactions);
+    expect(plans[0].recipients.map((r) => r.userId)).toEqual(['author']);
+    expect(plans[0].payload.title).toBe('Sam said Hell Nah to your take');
+    expect(plans[0].payload.body).toBe('“Bijan finishes as the RB1.” · If it hits, they owe you $20.');
+  });
+
+  it('names a Hell Yeah, and its stake when it has one', () => {
+    const plain = plan({
+      events: [event('backed', 'sam')],
+      participants: [{ takeId: 't1', userId: 'sam', side: 'yeah', wager: null }]
+    });
+    expect(plain[0].payload.title).toBe('Sam said Hell Yeah to your take');
+    expect(plain[0].payload.body).toBe('“Bijan finishes as the RB1.”');
+
+    const staked = plan({
+      events: [event('backed', 'sam')],
+      participants: [{ takeId: 't1', userId: 'sam', side: 'yeah', wager: 'a beer' }]
+    });
+    expect(staked[0].payload.title).toBe('Sam said Hell Yeah to your take, with a beer on it');
+  });
+
+  it('says nothing about a Hell Nah withdrawn, or switched to a Hell Yeah, before the run', () => {
+    expect(plan({ events: [event('faded', 'sam')], participants: [] })).toEqual([]);
+    expect(plan({
+      events: [event('faded', 'sam')],
+      participants: [{ takeId: 't1', userId: 'sam', side: 'yeah', wager: null }]
+    })).toEqual([]);
+  });
+
+  it('respects the author turning reactions off, and nobody else hears them', () => {
+    const plans = plan({
+      events: [event('faded', 'sam')],
+      participants: [{ takeId: 't1', userId: 'sam', side: 'nah', wager: null }],
+      subscriptions: [sub('author', [TOPICS.takesNew]), sub('sam', everything)]
+    });
+    expect(plans).toEqual([]);
+  });
+
+  it('skips stale events, deleted takes, withdrawals and edits', () => {
+    expect(plan({ events: [event('posted', 'author', { createdAt: minutesAgo(TAKE_EVENT_MAX_AGE_HOURS * 60 + 1) })] })).toEqual([]);
+    expect(plan({ events: [event('posted', 'author', { takeId: 'gone' })] })).toEqual([]);
+    expect(plan({ events: [event('unfaded', 'sam'), event('edited', 'author'), event('graded', 'author')] })).toEqual([]);
+  });
+
+  it('keeps take wording away from accounts that may not read takes', () => {
+    const plans = plan({ events: [event('posted', 'author')], excludedUserIds: new Set(['sam']) });
+    expect(plans).toEqual([]);
+  });
+
+  it('gives each reaction its own tag so two Hell Nahs are two notifications', () => {
+    const plans = plan({
+      events: [event('faded', 'sam'), event('faded', 'lee', { createdAt: minutesAgo(1) })],
+      participants: [
+        { takeId: 't1', userId: 'sam', side: 'nah', wager: null },
+        { takeId: 't1', userId: 'lee', side: 'nah', wager: null }
+      ]
+    });
+    expect(plans.map((p) => p.payload.title)).toEqual(['Sam said Hell Nah to your take', 'Lee said Hell Nah to your take']);
+    expect(new Set(plans.map((p) => p.payload.tag)).size).toBe(2);
+  });
+});
+
+describe('previewTake', () => {
+  it('collapses whitespace and trims a long take to the lock screen', () => {
+    expect(previewTake('  two\n\nlines  ')).toBe('two lines');
+    const long = 'x'.repeat(200);
+    expect(previewTake(long)).toHaveLength(140);
+    expect(previewTake(long).endsWith('…')).toBe(true);
   });
 });

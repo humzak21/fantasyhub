@@ -58,3 +58,12 @@ describe('urlBase64ToUint8Array', () => {
     expect(bytes[0]).toBe(4);
   });
 });
+
+describe('PUSH_TOPICS', () => {
+  it('offers exactly the topics the sender knows, in the database\'s list', async () => {
+    const { ALL_TOPIC_IDS } = await import('../pushNotifications.js');
+    const { ALL_TOPICS } = await import('../../../services/notificationPlanner.js');
+    // push_subscriptions_topics_check (20261007120000_take_notifications.sql) is the third copy.
+    expect(ALL_TOPIC_IDS).toEqual([...ALL_TOPICS]);
+  });
+});

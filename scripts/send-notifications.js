@@ -4,6 +4,7 @@
  *
  *   node scripts/send-notifications.js              # send what is due
  *   node scripts/send-notifications.js --dry-run    # say what would be sent
+ *   node scripts/send-notifications.js --takes      # announce new takes, Hell Yeahs and Hell Nahs
  *   node scripts/send-notifications.js --test you@example.com
  *                                                   # one test notification to that member's devices
  *
@@ -15,6 +16,13 @@
  * cleans up devices the push service reports gone. Re-running is safe: a
  * claimed (kind, season, week) is never sent again.
  *
+ * `--takes` is the other half, run by .github/workflows/notify-takes.yml,
+ * which a trigger on `take_events` dispatches the moment a take is posted,
+ * faded or backed (20261007120000_take_notifications.sql). It never sends a
+ * pick'em notification, and the default mode never sends a take one: the
+ * pick'em slots were chosen for a civil hour, and a take posted at 5 AM must
+ * not be the thing that sends "pick'ems are open".
+ *
  * Needs SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY,
  * VAPID_PRIVATE_KEY and VAPID_SUBJECT (a mailto: or https: URL Apple can
  * reach you at).
@@ -24,7 +32,12 @@ import '../services/db/client.server.js';
 import webpush from 'web-push';
 
 import { getDb, getContext } from '../services/db/index.js';
-import { isGoneStatus, planPickemNotifications } from '../services/notificationPlanner.js';
+import {
+  TAKE_EVENT_MAX_AGE_HOURS,
+  isGoneStatus,
+  planPickemNotifications,
+  planTakeNotifications
+} from '../services/notificationPlanner.js';
 
 const HOUR_S = 60 * 60;
 
@@ -127,6 +140,61 @@ export async function sendDueNotifications({ db = getDb(getContext()), now = new
   return { week: week.weekNumber, sent: report };
 }
 
+/**
+ * Announce the take events nobody has been told about yet. Each event is
+ * claimed in notification_log by its id before it is sent.
+ */
+export async function sendTakeNotifications({ db = getDb(getContext()), now = new Date(), dryRun = false, send } = {}) {
+  const since = new Date(now.getTime() - TAKE_EVENT_MAX_AGE_HOURS * HOUR_S * 1000);
+  const inputs = await db.notifications.getTakeNotificationInputs(since);
+  if (!inputs.events.length) return { reason: 'no take events to announce', sent: [] };
+
+  const subscriptions = await db.notifications.getPushSubscriptions();
+  const plans = planTakeNotifications({ now, subscriptions, ...inputs });
+  if (!plans.length) return { reason: 'nobody to tell', events: inputs.events.length, sent: [] };
+
+  const report = [];
+  const gone = new Set();
+  for (const plan of plans) {
+    // A device found gone by an earlier plan in this run is not tried again.
+    const recipients = plan.recipients.filter((recipient) => !gone.has(recipient.endpoint));
+    if (dryRun) {
+      report.push({ kind: plan.kind, eventId: plan.eventId, recipients: recipients.length, payload: plan.payload, dryRun: true });
+      continue;
+    }
+
+    const logId = await db.notifications.claimTakeNotification({
+      kind: plan.kind,
+      seasonId: plan.seasonId,
+      takeEventId: plan.eventId,
+      recipients: recipients.length
+    });
+    if (!logId) continue;
+
+    const result = await deliver({ ...plan, recipients }, { send, ttlSeconds: TAKE_EVENT_MAX_AGE_HOURS * HOUR_S });
+    result.gone.forEach((endpoint) => gone.add(endpoint));
+
+    await db.notifications.deletePushSubscriptions(result.gone);
+    await db.notifications.markPushSubscriptionsSent(result.delivered, now);
+    await db.notifications.finishNotification(logId, {
+      delivered: result.delivered.length,
+      failed: result.failures.length,
+      removed: result.gone.length
+    });
+
+    report.push({
+      kind: plan.kind,
+      eventId: plan.eventId,
+      recipients: recipients.length,
+      delivered: result.delivered.length,
+      removed: result.gone.length,
+      failures: result.failures
+    });
+  }
+
+  return { sent: report };
+}
+
 /** A test notification to one member's devices, found by email. */
 async function sendTest(email) {
   const client = getContext().client;
@@ -151,7 +219,7 @@ async function sendTest(email) {
     recipients: devices,
     payload: {
       title: 'OG Jits notifications are on',
-      body: 'This is a test. Pick\'em reminders will arrive like this.',
+      body: 'This is a test. Pick\'em reminders and take alerts will arrive like this.',
       url: '/settings',
       tag: 'test'
     }
@@ -162,13 +230,15 @@ async function sendTest(email) {
 
 async function main(argv = process.argv.slice(2)) {
   const dryRun = argv.includes('--dry-run');
+  const takes = argv.includes('--takes');
   const testIndex = argv.indexOf('--test');
 
   if (!dryRun) configureVapid();
 
-  const result = testIndex >= 0
-    ? await sendTest(argv[testIndex + 1] ?? '')
-    : await sendDueNotifications({ dryRun });
+  let result;
+  if (testIndex >= 0) result = await sendTest(argv[testIndex + 1] ?? '');
+  else if (takes) result = await sendTakeNotifications({ dryRun });
+  else result = await sendDueNotifications({ dryRun });
 
   console.log(JSON.stringify(result, null, 2));
 

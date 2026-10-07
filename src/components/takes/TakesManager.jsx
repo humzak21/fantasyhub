@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Flame, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -57,7 +58,31 @@ export function TakesManager({ season, loading }) {
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+
+  // `/takes?take=<id>` opens that take's sheet. It is where a take
+  // notification lands (scripts/send-notifications.js --takes), so tapping
+  // "Sam said Hell Nah to your take" shows the take rather than the board.
+  // A link to a take that is not on this board — deleted, another season —
+  // opens nothing, because `selectedTake` below finds no row.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedTakeId = searchParams.get('take');
+  const [selectedId, setSelectedId] = useState(linkedTakeId);
+  useEffect(() => {
+    if (linkedTakeId) setSelectedId(linkedTakeId);
+  }, [linkedTakeId]);
+
+  const closeSheet = () => {
+    setSelectedId(null);
+    // Closing drops the link, so a reload or the back button does not reopen
+    // a sheet the member just closed.
+    if (linkedTakeId) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('take');
+        return next;
+      }, { replace: true });
+    }
+  };
 
   // Which take is waiting on its Hell Nah confirmation. An id, like the other
   // two, so the dialog reads the fresh row after a refetch.
@@ -221,7 +246,7 @@ export function TakesManager({ season, loading }) {
 
   const handleDelete = async (take) => {
     if (await run(deleteTake, { takeId: take.id }, 'Could not delete that take')) {
-      setSelectedId(null);
+      closeSheet();
     }
   };
 
@@ -334,7 +359,7 @@ export function TakesManager({ season, loading }) {
         activityLoading={activityLoading}
         open={Boolean(selectedTake)}
         onOpenChange={(open) => {
-          if (!open) setSelectedId(null);
+          if (!open) closeSheet();
         }}
         onFade={requestFade}
         onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
