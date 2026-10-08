@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Edit3, Trophy } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -14,6 +15,7 @@ import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUti
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../types/index.js';
+import { teamRosterPath } from '../teams/teamLink.js';
 
 /**
  * The components, in weight order, built from the weights themselves.
@@ -112,16 +114,26 @@ const PowerRankingsTable = ({
       key: 'team',
       header: 'Team',
       priority: 'primary',
+      // The name opens the team's roster on the Teams tab, which scrolls the
+      // card into view from `?team=`. A link rather than an `onRowClick`: a
+      // clickable row is a div with a handler, unreachable by keyboard, and
+      // on a phone the whole card would become one tap target.
       cell: (team) => (
-        <TeamIdentity
-          team={{
-            ...team,
-            name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
-            ownerName: getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
-          }}
-          showOwner={Boolean(team.owner)}
-          isViewer={isUserTeam(team, user)}
-        />
+        <Link
+          to={teamRosterPath(team.teamId ?? team.id)}
+          className="group -m-1 inline-flex min-w-0 max-w-full rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <TeamIdentity
+            team={{
+              ...team,
+              name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
+              ownerName: getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
+            }}
+            showOwner={Boolean(team.owner)}
+            isViewer={isUserTeam(team, user)}
+            nameClassName="underline-offset-2 decoration-foreground/40 group-hover:underline"
+          />
+        </Link>
       ),
     },
     {

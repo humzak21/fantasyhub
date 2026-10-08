@@ -86,6 +86,7 @@ const FantasyFootballApp = () => {
     divisions,
     standings,
     rosters,
+    rostersLoading,
     completedWeeks,
     isLoading,
     error
@@ -547,6 +548,7 @@ const FantasyFootballApp = () => {
                     season={activeSeason}
                     teams={activeSeason?.teams || []}
                     rosters={rosters}
+                    rostersLoading={rostersLoading}
                     onAddTeam={isAdmin ? handleAddTeam : null}
                     onUpdateTeam={isAdmin ? handleUpdateTeam : null}
                     onRemoveTeam={isAdmin ? handleRemoveTeam : null}

@@ -96,6 +96,18 @@ describe('PowerRankingsTable', () => {
     expect(within(table()).getAllByText('t1')).toHaveLength(2);
   });
 
+  it('links each team name to its roster on the Teams tab', () => {
+    renderWithProviders(
+      <PowerRankingsTable rankings={[team(), team({ teamId: 't2', id: 't2' })]} currentWeek={4} />
+    );
+
+    // The link is the name, in both layouts — the card stack is where a phone
+    // taps it — and it carries the team id the Teams tab scrolls to.
+    const links = within(table()).getAllByRole('link');
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/teams?team=t1', '/teams?team=t2']);
+    expect(screen.getAllByRole('link', { name: /t1/ })).toHaveLength(2);
+  });
+
   it('labels every component from the weights, in the legend', () => {
     renderWithProviders(
       <PowerRankingsTable rankings={[team()]} currentWeek={4} />
