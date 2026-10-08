@@ -422,6 +422,22 @@ export const PASSIVE_AUTOMATIONS = [
       'test_email set to send yourself a test, or dry_run to see what is due.'
   },
   {
+    id: 'take-notifications',
+    name: 'Take notifications',
+    where: 'GitHub Actions · notify-takes.yml, dispatched by a trigger on take_events',
+    fires: 'When a take is posted, or gets a Hell Yeah or Hell Nah (trigger take_events_dispatch_notifications)',
+    does:
+      'Sends "new take from …" to every member with it on except the author, and "… said Hell Yeah / Hell Nah ' +
+      'to your take" to the author only. The trigger dispatches the workflow through the same ' +
+      'private.dispatch_github_workflow as the crons and never refuses the take if the dispatch fails. The ' +
+      'script announces events up to six hours old that are not yet in notification_log, claiming each by its ' +
+      'take_event_id first, so a burst collapsed into one run is still sent once each. A Hell Nah withdrawn ' +
+      'before the run is not announced.',
+    verify:
+      'notification_log rows with a take_event_id. A take with no row: net._http_response for the dispatch, ' +
+      'then the workflow run. Run it by hand to catch up anything from the last six hours.'
+  },
+  {
     id: 'ci',
     name: 'CI (ci.yml)',
     where: 'GitHub Actions · every push and pull request',

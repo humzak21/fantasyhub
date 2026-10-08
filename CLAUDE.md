@@ -2040,6 +2040,45 @@ Rules that are load-bearing:
   claiming. The card's "Show a test notification" is local and only proves
   the app may display one.
 
+**Takes notify on the event, not on a clock**
+(`20261007120000_take_notifications.sql`). Two more topics, `takes_new`
+(every new take, to everyone with it on *except the author*) and
+`takes_reactions` (a Hell Yeah or Hell Nah on your take, to *the author
+only*). The card shows them as a Takes group under the Pick'ems one, a switch
+each; the migration added both to every device already subscribed.
+
+- **`take_events` is the outbox.** Every post, Hell Yeah and Hell Nah already
+  writes a row there, so a `FOR EACH STATEMENT` trigger on it
+  (`take_events_dispatch_notifications` → `private.dispatch_take_notifications`)
+  dispatches `.github/workflows/notify-takes.yml` through the same
+  `private.dispatch_github_workflow` the crons use. The table stays
+  append-only: what was sent is a `notification_log` row keyed by
+  `take_event_id` (unique), not a mark on the event. `week` is NULL on those
+  rows, and `notification_log_keyed` requires one key or the other.
+- **The trigger never raises.** It runs inside a member's post; a missing
+  Vault token must not refuse the take. The dispatch is wrapped and a failure
+  is a WARNING. A manual run of the workflow catches up anything from the last
+  `TAKE_EVENT_MAX_AGE_HOURS` (6); anything older is never sent, which is also
+  what stops the first run from announcing the whole season's history.
+- **A burst collapses into one run and still sends each event.** GitHub keeps
+  one running and one pending run per concurrency group; the pending run reads
+  every unclaimed event. `notify-takes` is its own group so a burst of Hell
+  Nahs can never replace a pending pick'em reminder — and `--takes` sends only
+  take kinds, while the default mode sends only pick'em kinds, so a take posted
+  at 5 AM cannot be what sends "pick'ems are open".
+- **`planTakeNotifications` reads the take as it stands when the run happens.**
+  Whose take it is comes from `takes.user_id`, not the event's actor (the
+  admin may post for somebody). A Hell Nah withdrawn, or switched to a Hell
+  Yeah, before the run is not announced. Edits, grades and withdrawals are
+  never announced. Accounts with a non-approved `member_approvals` row are
+  dropped, because the take's wording is the notification.
+- **A take notification opens the take.** The URL is `/takes?take=<id>`, and
+  `TakesManager` opens that take's sheet from the search param, dropping it on
+  close.
+- A topic is three lists: `push_subscriptions_topics_check`, `TOPICS` in
+  `services/notificationPlanner.js`, and `PUSH_TOPIC_GROUPS` in
+  `src/utils/pushNotifications.js`. A test holds the last two together.
+
 ### Password reset is a login, and the page makes it set a password
 
 A Supabase recovery link is not "prove it's you, then choose a password". It

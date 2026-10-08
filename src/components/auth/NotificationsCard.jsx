@@ -6,14 +6,15 @@ import { Switch } from '../ui/switch';
 import { Alert, AlertDescription } from '../ui/alert';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { usePushNotifications } from '../../../hooks/queries/index.js';
-import { ALL_TOPIC_IDS, PUSH_TOPICS, showLocalTestNotification } from '../../utils/pushNotifications.js';
+import { ALL_TOPIC_IDS, PUSH_TOPIC_GROUPS, showLocalTestNotification } from '../../utils/pushNotifications.js';
 
 /**
  * Settings → Profile → Notifications.
  *
  * Push on an iPhone needs the Home Screen app, so most of what this card does
  * is say which step the member is on: add to Home Screen, allow, done. The
- * states come from `resolvePushState`; the topics are per device.
+ * states come from `resolvePushState`; the topics are per device, in two
+ * groups — pick'ems and takes — each switch its own.
  */
 export default function NotificationsCard() {
   const { isApproved, isApprovalLoading } = useViewer();
@@ -28,7 +29,8 @@ export default function NotificationsCard() {
   } else if (!isApproved) {
     body = (
       <p className="text-sm text-muted-foreground">
-        Notifications are about pick&apos;ems, so they open up once the admin has approved your account.
+        Notifications are about pick&apos;ems and takes, so they open up once the admin has approved your
+        account.
       </p>
     );
   } else if (push.isPending || !device) {
@@ -54,7 +56,8 @@ export default function NotificationsCard() {
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
           Get a nudge when pick&apos;ems open on Tuesday and, if you haven&apos;t picked, a few hours before
-          they close on Thursday.
+          they close on Thursday. Hear when somebody posts a take, and when somebody says Hell Yeah or Hell
+          Nah to one of yours. Each can be switched off once they&apos;re on.
         </p>
         <Button onClick={() => push.turnOn.mutate(ALL_TOPIC_IDS)} disabled={busy}>
           <Bell className="mr-2 h-4 w-4" />
@@ -70,24 +73,31 @@ export default function NotificationsCard() {
     };
     body = (
       <div className="space-y-4">
-        <ul className="space-y-3">
-          {PUSH_TOPICS.map((topic) => (
-            <li key={topic.id} className="flex items-start justify-between gap-4">
-              <div>
-                <label htmlFor={`push-${topic.id}`} className="text-sm font-medium text-foreground">
-                  {topic.label}
-                </label>
-                <p className="text-xs text-muted-foreground">{topic.description}</p>
-              </div>
-              <Switch
-                id={`push-${topic.id}`}
-                checked={topics.has(topic.id)}
-                onCheckedChange={(on) => toggle(topic.id, on)}
-                disabled={busy}
-              />
-            </li>
-          ))}
-        </ul>
+        {PUSH_TOPIC_GROUPS.map((group) => (
+          <section key={group.id} aria-labelledby={`push-group-${group.id}`} className="space-y-3">
+            <h4 id={`push-group-${group.id}`} className="text-sm font-semibold text-foreground">
+              {group.label}
+            </h4>
+            <ul className="space-y-3">
+              {group.topics.map((topic) => (
+                <li key={topic.id} className="flex items-start justify-between gap-4">
+                  <div>
+                    <label htmlFor={`push-${topic.id}`} className="text-sm font-medium text-foreground">
+                      {topic.label}
+                    </label>
+                    <p className="text-xs text-muted-foreground">{topic.description}</p>
+                  </div>
+                  <Switch
+                    id={`push-${topic.id}`}
+                    checked={topics.has(topic.id)}
+                    onCheckedChange={(on) => toggle(topic.id, on)}
+                    disabled={busy}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => showLocalTestNotification()} disabled={busy}>
             Show a test notification
@@ -109,8 +119,8 @@ export default function NotificationsCard() {
           Notifications
         </CardTitle>
         <CardDescription>
-          Pick&apos;em reminders on your phone. Set per device: turning them on here does not turn them on
-          anywhere else.
+          Pick&apos;em reminders and take alerts on your phone. Set per device: turning them on here does not
+          turn them on anywhere else.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

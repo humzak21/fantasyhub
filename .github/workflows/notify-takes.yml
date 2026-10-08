@@ -1,0 +1,64 @@
+name: Take notifications
+
+# Push notifications for takes: "new take from …" to every member with it on,
+# and "… said Hell Yeah / Hell Nah to your take" to the take's author.
+#
+# No `schedule:` and no pg_cron job: a statement trigger on `take_events`
+# dispatches this the moment a take is posted, faded or backed, through the
+# same private.dispatch_github_workflow the crons use (so it arrives with
+# trigger = cron, which here means "the database", not a person). The script
+# reads every recent event not yet in notification_log, so a burst of
+# dispatches that GitHub collapses into one pending run still sends each
+# event, once. See supabase/migrations/20261007120000_take_notifications.sql.
+#
+# Run it by hand to send anything the trigger missed (events up to six hours
+# old), or as a dry run to see what would be sent.
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: 'Who started this run. The database trigger sends "cron"; leave it on "manual".'
+        required: false
+        default: manual
+        type: choice
+        options: [manual, cron]
+      dry_run:
+        description: 'Only print what would be sent.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  # Its own group, apart from notify-pickems: a burst of Hell Nahs replacing
+  # each other's pending run is the point here, and must never replace a
+  # pending pick'em reminder.
+  group: notify-takes
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Send take notifications
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node scripts/send-notifications.js --takes ${{ inputs.dry_run && '--dry-run' || '' }}

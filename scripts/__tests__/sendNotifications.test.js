@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { deliver, sendDueNotifications } from '../send-notifications.js';
+import { deliver, sendDueNotifications, sendTakeNotifications } from '../send-notifications.js';
 import { TOPICS } from '../../services/notificationPlanner.js';
 
 const WEEK = {
@@ -90,5 +90,90 @@ describe('deliver', () => {
     expect(result.delivered).toEqual(['https://push.example/a']);
     expect(result.gone).toEqual(['https://push.example/b']);
     expect(result.failures).toEqual([{ endpoint: 'https://push.example/c', statusCode: 500, message: 'busy' }]);
+  });
+});
+
+describe('sendTakeNotifications', () => {
+  const NOW = new Date('2026-10-07T18:00:00Z');
+  const takeDevice = (userId) => ({
+    ...device(userId),
+    topics: [TOPICS.takesNew, TOPICS.takesReactions]
+  });
+  const inputs = (events) => ({
+    events,
+    takes: new Map([['t1', { id: 't1', authorId: 'author', body: 'Bold call.', wager: null }]]),
+    participants: [{ takeId: 't1', userId: 'sam', side: 'yeah', wager: null }],
+    displayNames: { author: 'Humza', sam: 'Sam' },
+    excludedUserIds: new Set()
+  });
+  const event = (id, eventType, subjectId) =>
+    ({ id, takeId: 't1', seasonId: 's26', eventType, subjectId, createdAt: new Date('2026-10-07T17:58:00Z') });
+
+  function takeDb({ events, devices, claim = (row) => `log-${row.takeEventId}` }) {
+    const { db, calls } = fakeDb({ devices });
+    db.notifications.getTakeNotificationInputs = vi.fn(async () => inputs(events));
+    db.notifications.claimTakeNotification = vi.fn(async (row) => { calls.claimed.push(row); return claim(row); });
+    return { db, calls };
+  }
+
+  it('claims each event by its id and sends it to the right people', async () => {
+    const { db, calls } = takeDb({
+      events: [event('e1', 'posted', 'author'), event('e2', 'backed', 'sam')],
+      devices: [takeDevice('author'), takeDevice('sam'), takeDevice('lee')]
+    });
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+
+    const result = await sendTakeNotifications({ db, now: NOW, send });
+
+    expect(calls.claimed).toEqual([
+      { kind: TOPICS.takesNew, seasonId: 's26', takeEventId: 'e1', recipients: 2 },
+      { kind: TOPICS.takesReactions, seasonId: 's26', takeEventId: 'e2', recipients: 1 }
+    ]);
+    const sentTo = send.mock.calls.map(([recipient, payload]) => `${payload.title} → ${recipient.userId}`);
+    expect(sentTo).toEqual([
+      'New take from Humza → sam',
+      'New take from Humza → lee',
+      'Sam said Hell Yeah to your take → author'
+    ]);
+    expect(calls.finished).toEqual([
+      { id: 'log-e1', delivered: 2, failed: 0, removed: 0 },
+      { id: 'log-e2', delivered: 1, failed: 0, removed: 0 }
+    ]);
+    expect(result.sent).toHaveLength(2);
+  });
+
+  it('reads events from the last six hours, and never touches the pick\'em kinds', async () => {
+    const { db, calls } = takeDb({ events: [event('e1', 'posted', 'author')], devices: [takeDevice('sam')] });
+    await sendTakeNotifications({ db, now: NOW, send: vi.fn(async () => ({ ok: true })) });
+    expect(db.notifications.getTakeNotificationInputs).toHaveBeenCalledWith(new Date('2026-10-07T12:00:00Z'));
+    expect(db.notifications.getOpenPickEmWeek).not.toHaveBeenCalled();
+    expect(calls.claimed.every((row) => row.takeEventId)).toBe(true);
+  });
+
+  it('skips an event another run claimed first', async () => {
+    const { db } = takeDb({ events: [event('e1', 'posted', 'author')], devices: [takeDevice('sam')], claim: () => null });
+    const send = vi.fn();
+    expect((await sendTakeNotifications({ db, now: NOW, send })).sent).toEqual([]);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('does not retry a device found gone earlier in the same run', async () => {
+    const { db, calls } = takeDb({
+      events: [event('e1', 'posted', 'author'), event('e2', 'backed', 'sam')],
+      devices: [takeDevice('author'), takeDevice('sam')]
+    });
+    // The author is not told about their own post, so make sam's device gone
+    // on the first send and check it is not in the second plan's claim.
+    const send = vi.fn(async (recipient) => (recipient.userId === 'sam' ? { ok: false, statusCode: 410 } : { ok: true }));
+    await sendTakeNotifications({ db, now: NOW, send });
+    expect(calls.deleted).toEqual(['https://push.example/sam']);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('claims nothing on a dry run', async () => {
+    const { db, calls } = takeDb({ events: [event('e1', 'posted', 'author')], devices: [takeDevice('sam')] });
+    const result = await sendTakeNotifications({ db, now: NOW, dryRun: true, send: vi.fn() });
+    expect(calls.claimed).toEqual([]);
+    expect(result.sent[0]).toMatchObject({ kind: TOPICS.takesNew, recipients: 1, dryRun: true });
   });
 });

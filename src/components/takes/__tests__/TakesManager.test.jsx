@@ -643,3 +643,29 @@ describe('TakesManager, loading', () => {
     expect(within(screen.getByRole('status')).getByText('Loading')).toBeInTheDocument();
   });
 });
+
+describe('TakesManager, opened from a notification', () => {
+  // A take notification lands on /takes?take=<id> (scripts/send-notifications.js
+  // --takes), and tapping "Sam said Hell Nah to your take" should show the take.
+  const renderAt = (url) =>
+    renderWithProviders(<TakesManager season={SEASON} loading={false} />, { initialEntries: [url] });
+
+  it('opens the linked take\'s sheet, and closing it stays closed', async () => {
+    signInAsReader();
+    const user = userEvent.setup();
+    renderAt('/takes?take=late');
+
+    const sheet = await screen.findByRole('dialog');
+    expect(within(sheet).getByText('Somebody wins it from the 6 seed')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens nothing for a take that is not on the board', async () => {
+    signInAsReader();
+    renderAt('/takes?take=deleted');
+    await screen.findByText('Somebody wins it from the 6 seed');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});

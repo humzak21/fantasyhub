@@ -4,19 +4,28 @@
  * what it returns — the same decide/execute split as `parlayGrader.js` and
  * `espnGameMapper.js`.
  *
- * The clock that runs the sender is two fixed pg_cron slots a week (see
- * 20261002120000_push_notifications.sql), so this module, not the slot, is
- * what decides whether something is due. A slot that lands when nothing is
+ * Pick'ems run on a clock — two fixed pg_cron slots a week (see
+ * 20261002120000_push_notifications.sql) — so this module, not the slot, is
+ * what decides whether something is due. Takes run on events: a trigger on
+ * `take_events` starts the sender (20261007120000_take_notifications.sql),
+ * and `planTakeNotifications` decides which of the recent events to announce. A slot that lands when nothing is
  * due sends nothing; a re-run after a send sends nothing, because `sent`
  * carries what `notification_log` already holds.
  */
 
 export const TOPICS = Object.freeze({
   pickemsOpen: 'pickems_open',
-  pickemsClosing: 'pickems_closing'
+  pickemsClosing: 'pickems_closing',
+  takesNew: 'takes_new',
+  takesReactions: 'takes_reactions'
 });
 
-export const ALL_TOPICS = Object.freeze([TOPICS.pickemsOpen, TOPICS.pickemsClosing]);
+export const ALL_TOPICS = Object.freeze([
+  TOPICS.pickemsOpen,
+  TOPICS.pickemsClosing,
+  TOPICS.takesNew,
+  TOPICS.takesReactions
+]);
 
 /**
  * A closing reminder is due inside this window before the deadline. Wide
@@ -129,6 +138,131 @@ export function planPickemNotifications({
         }
       });
     }
+  }
+
+  return plans;
+}
+
+/**
+ * How old a take event may be and still be announced. The sender is started
+ * by the event itself and normally runs within a couple of minutes, so this is
+ * not the expected delay: it is the cut-off that keeps a backlog — a lost
+ * dispatch token, the first run after this shipped against months of history —
+ * from arriving as a pile of stale news. An older event is never sent.
+ */
+export const TAKE_EVENT_MAX_AGE_HOURS = 6;
+
+/** A take's wording, trimmed to what a lock screen shows. */
+export const TAKE_PREVIEW_LENGTH = 140;
+
+export function previewTake(body, max = TAKE_PREVIEW_LENGTH) {
+  const text = String(body ?? '').replace(/\s+/g, ' ').trim();
+  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
+/**
+ * The take notifications due for the recent events nobody has been told about.
+ *
+ * - **posted** goes to every device with `takes_new`, except the author's.
+ *   Whose take it is reads `takes.user_id`, not the event's actor, so a take
+ *   the admin posts for somebody is not announced back to them.
+ * - **faded** / **backed** go to the take's author's devices with
+ *   `takes_reactions`, and to nobody else. Only while the Hell Nah or Hell
+ *   Yeah still stands: one withdrawn before the sender ran is not news, and
+ *   switching sides writes a fresh event for the new side.
+ * - Withdrawals, edits and grades are not announced.
+ *
+ * Each plan is one event, claimed by its id. An event with nobody to tell is
+ * left unclaimed, and ages out.
+ *
+ * @param {object} input
+ * @param {Date} input.now
+ * @param {Array<{ id: string, takeId: string, seasonId: string, eventType: string, subjectId: string|null, createdAt: Date }>} input.events
+ *   recent events not yet in notification_log
+ * @param {Map<string, { id: string, authorId: string, body: string, wager: string|null }>} input.takes by id
+ * @param {Array<{ takeId: string, userId: string, side: 'nah'|'yeah', wager: string|null }>} input.participants
+ * @param {Array<{ endpoint: string, userId: string, topics: string[] }>} input.subscriptions
+ * @param {Record<string, string>} [input.displayNames] user id → name
+ * @param {Set<string>} [input.excludedUserIds] accounts that may not read takes (not approved)
+ */
+export function planTakeNotifications({
+  now,
+  events = [],
+  takes = new Map(),
+  participants = [],
+  subscriptions = [],
+  displayNames = {},
+  excludedUserIds = new Set()
+}) {
+  const oldest = now.getTime() - TAKE_EVENT_MAX_AGE_HOURS * HOUR_MS;
+  const nameOf = (userId) => displayNames[userId] || 'Somebody';
+  const standing = new Map(participants.map((p) => [`${p.takeId}:${p.userId}`, p]));
+  // Takes are members-only; their wording is the notification.
+  const readers = subscriptions.filter((sub) => !excludedUserIds.has(sub.userId) && Array.isArray(sub.topics));
+
+  const plans = [];
+  const ordered = [...events].sort((a, b) => a.createdAt - b.createdAt);
+
+  for (const event of ordered) {
+    if (!(event.createdAt instanceof Date) || event.createdAt.getTime() < oldest) continue;
+    const take = takes.get(event.takeId);
+    if (!take) continue;
+
+    const url = `/takes?take=${encodeURIComponent(take.id)}`;
+    const quoted = `“${previewTake(take.body)}”`;
+
+    if (event.eventType === 'posted') {
+      const recipients = readers.filter((sub) => sub.topics.includes(TOPICS.takesNew) && sub.userId !== take.authorId);
+      if (!recipients.length) continue;
+      plans.push({
+        kind: TOPICS.takesNew,
+        eventId: event.id,
+        seasonId: event.seasonId,
+        recipients,
+        payload: {
+          title: `New take from ${nameOf(take.authorId)}`,
+          body: take.wager ? `${quoted} · ${take.wager} on it` : quoted,
+          url,
+          tag: `take-${take.id}`
+        }
+      });
+      continue;
+    }
+
+    if (event.eventType !== 'faded' && event.eventType !== 'backed') continue;
+
+    const side = event.eventType === 'faded' ? 'nah' : 'yeah';
+    const participant = standing.get(`${take.id}:${event.subjectId}`);
+    if (!participant || participant.side !== side) continue;
+    if (event.subjectId === take.authorId) continue;
+
+    const recipients = readers.filter((sub) => sub.topics.includes(TOPICS.takesReactions) && sub.userId === take.authorId);
+    if (!recipients.length) continue;
+
+    const who = nameOf(event.subjectId);
+    let title;
+    if (side === 'nah') {
+      title = `${who} said Hell Nah to your take`;
+    } else if (participant.wager) {
+      title = `${who} said Hell Yeah to your take, with ${participant.wager} on it`;
+    } else {
+      title = `${who} said Hell Yeah to your take`;
+    }
+    // The Hell Nah is the one with consequences for the author: it is the
+    // other side of their stake. fadeTerms in milestones.js is the rule.
+    const body = side === 'nah' && take.wager
+      ? `${quoted} · If it hits, they owe you ${take.wager}.`
+      : quoted;
+
+    plans.push({
+      kind: TOPICS.takesReactions,
+      eventId: event.id,
+      seasonId: event.seasonId,
+      recipients,
+      // One tag per event: two Hell Nahs are two notifications, not one
+      // replacing the other.
+      payload: { title, body, url, tag: `take-${side}-${event.id}` }
+    });
   }
 
   return plans;

@@ -6,7 +6,8 @@
  * own-row policies; it can never see anybody else's. The sender script
  * (`scripts/send-notifications.js`, service role) reads every device, claims
  * a `notification_log` row before sending, and removes devices the push
- * service reports gone. See 20261002120000_push_notifications.sql.
+ * service reports gone. See 20261002120000_push_notifications.sql, and
+ * 20261007120000_take_notifications.sql for the per-take-event half.
  *
  * Every function takes the shared `ctx` ({ client, seasonsCache,
  * activeSeasonId }) as its first argument; see `./context.js`.
@@ -15,6 +16,7 @@
 import { DbErrorKind, throwDbError, toDbError, unwrap } from './errors.js';
 import { createLogger } from './logger.js';
 import { selectAll } from './paging.js';
+import { getUserDisplayNames } from './users.js';
 
 const log = createLogger('db:notifications');
 
@@ -209,4 +211,115 @@ export async function getOpenPickEmWeek(ctx, now = new Date()) {
         }
       : null
   };
+}
+
+// ---------------------------------------------------------------------------
+// Takes (service role)
+// ---------------------------------------------------------------------------
+
+/** The take events that can be announced. Withdrawals, edits and grades are not. */
+export const ANNOUNCED_TAKE_EVENTS = Object.freeze(['posted', 'faded', 'backed']);
+
+/**
+ * Everything `planTakeNotifications` needs, for events since `since`: the
+ * events not yet in notification_log, their takes, those takes' current
+ * participants, the names involved, and the accounts that may not read takes.
+ *
+ * "Not yet sent" is read from notification_log rather than marked on the
+ * event, because `take_events` is append-only and no client can write it.
+ */
+export async function getTakeNotificationInputs(ctx, since) {
+  const sinceIso = since.toISOString();
+
+  const [eventRows, claimedRows] = await Promise.all([
+    selectAll(() => ctx.client
+      .from('take_events')
+      .select('id, seq, take_id, season_id, event_type, subject_id, created_at')
+      .in('event_type', ANNOUNCED_TAKE_EVENTS)
+      .gte('created_at', sinceIso)
+      .order('seq')).catch((error) => throwDbError(error, 'Get take events')),
+    // Sent after the event, so anything claimed for these events was sent
+    // since `since` too.
+    selectAll(() => ctx.client
+      .from('notification_log')
+      .select('id, take_event_id')
+      .not('take_event_id', 'is', null)
+      .gte('sent_at', sinceIso)
+      .order('id')).catch((error) => throwDbError(error, 'Get take notification log'))
+  ]);
+
+  const claimed = new Set(claimedRows.map((row) => row.take_event_id));
+  const events = eventRows
+    .filter((row) => !claimed.has(row.id))
+    .map((row) => ({
+      id: row.id,
+      takeId: row.take_id,
+      seasonId: row.season_id,
+      eventType: row.event_type,
+      subjectId: row.subject_id,
+      createdAt: new Date(row.created_at)
+    }));
+
+  if (!events.length) {
+    return { events, takes: new Map(), participants: [], displayNames: {}, excludedUserIds: new Set() };
+  }
+
+  const takeIds = [...new Set(events.map((event) => event.takeId))];
+  const [takeRows, participantRows, unapprovedRows] = await Promise.all([
+    ctx.client.from('takes').select('id, user_id, body, wager').in('id', takeIds)
+      .then((result) => unwrap(result, 'Get takes for notifications') ?? []),
+    ctx.client.from('take_participants').select('take_id, user_id, side, wager').in('take_id', takeIds)
+      .then((result) => unwrap(result, 'Get take participants for notifications') ?? []),
+    // The admin has no row and is approved; every other account has one.
+    ctx.client.from('member_approvals').select('user_id').neq('status', 'approved')
+      .then((result) => unwrap(result, 'Get unapproved members') ?? [])
+  ]);
+
+  const takes = new Map(takeRows.map((row) => [row.id, {
+    id: row.id,
+    authorId: row.user_id,
+    body: row.body,
+    wager: row.wager ?? null
+  }]));
+  const participants = participantRows.map((row) => ({
+    takeId: row.take_id,
+    userId: row.user_id,
+    side: row.side ?? 'nah',
+    wager: row.wager ?? null
+  }));
+
+  const nameIds = new Set();
+  for (const take of takes.values()) nameIds.add(take.authorId);
+  for (const event of events) if (event.subjectId) nameIds.add(event.subjectId);
+  const displayNames = await getUserDisplayNames(ctx, [...nameIds]);
+
+  return {
+    events,
+    takes,
+    participants,
+    displayNames,
+    excludedUserIds: new Set(unapprovedRows.map((row) => row.user_id))
+  };
+}
+
+/**
+ * Claim one take event before sending it. Returns the log row's id, or null
+ * when another run already claimed it.
+ */
+export async function claimTakeNotification(ctx, { kind, seasonId, takeEventId, recipients }) {
+  const { data, error } = await ctx.client
+    .from('notification_log')
+    .insert({ kind, season_id: seasonId, take_event_id: takeEventId, recipients })
+    .select('id')
+    .single();
+
+  if (error) {
+    const dbError = toDbError(error, 'Claim take notification');
+    if (dbError.kind === DbErrorKind.DUPLICATE) {
+      log.info(`take event ${takeEventId} was already sent; skipping`);
+      return null;
+    }
+    throw dbError;
+  }
+  return data.id;
 }
