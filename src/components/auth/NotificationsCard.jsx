@@ -57,7 +57,7 @@ export default function NotificationsCard() {
         <p className="text-sm text-muted-foreground">
           Get a nudge when pick&apos;ems open on Tuesday and, if you haven&apos;t picked, a few hours before
           they close on Thursday. Hear when somebody posts a take, and when somebody says Hell Yeah or Hell
-          Nah to one of yours. And at noon every day, a stat that makes this week&apos;s opponent look bad.
+          Nah to one of yours. And at noon every day, one stat about your season or this week&apos;s opponent.
           Each can be switched off once they&apos;re on.
         </p>
         <Button onClick={() => push.turnOn.mutate(ALL_TOPIC_IDS)} disabled={busy}>

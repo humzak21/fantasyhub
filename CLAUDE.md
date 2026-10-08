@@ -2143,36 +2143,48 @@ each; the migration added both to every device already subscribed.
   `services/notificationPlanner.js`, and `PUSH_TOPIC_GROUPS` in
   `src/utils/pushNotifications.js`. A test holds the last two together.
 
-**Matchup facts arrive at noon every day, about this week's opponent**
-(`20261008120000_matchup_facts.sql`). Topic `matchup_facts`, on by default:
-the migration added it to every device already subscribed. Each member gets
-their own fact, so a plan's recipients carry their own `payload` and
-`deliver` sends that in place of the plan's.
+**Matchup facts arrive at noon every day: the rarest true thing about your
+week** (`20261008120000_matchup_facts.sql`). Topic `matchup_facts`, on by
+default: the migration added it to every device already subscribed. Each
+member gets their own fact, so a plan's recipients carry their own `payload`
+and `deliver` sends that in place of the plan's.
 
-- **Every fact embarrasses the opponent.** `buildMatchupFacts`
-  (`services/matchupFacts.js`, pure) offers a head-to-head fact only to the
-  side it flatters, and otherwise the opponent's own history: titles, lost
-  finals, missed playoffs, playoff record, first-round exits, worst game and
-  worst beating, losing streaks, this season's record, skid, luck (all-play)
-  and points rank. The two members of a matchup get different facts.
-- **Numbers come from seasons, teams and `v_game_results` alone**, read once
-  per run by `getMatchupFactInputs`. A fact without its data is not offered.
-  This week's pairings come from `games`, because `v_game_results` holds only
-  scored games. A member's team is `teams.user_id`, then their display name
-  against `teams.owner` (`ownerKey`); no match, no notification.
-- **A week is ranked once and spread over its days.** Weeks run Tuesday to
-  Monday from `start_date`; `DAY_ORDER` puts the strongest fact on Sunday,
-  then Tuesday onward. A week with fewer facts than days goes quiet rather
-  than repeating one. Each day is claimed as `matchup_facts:<weekday>` in
-  `notification_log`, under the existing (kind, season, week) key.
+- **Many candidates, the rarest sent.** `buildMatchupFacts`
+  (`services/matchupFacts.js`, pure) turns every comparison it can make into a
+  fact with a `score` for how unusual it is (1st of 90 team-seasons beats 6th;
+  a first-ever streak beats a common one), and `pickFact` sends the best one
+  the member has not had.
+- **Three subjects.** `self` is honest — a best start and a worst start are
+  both said. `opponent` is only ever unflattering (`good === false`, plus the
+  opponent's career: titles, lost finals, missed playoffs, worst games).
+  `rivalry` is head-to-head, offered only to the side it flatters. Facts with
+  `good === null` (star share, consistency, points against) are `self` only.
+- **"Through W weeks" compares like with like.** W is the active season's last
+  scored regular week; every other team-season is cut at the same week: your
+  start against your own seasons and against league history, what became of
+  every team that started the same way, best record since a year.
+- **`matchup_fact_log` is the memory.** One row per member per day (unique),
+  written by the sender only for members a device actually took it on, read
+  back before choosing. An identical sentence is never sent twice; a family
+  rests `FAMILY_COOLDOWN_DAYS` (21) unless nothing else is left; each of the
+  last four facts sharing a subject costs a candidate 12 points, so a week
+  mixes you, them and the rivalry. A `test_email` send is not recorded.
+- **Data:** seasons, teams, `v_game_results` (paged), every
+  `team_week_lineups` row, and the active season's `player_week_stats` (names
+  from `players`) and WAIVER/FREEAGENT `transaction_events` (franchise ids). A
+  pickup's points count only in weeks after the add and only when started. A
+  fact without its data is not offered. This week's pairings come from
+  `games`, because `v_game_results` holds only scored games; no game (a bye)
+  means `self` facts only. A member's team is `teams.user_id`, then their
+  display name against `teams.owner` (`ownerKey`); no match, no notification.
 - **Noon is exact all year through two cron slots.** pg_cron
-  (`notify-matchup-facts`, `0 16,17 * * *`) dispatches
-  `notify-matchups.yml` at both; a cron run passes `--at-noon` and only the
-  one that is 12:00 in the season's zone sends. A manual run sends whenever
-  pressed, if the day is unclaimed. `test_email` sends one member today's
-  fact without claiming the day.
-- **Names, never pronouns.** The opponent is their owner's first name, or the
-  full name if two current owners share it.
+  (`notify-matchup-facts`, `0 16,17 * * *`) dispatches `notify-matchups.yml`
+  at both; a cron run passes `--at-noon` and only the one that is 12:00 in the
+  season's zone sends. Each day is claimed as `matchup_facts:<weekday>` in
+  `notification_log`. A manual run sends whenever pressed, if the day is
+  unclaimed.
+- **Names, never pronouns.** The recipient is "you"; anybody else is their
+  owner's first name, or the full name if two current owners share it.
 - **Applied through the dashboard's SQL editor**: the constraint swap is a
   `DROP`, which the Supabase MCP cannot run.
 

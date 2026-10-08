@@ -191,6 +191,8 @@ describe('sendMatchupFacts', () => {
   function matchupDb({ sent = [], devices = [matchupDevice('anna'), matchupDevice('ben')] } = {}) {
     const { db, calls } = fakeDb({ sent, devices });
     db.notifications.getMatchupFactSeason = vi.fn(async () => SEASON);
+    db.notifications.getMatchupFactHistory = vi.fn(async () => new Map());
+    db.notifications.recordMatchupFacts = vi.fn(async (rows) => { calls.recorded = rows; });
     db.notifications.getMatchupFactInputs = vi.fn(async () => ({
       seasons: [{ id: 's26', year: 2026, isCompleted: false }],
       teams: [team('ta', 'fa', 'Anna Alpha'), team('tb', 'fb', 'Ben Bravo')],
@@ -202,7 +204,7 @@ describe('sendMatchupFacts', () => {
     return { db, calls };
   }
 
-  it('claims the day once and sends each member their own fact', async () => {
+  it('claims the day once, sends each member their own fact and records it', async () => {
     const { db, calls } = matchupDb();
     const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
 
@@ -212,6 +214,15 @@ describe('sendMatchupFacts', () => {
     const bodies = send.mock.calls.map(([recipient, payload]) => [recipient.userId, payload.title]);
     expect(bodies).toEqual([['anna', 'Week 3: you vs Ben'], ['ben', 'Week 3: you vs Anna']]);
     expect(result.sent[0]).toMatchObject({ delivered: 2 });
+    expect(calls.recorded.map((row) => [row.userId, row.day, row.week])).toEqual([['anna', 'sun', 3], ['ben', 'sun', 3]]);
+    expect(calls.recorded[0].fact).toBe(send.mock.calls[0][1].body);
+  });
+
+  it('does not record a member none of whose devices took it', async () => {
+    const { db, calls } = matchupDb();
+    const send = vi.fn(async (recipient) => (recipient.userId === 'ben' ? { ok: false, statusCode: 500 } : { ok: true, statusCode: 201 }));
+    await sendMatchupFacts({ db, now: SUNDAY_NOON, send });
+    expect(calls.recorded.map((row) => row.userId)).toEqual(['anna']);
   });
 
   it('sends nothing for a day already claimed', async () => {
@@ -232,5 +243,6 @@ describe('sendMatchupFacts', () => {
     expect(send.mock.calls[0][0].userId).toBe('anna');
     expect(calls.claimed).toEqual([]);
     expect(db.notifications.getSentNotificationKinds).not.toHaveBeenCalled();
+    expect(db.notifications.recordMatchupFacts).not.toHaveBeenCalled();
   });
 });

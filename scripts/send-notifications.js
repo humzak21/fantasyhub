@@ -235,9 +235,11 @@ export async function sendMatchupFacts({
     (onlyUserId ? sub.userId === onlyUserId : sub.topics.includes(MATCHUP_FACTS_TOPIC)));
   if (!subscriptions.length) return { reason: 'no device wants matchup facts', week: day.week, sent: [] };
 
-  const [inputs, sent] = await Promise.all([
-    db.notifications.getMatchupFactInputs({ season, week: day.week, userIds: subscriptions.map((sub) => sub.userId) }),
-    onlyUserId ? new Set() : db.notifications.getSentNotificationKinds(season.id, day.week)
+  const userIds = subscriptions.map((sub) => sub.userId);
+  const [inputs, sent, history] = await Promise.all([
+    db.notifications.getMatchupFactInputs({ season, week: day.week, userIds }),
+    onlyUserId ? new Set() : db.notifications.getSentNotificationKinds(season.id, day.week),
+    db.notifications.getMatchupFactHistory(userIds)
   ]);
   const index = indexLeague({ ...inputs, currentSeasonId: season.id });
 
@@ -249,6 +251,7 @@ export async function sendMatchupFacts({
     memberTeams: inputs.memberTeams,
     // The test sends regardless of the topic: it is asked for by name.
     subscriptions: onlyUserId ? subscriptions.map((sub) => ({ ...sub, topics: [MATCHUP_FACTS_TOPIC] })) : subscriptions,
+    history,
     sent,
     excludedUserIds: inputs.excludedUserIds,
     atNoon
@@ -262,7 +265,7 @@ export async function sendMatchupFacts({
         kind: plan.kind,
         week: plan.week,
         recipients: plan.recipients.length,
-        messages: plan.recipients.map((r) => ({ userId: r.userId, fact: r.factKey, ...r.payload })),
+        messages: plan.recipients.map((r) => ({ userId: r.userId, subject: r.fact.subject, family: r.fact.family, ...r.payload })),
         dryRun: true
       });
       continue;
@@ -283,6 +286,23 @@ export async function sendMatchupFacts({
     await db.notifications.deletePushSubscriptions(gone);
     await db.notifications.markPushSubscriptionsSent(delivered, now);
     if (logId) {
+      // A member is recorded as told once any of their devices took it. A
+      // test is not recorded: it must not use up the member's fact.
+      const reached = new Set(delivered);
+      const told = new Map();
+      for (const recipient of plan.recipients) {
+        if (reached.has(recipient.endpoint) && !told.has(recipient.userId)) told.set(recipient.userId, recipient.fact);
+      }
+      await db.notifications.recordMatchupFacts([...told].map(([userId, fact]) => ({
+        userId,
+        seasonId: season.id,
+        week: plan.week,
+        day: plan.kind.split(':')[1],
+        subject: fact.subject,
+        family: fact.family,
+        fact: fact.text,
+        sentAt: now
+      })));
       await db.notifications.finishNotification(logId, {
         delivered: delivered.length,
         failed: failures.length,

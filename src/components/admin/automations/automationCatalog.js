@@ -443,12 +443,14 @@ export const PASSIVE_AUTOMATIONS = [
     where: 'GitHub Actions · notify-matchups.yml, dispatched by pg_cron',
     fires: 'Daily at 16:00 and 17:00 UTC (pg_cron job notify-matchup-facts); only the one that is noon Eastern sends',
     does:
-      'Sends each member one stat that makes the franchise they play this week look bad: a head-to-head edge, ' +
-      'a title drought, a playoff record, a worst-ever game, this season\'s luck. The facts come from seasons, ' +
-      'teams and v_game_results (services/matchupFacts.js), are ranked once per week, and are spread over its ' +
-      'days with the strongest on Sunday. Each day is claimed in notification_log as matchup_facts:<weekday> first.',
+      'Sends each member the most unusual true fact about their week: about them (honest), this week\'s opponent ' +
+      '(unflattering) or the rivalry. services/matchupFacts.js generates the candidates from games, lineups, ' +
+      'player weeks and pickups and picks the rarest one the member has not been told; matchup_fact_log is the ' +
+      'memory, so a sentence is never repeated and a kind of fact rests for three weeks. Each day is claimed in ' +
+      'notification_log as matchup_facts:<weekday> first.',
     verify:
-      'notification_log has a matchup_facts:<weekday> row each day of the season. Run the workflow with dry_run to ' +
+      'notification_log has a matchup_facts:<weekday> row and matchup_fact_log a row per member each day of the season. ' +
+      'Run the workflow with dry_run to ' +
       'see every member\'s fact, or test_email to send one member today\'s without claiming the day.'
   },
   {
