@@ -485,27 +485,38 @@ const FantasyFootballApp = () => {
             <Suspense fallback={<TabFallback />}>
             {activeTab === 'rankings' && (
               <ErrorBoundary key="rankings-error-boundary">
-                <div>
-                  <RankingsHeader
-                    week={viewedWeek}
-                    view={rankingsView}
-                    onViewChange={setRankingsView}
-                  />
-                  {rankingsView === 'table' ? (
-                    <PowerRankingsTable
-                      rankings={weeklyRankings}
-                      currentWeek={viewedWeek}
-                      loading={rankingsLoading}
-                      initializing={isLoading}
+                {/* The header names the viewed week, and the viewed week is
+                    seeded from the season row — until that row arrives,
+                    `useActualWeek()` answers 1 and the title read "Week 1
+                    Power Rankings" for a paint before snapping to the real
+                    week. The table already showed this spinner for the same
+                    interval, so the header waits with it: one spinner, then
+                    the right week, nothing in between. */}
+                {isLoading ? (
+                  <RouteLoading />
+                ) : (
+                  <div>
+                    <RankingsHeader
+                      week={viewedWeek}
+                      view={rankingsView}
+                      onViewChange={setRankingsView}
                     />
-                  ) : (
-                    <PowerRankingsVisualization
-                      rankings={weeklyRankings}
-                      currentWeek={viewedWeek}
-                      loading={rankingsLoading}
-                    />
-                  )}
-                </div>
+                    {rankingsView === 'table' ? (
+                      <PowerRankingsTable
+                        rankings={weeklyRankings}
+                        currentWeek={viewedWeek}
+                        loading={rankingsLoading}
+                        initializing={isLoading}
+                      />
+                    ) : (
+                      <PowerRankingsVisualization
+                        rankings={weeklyRankings}
+                        currentWeek={viewedWeek}
+                        loading={rankingsLoading}
+                      />
+                    )}
+                  </div>
+                )}
               </ErrorBoundary>
             )}
 
