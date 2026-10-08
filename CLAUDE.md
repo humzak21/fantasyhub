@@ -34,6 +34,8 @@ clock, GitHub's runners".
 
 ### Database
 - `npm run db:push` / `db:push:dry` - Apply migrations in `supabase/migrations/`
+  by hand (`--include-all`, so filename order wins over ledger order). The
+  normal path is the merge; see "Migrations deploy on merge".
 - `npm run db:diff` - Diff the local schema against the remote
 - `npm run db:types` - Regenerate `types/supabase.ts` from the live schema
 
@@ -231,10 +233,11 @@ never opened while the run reported success. A column the service role writes
 through a default of `auth.uid()` must be nullable;
 `supabase/tests/database/pick_em_weeks_service_role.test.sql` asserts it.
 **That migration merged on 2026-09-15 and was not applied until 2026-09-29**,
-so week 3 failed identically and weeks 3 and 4 were opened by hand. A
-merged migration is not an applied one: the migrations are applied by hand
-through the Supabase MCP, so after merging one, check
-`supabase_migrations.schema_migrations` or the change itself. Note the window still *opens* at `pickem_open_time`
+so week 3 failed identically and weeks 3 and 4 were opened by hand. Until
+2026-10-08 a merged migration was not an applied one: migrations were applied
+by hand through the Supabase MCP. `deploy-migrations.yml` now applies them on
+merge — see "Migrations deploy on merge" — so after merging one, check that
+run, or `supabase_migrations.schema_migrations`. Note the window still *opens* at `pickem_open_time`
 (04:00 by default) while the row appears at the 05:00 run; nothing reads the
 row in that hour, but a season that wants the two to coincide sets the open
 time to 05:00.
@@ -261,6 +264,54 @@ has rosters, projections and the NFL calendar but the season row still says
 overridable: forcing past it would not sync early, it would sync an arbitrary
 week. Never set `--force` on the cron; the quiet out-of-season exit is the
 whole point there.
+
+### Migrations deploy on merge
+
+`.github/workflows/deploy-migrations.yml` runs `supabase db push --include-all`
+against the production project on every push to `main` that touches
+`supabase/migrations/`. CI's `migrations` job is the other half: it replays
+every file into a throwaway Postgres and runs the pgTAP tests on the PR, so a
+migration is validated before it merges and applied the moment it does. Before
+2026-10-08 every migration was applied by hand through the Supabase MCP after
+merging, and twice one was not applied at all — the pick'ems `user_id` fix sat
+unapplied for two weeks while every sync reported success.
+
+- **The ledger is `supabase_migrations.schema_migrations`, and it holds
+  exactly the repo's file versions.** The MCP had recorded its own apply-time
+  versions, with 18 pre-squash versions still listed, which is why `db push`
+  refused for two months. `supabase/repair/2026-10-08-ledger-matches-files.sql`
+  rewrites it to one row per file, version and name from the filename — run
+  once by hand in the SQL editor before the workflow's first run; it keeps
+  the old rows in `supabase_migrations.schema_migrations_backup_20261008`.
+  `supabase migration list --linked` should then show no gap on either side;
+  a file with no row is pending and the next run applies it.
+- **`--include-all`, in the workflow and in `npm run db:push`.** The CLI's
+  default pushes only files newer than the newest recorded version and errors
+  on an older one, which is the shape of two PRs merging in the opposite order
+  from when their migrations were written. With the flag every unrecorded
+  file is applied in filename order. The consequence: a migration file on
+  `main` *will* be applied by the next run, so a file nobody wants applied
+  must not be there.
+- **A migration is applied once, by the workflow, never also by hand.**
+  Applying it through the MCP as well records a second version and the next
+  push errors on it. If a change has to be live before its PR merges, run the
+  workflow by hand pointed at the branch (*Run workflow* takes a branch, and
+  has a `dry_run` option), or `npm run db:push` locally — both write the
+  file's own version, so the merge's run then finds nothing pending.
+- **Order with the bundle.** Railway builds the static bundle from the same
+  push. The migration usually lands first — the push takes about a minute,
+  the build several — but nothing enforces it, so a migration the running
+  bundle cannot tolerate still needs the two-step: the additive migration in
+  one PR, the code that depends on it in the next.
+- **Secrets:** `SUPABASE_ACCESS_TOKEN` (a personal access token) and
+  `SUPABASE_DB_PASSWORD` (the push connects to Postgres directly, so the
+  service-role key the sync workflows hold is not enough). Missing, the first
+  step fails naming them; nothing hangs on a prompt.
+- **`20260808130000_drop_espn_staging.sql` is the one file deliberately left
+  out of the ledger**, because it was never applied: `espn_matchups`,
+  `espn_teams` and `espn_schedule_imports.raw_data` still exist live, and
+  nothing reads them. It is pending, and the next run — or `npm run db:push`
+  — applies it.
 
 ### The crons are Supabase's clock, GitHub's runners
 

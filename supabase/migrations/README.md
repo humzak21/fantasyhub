@@ -2,79 +2,89 @@
 
 The production schema (`kvcnijyyfylxfarrlxkv`) is versioned here. Every schema
 change is a file in this directory — nothing gets pasted into the Supabase SQL
-editor any more.
+editor, and nothing is applied through the MCP any more.
 
 ## Naming
 
 `<UTC timestamp>_<snake_case_description>.sql`, e.g.
-`20260803120000_season_config_backbone.sql`. Files apply in filename order.
+`20260903120000_member_approvals.sql`. Files apply in filename order.
+`00000000000000_baseline_schema.sql` is the schema as dumped in August 2026;
+everything after it is a change to that.
 
-## Applying
+## How a migration reaches production
 
-```bash
-npm run db:push          # apply pending migrations to the remote project
-npm run db:push:dry      # show what would be applied, change nothing
-npm run db:types         # regenerate types/supabase.ts from the live schema
-```
+1. **On the PR**, CI's `migrations` job (`.github/workflows/ci.yml`) replays
+   every file in this directory into a throwaway Postgres, diffs the result
+   against the files, and runs the pgTAP tests in `supabase/tests/`. Invalid
+   SQL, a wrong order, or a broken constraint fails the PR.
+2. **On merge**, `.github/workflows/deploy-migrations.yml` links the production
+   project and runs `supabase db push --include-all`. Every file the remote
+   ledger (`supabase_migrations.schema_migrations`) has not recorded is
+   applied, in filename order, and recorded. The run's summary lists what it
+   applied.
 
-`db:push` needs the CLI to be linked once:
+So a migration is validated before it lands and applied the moment it does.
+Do not also apply it by hand: a second apply records a second version and the
+next push errors on it.
+
+`--include-all` is deliberate, in the workflow and in `npm run db:push`. The
+CLI's default pushes only files newer than the newest recorded version and
+errors on an older one — which is what two PRs merging in the opposite order
+from when their migrations were written looks like. The consequence is that
+**a migration file on `main` will be applied by the next run**; a file nobody
+wants applied must not be there.
+
+## Applying by hand
+
+Needed only to apply a migration before its PR merges (a bundle that cannot
+tolerate the old schema), or to repair. Either:
+
+- the workflow's *Run workflow* button, pointed at the branch — it pushes
+  that branch's files, with a `dry_run` option that only lists them; or
+- locally, once the CLI is linked:
 
 ```bash
 npx supabase login                       # opens a browser for an access token
 npx supabase link --project-ref kvcnijyyfylxfarrlxkv
+npm run db:push:dry                      # list what is pending, change nothing
+npm run db:push                          # apply it
+npm run db:types                         # regenerate types/supabase.ts
 ```
 
-## Baseline — required, and not done yet
+Both write the file's own version to the ledger, so the merge's run then
+finds nothing pending.
 
-There is **no baseline dump**. The pre-existing schema (40 tables, ~66
-functions) was created by hand in the SQL editor before this directory existed,
-so `00000000000000_baseline_placeholder.sql` is a no-op marker.
+## The ledger
 
-The consequence showed up in CI: replaying the chain onto an empty database
-fails immediately on
+`supabase_migrations.schema_migrations` on the project holds one row per file
+here, version and name taken from the filename. Before 2026-10-08 it did not:
+the MCP had recorded its own apply-time versions (file
+`20260828120000_td_parlay.sql` was version `20260831185117`) and 18 versions
+from before the August squash were still listed, which is why `db push` refused
+for two months. `supabase/repair/2026-10-08-ledger-matches-files.sql` rewrites
+it to one row per file — run once, by hand, in the SQL editor, before the
+workflow's first run. It keeps the old rows in
+`supabase_migrations.schema_migrations_backup_20261008`, which is safe to drop.
 
-```
-ERROR: relation "public.seasons" does not exist (SQLSTATE 42P01)
-At statement: 0  -- 20260803120100_season_config_backbone.sql
-```
-
-...because there is no `seasons` table for the first real migration to alter.
-The migration job in `.github/workflows/ci.yml` therefore **skips the replay**
-until a real baseline exists, and turns itself back on automatically once one
-does. It looks for `CREATE TABLE|SCHEMA|TYPE` at the start of a line in
-`00000000000000_*.sql`.
-
-### Capturing it
-
-Needs the database password, so it cannot be done from CI or by an agent:
+To see both sides:
 
 ```bash
-npx supabase login
-npx supabase link --project-ref kvcnijyyfylxfarrlxkv
-npx supabase db dump -f supabase/migrations/00000000000000_baseline_schema.sql
-git rm supabase/migrations/00000000000000_baseline_placeholder.sql
+npx supabase migration list --linked
 ```
 
-Then **archive the migrations the dump already contains**, because they are not
-replayable on top of it:
+A file with no remote version is pending. A remote version with no file means
+something was applied outside this directory; put the SQL in a file with that
+version as its timestamp, or mark it reverted with
+`supabase migration repair --status reverted <version>`.
 
-```bash
-mkdir -p ../../aug2026_refactor/migrations-history
-git mv 2026*.sql ../../aug2026_refactor/migrations-history/
-```
+## Secrets the workflow needs
 
-This is not optional tidying. The P1 migrations backfill data —
-`insert into public.seasons`, `... teams`, `... games` from the `historical_*`
-tables — and add constraints and views without `if not exists`. Replayed over a
-baseline that already contains their results they would double-insert rows and
-fail on duplicate constraints. Squashing is the only order that works.
+Repository *Settings → Secrets and variables → Actions*:
 
-Archiving them locally does not disturb production: its `schema_migrations`
-ledger keeps every version, and `db push` only ever applies files the remote has
-not seen. Their rationale is preserved in
-[`aug2026_refactor/`](../../aug2026_refactor/README.md), which is the reason to
-archive rather than delete.
+- `SUPABASE_ACCESS_TOKEN` — a personal access token from
+  <https://supabase.com/dashboard/account/tokens>.
+- `SUPABASE_DB_PASSWORD` — the project's database password (*Project
+  Settings → Database*). The push connects to Postgres directly; the
+  service-role key the sync workflows hold is not enough.
 
-After the squash, `supabase/migrations/` holds one baseline plus whatever is
-authored from that point on, and the CI replay becomes a live gate.
-
+Missing, the workflow's first step fails naming them. Nothing is applied.
