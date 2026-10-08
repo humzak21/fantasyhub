@@ -59,6 +59,17 @@ export const PUSH_TOPIC_GROUPS = [
         description: 'When somebody backs or fades a take you posted.'
       }
     ]
+  },
+  {
+    id: 'matchups',
+    label: 'Matchups',
+    topics: [
+      {
+        id: 'matchup_facts',
+        label: 'Daily matchup facts',
+        description: "Noon every day: a stat that makes this week's opponent look bad."
+      }
+    ]
   }
 ];
 

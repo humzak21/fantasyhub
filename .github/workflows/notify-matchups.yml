@@ -1,0 +1,77 @@
+name: Matchup fact notifications
+
+# Noon every day: each member hears one stat that makes the franchise they
+# play this week look bad. The facts are services/matchupFacts.js.
+#
+# No `schedule:`, like the other jobs: Supabase's pg_cron dispatches this at
+# 16:00 and 17:00 UTC (job notify-matchup-facts). pg_cron has no time zones,
+# so one slot is noon Eastern under daylight time and the other after it; a
+# cron run passes --at-noon and only the noon one sends. Each day is claimed
+# in notification_log first, so a re-run sends nothing twice. See
+# supabase/migrations/20261008120000_matchup_facts.sql.
+#
+# Run it by hand to send today's facts now (if they have not gone out), to see
+# every member's fact (dry run), or to send one member today's fact without
+# using up the day (test_email).
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: 'Who started this run. The Supabase cron sends "cron"; leave it on "manual".'
+        required: false
+        default: manual
+        type: choice
+        options: [manual, cron]
+      dry_run:
+        description: 'Only print what would be sent.'
+        required: false
+        default: false
+        type: boolean
+      test_email:
+        description: 'Send today''s fact to this member only, without claiming the day (their sign-in email).'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify-matchups
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Send today's matchup facts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          TEST_EMAIL: ${{ inputs.test_email }}
+          TRIGGER: ${{ inputs.trigger }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args="--matchups"
+          if [ "$TRIGGER" = "cron" ]; then args="$args --at-noon"; fi
+          if [ "$DRY_RUN" = "true" ]; then args="$args --dry-run"; fi
+          if [ -n "$TEST_EMAIL" ]; then
+            node scripts/send-notifications.js $args --test "$TEST_EMAIL"
+          else
+            node scripts/send-notifications.js $args
+          fi

@@ -5,6 +5,9 @@
  *   node scripts/send-notifications.js              # send what is due
  *   node scripts/send-notifications.js --dry-run    # say what would be sent
  *   node scripts/send-notifications.js --takes      # announce new takes, Hell Yeahs and Hell Nahs
+ *   node scripts/send-notifications.js --matchups   # today's matchup fact to every member
+ *   node scripts/send-notifications.js --matchups --at-noon
+ *                                                   # the same, only during the noon hour (the cron)
  *   node scripts/send-notifications.js --test you@example.com
  *                                                   # one test notification to that member's devices
  *
@@ -23,6 +26,13 @@
  * pick'em slots were chosen for a civil hour, and a take posted at 5 AM must
  * not be the thing that sends "pick'ems are open".
  *
+ * `--matchups` is the third, run by .github/workflows/notify-matchups.yml,
+ * which pg_cron dispatches daily at 16:00 and 17:00 UTC; `--at-noon` lets
+ * only the one that is noon in the season's zone send. Each member gets their
+ * own fact about the franchise they play this week (services/matchupFacts.js),
+ * one claim per day of the week. With `--test <email>` it sends that member
+ * today's fact without claiming the day.
+ *
  * Needs SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY,
  * VAPID_PRIVATE_KEY and VAPID_SUBJECT (a mailto: or https: URL Apple can
  * reach you at).
@@ -32,6 +42,7 @@ import '../services/db/client.server.js';
 import webpush from 'web-push';
 
 import { getDb, getContext } from '../services/db/index.js';
+import { MATCHUP_FACTS_TOPIC, indexLeague, matchupDay, planMatchupFactNotifications } from '../services/matchupFacts.js';
 import {
   TAKE_EVENT_MAX_AGE_HOURS,
   isGoneStatus,
@@ -65,10 +76,13 @@ async function pushTo(subscription, payload, { ttlSeconds }) {
 
 /**
  * Send every recipient of one plan, then report the counts and which devices
- * are gone. Exported for the test.
+ * are gone. A recipient may carry its own `payload` (a matchup fact is
+ * different for every member); otherwise the plan's is sent. Exported for the
+ * test.
  */
 export async function deliver(plan, { send = pushTo, ttlSeconds = 12 * HOUR_S } = {}) {
-  const results = await Promise.all(plan.recipients.map((recipient) => send(recipient, plan.payload, { ttlSeconds })));
+  const results = await Promise.all(plan.recipients.map((recipient) =>
+    send(recipient, recipient.payload ?? plan.payload, { ttlSeconds })));
 
   const delivered = [];
   const gone = [];
@@ -195,8 +209,102 @@ export async function sendTakeNotifications({ db = getDb(getContext()), now = ne
   return { sent: report };
 }
 
-/** A test notification to one member's devices, found by email. */
-async function sendTest(email) {
+/**
+ * Today's matchup fact, one per member, each about the franchise they play
+ * this week. One claim covers the day (`matchup_facts:<weekday>` for the
+ * week), so a re-run or the other UTC slot sends nothing twice.
+ *
+ * `onlyUserId` sends just that member's fact and claims nothing — the test
+ * path, which must not use up the league's day.
+ */
+export async function sendMatchupFacts({
+  db = getDb(getContext()),
+  now = new Date(),
+  dryRun = false,
+  atNoon = false,
+  onlyUserId = null,
+  send
+} = {}) {
+  const season = await db.notifications.getMatchupFactSeason();
+  if (!season) return { reason: 'no active season', sent: [] };
+  const day = matchupDay(season, now);
+  if (!day) return { reason: 'outside the season', sent: [] };
+
+  const allSubscriptions = await db.notifications.getPushSubscriptions();
+  const subscriptions = allSubscriptions.filter((sub) =>
+    (onlyUserId ? sub.userId === onlyUserId : sub.topics.includes(MATCHUP_FACTS_TOPIC)));
+  if (!subscriptions.length) return { reason: 'no device wants matchup facts', week: day.week, sent: [] };
+
+  const [inputs, sent] = await Promise.all([
+    db.notifications.getMatchupFactInputs({ season, week: day.week, userIds: subscriptions.map((sub) => sub.userId) }),
+    onlyUserId ? new Set() : db.notifications.getSentNotificationKinds(season.id, day.week)
+  ]);
+  const index = indexLeague({ ...inputs, currentSeasonId: season.id });
+
+  const plans = planMatchupFactNotifications({
+    now,
+    season,
+    index,
+    pairings: inputs.pairings,
+    memberTeams: inputs.memberTeams,
+    // The test sends regardless of the topic: it is asked for by name.
+    subscriptions: onlyUserId ? subscriptions.map((sub) => ({ ...sub, topics: [MATCHUP_FACTS_TOPIC] })) : subscriptions,
+    sent,
+    excludedUserIds: inputs.excludedUserIds,
+    atNoon
+  });
+  if (!plans.length) return { reason: 'nothing due', week: day.week, day: day.dayKey, sent: [] };
+
+  const report = [];
+  for (const plan of plans) {
+    if (dryRun) {
+      report.push({
+        kind: plan.kind,
+        week: plan.week,
+        recipients: plan.recipients.length,
+        messages: plan.recipients.map((r) => ({ userId: r.userId, fact: r.factKey, ...r.payload })),
+        dryRun: true
+      });
+      continue;
+    }
+
+    let logId = null;
+    if (!onlyUserId) {
+      logId = await db.notifications.claimNotification({
+        kind: plan.kind,
+        seasonId: season.id,
+        week: plan.week,
+        recipients: plan.recipients.length
+      });
+      if (!logId) continue;
+    }
+
+    const { delivered, gone, failures } = await deliver(plan, { send, ttlSeconds: 8 * HOUR_S });
+    await db.notifications.deletePushSubscriptions(gone);
+    await db.notifications.markPushSubscriptionsSent(delivered, now);
+    if (logId) {
+      await db.notifications.finishNotification(logId, {
+        delivered: delivered.length,
+        failed: failures.length,
+        removed: gone.length
+      });
+    }
+
+    report.push({
+      kind: plan.kind,
+      week: plan.week,
+      recipients: plan.recipients.length,
+      delivered: delivered.length,
+      removed: gone.length,
+      failures
+    });
+  }
+
+  return { week: day.week, day: day.dayKey, sent: report };
+}
+
+/** The account with this sign-in email, or a thrown error. */
+async function findUserByEmail(email) {
   const client = getContext().client;
   const target = email.trim().toLowerCase();
 
@@ -208,6 +316,12 @@ async function sendTest(email) {
     if (data.users.length < 200) break;
   }
   if (!user) throw new Error(`No account uses ${email}`);
+  return user;
+}
+
+/** A test notification to one member's devices, found by email. */
+async function sendTest(email) {
+  const user = await findUserByEmail(email);
 
   const devices = (await getDb(getContext()).notifications.getPushSubscriptions())
     .filter((sub) => sub.userId === user.id);
@@ -231,12 +345,17 @@ async function sendTest(email) {
 async function main(argv = process.argv.slice(2)) {
   const dryRun = argv.includes('--dry-run');
   const takes = argv.includes('--takes');
+  const matchups = argv.includes('--matchups');
   const testIndex = argv.indexOf('--test');
+  const testEmail = testIndex >= 0 ? argv[testIndex + 1] ?? '' : null;
 
   if (!dryRun) configureVapid();
 
   let result;
-  if (testIndex >= 0) result = await sendTest(argv[testIndex + 1] ?? '');
+  if (matchups) {
+    const onlyUserId = testEmail != null ? (await findUserByEmail(testEmail)).id : null;
+    result = await sendMatchupFacts({ dryRun, atNoon: argv.includes('--at-noon'), onlyUserId });
+  } else if (testEmail != null) result = await sendTest(testEmail);
   else if (takes) result = await sendTakeNotifications({ dryRun });
   else result = await sendDueNotifications({ dryRun });
 

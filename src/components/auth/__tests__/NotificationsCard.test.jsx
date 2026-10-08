@@ -59,14 +59,22 @@ describe('NotificationsCard', () => {
     withState('off');
     render(<NotificationsCard />);
     await userEvent.click(screen.getByRole('button', { name: 'Turn on notifications' }));
-    expect(hook.turnOn.mutate).toHaveBeenCalledWith(['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions']);
+    expect(hook.turnOn.mutate).toHaveBeenCalledWith(['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'matchup_facts']);
   });
 
   it('toggles one topic and keeps the others', async () => {
-    withState('on', ['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions']);
+    withState('on', ['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'matchup_facts']);
     render(<NotificationsCard />);
     await userEvent.click(screen.getByRole('switch', { name: "Pick'ems are open" }));
-    expect(hook.setTopics.mutate).toHaveBeenCalledWith(['pickems_closing', 'takes_new', 'takes_reactions']);
+    expect(hook.setTopics.mutate).toHaveBeenCalledWith(['pickems_closing', 'takes_new', 'takes_reactions', 'matchup_facts']);
+  });
+
+  it('switches daily matchup facts off on their own', async () => {
+    withState('on', ['pickems_open', 'matchup_facts']);
+    render(<NotificationsCard />);
+    const matchups = screen.getByRole('region', { name: 'Matchups' });
+    await userEvent.click(within(matchups).getByRole('switch', { name: 'Daily matchup facts' }));
+    expect(hook.setTopics.mutate).toHaveBeenCalledWith(['pickems_open']);
   });
 
   it('puts the take switches under their own heading, each on its own', async () => {

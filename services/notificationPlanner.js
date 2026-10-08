@@ -17,14 +17,17 @@ export const TOPICS = Object.freeze({
   pickemsOpen: 'pickems_open',
   pickemsClosing: 'pickems_closing',
   takesNew: 'takes_new',
-  takesReactions: 'takes_reactions'
+  takesReactions: 'takes_reactions',
+  // Planned by services/matchupFacts.js, which owns the topic's constant.
+  matchupFacts: 'matchup_facts'
 });
 
 export const ALL_TOPICS = Object.freeze([
   TOPICS.pickemsOpen,
   TOPICS.pickemsClosing,
   TOPICS.takesNew,
-  TOPICS.takesReactions
+  TOPICS.takesReactions,
+  TOPICS.matchupFacts
 ]);
 
 /**

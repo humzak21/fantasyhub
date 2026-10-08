@@ -17,6 +17,7 @@ import { DbErrorKind, throwDbError, toDbError, unwrap } from './errors.js';
 import { createLogger } from './logger.js';
 import { selectAll } from './paging.js';
 import { getUserDisplayNames } from './users.js';
+import { ownerKey } from '../../utils/ownerAliases.js';
 
 const log = createLogger('db:notifications');
 
@@ -322,4 +323,116 @@ export async function claimTakeNotification(ctx, { kind, seasonId, takeEventId, 
     throw dbError;
   }
   return data.id;
+}
+
+// ---------------------------------------------------------------------------
+// Matchup facts (service role)
+// ---------------------------------------------------------------------------
+
+/** The active season, as `matchupDay` reads it, or null. */
+export async function getMatchupFactSeason(ctx) {
+  const row = unwrap(
+    await ctx.client
+      .from('v_active_season')
+      .select('id, year, start_date, timezone, week_count')
+      .maybeSingle(),
+    'Get active season',
+    { allowMissing: true }
+  );
+  if (!row) return null;
+  return {
+    id: row.id,
+    year: row.year,
+    startDate: row.start_date,
+    weekCount: row.week_count,
+    timeZone: row.timezone || 'America/New_York'
+  };
+}
+
+/**
+ * Everything `planMatchupFactNotifications` needs besides the devices: the
+ * league's whole history (seasons, teams, every scored game), this week's
+ * pairings, which team each member owns, and the accounts that are not
+ * approved members.
+ *
+ * A member's team is `teams.user_id` for the season, falling back to their
+ * display name against `teams.owner` — the same comparison that unmasks the
+ * league for them (`ownerKey`).
+ */
+export async function getMatchupFactInputs(ctx, { season, week, userIds = [] }) {
+  const [seasonRows, teamRows, results, gameRows, unapprovedRows] = await Promise.all([
+    ctx.client.from('seasons').select('id, year, is_completed')
+      .then((result) => unwrap(result, 'Get seasons') ?? []),
+    selectAll(() => ctx.client
+      .from('teams')
+      .select('id, season_id, franchise_id, owner, user_id, made_playoffs, playoff_finish, final_rank')
+      .order('id')).catch((error) => throwDbError(error, 'Get teams for matchup facts')),
+    // One row per team per scored game; passes 1,000 rows, so paged.
+    selectAll(() => ctx.client
+      .from('v_game_results')
+      .select('game_id, season_id, week, type, is_regular, is_playoff, is_consolation, team_id, opponent_id, points_for, points_against, result')
+      .order('game_id')
+      .order('team_id')).catch((error) => throwDbError(error, 'Get game results for matchup facts')),
+    // This week's games, scored or not; v_game_results holds scored games only.
+    ctx.client.from('games').select('team1_id, team2_id').eq('season_id', season.id).eq('week', week)
+      .then((result) => unwrap(result, 'Get this week\'s games') ?? []),
+    ctx.client.from('member_approvals').select('user_id').neq('status', 'approved')
+      .then((result) => unwrap(result, 'Get unapproved members') ?? [])
+  ]);
+
+  const teams = teamRows.map((row) => ({
+    id: row.id,
+    seasonId: row.season_id,
+    franchiseId: row.franchise_id,
+    owner: row.owner ?? '',
+    userId: row.user_id,
+    madePlayoffs: row.made_playoffs,
+    playoffFinish: row.playoff_finish,
+    finalRank: row.final_rank
+  }));
+
+  const pairings = gameRows
+    .filter((row) => row.team1_id && row.team2_id && row.team1_id !== row.team2_id)
+    .flatMap((row) => [
+      { teamId: row.team1_id, opponentId: row.team2_id },
+      { teamId: row.team2_id, opponentId: row.team1_id }
+    ]);
+
+  const thisSeason = teams.filter((team) => team.seasonId === season.id);
+  const memberTeams = new Map();
+  const unmatched = [];
+  for (const userId of new Set(userIds)) {
+    const team = thisSeason.find((t) => t.userId === userId);
+    if (team) memberTeams.set(userId, team.id);
+    else unmatched.push(userId);
+  }
+  if (unmatched.length) {
+    const names = await getUserDisplayNames(ctx, unmatched);
+    for (const userId of unmatched) {
+      const key = ownerKey(names[userId]);
+      const team = key && thisSeason.find((t) => ownerKey(t.owner) === key);
+      if (team) memberTeams.set(userId, team.id);
+    }
+  }
+
+  return {
+    seasons: seasonRows.map((row) => ({ id: row.id, year: row.year, isCompleted: Boolean(row.is_completed) })),
+    teams,
+    results: results.map((row) => ({
+      seasonId: row.season_id,
+      week: row.week,
+      type: row.type,
+      isRegular: Boolean(row.is_regular),
+      isPlayoff: Boolean(row.is_playoff),
+      isConsolation: Boolean(row.is_consolation),
+      teamId: row.team_id,
+      opponentId: row.opponent_id,
+      pointsFor: row.points_for == null ? null : Number(row.points_for),
+      pointsAgainst: row.points_against == null ? null : Number(row.points_against),
+      result: row.result
+    })),
+    pairings,
+    memberTeams,
+    excludedUserIds: new Set(unapprovedRows.map((row) => row.user_id))
+  };
 }

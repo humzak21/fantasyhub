@@ -2143,6 +2143,39 @@ each; the migration added both to every device already subscribed.
   `services/notificationPlanner.js`, and `PUSH_TOPIC_GROUPS` in
   `src/utils/pushNotifications.js`. A test holds the last two together.
 
+**Matchup facts arrive at noon every day, about this week's opponent**
+(`20261008120000_matchup_facts.sql`). Topic `matchup_facts`, on by default:
+the migration added it to every device already subscribed. Each member gets
+their own fact, so a plan's recipients carry their own `payload` and
+`deliver` sends that in place of the plan's.
+
+- **Every fact embarrasses the opponent.** `buildMatchupFacts`
+  (`services/matchupFacts.js`, pure) offers a head-to-head fact only to the
+  side it flatters, and otherwise the opponent's own history: titles, lost
+  finals, missed playoffs, playoff record, first-round exits, worst game and
+  worst beating, losing streaks, this season's record, skid, luck (all-play)
+  and points rank. The two members of a matchup get different facts.
+- **Numbers come from seasons, teams and `v_game_results` alone**, read once
+  per run by `getMatchupFactInputs`. A fact without its data is not offered.
+  This week's pairings come from `games`, because `v_game_results` holds only
+  scored games. A member's team is `teams.user_id`, then their display name
+  against `teams.owner` (`ownerKey`); no match, no notification.
+- **A week is ranked once and spread over its days.** Weeks run Tuesday to
+  Monday from `start_date`; `DAY_ORDER` puts the strongest fact on Sunday,
+  then Tuesday onward. A week with fewer facts than days goes quiet rather
+  than repeating one. Each day is claimed as `matchup_facts:<weekday>` in
+  `notification_log`, under the existing (kind, season, week) key.
+- **Noon is exact all year through two cron slots.** pg_cron
+  (`notify-matchup-facts`, `0 16,17 * * *`) dispatches
+  `notify-matchups.yml` at both; a cron run passes `--at-noon` and only the
+  one that is 12:00 in the season's zone sends. A manual run sends whenever
+  pressed, if the day is unclaimed. `test_email` sends one member today's
+  fact without claiming the day.
+- **Names, never pronouns.** The opponent is their owner's first name, or the
+  full name if two current owners share it.
+- **Applied through the dashboard's SQL editor**: the constraint swap is a
+  `DROP`, which the Supabase MCP cannot run.
+
 ### Password reset is a login, and the page makes it set a password
 
 A Supabase recovery link is not "prove it's you, then choose a password". It
