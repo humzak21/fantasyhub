@@ -438,6 +438,20 @@ export const PASSIVE_AUTOMATIONS = [
       'then the workflow run. Run it by hand to catch up anything from the last six hours.'
   },
   {
+    id: 'deploy-migrations',
+    name: 'Database migrations (deploy-migrations.yml)',
+    where: 'GitHub Actions · a merge to main that touches supabase/migrations/',
+    fires: 'On push to main when a migration file changed; or by hand, with a dry-run option',
+    does:
+      'Links the production project and runs supabase db push --include-all: every file in ' +
+      'supabase/migrations/ that the ledger (supabase_migrations.schema_migrations) has not recorded is ' +
+      'applied in filename order, and recorded. CI already replayed the same files into a throwaway Postgres ' +
+      'on the PR. Until 2026-10-08 a merged migration was applied by hand, and twice it was not applied at all.',
+    verify:
+      `${GITHUB_REPO}/actions/workflows/deploy-migrations.yml, or supabase migration list --linked. A file with ` +
+      'no remote version is pending: the next run applies it, and so does npm run db:push.'
+  },
+  {
     id: 'ci',
     name: 'CI (ci.yml)',
     where: 'GitHub Actions · every push and pull request',

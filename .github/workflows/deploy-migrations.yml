@@ -1,0 +1,109 @@
+name: Deploy database migrations
+
+# Applies supabase/migrations/ to the production project when a merge to main
+# adds or changes a migration file.
+#
+# Until 2026-10-08 a merged migration was applied by hand, through the Supabase
+# MCP, after the PR landed — and twice it was not applied at all. The pick'ems
+# user_id fix merged on 2026-09-15 and sat unapplied until 2026-09-29, which cost
+# the league two weeks of pick'ems while every sync reported success; the ESPN
+# staging drop from 2026-08-08 was still unapplied when this workflow was
+# written. CI's `migrations` job already replays every file into a throwaway
+# Postgres on the PR; this is the other half, the same files pushed to the real
+# project the moment they land on main.
+#
+# `--include-all` is deliberate. The CLI's default pushes only files newer than
+# the newest version in the remote ledger and errors on an older one, which is
+# exactly the shape of two PRs merging in the opposite order from when their
+# migrations were written. With the flag, every file the ledger has not
+# recorded is applied, in filename order, and recorded.
+#
+# The ledger is supabase_migrations.schema_migrations on the project. The MCP
+# had recorded its own apply-time versions, and 18 pre-squash versions were
+# still listed, so `db push` refused. supabase/repair/2026-10-08-ledger-matches-
+# files.sql rewrites it, once, to hold exactly the repo's file versions; run it
+# before this workflow's first run. The old rows are kept in
+# supabase_migrations.schema_migrations_backup_20261008.
+#
+# Secrets (repository Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN  a personal access token from
+#                          https://supabase.com/dashboard/account/tokens —
+#                          what `supabase link` authenticates with.
+#   SUPABASE_DB_PASSWORD   the project's database password (Project Settings →
+#                          Database). The push connects to Postgres directly, so
+#                          the service-role key the sync workflows hold is not
+#                          enough. Resetting the password means updating this.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/migrations/**'
+      - '.github/workflows/deploy-migrations.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List the pending migrations and apply nothing'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  # Two merges applying migrations at once would race on the ledger. Queue
+  # them: the second run finds nothing pending and exits clean.
+  group: deploy-migrations
+  cancel-in-progress: false
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: kvcnijyyfylxfarrlxkv
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: supabase/setup-cli@v3
+        with:
+          version: latest
+
+      # A missing secret would otherwise surface as an interactive prompt that
+      # hangs until the job times out. Say what is missing and stop.
+      - name: Check the secrets are set
+        run: |
+          missing=""
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing="$missing SUPABASE_ACCESS_TOKEN"
+          [ -n "$SUPABASE_DB_PASSWORD" ] || missing="$missing SUPABASE_DB_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error title=Migrations not applied::Missing repository secret(s):$missing. See the comment at the top of this workflow."
+            exit 1
+          fi
+
+      - name: Link the project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      # The plan goes in the job summary so a glance at the run says what moved.
+      - name: List what is pending
+        run: |
+          {
+            echo '## Pending migrations'
+            echo
+            echo '```'
+            supabase db push --include-all --dry-run 2>&1 | tee /dev/stderr
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply
+        if: ${{ !inputs.dry_run }}
+        run: supabase db push --include-all --yes
+
+      - name: Show the ledger
+        if: always()
+        run: supabase migration list --linked
