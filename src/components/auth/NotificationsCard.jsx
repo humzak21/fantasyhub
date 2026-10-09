@@ -140,7 +140,18 @@ function Loading() {
   return <div className="h-10 max-w-sm animate-pulse rounded-md bg-muted" aria-busy="true" aria-label="Loading" />;
 }
 
-function InstallSteps() {
+/**
+ * The Home Screen steps, shared with `NotificationsPrompt` so the card and the
+ * prompt cannot describe the install differently. `finalStep` is what happens
+ * once the app is open and signed in.
+ */
+export function InstallSteps({
+  finalStep = (
+    <>
+      Come back to Settings and tap <strong>Turn on notifications</strong>.
+    </>
+  )
+}) {
   return (
     <div className="space-y-3 text-sm">
       <p className="text-muted-foreground">
@@ -152,7 +163,7 @@ function InstallSteps() {
           <SquarePlus className="inline h-4 w-4 align-text-bottom" aria-hidden="true" /> <strong>Add to Home Screen</strong>.
         </li>
         <li>Open OG Jits from your Home Screen and sign in with your password.</li>
-        <li>Come back to Settings and tap <strong>Turn on notifications</strong>.</li>
+        <li>{finalStep}</li>
       </ol>
       <p className="text-xs text-muted-foreground">
         Already have an OG Jits icon from before October 2026? Delete it and add it again — the old one
