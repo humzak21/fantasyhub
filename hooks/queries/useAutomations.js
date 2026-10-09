@@ -17,6 +17,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getDb } from '../../services/db/index.js';
 import { useAuth } from '../../src/contexts/AuthContext.jsx';
 import { qk } from './keys.js';
+import { useViewerIsAdmin } from './useLeagueAdmins.js';
 
 const db = () => getDb();
 
@@ -24,7 +25,8 @@ const REFRESH_MS = 60_000;
 
 /** Recent `sync_runs` rows, newest first. `seasonId: null` reads every season. */
 export function useSyncRuns({ seasonId = null, limit = 40, enabled = true } = {}) {
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const isAdmin = useViewerIsAdmin();
 
   return useQuery({
     queryKey: qk.automations.runs(seasonId, limit),
@@ -38,7 +40,8 @@ export function useSyncRuns({ seasonId = null, limit = 40, enabled = true } = {}
 
 /** What the jobs have left in their tables for one season. Null until there is a season. */
 export function useAutomationHealth({ seasonId, seasonYear, throughWeek = 0, enabled = true } = {}) {
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const isAdmin = useViewerIsAdmin();
 
   return useQuery({
     queryKey: qk.automations.health(seasonId ?? null, seasonYear ?? null, throughWeek),

@@ -14,11 +14,17 @@ import { getMaskedOwnerName, getMaskedTeamName } from '../../../utils/displayNam
 
 const pickems = { getAllPicksForWeek: vi.fn(async () => []) };
 
+// `isAdmin` on the auth fixture is this test's switch. The viewer no longer
+// reads it from the session; it asks `is_admin()`, stubbed here to answer it.
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
     pickems,
-    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true },
+    users: {
+      isParlayCommissioner: async () => false,
+      isApprovedMember: async () => true,
+      isLeagueAdmin: async () => Boolean(auth.isAdmin)
+    },
     seasons: { getActiveSeason: async () => null }
   })
 }));

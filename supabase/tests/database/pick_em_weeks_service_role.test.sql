@@ -36,8 +36,14 @@ select is(
 
 -- The admin button: a signed-in admin, whose subject the trigger records.
 reset role;
+-- The admin is a league_admins row, not an email claim.
+insert into auth.users (id, email)
+values ('33333333-3333-4333-8333-333333333333', 'admin@example.com');
+insert into public.league_admins (user_id)
+values ('33333333-3333-4333-8333-333333333333')
+on conflict (user_id) do nothing;
 set local request.jwt.claims to
-  '{"role":"authenticated","sub":"33333333-3333-4333-8333-333333333333","email":"humzak2001@gmail.com"}';
+  '{"role":"authenticated","sub":"33333333-3333-4333-8333-333333333333"}';
 set local role authenticated;
 
 select lives_ok(

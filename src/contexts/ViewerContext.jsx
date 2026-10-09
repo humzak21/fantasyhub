@@ -19,7 +19,12 @@
 import { createContext, useContext, useMemo } from 'react';
 
 import { useAuth } from './AuthContext.jsx';
-import { useActiveSeason, useIsApprovedMember, useIsParlayCommissioner } from '../../hooks/queries/index.js';
+import {
+  useActiveSeason,
+  useIsApprovedMember,
+  useIsLeagueAdmin,
+  useIsParlayCommissioner
+} from '../../hooks/queries/index.js';
 import { getTeamOwnerNames, isUserATeamOwner } from '../utils/displayNameUtils.js';
 
 const ViewerContext = createContext(null);
@@ -28,7 +33,17 @@ const ViewerContext = createContext(null);
 const NO_OWNERS = [];
 
 export function ViewerProvider({ children }) {
-  const { user, isAuthenticated, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+
+  /**
+   * Is this viewer a league admin? A `league_admins` row, asked of
+   * `is_admin()` — the browser holds no admin email and no build-time id, so
+   * like the two checks below this is a round trip, and `isPending` is part
+   * of the answer. Disabled signed-out, where it would pend forever.
+   */
+  const { data: adminAnswer, isPending: adminPending } = useIsLeagueAdmin();
+  const isAdmin = adminAnswer === true;
+  const isAdminLoading = Boolean(isAuthenticated && adminPending);
   const { data: activeSeason } = useActiveSeason();
 
   /**
@@ -42,13 +57,21 @@ export function ViewerProvider({ children }) {
   /**
    * Has the admin approved this account? Same shape as the commissioner
    * check: a database round trip with its own pending state. The admin is
-   * folded in here, the way `isParlayCommissioner` folds them in, and the
-   * query is disabled for them — and for a signed-out viewer, for whom
-   * `isPending` would otherwise be true forever.
+   * folded in here, the way `isParlayCommissioner` folds them in.
+   *
+   * The query runs for every signed-in viewer, admin or not: whether they are
+   * an admin is itself still in flight when it starts, so there is nothing to
+   * disable it on. It is disabled only signed-out, for whom `isPending` would
+   * otherwise be true forever. And the approval is unknown until *both*
+   * answers are in — an admin whose approval row is slow is approved the
+   * moment the admin check lands, and a member whose admin check is slow is
+   * not yet known to be anything — so the loading flag waits on either.
    */
   const { data: approved, isPending: approvalPending } = useIsApprovedMember();
   const isApproved = Boolean(isAdmin || approved === true);
-  const isApprovalLoading = Boolean(isAuthenticated && !isAdmin && approvalPending);
+  const isApprovalLoading = Boolean(
+    isAuthenticated && !isApproved && (adminPending || approvalPending)
+  );
 
   const allOwnerNames = useMemo(() => getTeamOwnerNames(activeSeason), [activeSeason]);
 
@@ -76,7 +99,20 @@ export function ViewerProvider({ children }) {
     () => ({
       user,
       isAuthenticated,
+      /**
+       * Is this viewer a league admin? From `league_admins`, through
+       * `is_admin()` — the same rule every policy uses. False until the
+       * answer arrives; see `isAdminLoading`.
+       */
       isAdmin,
+      /**
+       * True while a signed-in viewer's admin status is still unknown. Never
+       * true signed-out — the query is disabled, so there is nothing to wait
+       * for. The route guard waits on it: History and Awards are gated on
+       * `isAdmin`, and a false read during the fetch would bounce an admin's
+       * deep link.
+       */
+      isAdminLoading,
       /**
        * True until the session has been resolved.
        *
@@ -93,9 +129,11 @@ export function ViewerProvider({ children }) {
        * follow this, not `isAuthenticated`.
        */
       isApproved,
-      /** True while the approval is still unknown. Never true signed-out or
-       *  for the admin, whose answer needs no round trip. The route guard
-       *  waits on it for the same reason it waits on `isAuthLoading`. */
+      /** True while the approval is still unknown: signed in, not yet
+       *  approved, and either the admin check or the approval check still in
+       *  flight. Never true signed-out, and false the moment either answer
+       *  is yes. The route guard waits on it for the same reason it waits on
+       *  `isAuthLoading`. */
       isApprovalLoading,
       teamOwnerNames,
       /**
@@ -126,20 +164,25 @@ export function ViewerProvider({ children }) {
        * admin, and nothing that reads `isAdmin` should start reading this.
        */
       isParlayCommissioner: Boolean(isAdmin || isCommissioner),
-      /** True while the role is still unknown. Never true for a signed-out
-       *  viewer — the query is disabled, so there is nothing to wait for. */
-      isParlayCommissionerLoading: Boolean(isAuthenticated && commissionerPending)
+      /** True while the role is still unknown — the role check or, since the
+       *  admin is folded in, the admin check. Never true for a signed-out
+       *  viewer — the queries are disabled, so there is nothing to wait for. */
+      isParlayCommissionerLoading: Boolean(
+        isAuthenticated && !isAdmin && !isCommissioner && (commissionerPending || adminPending)
+      )
     }),
     [
       user,
       isAuthenticated,
       isAdmin,
+      isAdminLoading,
       authLoading,
       isApproved,
       isApprovalLoading,
       teamOwnerNames,
       isCommissioner,
-      commissionerPending
+      commissionerPending,
+      adminPending
     ]
   );
 
@@ -151,6 +194,7 @@ export function ViewerProvider({ children }) {
  *   user: Object|null,
  *   isAuthenticated: boolean,
  *   isAdmin: boolean,
+ *   isAdminLoading: boolean,
  *   isAuthLoading: boolean,
  *   isApproved: boolean,
  *   isApprovalLoading: boolean,

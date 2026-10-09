@@ -144,6 +144,9 @@ export const qk = {
     all: ['viewer'],
     parlayCommissioner: (userId) => ['viewer', 'parlayCommissioner', userId],
     approved: (userId) => ['viewer', 'approved', userId],
+    /** Is this viewer a league admin — a `league_admins` row, asked of
+     *  `is_admin()`. Per user id like the two above. */
+    admin: (userId) => ['viewer', 'admin', userId],
     /**
      * This device's push notification state: what the browser holds and what
      * the server has stored for it. Per device, not just per user — a member
@@ -176,6 +179,17 @@ export const qk = {
   approvals: {
     all: ['approvals'],
     list: () => ['approvals', 'list']
+  },
+
+  /**
+   * Who the league's admins are, for Settings → Admins. An admin read beside
+   * `roles` and `approvals`; "am I an admin" is the viewer's own answer under
+   * `viewer.admin`. A grant or revoke invalidates this list and the affected
+   * user's `viewer.admin` entry.
+   */
+  admins: {
+    all: ['admins'],
+    list: () => ['admins', 'list']
   },
 
   /**

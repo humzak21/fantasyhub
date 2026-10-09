@@ -20,9 +20,14 @@ create extension if not exists pgtap with schema extensions;
 select plan(8);
 
 insert into auth.users (id, email)
-values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'humzak2001@gmail.com'),
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin@example.com'),
        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'member@example.com'),
        ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'visitor@example.com');
+
+-- aaaa is the admin: a league_admins row, not an email claim.
+insert into public.league_admins (user_id)
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
+on conflict (user_id) do nothing;
 
 -- bbbb is approved; cccc has signed up and is still waiting.
 insert into public.member_approvals (user_id, status)
@@ -83,7 +88,7 @@ reset role;
 -- The admin is not an exception. `take_views` has no admin policy, unlike
 -- every other table on this board.
 set local request.jwt.claims to
-  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","email":"humzak2001@gmail.com"}';
+  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 set local role authenticated;
 
 select is(

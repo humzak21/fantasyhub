@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../../services/supabaseClient.js'
-import { useIsAdmin } from '../utils/adminUtils'
 import { readAuthLinkError, describeMagicLinkError, describeEmailRateLimit } from '../utils/magicLink.js'
 import { RESET_PASSWORD_PATH, isRecoveryLanding } from '../utils/passwordReset.js'
 
@@ -302,15 +301,15 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  // Check if current user is admin
-  const isAdmin = useIsAdmin(user)
+  // Who is an admin is not this context's question. It is a `league_admins`
+  // row, asked of the database by `useIsLeagueAdmin()`; read it from
+  // `useViewer().isAdmin`. The session is all this provider knows.
   const isAuthenticated = !!user
 
   const value = {
     user,
     loading,
     isAuthenticated,
-    isAdmin,
     signIn,
     signUp,
     signOut,

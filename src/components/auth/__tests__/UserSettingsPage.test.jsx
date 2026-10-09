@@ -12,10 +12,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders, screen } from '../../../test/renderWithProviders.jsx';
 
+// The admin check is the `is_admin()` RPC; flip it per test.
+const isLeagueAdmin = vi.fn(async () => false);
+
 const auth = {
   user: { id: 'member-1', email: 'member@example.com', user_metadata: { full_name: 'Arya Shah' } },
   isAuthenticated: true,
-  isAdmin: false,
   loading: false,
   updatePassword: vi.fn()
 };
@@ -31,6 +33,7 @@ vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
     users: {
       isParlayCommissioner: vi.fn(async () => false),
       isApprovedMember: vi.fn(async () => true),
+      isLeagueAdmin: () => isLeagueAdmin(),
       listMemberApprovals: vi.fn(async () => [])
     },
     seasons: { getActiveSeason: async () => null, getSeasons: async () => [] }
@@ -54,6 +57,17 @@ describe('UserSettingsPage', () => {
 
     expect(screen.queryByRole('button', { name: /Seasons/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Automations/ })).not.toBeInTheDocument();
+  });
+
+  it('lists Admins right after Roles once is_admin() says yes', async () => {
+    isLeagueAdmin.mockResolvedValueOnce(true);
+    renderWithProviders(<UserSettingsPage />, { initialEntries: ['/settings'] });
+
+    const admins = await screen.findByRole('button', { name: /^Admins$/ });
+    const roles = screen.getByRole('button', { name: /^Roles$/ });
+    // DOCUMENT_POSITION_FOLLOWING: Admins comes after Roles in the sidebar.
+    expect(roles.compareDocumentPosition(admins) & 4).toBeTruthy();
+    expect(roles.nextElementSibling).toBe(admins);
   });
 
   it('renders an empty state, not a Go Back, when the session is gone', () => {

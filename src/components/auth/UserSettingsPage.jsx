@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import PageHeader from '../layout/PageHeader.jsx'
 import { EmptyState } from '../ui/empty-state'
 import { useAuth } from '../../contexts/AuthContext.jsx'
+import { useViewer } from '../../contexts/ViewerContext.jsx'
 import { supabase } from '../../../services/supabaseClient.js'
 import { useSeasons, useActiveSeason, useLeagueMutations, useMemberApprovals, countPendingApprovals } from '../../../hooks/queries/index.js'
 import { getDb } from '../../../services/db/index.js'
@@ -11,9 +12,10 @@ import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Badge } from '../ui/badge'
-import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow } from 'lucide-react'
+import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow, Crown } from 'lucide-react'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
+import LeagueAdminsManager from '../admin/LeagueAdminsManager.jsx'
 import MemberApprovalsManager from '../admin/MemberApprovalsManager.jsx'
 import AutomationsDashboard, { ColourKey } from '../admin/AutomationsDashboard.jsx'
 import { useAutomationReport } from '../admin/automations/useAutomationReport.js'
@@ -23,7 +25,10 @@ import NotificationsCard from './NotificationsCard.jsx'
 import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
 
 export const UserSettingsPage = () => {
-  const { user, isAdmin, updatePassword } = useAuth()
+  const { user, updatePassword } = useAuth()
+  // Admin is a `league_admins` row asked of the database, so it comes from
+  // the viewer, not the session.
+  const { isAdmin } = useViewer()
   const [displayName, setDisplayName] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
@@ -244,6 +249,15 @@ export const UserSettingsPage = () => {
                     >
                       <ShieldCheck className="mr-2 h-4 w-4" />
                       Roles
+                    </Button>
+
+                    <Button
+                      variant={activeSettingsTab === 'admins' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('admins')}
+                    >
+                      <Crown className="mr-2 h-4 w-4" />
+                      Admins
                     </Button>
 
                     <Button
@@ -473,6 +487,14 @@ export const UserSettingsPage = () => {
                 `list_league_members()`. */}
             {activeSettingsTab === 'roles' && isAdmin && (
               <LeagueRolesManager />
+            )}
+
+            {/* Who the admins are. `isAdmin` is the affordance; the boundary
+                is the guard inside `list_league_admins()` and
+                `set_league_admin()`, which also refuse a self-revoke and the
+                revoke that would leave the league without an admin. */}
+            {activeSettingsTab === 'admins' && isAdmin && (
+              <LeagueAdminsManager />
             )}
 
             {/* The approval queue. `isAdmin` is the affordance; the boundary

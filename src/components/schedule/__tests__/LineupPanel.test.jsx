@@ -47,7 +47,7 @@ vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
     rosters,
     playerWeekStats,
     nflSchedule,
-    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true },
+    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true, isLeagueAdmin: async () => false },
     seasons: { getActiveSeason: async () => SEASON_ROW }
   })
 }));
@@ -57,7 +57,6 @@ vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
   useAuth: () => ({
     user: { id: 'u1', user_metadata: { name: 'Arya Shah' } },
     isAuthenticated: true,
-    isAdmin: false,
     loading: false
   })
 }));

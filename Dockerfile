@@ -8,16 +8,15 @@ WORKDIR /app
 # Vite inlines these at build time, so they must be present for `npm run build`,
 # not at runtime. Railway passes service variables to Dockerfile builds as build
 # args, which is why they are ARGs here. All are public values; nothing secret
-# belongs in a client bundle.
+# belongs in a client bundle. There is no admin id here: who is an admin is a
+# `league_admins` row, read at runtime through `is_admin()`.
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_ADMIN_USER_ID
 ARG VITE_APP_NAME
 ARG VITE_APP_VERSION
 
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_ADMIN_USER_ID=$VITE_ADMIN_USER_ID
 ENV VITE_APP_NAME=$VITE_APP_NAME
 ENV VITE_APP_VERSION=$VITE_APP_VERSION
 

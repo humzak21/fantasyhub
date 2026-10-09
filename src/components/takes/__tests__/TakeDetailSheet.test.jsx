@@ -15,10 +15,16 @@ import {
   waitFor
 } from '../../../test/renderWithProviders.jsx';
 
+// `isAdmin` on the auth fixture is this test's switch. The viewer no longer
+// reads it from the session; it asks `is_admin()`, stubbed here to answer it.
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
-    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true },
+    users: {
+      isParlayCommissioner: async () => false,
+      isApprovedMember: async () => true,
+      isLeagueAdmin: async () => Boolean(auth.isAdmin)
+    },
     seasons: { getActiveSeason: async () => null }
   })
 }));
@@ -71,12 +77,16 @@ beforeEach(() => {
   auth = ADMIN;
 });
 
+// Admin is the answer of a stubbed `is_admin()` RPC now, not a session flag,
+// so the admin's controls appear a tick after the first render: the tests
+// below find them rather than get them.
+
 describe('TakeDetailSheet, admin', () => {
   it('opens the editor in place and hands the parent only what moved', async () => {
     const onAdminSave = vi.fn().mockResolvedValue(undefined);
     render({ onAdminSave });
 
-    fireEvent.click(screen.getByRole('button', { name: /edit take/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /edit take/i }));
 
     // The take itself gives way to the form while it is open.
     expect(screen.getByLabelText('Wording')).toHaveValue('Nobody goes 14-0');
@@ -93,10 +103,10 @@ describe('TakeDetailSheet, admin', () => {
     await waitFor(() => expect(screen.queryByLabelText('Wording')).not.toBeInTheDocument());
   });
 
-  it('will not save a form nobody changed', () => {
+  it('will not save a form nobody changed', async () => {
     render({ onAdminSave: vi.fn() });
 
-    fireEvent.click(screen.getByRole('button', { name: /edit take/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /edit take/i }));
 
     expect(screen.getByRole('button', { name: /save changes/i })).toBeDisabled();
   });
@@ -105,7 +115,7 @@ describe('TakeDetailSheet, admin', () => {
     const onAdminSave = vi.fn().mockRejectedValue(new Error('permission denied for table takes'));
     render({ onAdminSave });
 
-    fireEvent.click(screen.getByRole('button', { name: /edit take/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /edit take/i }));
     fireEvent.change(screen.getByLabelText('Stake'), { target: { value: '$50' } });
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
@@ -113,19 +123,19 @@ describe('TakeDetailSheet, admin', () => {
     expect(screen.getByLabelText('Stake')).toHaveValue('$50');
   });
 
-  it('can remove somebody else’s Hell Nah', () => {
+  it('can remove somebody else’s Hell Nah', async () => {
     const onAdminRemoveFade = vi.fn();
     render({ onAdminRemoveFade });
 
-    fireEvent.click(screen.getByRole('button', { name: "Remove Sam Lee's Hell Nah" }));
+    fireEvent.click(await screen.findByRole('button', { name: "Remove Sam Lee's Hell Nah" }));
 
     expect(onAdminRemoveFade).toHaveBeenCalledWith(TAKE, 'u3');
   });
 
-  it('says the log will sign what they change', () => {
+  it('says the log will sign what they change', async () => {
     render();
 
-    expect(screen.getByText(/shows in the activity log as Admin/i)).toBeInTheDocument();
+    expect(await screen.findByText(/shows in the activity log as Admin/i)).toBeInTheDocument();
   });
 });
 
