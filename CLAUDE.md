@@ -873,7 +873,7 @@ any policy in the file, so no existing member ever saw a refusal.
   set_config('request.jwt.claims', …) … rollback`), verified 2026-09-03: anon
   and an unapproved authenticated caller read zero takes and are refused by
   all three submit RPCs *before* the week lookup ("has not been approved");
-  the admin email claim is approved with no row; the listing is empty for a
+  an admin (a `league_admins` row) is approved with no row; the listing is empty for a
   non-admin; both write RPCs raise 42501 for a non-admin; the delete refuses
   the admin's own id. Note that temp tables created before `set local role`
   need a `GRANT` to `authenticated` or the probe fails on its own scaffolding.
@@ -1431,9 +1431,9 @@ it NULL for every case it is not certain of. See "`scored_td` is written by the
 sync's `parlayGrades` step" under the NFL-data notes below.
 
 **The commissioner is a role, not an admin.** `league_roles` +
-`is_parlay_commissioner()` exist because `is_admin()` is a single hardcoded
-email and the parlay needs a person who grades it without gaining the
-league's write paths. Grants are keyed on `user_id`, so they survive
+`is_parlay_commissioner()` exist because admin is every power the app has,
+and the parlay needs a person who grades it without gaining the league's
+write paths. Grants are keyed on `user_id`, so they survive
 an email change, and the admin assigns them in **Settings → Roles**
 (`src/components/admin/LeagueRolesManager.jsx`) — the role changes hands and
 more than one person can hold it, so it is a UI, not a migration. The picker's
@@ -2174,9 +2174,54 @@ login" reports were; nothing was bypassed, and nothing had been built.
   `authLinkError` is left in place so the login popover opens with the same
   message when the member goes back.
 
-### Admin is the email claim, never the user's own metadata
+### Admin is a row in `league_admins`, never an email or the user's own metadata
 
-`public.is_admin()` reads `auth.jwt() ->> 'email'`. Nothing may decide
+`public.is_admin()` is `exists (select 1 from league_admins where user_id =
+auth.uid())` (`20261008120000_league_admins.sql`). It used to compare the
+JWT email to one hardcoded address, and the browser separately compared
+`user.id` to a build-time `VITE_ADMIN_USER_ID` — two definitions of the same
+person that could, and did, disagree (a wrong env var hid every admin control
+while the database still accepted the writes). Both are gone. No email
+appears anywhere in the rule now, and the browser asks the database.
+
+- **The table is the only authority, and `is_admin()` the only reader of
+  it.** It keeps its signature and `STABLE SECURITY DEFINER`, so every policy,
+  `can_write_league()`, `is_approved_member()`, the take-event attribution
+  triggers and the admin-guarded RPCs picked the new definition up unchanged.
+  It stays executable by `anon` because `is_approved_member()` is evaluated
+  under anon policies. Being DEFINER is also what lets the table's own SELECT
+  policy key on `is_admin()` without recursing.
+- **Writes go through `set_league_admin(p_user_id, p_grant)` and nothing
+  else.** There is no INSERT/UPDATE/DELETE policy on the table. The RPC
+  raises 42501 for a non-admin and stamps `granted_by`. `list_league_admins()`
+  returns zero rows for a non-admin, the way `list_member_approvals()` does.
+- **An admin cannot remove themselves, and the last admin cannot be removed.**
+  Both are a BEFORE DELETE trigger (`league_admins_guard_delete`), so the
+  service role and a cascade from deleting the `auth.users` row are refused
+  too — a league with no admin cannot be repaired from the app.
+  `delete_member_account()` refuses an admin target for the same reason:
+  revoke first, then delete. The RPC repeats the self-removal check for a
+  clean message, and **Settings → Admins** (`LeagueAdminsManager.jsx`)
+  disables the button on the viewer's own row — a button whose only outcome
+  is an error is the bug `milestones.js` exists to prevent.
+- **The browser learns `isAdmin` from `rpc('is_admin')`**, through
+  `getDb().users.isLeagueAdmin` and `useIsLeagueAdmin()`, with the same
+  false-on-error policy as the approval check. `AuthContext` no longer carries
+  `isAdmin`; it is `useViewer()`'s, beside `isAdminLoading`. Because the answer
+  is now a round trip, the approval query runs for every signed-in viewer and
+  `isApprovalLoading` holds while *either* answer is pending, so the route
+  guard does not bounce an admin's deep link. **Every test that renders the
+  real `ViewerProvider` stubs `getDb().users.isLeagueAdmin`** beside
+  `isApprovedMember` and `isParlayCommissioner`.
+- **Seeded admins:** Humza Khalil (`351ac315-…`) and Harshil Pareek
+  (`00fc835f-…`), inserted only where the `auth.users` row exists, so CI's
+  empty replay passes; the migration raises if `auth.users` is non-empty and
+  nothing was seeded. From here on, admins are granted in Settings → Admins,
+  not in a migration.
+- A pgTAP test that needs an admin inserts a `league_admins` row for its test
+  user before `set local role`; none sets an email claim for it.
+
+Nothing may decide
 "admin" from `auth.users.raw_user_meta_data`: that column is `user_metadata`,
 which `supabase.auth.updateUser({ data })` writes from any signed-in account
 with no confirmation — the app's own `updateProfile` forwards whatever object
@@ -2199,7 +2244,7 @@ origin as `https://<host>/**` plus `http://localhost:3000/**` (a broader
 wildcard lets a crafted reset request deliver a session to someone else's
 domain); OTP expiry at or under an hour; a minimum password length of at
 least 8 to match the client; leaked-password protection on; secure email
-change on. MFA for the admin account would turn the single email claim into
+change on. MFA for the admin accounts would turn a `league_admins` row into
 something a phished password does not unlock — `is_admin()` could then also
 require `auth.jwt() ->> 'aal' = 'aal2'`.
 
@@ -2211,7 +2256,7 @@ require `auth.jwt() ->> 'aal' = 'aal2'`.
 - ESPN integration allows automatic data import
 - Responsive design with mobile-first approach — see "Mobile is not a separate
   app" for the rules that make that true rather than aspirational
-- This project has 1 admin user. All other users are *approved members* — a new account is a visitor until the admin approves it in Settings → Approvals — and any user can visualize the data (without logging in) — except the members-only tabs (Pick'ems, Playoffs, Awards, Takes) and the newsletter link, which only approved members see. RLS policies should reflect this. Only approved members can change their own pickems (`is_approved_member()`), but the general public (anyone visiting the page) can view the data. Only the admin user can manipulate data. 
+- This project has a small set of admin users (`league_admins`, granted in Settings → Admins). All other users are *approved members* — a new account is a visitor until the admin approves it in Settings → Approvals — and any user can visualize the data (without logging in) — except the members-only tabs (Pick'ems, Playoffs, Awards, Takes) and the newsletter link, which only approved members see. RLS policies should reflect this. Only approved members can change their own pickems (`is_approved_member()`), but the general public (anyone visiting the page) can view the data. Only admins can manipulate data. 
 - Owner names eg: "Humza Khalil" are stored in the database and should be the first thing to check against when looking for data for a team. Team names often change but owner names are consistent.
 - **Creating a season carries the previous season's teams forward.**
   `seasons.createSeason` copies the divisions and teams of the most recent
@@ -2236,11 +2281,11 @@ require `auth.jwt() ->> 'aal' = 'aal2'`.
   'Division 1' and 'Division 2'. Anything writing divisions for a fresh season
   must upsert on `(season_id, display_order)`; a plain insert hits the unique
   constraint.
-- Admin user is humzak2001@gmail.com. **Do not inline that email in new
-  policies** — use `public.is_admin()`, which is the single definition of who
-  the admin is. All league tables are public-read / `is_admin()`-write.
+- Admins are the rows of `league_admins`. **Never inline an email or a user
+  id in a policy** — use `public.is_admin()`, which is the single definition
+  of who an admin is. All league tables are public-read / `is_admin()`-write.
 - **In privileged SQL functions use `public.can_write_league()`, not
-  `is_admin()`.** `is_admin()` reads the JWT email and the service role has
+  `is_admin()`.** `is_admin()` reads `auth.uid()` and the service role has
   none, so an `is_admin()` guard returns false for every script and would break
   the weekly sync. `can_write_league()` covers the admin, `service_role`, and
   direct backend connections. Never test `current_user` inside a SECURITY

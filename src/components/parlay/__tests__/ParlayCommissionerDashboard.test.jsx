@@ -17,6 +17,7 @@ const pickems = { getAllPickEmWeeks: vi.fn(async () => []) };
 const users = {
   isParlayCommissioner: vi.fn(async () => true),
   isApprovedMember: vi.fn(async () => true),
+  isLeagueAdmin: vi.fn(async () => Boolean(auth.isAdmin)),
   getUserDisplayNames: vi.fn(async () => ({ u1: 'Arya Shah', u2: 'Rohit Ramki' }))
 };
 
@@ -40,6 +41,8 @@ const divisions = {
   ])
 };
 
+// `isAdmin` on the auth fixture is this test's switch. The viewer no longer
+// reads it from the session; it asks `is_admin()`, stubbed here to answer it.
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({

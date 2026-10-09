@@ -95,6 +95,12 @@ export {
 } from './useMemberApprovals.js';
 
 export {
+  useIsLeagueAdmin,
+  useLeagueAdmins,
+  useSetLeagueAdmin
+} from './useLeagueAdmins.js';
+
+export {
   useAwardsUnlockStatus,
   useAwards,
   useAwardResults,

@@ -185,9 +185,10 @@ export async function setParlayCommissioners(ctx, userIds = []) {
 // ---------------------------------------------------------------------------
 // The approval gate on new accounts. These live beside the role functions
 // rather than in a module of their own because every test that renders the
-// real `ViewerProvider` stubs `getDb()` as `{ users: { isParlayCommissioner } }`
-// — the provider's second identity question belongs on the same stub, not on a
-// module those tests do not know to provide.
+// real `ViewerProvider` stubs `getDb()` as
+// `{ users: { isParlayCommissioner, isApprovedMember, isLeagueAdmin } }` — the
+// provider's identity questions belong on one stub, not on modules those tests
+// do not know to provide. The admin questions (below) follow the same rule.
 
 /** The three states `member_approvals.status` may hold. */
 export const APPROVAL_STATUSES = ['pending', 'approved', 'rejected'];
@@ -293,5 +294,84 @@ export async function deleteMemberAccount(ctx, userId) {
     return data === true;
   } catch (error) {
     throwDbError(error, 'Delete member account');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// League admins
+// ---------------------------------------------------------------------------
+// Who is an admin is a row in `league_admins`, and `public.is_admin()` answers
+// from it. The browser knows nothing else: no email, no build-time user id.
+// Same module as the approval check, for the stub rule above.
+
+/**
+ * Is the caller a league admin?
+ *
+ * Same shape and failure policy as `isApprovedMember`: one RPC, false for a
+ * signed-out caller, and false-with-a-warning rather than a throw — this gates
+ * UI, and a lookup that blipped should read as "not an admin", not as a broken
+ * shell. Every admin write is refused by the database regardless of what this
+ * returns.
+ */
+export async function isLeagueAdmin(ctx) {
+  try {
+    const { data: { session } } = await ctx.client.auth.getSession();
+    if (!session?.user?.id) return false;
+
+    const { data, error } = await ctx.client.rpc('is_admin');
+
+    if (error) throw error;
+
+    return data === true;
+  } catch (error) {
+    log.warn('admin check failed:', error?.message ?? error);
+    return false;
+  }
+}
+
+/**
+ * Every current admin, oldest grant first, for Settings → Admins.
+ *
+ * `[]` for anyone but an admin — the guard is inside `list_league_admins()`.
+ */
+export async function listLeagueAdmins(ctx) {
+  try {
+    const { data, error } = await ctx.client.rpc('list_league_admins');
+
+    if (error) throw error;
+
+    return (data || []).map((row) => ({
+      userId: row.user_id,
+      displayName: row.display_name,
+      email: row.email,
+      grantedAt: row.granted_at,
+      grantedBy: row.granted_by ?? null
+    }));
+  } catch (error) {
+    throwDbError(error, 'List league admins');
+  }
+}
+
+/**
+ * Grant or revoke admin. Takes `{ userId, grant }`; resolves true when a row
+ * was actually inserted or deleted.
+ *
+ * The RPC refuses a non-admin (42501), a self-revoke, and the revoke that would
+ * leave the league with no admin. Its message is what the panel shows.
+ */
+export async function setLeagueAdmin(ctx, { userId, grant }) {
+  try {
+    const { data, error } = await ctx.client.rpc('set_league_admin', {
+      p_user_id: userId,
+      p_grant: Boolean(grant)
+    });
+
+    if (error) throw error;
+
+    log.info(`league admin: ${userId} ${grant ? 'granted' : 'revoked'}`);
+
+    return data === true;
+  } catch (error) {
+    throwDbError(error, grant ? 'Grant admin' : 'Revoke admin');
   }
 }

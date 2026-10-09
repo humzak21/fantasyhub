@@ -91,7 +91,7 @@ vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   getDb: () => ({
     syncRuns,
     seasons: { getActiveSeason: async () => SEASON },
-    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true }
+    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => true, isLeagueAdmin: async () => true }
   })
 }));
 
@@ -100,7 +100,6 @@ vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
   useAuth: () => ({
     user: { id: 'admin-1', user_metadata: { name: 'Humza Khalil' } },
     isAuthenticated: true,
-    isAdmin: true,
     loading: false
   })
 }));
@@ -127,7 +126,10 @@ describe('AutomationsDashboard', () => {
     expect((await screen.findAllByText('Weekly ESPN sync')).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Daily ESPN refresh').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Season schedule import')).toBeInTheDocument();
-    expect(syncRuns.getSyncRuns).toHaveBeenCalledWith({ seasonId: null, limit: 40 });
+    // The read is enabled once the stubbed `is_admin()` has answered.
+    await waitFor(() =>
+      expect(syncRuns.getSyncRuns).toHaveBeenCalledWith({ seasonId: null, limit: 40 })
+    );
     // The health read waits on the season read, and `throughWeek` is derived
     // from today's date against the fixture's start date, so only the keys
     // that do not move are pinned.

@@ -20,23 +20,27 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../../services/db/index.js';
 import { useAuth } from '../../src/contexts/AuthContext.jsx';
 import { qk } from './keys.js';
+import { useViewerIsAdmin } from './useLeagueAdmins.js';
 
 const db = () => getDb();
 
 /**
  * Has the admin approved this viewer?
  *
- * Disabled for the admin (`ViewerContext` folds them in, so there is nothing
- * to ask) and for a signed-out viewer — which is why `isPending` must not be
- * read as "loading" without also checking those two.
+ * Disabled for a signed-out viewer — which is why `isPending` must not be
+ * read as "loading" without also checking `isAuthenticated`. It is *not*
+ * disabled for the admin any more: whether the viewer is one is itself a
+ * round trip now (`useIsLeagueAdmin`), unknown when this first runs, and
+ * `is_approved_member()` folds the admin in on the database side anyway, so
+ * the two questions are asked in parallel and `ViewerContext` combines them.
  */
 export function useIsApprovedMember() {
-  const { user, isAuthenticated, isAdmin } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   return useQuery({
     queryKey: qk.viewer.approved(user?.id ?? null),
     queryFn: () => db().users.isApprovedMember(),
-    enabled: Boolean(isAuthenticated && user?.id && !isAdmin),
+    enabled: Boolean(isAuthenticated && user?.id),
     staleTime: 60_000,
     refetchOnWindowFocus: true,
     // A "no" is the answer most likely to change under us. Ask again every
@@ -51,7 +55,8 @@ export const countPendingApprovals = (rows = []) =>
 
 /** The admin's queue. Empty for everyone else, by the RPC's own guard. */
 export function useMemberApprovals({ enabled = true } = {}) {
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const isAdmin = useViewerIsAdmin();
 
   return useQuery({
     queryKey: qk.approvals.list(),

@@ -17,9 +17,14 @@ select plan(14);
 -- Scaffolding, as postgres. Three accounts: the admin, a member who posts, and
 -- a member who fades. auth.users has no required columns beyond the id.
 insert into auth.users (id, email)
-values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'humzak2001@gmail.com'),
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin@example.com'),
        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'author@example.com'),
        ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'fader@example.com');
+
+-- aaaa is the admin: a league_admins row, not an email claim.
+insert into public.league_admins (user_id)
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
+on conflict (user_id) do nothing;
 
 insert into public.member_approvals (user_id, status)
 values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'approved'),
@@ -55,7 +60,7 @@ select is(
 
 -- The admin, acting on the member's take.
 set local request.jwt.claims to
-  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","email":"humzak2001@gmail.com"}';
+  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 set local role authenticated;
 
 -- A fade as themselves on somebody else's staked take: a member could.
@@ -146,7 +151,7 @@ select is(
 -- The admin's own take, graded and reopened: no member may do either, whoever
 -- wrote it.
 set local request.jwt.claims to
-  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","email":"humzak2001@gmail.com"}';
+  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 set local role authenticated;
 
 update public.takes

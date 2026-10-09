@@ -16,9 +16,9 @@ import {
 /**
  * Who holds the parlay commissioner role.
  *
- * The role exists because `is_admin()` is one hardcoded email and the TD parlay
- * needs people who can *read* everyone's picks without gaining the league's
- * write paths. It is not a one-time decision — it changes hands, and more than
+ * The role exists because admin (`is_admin()`, a `league_admins` row) is every
+ * power at once, and the TD parlay needs people who can *read* everyone's
+ * picks without gaining the league's write paths. It is not a one-time decision — it changes hands, and more than
  * one person can hold it — so it belongs on a settings page rather than in a
  * migration with a uuid typed by hand.
  *

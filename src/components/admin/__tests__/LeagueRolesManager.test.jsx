@@ -17,7 +17,8 @@ const users = {
   getParlayCommissioners: vi.fn(async () => []),
   setParlayCommissioners: vi.fn(async () => ({ granted: 0, revoked: 0 })),
   isParlayCommissioner: vi.fn(async () => false),
-  isApprovedMember: vi.fn(async () => true)
+  isApprovedMember: vi.fn(async () => true),
+  isLeagueAdmin: vi.fn(async () => true)
 };
 
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
@@ -30,7 +31,6 @@ vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
   useAuth: () => ({
     user: { id: 'admin-1', user_metadata: { name: 'Humza Khalil' } },
     isAuthenticated: true,
-    isAdmin: true,
     loading: false
   })
 }));

@@ -20,10 +20,6 @@ vi.mock('../../../services/supabaseClient.js', () => ({
   supabase: { auth }
 }));
 
-vi.mock('../../utils/adminUtils', () => ({
-  useIsAdmin: () => false
-}));
-
 import { AuthProvider, useAuth } from '../AuthContext.jsx';
 import { readAuthLinkError, describeMagicLinkError } from '../../utils/magicLink.js';
 

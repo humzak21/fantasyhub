@@ -25,9 +25,14 @@ create extension if not exists pgtap with schema extensions;
 select plan(9);
 
 insert into auth.users (id, email)
-values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'humzak2001@gmail.com'),
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin@example.com'),
        ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'author@example.com'),
        ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'fader@example.com');
+
+-- aaaa is the admin: a league_admins row, not an email claim.
+insert into public.league_admins (user_id)
+values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
+on conflict (user_id) do nothing;
 
 insert into public.member_approvals (user_id, status)
 values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'approved'),
@@ -115,7 +120,7 @@ select is(
 -- that in preference to `created_at`.
 
 set local request.jwt.claims to
-  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","email":"humzak2001@gmail.com"}';
+  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 set local role authenticated;
 
 update public.takes set body = 'Somebody wins it from the 5 seed'
@@ -180,7 +185,7 @@ update public.takes set created_at = now() - interval '9 days', edited_at = null
 where id = '33333333-3333-4333-8333-333333333333';
 
 set local request.jwt.claims to
-  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","email":"humzak2001@gmail.com"}';
+  '{"role":"authenticated","sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 set local role authenticated;
 
 -- As themselves: the fader already holds the only other row on this take, and

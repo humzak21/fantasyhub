@@ -32,11 +32,17 @@ const takes = {
 // visitor here, with copy that says so.
 let approved = true;
 
+// `isAdmin` on the auth fixture is this test's switch. The viewer no longer
+// reads it from the session; it asks `is_admin()`, stubbed here to answer it.
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
     takes,
-    users: { isParlayCommissioner: async () => false, isApprovedMember: async () => approved },
+    users: {
+      isParlayCommissioner: async () => false,
+      isApprovedMember: async () => approved,
+      isLeagueAdmin: async () => Boolean(auth.isAdmin)
+    },
     seasons: { getActiveSeason: async () => SEASON }
   })
 }));

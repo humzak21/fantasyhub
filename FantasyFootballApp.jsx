@@ -76,6 +76,7 @@ const FantasyFootballApp = () => {
     isApproved,
     isApprovalLoading,
     isAdmin,
+    isAdminLoading,
     isTeamOwner
   } = useViewer();
 
@@ -333,11 +334,19 @@ const FantasyFootballApp = () => {
   // And the approval is the fourth: `isApproved` reads false until the row
   // has been fetched, which is indistinguishable from "not approved", so a
   // member's bookmarked /takes would bounce the same way.
+  //
+  // And admin is the fifth: it is a `league_admins` row asked of the
+  // database, not a build-time id, so `isAdmin` reads false until the RPC
+  // answers. History (`isAdmin || isTeamOwner`) and Awards
+  // (`isAwardsAccessible`) are gated on it, and an admin's bookmarked
+  // /history would bounce without this. (`isApprovalLoading` also waits on the
+  // admin check, but the guard names the flag it depends on.)
   if (!activeTabDef) return <Navigate to={`/${DEFAULT_TAB}`} replace />;
   if (
     !isLoading &&
     !isAuthLoading &&
     !isApprovalLoading &&
+    !isAdminLoading &&
     !ballotSeasonsLoading &&
     !shouldShowTab(activeTabDef)
   ) {

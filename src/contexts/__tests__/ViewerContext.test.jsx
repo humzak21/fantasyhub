@@ -16,7 +16,8 @@ import { getMaskedOwnerName, getMaskedTeamName } from '../../utils/displayNameUt
 
 const users = {
   isParlayCommissioner: vi.fn(async () => false),
-  isApprovedMember: vi.fn(async () => false)
+  isApprovedMember: vi.fn(async () => false),
+  isLeagueAdmin: vi.fn(async () => false)
 };
 
 // `useActiveSeason` feeds the row to `setSeasonConfig`, which wants the
@@ -38,7 +39,7 @@ vi.mock('../../../services/db/index.js', async (importOriginal) => ({
   getContext: () => ({ seasonsCache: new Map() })
 }));
 
-let auth = { user: null, isAuthenticated: false, isAdmin: false, loading: false };
+let auth = { user: null, isAuthenticated: false, loading: false };
 
 vi.mock('../AuthContext.jsx', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -55,11 +56,12 @@ const renderViewer = () => renderHook(() => useViewer(), { wrapper: AllProviders
 beforeEach(() => {
   vi.clearAllMocks();
   users.isApprovedMember.mockResolvedValue(false);
+  users.isLeagueAdmin.mockResolvedValue(false);
 });
 
 describe('ViewerContext approval', () => {
   it('masks an owner whose account the admin has not approved', async () => {
-    auth = { user: ARYA, isAuthenticated: true, isAdmin: false, loading: false };
+    auth = { user: ARYA, isAuthenticated: true, loading: false };
     const { result } = renderViewer();
 
     await waitFor(() => expect(result.current.isApprovalLoading).toBe(false));
@@ -74,7 +76,7 @@ describe('ViewerContext approval', () => {
 
   it('unmasks the same owner once approved', async () => {
     users.isApprovedMember.mockResolvedValue(true);
-    auth = { user: ARYA, isAuthenticated: true, isAdmin: false, loading: false };
+    auth = { user: ARYA, isAuthenticated: true, loading: false };
     const { result } = renderViewer();
 
     await waitFor(() => expect(result.current.isApproved).toBe(true));
@@ -85,18 +87,37 @@ describe('ViewerContext approval', () => {
     expect(getMaskedOwnerName(TEAM, user, isAdmin, teamOwnerNames)).toBe('Arya Shah');
   });
 
-  it('treats the admin as approved without asking', async () => {
-    auth = { user: { id: 'admin-1' }, isAuthenticated: true, isAdmin: true, loading: false };
+  it('treats the admin as approved once is_admin() says so', async () => {
+    users.isLeagueAdmin.mockResolvedValue(true);
+    // The approval check never answers: the admin answer alone is enough.
+    users.isApprovedMember.mockImplementation(() => new Promise(() => {}));
+    auth = { user: { id: 'admin-1' }, isAuthenticated: true, loading: false };
     const { result } = renderViewer();
 
+    await waitFor(() => expect(result.current.isAdmin).toBe(true));
+    expect(result.current.isAdminLoading).toBe(false);
     expect(result.current.isApproved).toBe(true);
     expect(result.current.isApprovalLoading).toBe(false);
+    expect(result.current.isParlayCommissioner).toBe(true);
     await waitFor(() => expect(result.current.teamOwnerNames).toHaveLength(1));
-    expect(users.isApprovedMember).not.toHaveBeenCalled();
+  });
+
+  it('keeps approval unknown while the admin check is still in flight', async () => {
+    users.isLeagueAdmin.mockImplementation(() => new Promise(() => {}));
+    auth = { user: ARYA, isAuthenticated: true, loading: false };
+    const { result } = renderViewer();
+
+    // The approval check answers "no" — but this could still be the admin.
+    await waitFor(() => expect(users.isApprovedMember).toHaveBeenCalled());
+    await waitFor(() => expect(users.isLeagueAdmin).toHaveBeenCalled());
+    expect(result.current.isAdminLoading).toBe(true);
+    expect(result.current.isAdmin).toBe(false);
+    expect(result.current.isApprovalLoading).toBe(true);
+    expect(result.current.isParlayCommissionerLoading).toBe(true);
   });
 
   it('has nothing to wait for when signed out', async () => {
-    auth = { user: null, isAuthenticated: false, isAdmin: false, loading: false };
+    auth = { user: null, isAuthenticated: false, loading: false };
     const { result } = renderViewer();
 
     expect(result.current.isApproved).toBe(false);
@@ -105,11 +126,14 @@ describe('ViewerContext approval', () => {
     // the list stays intact so the name prompt's owner-match warning works.
     await waitFor(() => expect(result.current.teamOwnerNames).toHaveLength(1));
     expect(users.isApprovedMember).not.toHaveBeenCalled();
+    expect(users.isLeagueAdmin).not.toHaveBeenCalled();
+    expect(result.current.isAdmin).toBe(false);
+    expect(result.current.isAdminLoading).toBe(false);
   });
 
   it('reports loading, and masks, until the answer arrives', async () => {
     users.isApprovedMember.mockImplementation(() => new Promise(() => {}));
-    auth = { user: ARYA, isAuthenticated: true, isAdmin: false, loading: false };
+    auth = { user: ARYA, isAuthenticated: true, loading: false };
     const { result } = renderViewer();
 
     await waitFor(() => expect(users.isApprovedMember).toHaveBeenCalled());

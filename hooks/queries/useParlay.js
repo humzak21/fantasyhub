@@ -20,6 +20,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDb } from '../../services/db/index.js';
 import { useAuth } from '../../src/contexts/AuthContext.jsx';
 import { qk } from './keys.js';
+import { useViewerIsAdmin } from './useLeagueAdmins.js';
 
 const db = () => getDb();
 
@@ -129,7 +130,8 @@ export function useIsParlayCommissioner() {
  * function's own guard.
  */
 export function useLeagueMembers({ enabled = true } = {}) {
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const isAdmin = useViewerIsAdmin();
 
   return useQuery({
     queryKey: qk.roles.members(),
