@@ -8,7 +8,7 @@ name: Matchup fact notifications
 # so one slot is noon Eastern under daylight time and the other after it; a
 # cron run passes --at-noon and only the noon one sends. Each day is claimed
 # in notification_log first, so a re-run sends nothing twice. See
-# supabase/migrations/20261008120000_matchup_facts.sql.
+# supabase/migrations/20261009120000_matchup_facts.sql.
 #
 # Run it by hand to send today's facts now (if they have not gone out), to see
 # every member's fact (dry run), or to send one member today's fact without

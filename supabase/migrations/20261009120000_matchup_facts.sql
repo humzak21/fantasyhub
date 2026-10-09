@@ -19,9 +19,8 @@
 -- key already makes once-only. What each member was told is
 -- `matchup_fact_log`, so no sentence is ever sent to them twice.
 --
--- Applying: the constraint swap below is a DROP, which the Supabase MCP
--- cannot run (see CLAUDE.md, "Scripts write to production"). Paste this file
--- into the dashboard's SQL editor.
+-- Applied on merge by deploy-migrations.yml, like every migration since
+-- 2026-10-08 — never also by hand.
 
 -- ---------------------------------------------------------------------------
 -- 1. The topic, on for every device that has notifications on

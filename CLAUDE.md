@@ -292,6 +292,12 @@ unapplied for two weeks while every sync reported success.
   file is applied in filename order. The consequence: a migration file on
   `main` *will* be applied by the next run, so a file nobody wants applied
   must not be there.
+- **A version is the timestamp alone, so two files must never share one.**
+  The ledger keys on it, and once one `20261008120000_*` is recorded the
+  other reads as applied and is skipped without an error. Two PRs written
+  the same day collide exactly that way — `matchup_facts` and `league_admins`
+  did — and git sees two different filenames, so nothing conflicts. Check
+  the version is unused on `main` before merging, and rename if it is not.
 - **A migration is applied once, by the workflow, never also by hand.**
   Applying it through the MCP as well records a second version and the next
   push errors on it. If a change has to be live before its PR merges, run the
@@ -2065,9 +2071,8 @@ Safari tab has no `PushManager`. So the feature is three halves:
   Thursday 21:30 UTC) through `private.dispatch_github_workflow`, and
   `scripts/send-notifications.js` sends with `web-push`.
 
-**Live since 2026-10-02** (#115): the migration is applied (recorded as
-`20261002045759 push_notifications`, without its no-op `DROP POLICY` lines —
-see the MCP note under "Scripts write to production"), the pg_cron jobs
+**Live since 2026-10-02** (#115): the migration is applied (by hand through
+the Supabase MCP, before "Migrations deploy on merge"), the pg_cron jobs
 `notify-pickems-open` / `notify-pickems-closing` are active, and test pushes
 from the workflow were delivered to two members' iPhones. The first scheduled
 send is the Tuesday after.
@@ -2144,7 +2149,7 @@ each; the migration added both to every device already subscribed.
   `src/utils/pushNotifications.js`. A test holds the last two together.
 
 **Matchup facts arrive at noon every day: the rarest true thing about your
-week** (`20261008120000_matchup_facts.sql`). Topic `matchup_facts`, on by
+week** (`20261009120000_matchup_facts.sql`). Topic `matchup_facts`, on by
 default: the migration added it to every device already subscribed. Each
 member gets their own fact, so a plan's recipients carry their own `payload`
 and `deliver` sends that in place of the plan's.
@@ -2185,8 +2190,9 @@ and `deliver` sends that in place of the plan's.
   unclaimed.
 - **Names, never pronouns.** The recipient is "you"; anybody else is their
   owner's first name, or the full name if two current owners share it.
-- **Applied through the dashboard's SQL editor**: the constraint swap is a
-  `DROP`, which the Supabase MCP cannot run.
+- **Applied on merge** by `deploy-migrations.yml`. Before the merge there is
+  no `matchup_fact_log`, so a manual run of `notify-matchups.yml` from the
+  branch fails on the history read — test after the merge.
 
 ### Password reset is a login, and the page makes it set a password
 

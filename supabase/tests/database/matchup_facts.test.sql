@@ -1,4 +1,4 @@
--- Matchup facts: what `20261008120000_matchup_facts.sql` makes true.
+-- Matchup facts: what `20261009120000_matchup_facts.sql` makes true.
 --
 --   * the matchup_facts topic is accepted alone, and is in the default;
 --   * a member reads their own matchup_fact_log rows and cannot write any;
