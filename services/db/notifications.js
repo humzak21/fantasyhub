@@ -355,9 +355,11 @@ export async function getMatchupFactSeason(ctx) {
  * pairings, which team each member owns, and the accounts that are not
  * approved members.
  *
- * A member's team is `teams.user_id` for the season, falling back to their
- * display name against `teams.owner` — the same comparison that unmasks the
- * league for them (`ownerKey`).
+ * A member's team is their display name against `teams.owner` — the same
+ * comparison that unmasks the league for them (`ownerKey`). `teams.user_id` is
+ * not an owner: the `set_user_id` trigger stamps whoever inserted the row, so
+ * today it is the admin on every team. It is used only as a fallback, and only
+ * when it names exactly one team in the season.
  */
 export async function getMatchupFactInputs(ctx, { season, week, userIds = [] }) {
   const [seasonRows, teamRows, results, gameRows, unapprovedRows, lineupRows, playerRows, eventRows] = await Promise.all([
@@ -428,19 +430,14 @@ export async function getMatchupFactInputs(ctx, { season, week, userIds = [] }) 
 
   const thisSeason = teams.filter((team) => team.seasonId === season.id);
   const memberTeams = new Map();
-  const unmatched = [];
-  for (const userId of new Set(userIds)) {
-    const team = thisSeason.find((t) => t.userId === userId);
+  const members = [...new Set(userIds)];
+  const names = members.length ? await getUserDisplayNames(ctx, members) : {};
+  for (const userId of members) {
+    const key = ownerKey(names[userId]);
+    const byName = key ? thisSeason.filter((t) => ownerKey(t.owner) === key) : [];
+    const byCreator = thisSeason.filter((t) => t.userId === userId);
+    const team = byName.length === 1 ? byName[0] : byCreator.length === 1 ? byCreator[0] : null;
     if (team) memberTeams.set(userId, team.id);
-    else unmatched.push(userId);
-  }
-  if (unmatched.length) {
-    const names = await getUserDisplayNames(ctx, unmatched);
-    for (const userId of unmatched) {
-      const key = ownerKey(names[userId]);
-      const team = key && thisSeason.find((t) => ownerKey(t.owner) === key);
-      if (team) memberTeams.set(userId, team.id);
-    }
   }
 
   return {
