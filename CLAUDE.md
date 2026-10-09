@@ -2148,6 +2148,26 @@ each; the migration added both to every device already subscribed.
   `services/notificationPlanner.js`, and `PUSH_TOPIC_GROUPS` in
   `src/utils/pushNotifications.js`. A test holds the last two together.
 
+**A one-time sheet offers notifications to members who have not set them up**
+(`src/components/auth/NotificationsPrompt.jsx`, mounted in `App.jsx` beside
+`DisplayNamePrompt`; the flow is drawn in `.github/assets/notification-onboarding/`).
+
+- **Who sees it:** a signed-in, approved member with a display name, whose
+  device reads *install* or *off*. `shouldOfferPushPrompt`
+  (`src/utils/pushPrompt.js`, pure) is the rule. Never on a device that is
+  on, cannot do push, or was *denied* (only iOS Settings can undo a refusal),
+  and never on `/settings`, where the card is the same control.
+- **What it can and cannot do:** a site cannot add itself to an iPhone's Home
+  Screen, so in a Safari tab the sheet asks, then shows the Share → Add to
+  Home Screen steps (`InstallSteps`, shared with the card so the two cannot
+  disagree). In the installed app it opens as "One last step", and one tap
+  calls `turnOn(ALL_TOPIC_IDS)`. That tap is the user gesture iOS requires
+  before it will show its permission prompt. A browser that can receive push
+  as it is gets the one tap directly.
+- **"Not now" is a preference, not a rule:** a per-member localStorage
+  timestamp, `PROMPT_SNOOZE_DAYS` (14). Closing the sheet any other way
+  counts as "Not now". Losing the timestamp only means one more offer.
+
 **Matchup facts arrive at noon every day: the rarest true thing about your
 week** (`20261009120000_matchup_facts.sql`). Topic `matchup_facts`, on by
 default: the migration added it to every device already subscribed. Each

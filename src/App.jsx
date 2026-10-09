@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import FantasyFootballApp from '../FantasyFootballApp.jsx'
 import ResetPasswordPage from './components/auth/ResetPasswordPage.jsx'
 import DisplayNamePrompt from './components/auth/DisplayNamePrompt.jsx'
+import NotificationsPrompt from './components/auth/NotificationsPrompt.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
 import { RESET_PASSWORD_PATH } from './utils/passwordReset.js'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
@@ -61,6 +62,12 @@ function App() {
         the page already offers the same field.
       */}
       {pathname !== '/settings' && <DisplayNamePrompt />}
+      {/*
+        The one-time "get OG Jits on your phone?" sheet. It waits for a display
+        name, so it never stacks on the prompt above, and skips /settings,
+        where the Notifications card is the same control.
+      */}
+      {pathname !== '/settings' && <NotificationsPrompt />}
 
       <Routes>
         {/* The reset link's landing page. Static, so it outranks /:tab. */}
