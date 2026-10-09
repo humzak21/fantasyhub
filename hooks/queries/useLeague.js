@@ -151,6 +151,7 @@ export function useGamesForWeek(seasonId, week) {
  *   divisions: Array,
  *   standings: Object,
  *   rosters: Object,
+ *   rostersLoading: boolean,
  *   completedWeeks: Array<number>,
  *   isLoading: boolean,
  *   isFetching: boolean,
@@ -192,6 +193,10 @@ export function useLeagueData() {
     divisions: divisionsQuery.data ?? [],
     standings: standingsQuery.data ?? { divisions: [], unassigned: [] },
     rosters: rostersQuery.data ?? {},
+    // Separate from `isLoading`, which is the season alone. The Teams tab
+    // waits on this before scrolling to a linked team: every card is as tall
+    // as its roster, so a scroll made before they arrive lands short.
+    rostersLoading: rostersQuery.isLoading,
     completedWeeks: completedWeeksQuery.data ?? [],
 
     // The season gates everything else, so "loading" means the season itself is

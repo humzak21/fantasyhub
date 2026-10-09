@@ -129,4 +129,55 @@ describe('TeamsAndRosters', () => {
     renderTab();
     expect(await screen.findByLabelText('QUESTIONABLE')).toBeInTheDocument();
   });
+
+  describe('a link from Rankings', () => {
+    const TWO_TEAMS = [...TEAMS, { id: 't2', name: 'Team Two', owner: 'Bo Jackson' }];
+    let scrolled;
+
+    beforeEach(() => {
+      // jsdom's stub (src/test/setup.js) is a no-op on the prototype; record
+      // which element it was called on instead.
+      scrolled = [];
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function () {
+        scrolled.push(this);
+      });
+    });
+
+    const renderLinked = (props = {}) =>
+      renderWithProviders(
+        <TeamsAndRosters season={SEASON_ROW} teams={TWO_TEAMS} rosters={ROSTERS} {...props} />,
+        { initialEntries: ['/teams?team=t2'] }
+      );
+
+    it('scrolls the linked team into view', async () => {
+      renderLinked();
+      await waitFor(() => expect(scrolled).toHaveLength(1));
+      // t2 has no roster here and t1 does — its name is masked for this
+      // viewer, so the roster is what tells the two cards apart.
+      expect(scrolled[0]).toHaveTextContent('No roster data');
+      expect(scrolled[0]).not.toHaveTextContent('Josh Allen');
+    });
+
+    it('waits for the rosters, which decide where the card ends up', async () => {
+      const { rerender } = renderLinked({ rostersLoading: true });
+      await awaitChips();
+      expect(scrolled).toHaveLength(0);
+
+      rerender(
+        <TeamsAndRosters season={SEASON_ROW} teams={TWO_TEAMS} rosters={ROSTERS} rostersLoading={false} />
+      );
+      await waitFor(() => expect(scrolled).toHaveLength(1));
+    });
+
+    it('scrolls once, not again on every re-render', async () => {
+      const { rerender } = renderLinked();
+      await waitFor(() => expect(scrolled).toHaveLength(1));
+
+      rerender(
+        <TeamsAndRosters season={SEASON_ROW} teams={[...TWO_TEAMS]} rosters={{ ...ROSTERS }} />
+      );
+      await awaitChips();
+      expect(scrolled).toHaveLength(1);
+    });
+  });
 });

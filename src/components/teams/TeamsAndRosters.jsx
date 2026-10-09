@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Users, Plus, Edit3, Trash2, Trophy, Target, TrendingUp, Crown, Medal, Award, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -29,6 +30,11 @@ import { TeamIdentity } from '../ui/team-identity';
 import { IndependentColumns } from '../ui/independent-columns';
 import { isUserTeam } from '../../utils/userTeamUtils';
 import { useActualWeek, useNflOpponentMap } from '../../../hooks/queries/index.js';
+import { cn } from '../../lib/utils';
+import { TEAM_PARAM } from './teamLink.js';
+
+/** How long a linked card keeps its ring after the scroll lands. */
+const LINKED_HIGHLIGHT_MS = 2000;
 
 /**
  * The Teams tab: every roster in the league, as it stands right now.
@@ -43,6 +49,7 @@ const TeamsAndRosters = ({
   season = null,
   teams = [],
   rosters = {},
+  rostersLoading = false,
   onAddTeam,
   onUpdateTeam,
   onRemoveTeam,
@@ -62,6 +69,37 @@ const TeamsAndRosters = ({
   // and deliberately not awaited: a roster renders without its opponents
   // rather than the whole tab waiting on a second query.
   const { data: opponents = {} } = useNflOpponentMap(nflSeasonYear, actualWeek);
+
+  // `/teams?team=<id>` — a team name tapped on Rankings — scrolls that card
+  // into view. It waits for the rosters as well as the teams: every card is
+  // as tall as its roster, so scrolling while they are still arriving lands
+  // on a spot the cards above are about to push down. Once per id, so a
+  // refetch or an admin edit does not yank the page back to it. An id that
+  // is not on this tab (another season's team) scrolls nowhere.
+  const [searchParams] = useSearchParams();
+  const linkedTeamId = searchParams.get(TEAM_PARAM);
+  const cardRefs = useRef(new Map());
+  const scrolledTo = useRef(null);
+  const [highlightedTeamId, setHighlightedTeamId] = useState(null);
+
+  useEffect(() => {
+    if (!linkedTeamId || scrolledTo.current === linkedTeamId) return;
+    if (loading || rostersLoading) return;
+    const card = cardRefs.current.get(linkedTeamId);
+    if (!card) return;
+    scrolledTo.current = linkedTeamId;
+    // A jump, not a smooth scroll. This is arriving somewhere, like following
+    // an anchor; animating past a dozen rosters nobody asked to see took
+    // several seconds on a phone, and the ring had faded before it landed.
+    card.scrollIntoView({ block: 'start' });
+    setHighlightedTeamId(linkedTeamId);
+  }, [linkedTeamId, loading, rostersLoading, teams]);
+
+  useEffect(() => {
+    if (!highlightedTeamId) return undefined;
+    const timer = setTimeout(() => setHighlightedTeamId(null), LINKED_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [highlightedTeamId]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
@@ -407,8 +445,20 @@ const TeamsAndRosters = ({
             // scroller, and on a phone `max-h-[70vh]` meant every card ended
             // mid-list with a scroll region inside the page's own scroll.
             // Cards are as tall as their content; the page scrolls.
+            // `scroll-mt-*` clears the sticky header, which `scrollIntoView`
+            // knows nothing about; without it the card's own header lands
+            // underneath. The ring fades out rather than snapping off.
             return (
-              <Card>
+              <Card
+                ref={(node) => {
+                  if (node) cardRefs.current.set(String(team.id), node);
+                  else cardRefs.current.delete(String(team.id));
+                }}
+                className={cn(
+                  'scroll-mt-20 transition-shadow duration-700',
+                  highlightedTeamId === String(team.id) && 'ring-2 ring-primary/70'
+                )}
+              >
                 <CardContent>
                   {/* Team Header. The identity chip, the name, the owner and
                       the record read as one block — the version this replaces

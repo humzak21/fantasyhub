@@ -66,6 +66,8 @@ TeamAvatar.displayName = 'TeamAvatar';
  * @param {boolean} [props.showAvatar]
  * @param {boolean} [props.isViewer] - the signed-in user's own team
  * @param {React.ReactNode} [props.meta] - one more fact for the second line
+ * @param {string} [props.nameClassName] - extra classes for the name line only,
+ *   e.g. a hover underline when the identity sits inside a link
  */
 const TeamIdentity = React.forwardRef(
   (
@@ -78,6 +80,7 @@ const TeamIdentity = React.forwardRef(
       isViewer = false,
       meta = null,
       className,
+      nameClassName,
       ...props
     },
     ref
@@ -92,7 +95,7 @@ const TeamIdentity = React.forwardRef(
       <div ref={ref} className={cn('flex min-w-0 items-center', s.gap, className)} {...props}>
         {showAvatar && <TeamAvatar team={team} size={size} />}
         <div className="min-w-0">
-          <div className={cn('truncate font-medium leading-tight tracking-[-0.006em]', s.name)}>
+          <div className={cn('truncate font-medium leading-tight tracking-[-0.006em]', s.name, nameClassName)}>
             {name}
             {isViewer && (
               <span className="ml-1.5 align-middle text-[10px] font-medium uppercase tracking-[0.08em] text-primary/80">
