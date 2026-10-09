@@ -2200,8 +2200,12 @@ and `deliver` sends that in place of the plan's.
   pickup's points count only in weeks after the add and only when started. A
   fact without its data is not offered. This week's pairings come from
   `games`, because `v_game_results` holds only scored games; no game (a bye)
-  means `self` facts only. A member's team is `teams.user_id`, then their
-  display name against `teams.owner` (`ownerKey`); no match, no notification.
+  means `self` facts only. A member's team is their display name against
+  `teams.owner` (`ownerKey`); no match, no notification. **`teams.user_id` is
+  not an owner** — the `set_user_id` trigger stamps whoever inserted the row,
+  which is the admin on every team — so it is a fallback only when it names
+  exactly one team. Trusting it first sent the admin a fact about an arbitrary
+  team on 2026-10-09.
 - **Noon is exact all year through two cron slots.** pg_cron
   (`notify-matchup-facts`, `0 16,17 * * *`) dispatches `notify-matchups.yml`
   at both; a cron run passes `--at-noon` and only the one that is 12:00 in the
