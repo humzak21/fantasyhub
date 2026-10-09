@@ -396,7 +396,7 @@ export const PASSIVE_AUTOMATIONS = [
     id: 'cron-dispatch',
     name: 'pg_cron → workflow dispatch',
     where: 'Database · cron.job, private.dispatch_github_workflow',
-    fires: 'At each job\'s slot (weekly-sync, daily-refresh, notify-pickems-open, notify-pickems-closing), in UTC',
+    fires: 'At each job\'s slot (weekly-sync, daily-refresh, notify-pickems-open, notify-pickems-closing, notify-matchup-facts), in UTC',
     does:
       'Keeps the clock for the two ESPN workflows. Each pg_cron job calls GitHub\'s workflow_dispatch API ' +
       'with trigger = cron, so the run starts within seconds and logs as a cron run. GitHub\'s own schedule ' +
@@ -436,6 +436,22 @@ export const PASSIVE_AUTOMATIONS = [
     verify:
       'notification_log rows with a take_event_id. A take with no row: net._http_response for the dispatch, ' +
       'then the workflow run. Run it by hand to catch up anything from the last six hours.'
+  },
+  {
+    id: 'matchup-fact-notifications',
+    name: 'Matchup fact notifications',
+    where: 'GitHub Actions · notify-matchups.yml, dispatched by pg_cron',
+    fires: 'Daily at 16:00 and 17:00 UTC (pg_cron job notify-matchup-facts); only the one that is noon Eastern sends',
+    does:
+      'Sends each member the most unusual true fact about their week: about them (honest), this week\'s opponent ' +
+      '(unflattering) or the rivalry. services/matchupFacts.js generates the candidates from games, lineups, ' +
+      'player weeks and pickups and picks the rarest one the member has not been told; matchup_fact_log is the ' +
+      'memory, so a sentence is never repeated and a kind of fact rests for three weeks. Each day is claimed in ' +
+      'notification_log as matchup_facts:<weekday> first.',
+    verify:
+      'notification_log has a matchup_facts:<weekday> row and matchup_fact_log a row per member each day of the season. ' +
+      'Run the workflow with dry_run to ' +
+      'see every member\'s fact, or test_email to send one member today\'s without claiming the day.'
   },
   {
     id: 'deploy-migrations',

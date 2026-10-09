@@ -292,6 +292,12 @@ unapplied for two weeks while every sync reported success.
   file is applied in filename order. The consequence: a migration file on
   `main` *will* be applied by the next run, so a file nobody wants applied
   must not be there.
+- **A version is the timestamp alone, so two files must never share one.**
+  The ledger keys on it, and once one `20261008120000_*` is recorded the
+  other reads as applied and is skipped without an error. Two PRs written
+  the same day collide exactly that way — `matchup_facts` and `league_admins`
+  did — and git sees two different filenames, so nothing conflicts. Check
+  the version is unused on `main` before merging, and rename if it is not.
 - **A migration is applied once, by the workflow, never also by hand.**
   Applying it through the MCP as well records a second version and the next
   push errors on it. If a change has to be live before its PR merges, run the
@@ -2065,6 +2071,12 @@ Safari tab has no `PushManager`. So the feature is three halves:
   Thursday 21:30 UTC) through `private.dispatch_github_workflow`, and
   `scripts/send-notifications.js` sends with `web-push`.
 
+**Live since 2026-10-02** (#115): the migration is applied (by hand through
+the Supabase MCP, before "Migrations deploy on merge"), the pg_cron jobs
+`notify-pickems-open` / `notify-pickems-closing` are active, and test pushes
+from the workflow were delivered to two members' iPhones. The first scheduled
+send is the Tuesday after.
+
 Rules that are load-bearing:
 
 - **The planner decides what is due, not the slot.** `planPickemNotifications`
@@ -2084,8 +2096,14 @@ Rules that are load-bearing:
 - **The VAPID key pair is split across two places.** The public key is in
   `src/utils/pushNotifications.js` (public by design, overridable with
   `VITE_VAPID_PUBLIC_KEY`); the private key is the `VAPID_PRIVATE_KEY`
-  Actions secret beside `VAPID_PUBLIC_KEY` and `VAPID_SUBJECT`. Rotating
-  means changing both, after which every member turns notifications on again.
+  Actions secret beside `VAPID_PUBLIC_KEY`. Rotating means changing both,
+  after which every member turns notifications on again.
+- **`VAPID_SUBJECT` is deliberately unset.** The script falls back to
+  `https://ogjits.com`. On 2026-10-02 the secret's value made Apple refuse
+  every send with `403 {"reason":"BadJwtToken"}` while the same keys signed
+  successfully with `https://ogjits.com` or `mailto:name@domain` (no space
+  after the colon); deleting the secret fixed it. A `BadJwtToken` from
+  `web.push.apple.com` means the subject or the key pair, never the device.
 - **Testing a real push:** run the workflow with `test_email` set to a
   member's sign-in email; `dry_run` prints what is due without sending or
   claiming. The card's "Show a test notification" is local and only proves
@@ -2129,6 +2147,52 @@ each; the migration added both to every device already subscribed.
 - A topic is three lists: `push_subscriptions_topics_check`, `TOPICS` in
   `services/notificationPlanner.js`, and `PUSH_TOPIC_GROUPS` in
   `src/utils/pushNotifications.js`. A test holds the last two together.
+
+**Matchup facts arrive at noon every day: the rarest true thing about your
+week** (`20261009120000_matchup_facts.sql`). Topic `matchup_facts`, on by
+default: the migration added it to every device already subscribed. Each
+member gets their own fact, so a plan's recipients carry their own `payload`
+and `deliver` sends that in place of the plan's.
+
+- **Many candidates, the rarest sent.** `buildMatchupFacts`
+  (`services/matchupFacts.js`, pure) turns every comparison it can make into a
+  fact with a `score` for how unusual it is (1st of 90 team-seasons beats 6th;
+  a first-ever streak beats a common one), and `pickFact` sends the best one
+  the member has not had.
+- **Three subjects.** `self` is honest — a best start and a worst start are
+  both said. `opponent` is only ever unflattering (`good === false`, plus the
+  opponent's career: titles, lost finals, missed playoffs, worst games).
+  `rivalry` is head-to-head, offered only to the side it flatters. Facts with
+  `good === null` (star share, consistency, points against) are `self` only.
+- **"Through W weeks" compares like with like.** W is the active season's last
+  scored regular week; every other team-season is cut at the same week: your
+  start against your own seasons and against league history, what became of
+  every team that started the same way, best record since a year.
+- **`matchup_fact_log` is the memory.** One row per member per day (unique),
+  written by the sender only for members a device actually took it on, read
+  back before choosing. An identical sentence is never sent twice; a family
+  rests `FAMILY_COOLDOWN_DAYS` (21) unless nothing else is left; each of the
+  last four facts sharing a subject costs a candidate 12 points, so a week
+  mixes you, them and the rivalry. A `test_email` send is not recorded.
+- **Data:** seasons, teams, `v_game_results` (paged), every
+  `team_week_lineups` row, and the active season's `player_week_stats` (names
+  from `players`) and WAIVER/FREEAGENT `transaction_events` (franchise ids). A
+  pickup's points count only in weeks after the add and only when started. A
+  fact without its data is not offered. This week's pairings come from
+  `games`, because `v_game_results` holds only scored games; no game (a bye)
+  means `self` facts only. A member's team is `teams.user_id`, then their
+  display name against `teams.owner` (`ownerKey`); no match, no notification.
+- **Noon is exact all year through two cron slots.** pg_cron
+  (`notify-matchup-facts`, `0 16,17 * * *`) dispatches `notify-matchups.yml`
+  at both; a cron run passes `--at-noon` and only the one that is 12:00 in the
+  season's zone sends. Each day is claimed as `matchup_facts:<weekday>` in
+  `notification_log`. A manual run sends whenever pressed, if the day is
+  unclaimed.
+- **Names, never pronouns.** The recipient is "you"; anybody else is their
+  owner's first name, or the full name if two current owners share it.
+- **Applied on merge** by `deploy-migrations.yml`. Before the merge there is
+  no `matchup_fact_log`, so a manual run of `notify-matchups.yml` from the
+  branch fails on the history read — test after the merge.
 
 ### Password reset is a login, and the page makes it set a password
 

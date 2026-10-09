@@ -29,8 +29,8 @@ export default function NotificationsCard() {
   } else if (!isApproved) {
     body = (
       <p className="text-sm text-muted-foreground">
-        Notifications are about pick&apos;ems and takes, so they open up once the admin has approved your
-        account.
+        Notifications are about pick&apos;ems, takes and matchups, so they open up once the admin has approved
+        your account.
       </p>
     );
   } else if (push.isPending || !device) {
@@ -57,7 +57,8 @@ export default function NotificationsCard() {
         <p className="text-sm text-muted-foreground">
           Get a nudge when pick&apos;ems open on Tuesday and, if you haven&apos;t picked, a few hours before
           they close on Thursday. Hear when somebody posts a take, and when somebody says Hell Yeah or Hell
-          Nah to one of yours. Each can be switched off once they&apos;re on.
+          Nah to one of yours. And at noon every day, one stat about your season or this week&apos;s opponent.
+          Each can be switched off once they&apos;re on.
         </p>
         <Button onClick={() => push.turnOn.mutate(ALL_TOPIC_IDS)} disabled={busy}>
           <Bell className="mr-2 h-4 w-4" />
@@ -119,7 +120,7 @@ export default function NotificationsCard() {
           Notifications
         </CardTitle>
         <CardDescription>
-          Pick&apos;em reminders and take alerts on your phone. Set per device: turning them on here does not
+          Pick&apos;em reminders, take alerts and matchup facts on your phone. Set per device: turning them on here does not
           turn them on anywhere else.
         </CardDescription>
       </CardHeader>
