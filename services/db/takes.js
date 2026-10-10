@@ -59,7 +59,7 @@ export async function getTakesForSeason(ctx, seasonId) {
   try {
     const { data, error } = await ctx.client
       .from('takes')
-      .select('*, take_participants(id, user_id, side, wager, created_at)')
+      .select('*, take_participants(id, user_id, side, wager, created_at, take_stake_responses(user_id, response, created_at))')
       .eq('season_id', seasonId)
       .order('created_at', { ascending: false });
 
@@ -220,8 +220,11 @@ export async function addFade(ctx, { takeId, seasonId }) {
  * your own.
  *
  * The stake is optional and normalized exactly like a take's: a blank box is
- * no stake, and no stake is NULL. It is a show of confidence, not a bet — no
- * Hell Nah ever owes it — so it is allowed on any take, staked or not.
+ * no stake, and no stake is NULL. It is an offer to the take's Hell Nahs,
+ * not a bet on its own: it binds each of them only once they accept it
+ * through `respondToStake`, and if nobody does it is off. That is why it is
+ * allowed on any take, staked or not — with nobody on the other side it binds
+ * nobody.
  */
 export async function addHellYeah(ctx, { takeId, seasonId, wager = null }) {
   try {
@@ -245,6 +248,43 @@ export async function addHellYeah(ctx, { takeId, seasonId, wager = null }) {
     return formatFromDatabase(data);
   } catch (error) {
     throwDbError(error, 'Hell Yeah');
+  }
+}
+
+/** Mirrors `take_stake_responses_response_check`. */
+const STAKE_RESPONSES = ['accepted', 'declined'];
+
+/**
+ * Answer a staked Hell Yeah on a take you said Hell Nah to: accept it, and
+ * owe the backer their stake as well if the take hits; or decline it, and
+ * stay in on the author's stake only. Each Hell Nah answers for themselves.
+ *
+ * `user_id` is left to its `auth.uid()` default. Every rule — you are a Hell
+ * Nah on this take, it is ungraded, the stake is under three days old, you
+ * have not answered already — is the `take_stake_responses answer own`
+ * policy and the unique key; a second answer comes back as a duplicate,
+ * because an answer is final.
+ */
+export async function respondToStake(ctx, { takeId, seasonId, hellYeahId, response }) {
+  try {
+    if (!takeId || !seasonId || !hellYeahId) {
+      throw new Error('An answer needs a take, a season and a Hell Yeah');
+    }
+    if (!STAKE_RESPONSES.includes(response)) {
+      throw new Error(`Unknown answer to a stake: ${response}`);
+    }
+
+    const { data, error } = await ctx.client
+      .from('take_stake_responses')
+      .insert(formatForDatabase({ takeId, seasonId, hellYeahId, response }))
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return formatFromDatabase(data);
+  } catch (error) {
+    throwDbError(error, response === 'declined' ? 'Decline stake' : 'Accept stake');
   }
 }
 
@@ -572,15 +612,16 @@ export async function getTakeActivity(ctx, takeId) {
 
     const events = formatFromDatabase(data || []);
 
-    // A reassigned take names both authors, and neither need appear anywhere
-    // else in the log.
+    // A reassigned take names both authors, and an answer to a stake names
+    // its backer; none of them need appear anywhere else in the log.
     const userIds = [
       ...new Set(
         events.flatMap((event) => [
           event.actorId,
           event.subjectId,
           event.changes?.author?.from,
-          event.changes?.author?.to
+          event.changes?.author?.to,
+          event.changes?.backer
         ])
       )
     ].filter(Boolean);

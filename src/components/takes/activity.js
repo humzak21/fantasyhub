@@ -254,8 +254,8 @@ export function describeTakeEvent(event, { actorName, subjectName, nameOf, seaso
     }
 
     // Hell Yeah, the same shape as Hell Nah. A backed row carries the stake
-    // the backer added, if any — a show of confidence nobody owes — and the log
-    // is the only record of what it was when they gave it.
+    // the backer added, if any — a proposal the Hell Nahs answer below — and
+    // the log is the only record of what it was when they gave it.
     case 'backed': {
       const onBehalf = Boolean(
         subjectName && (asAdmin || (actorName && subjectName !== actorName))
@@ -291,6 +291,38 @@ export function describeTakeEvent(event, { actorName, subjectName, nameOf, seaso
           : `${subjectName || who} took back their Hell Yeah`,
         fields: [],
         note
+      };
+    }
+
+    // A Hell Nah's answer to a staked Hell Yeah. `changes.backer` is the
+    // backer's id and `changes.wager.to` the stake as it stood; the stake is
+    // named because "accepted the stake" is meaningless without the amount.
+    case 'stake_accepted':
+    case 'stake_declined': {
+      const accepted = event.eventType === 'stake_accepted';
+      const answerer = subjectName || who;
+      const backer = changes.backer ? nameOf?.(changes.backer) : null;
+      const whose = backer ? `${backer}'s` : 'a';
+      const onBehalf = Boolean(
+        subjectName && (asAdmin || (actorName && subjectName !== actorName))
+      );
+      return {
+        kind: event.eventType,
+        title: onBehalf
+          ? `${who} ${accepted ? 'accepted' : 'declined'} ${whose} Hell Yeah stake for ${subjectName}`
+          : `${answerer} ${accepted ? 'accepted' : 'declined'} ${whose} Hell Yeah stake`,
+        fields: changes.wager?.to
+          ? [
+              {
+                key: 'wager',
+                label: 'Stake',
+                from: null,
+                to: wagerText(changes.wager.to),
+                multiline: false
+              }
+            ]
+          : [],
+        note: accepted ? null : 'They’re not in on that stake — only the take’s own.'
       };
     }
 

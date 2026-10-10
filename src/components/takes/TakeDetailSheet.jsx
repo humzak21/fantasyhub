@@ -45,6 +45,7 @@ import { formatDate, formatDateTime } from '../../lib/utils';
 import { getMaskedUserName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { AdminTakeEditor } from './AdminTakeEditor.jsx';
+import { BackerStakeLine, StakeRequestPanel } from './StakeRequests.jsx';
 import { TakeActivityLog } from './TakeActivityLog.jsx';
 import {
   STATUS_BADGE,
@@ -66,7 +67,8 @@ import {
   isFadeWindowOpen,
   isPending,
   milestoneLabel,
-  sidesLabel
+  sidesLabel,
+  stakeRequestsFor
 } from './milestones.js';
 
 const FieldRow = ({ label, children }) => (
@@ -78,9 +80,10 @@ const FieldRow = ({ label, children }) => (
 
 /**
  * Who is on one side of a take, with the stake a backer added beside their
- * name, and — for the admin — a control to remove each row.
+ * name — and where it stands with the Hell Nahs — and, for the admin, a
+ * control to remove each row.
  */
-function ParticipantList({ participants, nameOf, isAdmin, pending, removeLabel, onRemove }) {
+function ParticipantList({ take, participants, nameOf, isAdmin, pending, removeLabel, onRemove }) {
   return (
     <ul className="space-y-1.5">
       {participants.map((participant) => {
@@ -93,12 +96,7 @@ function ParticipantList({ participants, nameOf, isAdmin, pending, removeLabel, 
             <span className="min-w-0">
               <span className="block truncate text-foreground">{name}</span>
               {participant.wager && (
-                <span className="flex items-baseline gap-1 text-xs text-muted-foreground">
-                  <Coins className="h-3 w-3 shrink-0 translate-y-0.5 text-warning" aria-hidden="true" />
-                  <span className="break-words">
-                    Would put <span className="text-foreground">{participant.wager}</span> on it
-                  </span>
-                </span>
+                <BackerStakeLine take={take} hellYeah={participant} nameOf={nameOf} />
               )}
             </span>
             <span className="flex shrink-0 items-center gap-1">
@@ -212,7 +210,8 @@ export function TakeDetailSheet({
   onAdminSave,
   adminSaving,
   onAdminAddFade,
-  onAdminRemoveFade
+  onAdminRemoveFade,
+  onRespondToStake
 }) {
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const [editing, setEditing] = useState(false);
@@ -234,6 +233,9 @@ export function TakeDetailSheet({
   const staked = hasWager(take);
   const faded = hasFaded(take, user);
   const yeahed = hasHellYeahed(take, user);
+  // Staked Hell Yeahs waiting on this viewer's yes or no. Where a stake
+  // notification lands, so it sits right under the take.
+  const stakeRequests = stakeRequestsFor(take, user);
 
   // Joining and leaving are two rules sharing one window — see `canWithdrawFade`.
   const canToggle = faded ? canWithdrawFade(take, user) : canFade(take, user);
@@ -335,9 +337,20 @@ export function TakeDetailSheet({
             </>
           )}
 
+          {!isEditing && (
+            <StakeRequestPanel
+              take={take}
+              requests={stakeRequests}
+              nameOf={nameOf}
+              onRespond={onRespondToStake}
+              pending={pending}
+            />
+          )}
+
           {/* Every take can be backed, so this section is always here. A
-              backer's stake sits beside their name — a show of confidence,
-              which is the only thing it is; nobody owes it. */}
+              backer's stake sits beside their name with where it stands: a
+              stake binds the Hell Nahs only once every one of them has
+              accepted it, and one no takes it off. */}
           <div>
             <h3 className="mb-2 flex items-center gap-1.5 text-base font-semibold text-foreground">
               <ThumbsUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -348,6 +361,7 @@ export function TakeDetailSheet({
               <p className="text-sm text-muted-foreground">Nobody has backed this yet.</p>
             ) : (
               <ParticipantList
+                take={take}
                 participants={backers}
                 nameOf={nameOf}
                 isAdmin={isAdmin}
@@ -420,6 +434,7 @@ export function TakeDetailSheet({
               </p>
             ) : (
               <ParticipantList
+                take={take}
                 participants={participants}
                 nameOf={nameOf}
                 isAdmin={isAdmin}

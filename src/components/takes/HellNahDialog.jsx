@@ -13,7 +13,7 @@ import {
 } from '../ui/alert-dialog';
 import { Checkbox } from '../ui/checkbox';
 import { formatDateTime } from '../../lib/utils';
-import { fadeDeadline, fadeTerms } from './milestones.js';
+import { fadeDeadline, fadeTerms, openBackerStakes } from './milestones.js';
 
 /**
  * The confirmation in front of a Hell Nah.
@@ -38,9 +38,13 @@ import { fadeDeadline, fadeTerms } from './milestones.js';
  * need the explanation a thirteenth time, and a dialog that cannot be
  * dismissed permanently is one that gets clicked through without reading,
  * which is worse than not showing it.
+ *
+ * When the take carries Hell Yeah stakes still open to answers, the dialog
+ * says so: saying Hell Nah does not accept them, but it does mean being
+ * asked, and the price of a fade is easier to weigh with that in view.
  */
 
-export function HellNahDialog({ take, open, onOpenChange, onConfirm, pending }) {
+export function HellNahDialog({ take, open, onOpenChange, onConfirm, pending, nameOf = () => 'A backer' }) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   // The box belongs to one opening of the dialog. Cancelling with it ticked
@@ -53,6 +57,7 @@ export function HellNahDialog({ take, open, onOpenChange, onConfirm, pending }) 
   if (!take) return null;
 
   const deadline = fadeDeadline(take);
+  const backerStakes = openBackerStakes(take);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -71,6 +76,26 @@ export function HellNahDialog({ take, open, onOpenChange, onConfirm, pending }) 
         <blockquote className="rounded-md border-l-2 border-border bg-muted/40 py-2 pl-3 pr-2 text-sm leading-relaxed text-foreground">
           {take.body}
         </blockquote>
+
+        {backerStakes.length > 0 && (
+          <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+            <p className="font-medium text-foreground">
+              {backerStakes.length === 1 ? 'There is a Hell Yeah stake on this take:' : 'There are Hell Yeah stakes on this take:'}
+            </p>
+            <ul className="mt-1.5 space-y-0.5 text-foreground">
+              {backerStakes.map((yeah) => (
+                <li key={yeah.id ?? yeah.userId}>
+                  {nameOf(yeah.userId)} &mdash; {yeah.wager}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              Saying Hell Nah doesn&apos;t sign you up for {backerStakes.length === 1 ? 'it' : 'them'}.
+              You&apos;ll be asked whether to take {backerStakes.length === 1 ? 'it' : 'each one'} on as
+              well &mdash; that&apos;s your call.
+            </p>
+          </div>
+        )}
 
         <p className="text-sm text-muted-foreground">
           {deadline ? (

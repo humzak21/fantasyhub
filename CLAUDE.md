@@ -628,11 +628,11 @@ own; it is labelled optional, blank means none, and "Just Hell Yeah" is a
 button of its own. After the window there is nothing to ask, so the Hell Yeah
 lands on the click.
 
-- **A backer's stake is a show of confidence, not a bet. Hell Nahs never owe
-  a backer.** The stake shows beside the backer's name in the sheet and
-  nobody owes anybody over it. A Hell Nah's price is the author's stake and
-  nothing else, and `fadeTerms` never mentions backers. Because the stake
-  needs no other side, it is allowed on an unstaked take too.
+- **A backer's stake binds only the Hell Nahs who accept it** — see "A Hell
+  Yeah stake is an offer" below. Nobody else owes anybody over it.
+  `fadeTerms` is still the author's stake alone; the backers' terms are said
+  where a Hell Nah answers them. A staked Hell Yeah is still allowed on an
+  unstaked take: with no Hell Nahs it binds nobody.
 - **One side per member.** The existing UNIQUE (take_id, user_id) now means
   that; switching sides is a withdrawal and a fresh row.
 - **The window binds the stake, not the Hell Yeah**
@@ -656,6 +656,53 @@ lands on the click.
   `milestones.js` are the mirror; `supabase/tests/database/take_hell_yeah.test.sql`
   is what makes it true. Every Hell Yeah routes through `requestHellYeah` in
   `TakesManager`, for the reason every Hell Nah routes through `requestFade`.
+
+**A Hell Yeah stake is an offer, and each Hell Nah takes it on or not**
+(`20261010120000_take_stake_responses.sql`). Until 2026-10-10 a backer's stake
+was a show of confidence nobody owed. Now each Hell Nah on the take is asked
+whether they accept it, **and decides for themselves**: one who accepts owes
+the backer their stake too if the take hits, and the backer owes them if it
+misses; one who declines is in on the author's stake only. **If no Hell Nah
+accepts, the backer's stake is null.** The take's own stake is never affected.
+
+- **One answer per (staked Hell Yeah, Hell Nah), in `take_stake_responses`,
+  and it is final.** `accepted` or `declined`; no member UPDATE or DELETE
+  policy. The insert policy is the rule: your own row, you hold a Hell Nah on
+  the take, the take is ungraded, and the Hell Yeah is under 72 hours old.
+  The answer points at the Hell Yeah *row* (`hell_yeah_id`, cascading), so a
+  backer who withdraws and re-stakes makes a fresh offer.
+- **Nobody's answer binds anybody else.** An earlier draft of this feature
+  required every Hell Nah to agree, with one no voiding the stake and a
+  join-means-accept trigger to stop latecomers vetoing it; the league chose
+  per-person instead, and both mechanisms went with it. Saying Hell Nah
+  accepts nothing: a newcomer is asked like everybody else while the stake is
+  open (`HellNahDialog` mentions open stakes, but stays skippable).
+- **The state is derived, never stored.** `stakeStatus` in `milestones.js`
+  returns `acceptedBy` / `declinedBy` / `waitingOn` and a state: `in_play`
+  (at least one yes), `waiting` (no yes yet, somebody can still answer),
+  `unopposed` (no Hell Nahs yet, still open), `off` (no yes and nobody can
+  answer any more — all declined, 72 hours passed, or graded). **Silence is
+  a no.** Faders join and leave; a stored status would need triggers on two
+  tables to stay true.
+- **The Hell Nahs are asked by push**, topic `takes_stakes` ("Hell Yeah stakes
+  to accept", on for every device already subscribed). The `backed` event
+  that already tells the author now also plans one to every Hell Nah who has
+  not answered: *"Do you accept Jo's Hell Yeah? … Accepting means you'll have
+  to pay out to Jo as well if it hits. It's your call."* It opens the take,
+  where `StakeRequestPanel` asks the same question (`stakeRequestTerms`,
+  `STAKE_AGREEMENT_RULE`) with Accept / Decline, each confirmed in a dialog.
+  The card shows a "Do you accept it?" line; each backer's line in the sheet
+  says who is in on it, who declined and who can still answer.
+- **`notification_log` is unique on `(take_event_id, kind)` now**, not on the
+  event: one `backed` event is two audiences, each sent once. The inputs
+  return the claimed pairs and the planner skips a claimed `(event, kind)`.
+- **Logged as `stake_accepted` / `stake_declined`**, subject the Hell Nah,
+  `changes.backer` the backer's id, `changes.wager.to` the stake.
+- `canRespondToStake`, `stakeRequestsFor`, `openBackerStakes` and
+  `STAKE_RESPONSE_WINDOW_MS` are the mirror;
+  `supabase/tests/database/take_stake_responses.test.sql` is what makes it
+  true. **Apply the migration before the bundle**: the board's select embeds
+  `take_stake_responses`.
 
 **A Hell Nah is confirmed before it is written.** It is the only control in the
 app that commits the viewer to paying somebody, and now the only one with a
@@ -2113,8 +2160,11 @@ Rules that are load-bearing:
 (`20261007120000_take_notifications.sql`). Two more topics, `takes_new`
 (every new take, to everyone with it on *except the author*) and
 `takes_reactions` (a Hell Yeah or Hell Nah on your take, to *the author
-only*). The card shows them as a Takes group under the Pick'ems one, a switch
-each; the migration added both to every device already subscribed.
+only*), and since `20261010120000` a third, `takes_stakes` (a staked Hell Yeah
+on a take you said Hell Nah to, asking whether you accept it — see "A Hell
+Yeah stake is an offer"). The card shows them as a Takes group under the
+Pick'ems one, a switch each; each migration added its topics to every device
+already subscribed.
 
 - **`take_events` is the outbox.** Every post, Hell Yeah and Hell Nah already
   writes a row there, so a `FOR EACH STATEMENT` trigger on it
@@ -2122,7 +2172,7 @@ each; the migration added both to every device already subscribed.
   dispatches `.github/workflows/notify-takes.yml` through the same
   `private.dispatch_github_workflow` the crons use. The table stays
   append-only: what was sent is a `notification_log` row keyed by
-  `take_event_id` (unique), not a mark on the event. `week` is NULL on those
+  `(take_event_id, kind)` (unique), not a mark on the event. `week` is NULL on those
   rows, and `notification_log_keyed` requires one key or the other.
 - **The trigger never raises.** It runs inside a member's post; a missing
   Vault token must not refuse the take. The dispatch is wrapped and a failure

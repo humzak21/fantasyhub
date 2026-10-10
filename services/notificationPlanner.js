@@ -18,6 +18,7 @@ export const TOPICS = Object.freeze({
   pickemsClosing: 'pickems_closing',
   takesNew: 'takes_new',
   takesReactions: 'takes_reactions',
+  takesStakes: 'takes_stakes',
   // Planned by services/matchupFacts.js, which owns the topic's constant.
   matchupFacts: 'matchup_facts'
 });
@@ -27,6 +28,7 @@ export const ALL_TOPICS = Object.freeze([
   TOPICS.pickemsClosing,
   TOPICS.takesNew,
   TOPICS.takesReactions,
+  TOPICS.takesStakes,
   TOPICS.matchupFacts
 ]);
 
@@ -173,17 +175,24 @@ export function previewTake(body, max = TAKE_PREVIEW_LENGTH) {
  *   `takes_reactions`, and to nobody else. Only while the Hell Nah or Hell
  *   Yeah still stands: one withdrawn before the sender ran is not news, and
  *   switching sides writes a fresh event for the new side.
- * - Withdrawals, edits and grades are not announced.
+ * - **backed with a stake** also goes, under `takes_stakes`, to every Hell
+ *   Nah on the take who has not answered it yet: "Do you accept this Hell
+ *   Yeah?" A staked Hell Yeah is an offer each of them takes on or not
+ *   (20261010120000_take_stake_responses.sql), and this is how they hear of it.
+ * - Withdrawals, edits, grades and answers are not announced.
  *
- * Each plan is one event, claimed by its id. An event with nobody to tell is
- * left unclaimed, and ages out.
+ * Each plan is one audience for one event, claimed by `(event id, kind)`, so
+ * a staked Hell Yeah can tell the author and the Hell Nahs once each. A plan
+ * with nobody to tell is left unclaimed, and ages out.
  *
  * @param {object} input
  * @param {Date} input.now
  * @param {Array<{ id: string, takeId: string, seasonId: string, eventType: string, subjectId: string|null, createdAt: Date }>} input.events
- *   recent events not yet in notification_log
+ *   recent announceable events
+ * @param {Set<string>} [input.claimed] `${eventId}:${kind}` already in notification_log
  * @param {Map<string, { id: string, authorId: string, body: string, wager: string|null }>} input.takes by id
- * @param {Array<{ takeId: string, userId: string, side: 'nah'|'yeah', wager: string|null }>} input.participants
+ * @param {Array<{ id?: string, takeId: string, userId: string, side: 'nah'|'yeah', wager: string|null }>} input.participants
+ * @param {Array<{ hellYeahId: string, userId: string, response: 'accepted'|'declined' }>} [input.stakeResponses]
  * @param {Array<{ endpoint: string, userId: string, topics: string[] }>} input.subscriptions
  * @param {Record<string, string>} [input.displayNames] user id → name
  * @param {Set<string>} [input.excludedUserIds] accounts that may not read takes (not approved)
@@ -191,8 +200,10 @@ export function previewTake(body, max = TAKE_PREVIEW_LENGTH) {
 export function planTakeNotifications({
   now,
   events = [],
+  claimed = new Set(),
   takes = new Map(),
   participants = [],
+  stakeResponses = [],
   subscriptions = [],
   displayNames = {},
   excludedUserIds = new Set()
@@ -203,7 +214,10 @@ export function planTakeNotifications({
   // Takes are members-only; their wording is the notification.
   const readers = subscriptions.filter((sub) => !excludedUserIds.has(sub.userId) && Array.isArray(sub.topics));
 
+  const answered = new Set(stakeResponses.map((r) => `${r.hellYeahId}:${r.userId}`));
+
   const plans = [];
+  const due = (event, kind) => !claimed.has(`${event.id}:${kind}`);
   const ordered = [...events].sort((a, b) => a.createdAt - b.createdAt);
 
   for (const event of ordered) {
@@ -215,6 +229,7 @@ export function planTakeNotifications({
     const quoted = `“${previewTake(take.body)}”`;
 
     if (event.eventType === 'posted') {
+      if (!due(event, TOPICS.takesNew)) continue;
       const recipients = readers.filter((sub) => sub.topics.includes(TOPICS.takesNew) && sub.userId !== take.authorId);
       if (!recipients.length) continue;
       plans.push({
@@ -239,32 +254,62 @@ export function planTakeNotifications({
     if (!participant || participant.side !== side) continue;
     if (event.subjectId === take.authorId) continue;
 
-    const recipients = readers.filter((sub) => sub.topics.includes(TOPICS.takesReactions) && sub.userId === take.authorId);
-    if (!recipients.length) continue;
-
     const who = nameOf(event.subjectId);
-    let title;
-    if (side === 'nah') {
-      title = `${who} said Hell Nah to your take`;
-    } else if (participant.wager) {
-      title = `${who} said Hell Yeah to your take, with ${participant.wager} on it`;
-    } else {
-      title = `${who} said Hell Yeah to your take`;
+    const authorRecipients = due(event, TOPICS.takesReactions)
+      ? readers.filter((sub) => sub.topics.includes(TOPICS.takesReactions) && sub.userId === take.authorId)
+      : [];
+
+    if (authorRecipients.length) {
+      let title;
+      if (side === 'nah') {
+        title = `${who} said Hell Nah to your take`;
+      } else if (participant.wager) {
+        title = `${who} said Hell Yeah to your take, with ${participant.wager} on it`;
+      } else {
+        title = `${who} said Hell Yeah to your take`;
+      }
+      // The Hell Nah is the one with consequences for the author: it is the
+      // other side of their stake. fadeTerms in milestones.js is the rule.
+      const body = side === 'nah' && take.wager
+        ? `${quoted} · If it hits, they owe you ${take.wager}.`
+        : quoted;
+
+      plans.push({
+        kind: TOPICS.takesReactions,
+        eventId: event.id,
+        seasonId: event.seasonId,
+        recipients: authorRecipients,
+        // One tag per event: two Hell Nahs are two notifications, not one
+        // replacing the other.
+        payload: { title, body, url, tag: `take-${side}-${event.id}` }
+      });
     }
-    // The Hell Nah is the one with consequences for the author: it is the
-    // other side of their stake. fadeTerms in milestones.js is the rule.
-    const body = side === 'nah' && take.wager
-      ? `${quoted} · If it hits, they owe you ${take.wager}.`
-      : quoted;
+
+    // A staked Hell Yeah asks every Hell Nah on the take whether they'll
+    // take it on. Each answers for themselves, so somebody else's no changes
+    // nothing here; only those who have already answered are skipped.
+    if (side !== 'yeah' || !participant.wager || !due(event, TOPICS.takesStakes)) continue;
+
+    const askIds = new Set(participants
+      .filter((p) => p.takeId === take.id && p.side === 'nah' && p.userId !== event.subjectId)
+      .filter((p) => !participant.id || !answered.has(`${participant.id}:${p.userId}`))
+      .map((p) => p.userId));
+    const askRecipients = readers.filter((sub) => sub.topics.includes(TOPICS.takesStakes) && askIds.has(sub.userId));
+    if (!askRecipients.length) continue;
 
     plans.push({
-      kind: TOPICS.takesReactions,
+      kind: TOPICS.takesStakes,
       eventId: event.id,
       seasonId: event.seasonId,
-      recipients,
-      // One tag per event: two Hell Nahs are two notifications, not one
-      // replacing the other.
-      payload: { title, body, url, tag: `take-${side}-${event.id}` }
+      recipients: askRecipients,
+      // stakeRequestTerms / STAKE_AGREEMENT_RULE in milestones.js say the
+      // same thing on the take itself, where the answer is given.
+      payload: {
+        title: `Do you accept ${who}'s Hell Yeah?`,
+        body: `${who} put ${participant.wager} on ${quoted}. Accepting means you'll have to pay out to ${who} as well if it hits. It's your call.`,
+        url,
+        tag: `take-stake-${event.id}`
+      }
     });
   }
 

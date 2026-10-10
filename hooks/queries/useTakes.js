@@ -173,6 +173,14 @@ export function useTakesMutations(seasonId) {
       mutationFn: ({ takeId }) => db().takes.removeHellYeah(takeId),
       onSuccess: invalidate
     }),
+    // A Hell Nah's answer to a staked Hell Yeah. The answers ride on the
+    // board (embedded under each Hell Yeah) and are logged on the take, so
+    // the one prefix invalidation covers both.
+    respondToStake: useMutation({
+      mutationFn: ({ takeId, hellYeahId, response }) =>
+        db().takes.respondToStake({ takeId, seasonId, hellYeahId, response }),
+      onSuccess: invalidate
+    }),
     resolveTake: useMutation({
       mutationFn: ({ takeId, status }) => db().takes.resolveTake({ takeId, status }),
       onSuccess: invalidate

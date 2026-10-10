@@ -1,4 +1,4 @@
-import { Coins, Check, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { Coins, Check, Handshake, ThumbsDown, ThumbsUp } from 'lucide-react';
 
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -19,7 +19,8 @@ import {
   hasHellYeahed,
   hasWager,
   hellYeahCount,
-  isPending
+  isPending,
+  stakeRequestsFor
 } from './milestones.js';
 
 /**
@@ -49,19 +50,19 @@ export function TakeCard({
 }) {
   const { user, isAdmin, teamOwnerNames } = useViewer();
 
-  const authorName = getMaskedUserName(
-    displayNames[take.userId],
-    take.userId,
-    user,
-    isAdmin,
-    teamOwnerNames
-  );
+  const nameOf = (userId) =>
+    getMaskedUserName(displayNames[userId], userId, user, isAdmin, teamOwnerNames);
+  const authorName = nameOf(take.userId);
 
   const staked = hasWager(take);
   const count = fadeCount(take);
   const faded = hasFaded(take, user);
   const yeahCount = hellYeahCount(take);
   const yeahed = hasHellYeahed(take, user);
+  // Staked Hell Yeahs this viewer has been asked to accept. The answer is
+  // given in the sheet, which the whole card already opens; the line is what
+  // tells a Hell Nah scrolling the board that a question is waiting.
+  const stakeRequests = stakeRequestsFor(take, user);
 
   // The two sides of the Hell Nah are separate questions now: joining needs a
   // wager and an open window, leaving needs only the window. A viewer who
@@ -180,6 +181,18 @@ export function TakeCard({
           )}
         </span>
       </div>
+
+      {stakeRequests.length > 0 && (
+        <p className="mt-3 flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-[13px] text-foreground">
+          <Handshake className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+          <span>
+            {stakeRequests.length === 1
+              ? `${nameOf(stakeRequests[0].userId)} staked ${stakeRequests[0].wager} on a Hell Yeah. Do you accept it?`
+              : `${stakeRequests.length} Hell Yeah stakes are waiting for your answer.`}{' '}
+            <span className="text-muted-foreground">Open the take to answer.</span>
+          </span>
+        </p>
+      )}
 
       {/* Shown open or closed, and to the author as well: once the window
           shuts their bet is fixed, which is the thing they most want to know

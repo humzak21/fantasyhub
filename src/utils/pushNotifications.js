@@ -57,6 +57,11 @@ export const PUSH_TOPIC_GROUPS = [
         id: 'takes_reactions',
         label: 'Hell Yeahs and Hell Nahs on your takes',
         description: 'When somebody backs or fades a take you posted.'
+      },
+      {
+        id: 'takes_stakes',
+        label: 'Hell Yeah stakes to accept',
+        description: "When somebody stakes a Hell Yeah on a take you said Hell Nah to, asking whether you'll take it on too."
       }
     ]
   },

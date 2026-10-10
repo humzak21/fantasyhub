@@ -223,11 +223,14 @@ export const ANNOUNCED_TAKE_EVENTS = Object.freeze(['posted', 'faded', 'backed']
 
 /**
  * Everything `planTakeNotifications` needs, for events since `since`: the
- * events not yet in notification_log, their takes, those takes' current
- * participants, the names involved, and the accounts that may not read takes.
+ * events, which (event, kind) pairs notification_log already holds, their
+ * takes, those takes' current participants and answers to staked Hell Yeahs,
+ * the names involved, and the accounts that may not read takes.
  *
  * "Not yet sent" is read from notification_log rather than marked on the
- * event, because `take_events` is append-only and no client can write it.
+ * event, because `take_events` is append-only and no client can write it. It
+ * is per kind, not per event: a staked Hell Yeah tells the author and the
+ * Hell Nahs separately, and one being sent says nothing about the other.
  */
 export async function getTakeNotificationInputs(ctx, since) {
   const sinceIso = since.toISOString();
@@ -243,15 +246,14 @@ export async function getTakeNotificationInputs(ctx, since) {
     // since `since` too.
     selectAll(() => ctx.client
       .from('notification_log')
-      .select('id, take_event_id')
+      .select('id, take_event_id, kind')
       .not('take_event_id', 'is', null)
       .gte('sent_at', sinceIso)
       .order('id')).catch((error) => throwDbError(error, 'Get take notification log'))
   ]);
 
-  const claimed = new Set(claimedRows.map((row) => row.take_event_id));
+  const claimed = new Set(claimedRows.map((row) => `${row.take_event_id}:${row.kind}`));
   const events = eventRows
-    .filter((row) => !claimed.has(row.id))
     .map((row) => ({
       id: row.id,
       takeId: row.take_id,
@@ -262,15 +264,17 @@ export async function getTakeNotificationInputs(ctx, since) {
     }));
 
   if (!events.length) {
-    return { events, takes: new Map(), participants: [], displayNames: {}, excludedUserIds: new Set() };
+    return { events, claimed, takes: new Map(), participants: [], stakeResponses: [], displayNames: {}, excludedUserIds: new Set() };
   }
 
   const takeIds = [...new Set(events.map((event) => event.takeId))];
-  const [takeRows, participantRows, unapprovedRows] = await Promise.all([
+  const [takeRows, participantRows, responseRows, unapprovedRows] = await Promise.all([
     ctx.client.from('takes').select('id, user_id, body, wager').in('id', takeIds)
       .then((result) => unwrap(result, 'Get takes for notifications') ?? []),
-    ctx.client.from('take_participants').select('take_id, user_id, side, wager').in('take_id', takeIds)
+    ctx.client.from('take_participants').select('id, take_id, user_id, side, wager').in('take_id', takeIds)
       .then((result) => unwrap(result, 'Get take participants for notifications') ?? []),
+    ctx.client.from('take_stake_responses').select('hell_yeah_id, user_id, response').in('take_id', takeIds)
+      .then((result) => unwrap(result, 'Get stake answers for notifications') ?? []),
     // The admin has no row and is approved; every other account has one.
     ctx.client.from('member_approvals').select('user_id').neq('status', 'approved')
       .then((result) => unwrap(result, 'Get unapproved members') ?? [])
@@ -283,6 +287,7 @@ export async function getTakeNotificationInputs(ctx, since) {
     wager: row.wager ?? null
   }]));
   const participants = participantRows.map((row) => ({
+    id: row.id,
     takeId: row.take_id,
     userId: row.user_id,
     side: row.side ?? 'nah',
@@ -294,18 +299,26 @@ export async function getTakeNotificationInputs(ctx, since) {
   for (const event of events) if (event.subjectId) nameIds.add(event.subjectId);
   const displayNames = await getUserDisplayNames(ctx, [...nameIds]);
 
+  const stakeResponses = responseRows.map((row) => ({
+    hellYeahId: row.hell_yeah_id,
+    userId: row.user_id,
+    response: row.response
+  }));
+
   return {
     events,
+    claimed,
     takes,
     participants,
+    stakeResponses,
     displayNames,
     excludedUserIds: new Set(unapprovedRows.map((row) => row.user_id))
   };
 }
 
 /**
- * Claim one take event before sending it. Returns the log row's id, or null
- * when another run already claimed it.
+ * Claim one take event, for one audience (`kind`), before sending it. Returns
+ * the log row's id, or null when another run already claimed that pair.
  */
 export async function claimTakeNotification(ctx, { kind, seasonId, takeEventId, recipients }) {
   const { data, error } = await ctx.client
@@ -317,7 +330,7 @@ export async function claimTakeNotification(ctx, { kind, seasonId, takeEventId, 
   if (error) {
     const dbError = toDbError(error, 'Claim take notification');
     if (dbError.kind === DbErrorKind.DUPLICATE) {
-      log.info(`take event ${takeEventId} was already sent; skipping`);
+      log.info(`take event ${takeEventId} (${kind}) was already sent; skipping`);
       return null;
     }
     throw dbError;

@@ -4,7 +4,8 @@
  *
  *   node scripts/send-notifications.js              # send what is due
  *   node scripts/send-notifications.js --dry-run    # say what would be sent
- *   node scripts/send-notifications.js --takes      # announce new takes, Hell Yeahs and Hell Nahs
+ *   node scripts/send-notifications.js --takes      # announce new takes, Hell Yeahs and Hell Nahs,
+ *                                                   # and ask Hell Nahs to accept a staked Hell Yeah
  *   node scripts/send-notifications.js --matchups   # today's matchup fact to every member
  *   node scripts/send-notifications.js --matchups --at-noon
  *                                                   # the same, only during the noon hour (the cron)

@@ -52,7 +52,7 @@ describe('NotificationsPrompt', () => {
     expect(screen.getByText('One last step')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Turn on notifications/ }));
     expect(hook.turnOn.mutate).toHaveBeenCalledWith(
-      ['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'matchup_facts'],
+      ['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts'],
       expect.any(Object)
     );
     expect(toastSuccess).toHaveBeenCalledWith('Notifications are on.', expect.any(Object));

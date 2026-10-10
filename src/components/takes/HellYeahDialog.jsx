@@ -27,11 +27,11 @@ import { HELL_YEAH_STAKE_TERMS, MAX_WAGER, fadeDeadline } from './milestones.js'
  * stays disabled until there is a stake, so the only way to add one is to
  * type one.
  *
- * It opens on every Hell Yeah, staked take or not, because a backer's stake
- * is a show of confidence rather than a bet: nobody owes anybody over it, so
- * it needs no Hell Nahs on the other side. The copy says so in as many words,
- * since the author's stake quoted above the box *is* a bet and the two are
- * easy to read as one.
+ * It opens on every Hell Yeah, staked take or not. A backer's stake is an
+ * offer to the take's Hell Nahs: each is asked, it binds only those who
+ * accept, and if nobody does it is off. The copy says so in as many words —
+ * a backer who reads "stake" next to the author's bet will otherwise assume
+ * theirs is in play the moment they press the button.
  *
  * No "don't show this again", unlike `HellNahDialog`: that one explains a
  * price, which a regular has already read; this one asks something whose
@@ -61,8 +61,9 @@ export function HellYeahDialog({ take, open, onOpenChange, onConfirm, pending })
             Hell Yeah this take?
           </AlertDialogTitle>
           <AlertDialogDescription>
-            A Hell Yeah backs the take &mdash; that&apos;s all it has to be. You can also add a
-            stake of your own to show how sure you are, but you don&apos;t have to.
+            A Hell Yeah backs the take &mdash; that&apos;s all it has to be. You can also put a
+            stake of your own on it, but you don&apos;t have to &mdash; and it only binds the Hell
+            Nahs who accept it.
           </AlertDialogDescription>
         </AlertDialogHeader>
 

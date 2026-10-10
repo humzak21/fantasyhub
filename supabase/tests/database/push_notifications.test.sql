@@ -30,7 +30,7 @@ set local role authenticated;
 
 select is(
   public.save_push_subscription('https://web.push.apple.com/device-1', 'key', 'secret'),
-  array['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'matchup_facts']::text[],
+  array['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts']::text[],
   'a member saves a device and gets every topic by default'
 );
 

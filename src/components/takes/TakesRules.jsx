@@ -1,7 +1,7 @@
 import { Coins, ListChecks, Trophy } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
-import { EDIT_WINDOW_MS, FADE_WINDOW_MS, MAX_BODY } from './milestones.js';
+import { EDIT_WINDOW_MS, FADE_WINDOW_MS, MAX_BODY, STAKE_RESPONSE_WINDOW_MS } from './milestones.js';
 
 /**
  * What the page says the game is: what a take can win, what it can put on the
@@ -89,8 +89,24 @@ export function TakesRules({ className }) {
             Within {days(FADE_WINDOW_MS)} of the take&rsquo;s last edit, you&rsquo;ll be asked if
             you want to add a stake of your own.{' '}
             <span className="text-foreground">It&rsquo;s optional</span> &mdash; skip it and your
-            Hell Yeah still counts. A Hell Yeah stake is a show of confidence, not a bet: it shows
-            next to your name, and <span className="text-foreground">Hell Nahs never owe it</span>.
+            Hell Yeah still counts.
+          </li>
+          <li>
+            <span className="text-foreground">
+              A Hell Yeah stake only binds the Hell Nahs who agree to it.
+            </span>{' '}
+            Each Hell Nah is asked and decides for themselves. Accept and it&rsquo;s a side bet:
+            if the take hits you owe the backer too, and if it misses the backer owes you.
+          </li>
+          <li>
+            Decline, or don&rsquo;t answer within {days(STAKE_RESPONSE_WINDOW_MS)}, and
+            you&rsquo;re only in on the take&rsquo;s own stake. If{' '}
+            <span className="text-foreground">no Hell Nah accepts, the Hell Yeah stake is off</span>
+            . The Hell Yeah still counts either way. Answers are final.
+          </li>
+          <li>
+            Say Hell Nah while a Hell Yeah stake is still open and you&rsquo;ll be asked about it
+            too.
           </li>
         </RuleList>
       </RulesPanel>
