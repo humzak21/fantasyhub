@@ -21,8 +21,10 @@ import { renderWithProviders, screen, within } from '../../../test/renderWithPro
 
 const takes = {
   getTakesForSeason: vi.fn(),
+  getTakeActivity: vi.fn(),
   addFade: vi.fn(),
   addHellYeah: vi.fn(),
+  respondToStake: vi.fn(),
   getTakeViewMark: vi.fn(),
   markTakesSeen: vi.fn()
 };
@@ -55,6 +57,7 @@ vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
 }));
 
 const { default: TakesManager } = await import('../TakesManager.jsx');
+const { suppressHellNahConfirm } = await import('../confirmPreference.js');
 
 const SEASON = {
   id: 's1',
@@ -116,6 +119,8 @@ beforeEach(() => {
   takes.getTakesForSeason.mockResolvedValue(BOARD);
   takes.addFade.mockResolvedValue({ id: 'new-fade' });
   takes.addHellYeah.mockResolvedValue({ id: 'new-yeah' });
+  takes.respondToStake.mockResolvedValue({ id: 'answer' });
+  takes.getTakeActivity.mockResolvedValue({ events: [], displayNames: {} });
   // Never looked before: the resting state for a member whose `take_views` row
   // does not exist yet.
   takes.getTakeViewMark.mockResolvedValue(null);
@@ -530,7 +535,7 @@ describe('TakesManager, Hell Yeah', () => {
     expect(takes.addHellYeah).toHaveBeenCalledWith({ takeId: 'stale', seasonId: 's1' });
   });
 
-  it('says in the dialog that a Hell Yeah stake is not owed by anyone', async () => {
+  it('says in the dialog that a Hell Yeah stake needs every Hell Nah to agree', async () => {
     const user = userEvent.setup();
     renderTab();
     await screen.findByText('Somebody wins it from the 6 seed');
@@ -538,8 +543,8 @@ describe('TakesManager, Hell Yeah', () => {
     await user.click(screen.getByRole('button', { name: /^hell yeah$/i }));
     const dialog = await screen.findByRole('alertdialog');
 
-    expect(within(dialog).getByText(/show of confidence, not a bet/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/Hell Nahs never owe you/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/only if every Hell Nah on this take agrees/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/If anyone says no/i)).toBeInTheDocument();
   });
 
   it('offers no Hell Nah to somebody already backing the take', async () => {
@@ -673,5 +678,68 @@ describe('TakesManager, opened from a notification', () => {
     renderAt('/takes?take=deleted');
     await screen.findByText('Somebody wins it from the 6 seed');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('TakesManager, Hell Yeah stakes', () => {
+  const BACKER = 'u3';
+  const stakedBoard = (participants) => ({
+    takes: [{ ...BOARD.takes[0], takeParticipants: participants }],
+    displayNames: { ...BOARD.displayNames, [BACKER]: 'Sam Lee' }
+  });
+  const stakedYeah = (responses = []) => ({
+    id: 'y1',
+    userId: BACKER,
+    side: 'yeah',
+    wager: '$10',
+    createdAt: hoursAgo(1),
+    takeStakeResponses: responses
+  });
+
+  beforeEach(signInAsReader);
+
+  it('asks a Hell Nah on the take whether they accept, and sends the answer', async () => {
+    takes.getTakesForSeason.mockResolvedValue(stakedBoard([
+      { id: 'n1', userId: READER, side: 'nah', createdAt: hoursAgo(1.5) },
+      stakedYeah()
+    ]));
+    const user = userEvent.setup();
+    renderTab();
+
+    // Names are masked for a viewer who owns no team in this fixture, so the
+    // assertions key on the stake rather than on who put it up.
+    expect(await screen.findByText(/staked \$10 on a Hell Yeah\. Do you accept it\?/)).toBeInTheDocument();
+
+    await user.click(screen.getByText('Somebody wins it from the 6 seed'));
+    const panel = await screen.findByRole('region', { name: /stakes waiting on you/i });
+    expect(within(panel).getByText(/pay out to .+ as well if this take hits/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/Every Hell Nah has to agree/i)).toBeInTheDocument();
+
+    await user.click(within(panel).getByRole('button', { name: /^decline$/i }));
+    const confirm = await screen.findByRole('alertdialog');
+    expect(within(confirm).getByText(/off for everyone/i)).toBeInTheDocument();
+    await user.click(within(confirm).getByRole('button', { name: /decline stake/i }));
+
+    expect(takes.respondToStake).toHaveBeenCalledWith({
+      takeId: 'late',
+      seasonId: 's1',
+      hellYeahId: 'y1',
+      response: 'declined'
+    });
+  });
+
+  it('always shows the Hell Nah dialog when joining would accept a stake', async () => {
+    takes.getTakesForSeason.mockResolvedValue(stakedBoard([stakedYeah()]));
+    // The member opted out of the explanation; the stakes are not an explanation.
+    suppressHellNahConfirm(READER);
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell nah$/i }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText(/also accepting a Hell Yeah stake/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/— \$10$/)).toBeInTheDocument();
+    expect(takes.addFade).not.toHaveBeenCalled();
   });
 });

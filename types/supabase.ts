@@ -2343,6 +2343,61 @@ export type Database = {
           },
         ]
       }
+      take_stake_responses: {
+        Row: {
+          by_joining: boolean
+          created_at: string
+          hell_yeah_id: string
+          id: string
+          response: string
+          season_id: string
+          take_id: string
+          user_id: string
+        }
+        Insert: {
+          by_joining?: boolean
+          created_at?: string
+          hell_yeah_id: string
+          id?: string
+          response: string
+          season_id: string
+          take_id: string
+          user_id?: string
+        }
+        Update: {
+          by_joining?: boolean
+          created_at?: string
+          hell_yeah_id?: string
+          id?: string
+          response?: string
+          season_id?: string
+          take_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "take_stake_responses_hell_yeah_id_fkey"
+            columns: ["hell_yeah_id"]
+            isOneToOne: false
+            referencedRelation: "take_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "take_stake_responses_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "take_stake_responses_take_id_fkey"
+            columns: ["take_id"]
+            isOneToOne: false
+            referencedRelation: "takes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       take_views: {
         Row: {
           last_seen_at: string

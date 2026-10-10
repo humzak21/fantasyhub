@@ -31,6 +31,7 @@ import {
   removeHellYeah,
   reopenTake,
   resolveTake,
+  respondToStake,
   updateTake
 } from '../takes.js';
 
@@ -289,6 +290,34 @@ describe('addHellYeah', () => {
 
     const [call] = ctx.client.callsFor('take_participants', 'insert');
     expect(call.payload.wager).toBeNull();
+  });
+});
+
+describe('respondToStake', () => {
+  it('sends the answer and leaves who is answering to auth.uid()', async () => {
+    const ctx = makeCtx(
+      { 'take_stake_responses.insert': () => [{ id: 'r1', response: 'declined' }] },
+      { session }
+    );
+
+    await respondToStake(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID, hellYeahId: 'y1', response: 'declined' });
+
+    const [call] = ctx.client.callsFor('take_stake_responses', 'insert');
+    expect(call.payload).toEqual({
+      take_id: TAKE_ID,
+      season_id: SEASON_ID,
+      hell_yeah_id: 'y1',
+      response: 'declined'
+    });
+    expect(Object.hasOwn(call.payload, 'user_id')).toBe(false);
+  });
+
+  it('refuses an answer that is neither yes nor no without a round trip', async () => {
+    const ctx = makeCtx({}, { session });
+    await expect(
+      respondToStake(ctx, { takeId: TAKE_ID, seasonId: SEASON_ID, hellYeahId: 'y1', response: 'maybe' })
+    ).rejects.toThrow();
+    expect(ctx.client.callsFor('take_stake_responses', 'insert')).toHaveLength(0);
   });
 });
 

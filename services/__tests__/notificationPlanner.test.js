@@ -116,7 +116,7 @@ describe('planTakeNotifications', () => {
   const NOW = new Date('2026-10-07T18:00:00Z');
   const minutesAgo = (m) => new Date(NOW.getTime() - m * 60_000);
   const TAKE = { id: 't1', authorId: 'author', body: 'Bijan finishes as the RB1.', wager: '$20' };
-  const everything = [TOPICS.pickemsOpen, TOPICS.pickemsClosing, TOPICS.takesNew, TOPICS.takesReactions];
+  const everything = [TOPICS.pickemsOpen, TOPICS.pickemsClosing, TOPICS.takesNew, TOPICS.takesReactions, TOPICS.takesStakes];
   const event = (eventType, subjectId, extra = {}) => ({
     id: `e-${eventType}-${subjectId}`,
     takeId: 't1',
@@ -212,6 +212,73 @@ describe('planTakeNotifications', () => {
     });
     expect(plans.map((p) => p.payload.title)).toEqual(['Sam said Hell Nah to your take', 'Lee said Hell Nah to your take']);
     expect(new Set(plans.map((p) => p.payload.tag)).size).toBe(2);
+  });
+});
+
+describe('planTakeNotifications, staked Hell Yeahs', () => {
+  const NOW = new Date('2026-10-07T18:00:00Z');
+  const TAKE = { id: 't1', authorId: 'author', body: 'Bijan finishes as the RB1.', wager: '$20' };
+  const everything = [TOPICS.takesNew, TOPICS.takesReactions, TOPICS.takesStakes];
+  const backed = { id: 'e-backed', takeId: 't1', seasonId: 's26', eventType: 'backed', subjectId: 'jo', createdAt: new Date(NOW.getTime() - 60_000) };
+  const participants = [
+    { id: 'y-jo', takeId: 't1', userId: 'jo', side: 'yeah', wager: '$10' },
+    { id: 'n-sam', takeId: 't1', userId: 'sam', side: 'nah', wager: null },
+    { id: 'n-lee', takeId: 't1', userId: 'lee', side: 'nah', wager: null }
+  ];
+  const plan = (overrides) => planTakeNotifications({
+    now: NOW,
+    events: [backed],
+    takes: new Map([['t1', TAKE]]),
+    participants,
+    subscriptions: [sub('author', everything), sub('jo', everything), sub('sam', everything), sub('lee', everything)],
+    displayNames: { author: 'Humza', jo: 'Jo', sam: 'Sam', lee: 'Lee' },
+    ...overrides
+  });
+  const stakePlan = (plans) => plans.find((p) => p.kind === TOPICS.takesStakes);
+
+  it('asks every Hell Nah whether they accept it, as well as telling the author', () => {
+    const plans = plan();
+    expect(plans.map((p) => p.kind)).toEqual([TOPICS.takesReactions, TOPICS.takesStakes]);
+
+    const ask = stakePlan(plans);
+    expect(ask.eventId).toBe('e-backed');
+    expect(ask.recipients.map((r) => r.userId)).toEqual(['sam', 'lee']);
+    expect(ask.payload).toEqual({
+      title: "Do you accept Jo's Hell Yeah?",
+      body: 'Jo put $10 on “Bijan finishes as the RB1.”. Accepting means you\'ll have to pay out to Jo as well if it hits. Every Hell Nah has to agree, or the stake is off.',
+      url: '/takes?take=t1',
+      tag: 'take-stake-e-backed'
+    });
+  });
+
+  it('asks nobody about a Hell Yeah without a stake', () => {
+    const plain = participants.map((p) => (p.side === 'yeah' ? { ...p, wager: null } : p));
+    expect(stakePlan(plan({ participants: plain }))).toBeUndefined();
+  });
+
+  it('skips a Hell Nah who has already answered, and everybody once one said no', () => {
+    expect(stakePlan(plan({
+      stakeResponses: [{ hellYeahId: 'y-jo', userId: 'sam', response: 'accepted' }]
+    })).recipients.map((r) => r.userId)).toEqual(['lee']);
+
+    expect(stakePlan(plan({
+      stakeResponses: [{ hellYeahId: 'y-jo', userId: 'sam', response: 'declined' }]
+    }))).toBeUndefined();
+  });
+
+  it('respects the topic, and keeps the wording from accounts that may not read takes', () => {
+    const ask = stakePlan(plan({
+      subscriptions: [sub('sam', [TOPICS.takesReactions]), sub('lee', everything)],
+      excludedUserIds: new Set(['lee'])
+    }));
+    expect(ask).toBeUndefined();
+  });
+
+  it('claims each audience separately, so one sent does not stop the other', () => {
+    const plans = plan({ claimed: new Set([`e-backed:${TOPICS.takesReactions}`]) });
+    expect(plans.map((p) => p.kind)).toEqual([TOPICS.takesStakes]);
+    expect(plan({ claimed: new Set([`e-backed:${TOPICS.takesStakes}`]) }).map((p) => p.kind))
+      .toEqual([TOPICS.takesReactions]);
   });
 });
 

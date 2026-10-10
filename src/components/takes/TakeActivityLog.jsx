@@ -1,7 +1,9 @@
 import {
   ArrowRight,
+  Ban,
   Flame,
   Gavel,
+  Handshake,
   History,
   Pencil,
   RotateCcw,
@@ -32,6 +34,8 @@ const EVENT_STYLE = {
   unfaded: { Icon: Undo2, tint: 'text-muted-foreground' },
   backed: { Icon: ThumbsUp, tint: 'text-success' },
   unbacked: { Icon: Undo2, tint: 'text-muted-foreground' },
+  stake_accepted: { Icon: Handshake, tint: 'text-success' },
+  stake_declined: { Icon: Ban, tint: 'text-destructive' },
   unknown: { Icon: History, tint: 'text-muted-foreground' }
 };
 

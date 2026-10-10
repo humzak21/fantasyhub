@@ -9,6 +9,7 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { EmptyState } from '../ui/empty-state';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
+import { getMaskedUserName } from '../../utils/displayNameUtils';
 import {
   useActualWeek,
   useLeagueMembers,
@@ -22,7 +23,7 @@ import { AddTakeDialog } from './AddTakeDialog.jsx';
 import { HellNahDialog } from './HellNahDialog.jsx';
 import { HellYeahDialog } from './HellYeahDialog.jsx';
 import { shouldConfirmHellNah, suppressHellNahConfirm } from './confirmPreference.js';
-import { canStakeHellYeah } from './milestones.js';
+import { canStakeHellYeah, liveBackerStakes } from './milestones.js';
 import { TakeDetailSheet } from './TakeDetailSheet.jsx';
 import { TakesBoard } from './TakesBoard.jsx';
 import { TakesRules } from './TakesRules.jsx';
@@ -48,7 +49,7 @@ export function TakesManager({ season, loading }) {
   // `isAuthenticated` is the prop, and the shell passes approval as it — but
   // the copy below has to tell a signed-in, unapproved member apart from a
   // visitor, so the real session flag is read here as well.
-  const { user, isAuthenticated: hasSession, isApproved, isAdmin } = useViewer();
+  const { user, isAuthenticated: hasSession, isApproved, isAdmin, teamOwnerNames } = useViewer();
   const seasonConfig = useSeasonConfig();
   const actualWeek = useActualWeek();
 
@@ -91,6 +92,8 @@ export function TakesManager({ season, loading }) {
   const [stakingHellYeahId, setStakingHellYeahId] = useState(null);
 
   const { takes, displayNames } = board;
+  const nameOf = (userId) =>
+    getMaskedUserName(displayNames[userId], userId, user, isAdmin, teamOwnerNames);
 
   // Reading the tab is what clears the nav badge. The mark is the newest
   // take's own timestamp rather than the clock — see `newestTakeAt` — and it
@@ -152,6 +155,7 @@ export function TakesManager({ season, loading }) {
     withdrawFade,
     hellYeah,
     withdrawHellYeah,
+    respondToStake,
     resolveTake,
     reopenTake,
     adminUpdateTake,
@@ -166,6 +170,7 @@ export function TakesManager({ season, loading }) {
     (withdrawFade.isPending && withdrawFade.variables?.takeId) ||
     (hellYeah.isPending && hellYeah.variables?.takeId) ||
     (withdrawHellYeah.isPending && withdrawHellYeah.variables?.takeId) ||
+    (respondToStake.isPending && respondToStake.variables?.takeId) ||
     (resolveTake.isPending && resolveTake.variables?.takeId) ||
     (reopenTake.isPending && reopenTake.variables?.takeId) ||
     (addFadeFor.isPending && addFadeFor.variables?.takeId) ||
@@ -192,7 +197,10 @@ export function TakesManager({ season, loading }) {
    * member opted out", and the board renders a dozen of them.
    */
   const requestFade = (take) => {
-    if (shouldConfirmHellNah(user?.id)) {
+    // Saying Hell Nah to a take with Hell Yeah stakes on it accepts them, so
+    // the dialog that lists them is not skippable: the preference suppresses
+    // an explanation, never an agreement.
+    if (shouldConfirmHellNah(user?.id) || liveBackerStakes(take).length > 0) {
       setConfirmingFadeId(take.id);
       return;
     }
@@ -224,6 +232,15 @@ export function TakesManager({ season, loading }) {
     setStakingHellYeahId(null);
     await run(hellYeah, { takeId: take.id, wager }, 'Could not Hell Yeah that take');
   };
+
+  /** A Hell Nah's answer to a staked Hell Yeah. Confirmed in the panel that
+   *  asks it; final once written. */
+  const answerStake = (take, hellYeah, response) =>
+    run(
+      respondToStake,
+      { takeId: take.id, hellYeahId: hellYeah.id, response },
+      response === 'declined' ? 'Could not decline that stake' : 'Could not accept that stake'
+    );
 
   const withdrawHellYeahFor = (take) =>
     run(withdrawHellYeah, { takeId: take.id }, 'Could not take that back');
@@ -339,6 +356,7 @@ export function TakesManager({ season, loading }) {
         }}
         onConfirm={confirmFade}
         pending={fade.isPending}
+        nameOf={nameOf}
       />
 
       <HellYeahDialog
@@ -365,6 +383,7 @@ export function TakesManager({ season, loading }) {
         onWithdraw={(take) => run(withdrawFade, { takeId: take.id }, 'Could not take that back')}
         onHellYeah={requestHellYeah}
         onWithdrawHellYeah={withdrawHellYeahFor}
+        onRespondToStake={answerStake}
         onEdit={(take) => {
           setEditingId(take.id);
           setComposerOpen(true);

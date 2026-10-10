@@ -13,7 +13,7 @@ import {
 } from '../ui/alert-dialog';
 import { Checkbox } from '../ui/checkbox';
 import { formatDateTime } from '../../lib/utils';
-import { fadeDeadline, fadeTerms } from './milestones.js';
+import { fadeDeadline, fadeTerms, liveBackerStakes } from './milestones.js';
 
 /**
  * The confirmation in front of a Hell Nah.
@@ -38,9 +38,15 @@ import { fadeDeadline, fadeTerms } from './milestones.js';
  * need the explanation a thirteenth time, and a dialog that cannot be
  * dismissed permanently is one that gets clicked through without reading,
  * which is worse than not showing it.
+ *
+ * **Except when the take carries Hell Yeah stakes.** Saying Hell Nah then
+ * also accepts them — the `take_participants_accept_stakes_on_join` trigger
+ * records it — so the dialog lists each one and `TakesManager.requestFade`
+ * opens it regardless of the preference. Nobody agrees to pay a backer
+ * without having been shown the backer and the amount.
  */
 
-export function HellNahDialog({ take, open, onOpenChange, onConfirm, pending }) {
+export function HellNahDialog({ take, open, onOpenChange, onConfirm, pending, nameOf = () => 'A backer' }) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   // The box belongs to one opening of the dialog. Cancelling with it ticked
@@ -53,6 +59,7 @@ export function HellNahDialog({ take, open, onOpenChange, onConfirm, pending }) 
   if (!take) return null;
 
   const deadline = fadeDeadline(take);
+  const backerStakes = liveBackerStakes(take);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -71,6 +78,26 @@ export function HellNahDialog({ take, open, onOpenChange, onConfirm, pending }) 
         <blockquote className="rounded-md border-l-2 border-border bg-muted/40 py-2 pl-3 pr-2 text-sm leading-relaxed text-foreground">
           {take.body}
         </blockquote>
+
+        {backerStakes.length > 0 && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+            <p className="font-medium text-foreground">
+              You&apos;re also accepting {backerStakes.length === 1 ? 'a Hell Yeah stake' : 'these Hell Yeah stakes'}:
+            </p>
+            <ul className="mt-1.5 space-y-0.5 text-foreground">
+              {backerStakes.map((yeah) => (
+                <li key={yeah.id ?? yeah.userId}>
+                  {nameOf(yeah.userId)} &mdash; {yeah.wager}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              Every Hell Nah has to agree to a Hell Yeah stake, and saying Hell Nah now is your yes.
+              If this take hits you owe each backer their stake as well; if it misses, they each owe
+              you. One that somebody else declines, or doesn&apos;t accept in time, is off.
+            </p>
+          </div>
+        )}
 
         <p className="text-sm text-muted-foreground">
           {deadline ? (
