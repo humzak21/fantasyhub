@@ -19,6 +19,7 @@ import {
   STAKE_DECLINED,
   hasWager,
   stakeRequestTerms,
+  stakeResponseDeadline,
   stakeStatus
 } from './milestones.js';
 
@@ -29,40 +30,42 @@ function listNames(names) {
 }
 
 /**
- * Where one backer's stake stands, in a line under their name. A stake that
- * is off is struck through rather than hidden: the Hell Yeah still counts,
- * and "why isn't my $10 there any more" is answered by the line saying who
- * declined.
+ * Where one backer's stake stands, in a line under their name: who is in on
+ * it, who said no, who is still to answer. A stake nobody took on is struck
+ * through rather than hidden — the Hell Yeah still counts, and "why isn't my
+ * $10 there any more" is answered by the line saying nobody accepted it.
  */
 export function BackerStakeLine({ take, hellYeah, nameOf, now }) {
   const status = stakeStatus(take, hellYeah, now);
   if (!status) return null;
 
-  const off = status.state === 'declined' || status.state === 'lapsed';
-  let note;
+  const names = (ids) => listNames(ids.map(nameOf));
+  const pending = status.open && status.waitingOn.length > 0 ? names(status.waitingOn) : null;
+  const until = status.deadline ? ` by ${formatDateTime(status.deadline)}` : '';
+  const declined = status.declinedBy.length > 0 ? `${names(status.declinedBy)} declined` : null;
+
+  let parts;
   switch (status.state) {
-    case 'declined':
-      note = `${nameOf(status.declinedBy)} declined — this stake is off`;
-      break;
-    case 'lapsed':
-      note = 'Not accepted by every Hell Nah in time — this stake is off';
-      break;
-    case 'agreed':
-      note = 'Accepted by every Hell Nah — in play';
+    case 'in_play':
+      parts = [
+        `In play with ${names(status.acceptedBy)}`,
+        declined,
+        pending && `${pending} can still answer${until}`
+      ];
       break;
     case 'waiting':
-      note = `Waiting on ${listNames(status.waitingOn.map(nameOf))} to accept${
-        status.deadline ? ` by ${formatDateTime(status.deadline)}` : ''
-      }`;
+      parts = [`Waiting on ${pending} to answer${until}`, declined];
+      break;
+    case 'unopposed':
+      // Nobody on the other side yet. On a staked take, whoever says Hell
+      // Nah while it is open is asked too; on an unstaked one nobody can.
+      parts = [hasWager(take) ? 'No Hell Nahs yet to take it on' : 'No Hell Nahs to take it on'];
       break;
     default:
-      // Nobody on the other side yet. On a staked take, whoever says Hell
-      // Nah from here agrees to it by joining; on an unstaked one there is
-      // no other side to take.
-      note = hasWager(take)
-        ? 'No Hell Nahs yet — anyone who says Hell Nah agrees to it'
-        : 'No Hell Nahs to agree to it';
+      parts = ['No Hell Nah took it on — this stake is off'];
   }
+  const note = parts.filter(Boolean).join(' · ');
+  const off = status.state === 'off';
 
   return (
     <span className="flex flex-col text-xs text-muted-foreground">
@@ -80,10 +83,10 @@ export function BackerStakeLine({ take, hellYeah, nameOf, now }) {
 /**
  * The question a staked Hell Yeah puts to a Hell Nah: do you accept it?
  *
- * The answer is final and either way it is about money — a yes signs the
- * viewer up to pay a second person, a no takes the stake off the table for
- * every other Hell Nah too — so each button opens a confirmation that
- * restates what that answer does, the way `HellNahDialog` restates a fade.
+ * The answer is final and a yes signs the viewer up to pay a second person,
+ * so each button opens a confirmation that restates what that answer does,
+ * the way `HellNahDialog` restates a fade. Only the viewer's own position
+ * moves: every Hell Nah answers for themselves.
  */
 export function StakeRequestPanel({ take, requests, nameOf, onRespond, pending }) {
   const [confirming, setConfirming] = useState(null); // { hellYeah, response }
@@ -100,7 +103,7 @@ export function StakeRequestPanel({ take, requests, nameOf, onRespond, pending }
     >
       {requests.map((hellYeah) => {
         const backer = nameOf(hellYeah.userId);
-        const status = stakeStatus(take, hellYeah);
+        const deadline = stakeResponseDeadline(hellYeah);
         return (
           <div key={hellYeah.id} className="space-y-2">
             <h3 className="flex items-center gap-1.5 text-base font-semibold text-foreground">
@@ -112,7 +115,7 @@ export function StakeRequestPanel({ take, requests, nameOf, onRespond, pending }
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               {STAKE_AGREEMENT_RULE}
-              {status?.deadline && <> Answer by {formatDateTime(status.deadline)}.</>}
+              {deadline && <> Answer by {formatDateTime(deadline)}.</>}
             </p>
             <div className="flex flex-wrap gap-2 pt-1">
               <Button
@@ -143,8 +146,8 @@ export function StakeRequestPanel({ take, requests, nameOf, onRespond, pending }
             </AlertDialogTitle>
             <AlertDialogDescription>
               {accepting
-                ? `If this take hits, you'll owe ${confirmBacker} ${confirming?.hellYeah.wager} as well as owing the author ${take.wager}. If it misses, ${confirmBacker} owes you ${confirming?.hellYeah.wager}. It only goes into play once every Hell Nah has accepted.`
-                : `${confirmBacker}'s stake will be off for everyone — one no is enough. The author's ${take.wager} is still in play, and ${confirmBacker}'s Hell Yeah still counts.`}{' '}
+                ? `If this take hits, you'll owe ${confirmBacker} ${confirming?.hellYeah.wager} as well as owing the author ${take.wager}. If it misses, ${confirmBacker} owes you ${confirming?.hellYeah.wager}.`
+                : `You won't be in on ${confirmBacker}'s ${confirming?.hellYeah.wager} — only the author's ${take.wager}. The other Hell Nahs decide for themselves; if none of them accept, ${confirmBacker}'s stake is off.`}{' '}
               You can&apos;t change your answer.
             </AlertDialogDescription>
           </AlertDialogHeader>

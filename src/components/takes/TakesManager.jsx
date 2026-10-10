@@ -23,7 +23,7 @@ import { AddTakeDialog } from './AddTakeDialog.jsx';
 import { HellNahDialog } from './HellNahDialog.jsx';
 import { HellYeahDialog } from './HellYeahDialog.jsx';
 import { shouldConfirmHellNah, suppressHellNahConfirm } from './confirmPreference.js';
-import { canStakeHellYeah, liveBackerStakes } from './milestones.js';
+import { canStakeHellYeah } from './milestones.js';
 import { TakeDetailSheet } from './TakeDetailSheet.jsx';
 import { TakesBoard } from './TakesBoard.jsx';
 import { TakesRules } from './TakesRules.jsx';
@@ -197,10 +197,7 @@ export function TakesManager({ season, loading }) {
    * member opted out", and the board renders a dozen of them.
    */
   const requestFade = (take) => {
-    // Saying Hell Nah to a take with Hell Yeah stakes on it accepts them, so
-    // the dialog that lists them is not skippable: the preference suppresses
-    // an explanation, never an agreement.
-    if (shouldConfirmHellNah(user?.id) || liveBackerStakes(take).length > 0) {
+    if (shouldConfirmHellNah(user?.id)) {
       setConfirmingFadeId(take.id);
       return;
     }

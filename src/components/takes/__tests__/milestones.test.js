@@ -36,7 +36,7 @@ import {
   hellYeahCount,
   isFadeWindowOpen,
   canRespondToStake,
-  liveBackerStakes,
+  openBackerStakes,
   milestoneLabel,
   milestoneSortKey,
   stakeRequestsFor,
@@ -396,12 +396,12 @@ describe('Hell Yeah', () => {
   });
 });
 
-describe('Hell Yeah stakes need every Hell Nah to agree', () => {
+describe('Hell Yeah stakes: each Hell Nah decides for themselves', () => {
   const AUTHOR = { id: 'author' };
   const SAM = { id: 'sam' };
   const LEE = { id: 'lee' };
   const BACKER = { id: 'backer' };
-  // Staked at 13:00 on the 1st; answers are due 13:00 on the 4th.
+  // Staked at 13:00 on the 1st; answers close 13:00 on the 4th.
   const STAKED_AT = '2026-09-01T13:00:00Z';
   const BEFORE_DUE = Date.parse('2026-09-02T13:00:00Z');
   const AFTER_DUE = Date.parse('2026-09-04T13:00:01Z');
@@ -423,42 +423,57 @@ describe('Hell Yeah stakes need every Hell Nah to agree', () => {
     expect(stakeStatus(board(stake([], null)), stake([], null), BEFORE_DUE)).toBeNull();
   });
 
-  it('waits on every Hell Nah who has not answered', () => {
-    const y = stake([answer(SAM.id, 'accepted')]);
+  it('waits while nobody has answered', () => {
+    const y = stake();
     const status = stakeStatus(board(y), y, BEFORE_DUE);
     expect(status.state).toBe('waiting');
+    expect(status.waitingOn).toEqual([SAM.id, LEE.id]);
+  });
+
+  it('is in play with whoever accepted, whatever the others said', () => {
+    const y = stake([answer(SAM.id, 'accepted'), answer(LEE.id, 'declined')]);
+    const status = stakeStatus(board(y), y, BEFORE_DUE);
+    expect(status.state).toBe('in_play');
+    expect(status.acceptedBy).toEqual([SAM.id]);
+    expect(status.declinedBy).toEqual([LEE.id]);
+  });
+
+  it('is in play with one yes while another Hell Nah can still answer', () => {
+    const y = stake([answer(SAM.id, 'accepted')]);
+    const status = stakeStatus(board(y), y, BEFORE_DUE);
+    expect(status.state).toBe('in_play');
     expect(status.waitingOn).toEqual([LEE.id]);
   });
 
-  it('is in play only once all of them have accepted', () => {
-    const y = stake([answer(SAM.id, 'accepted'), answer(LEE.id, 'accepted')]);
-    expect(stakeStatus(board(y), y, BEFORE_DUE).state).toBe('agreed');
-  });
-
-  it('is off for everybody after a single no, even with the rest accepting', () => {
-    const y = stake([answer(SAM.id, 'accepted'), answer(LEE.id, 'declined')]);
-    const status = stakeStatus(board(y), y, BEFORE_DUE);
-    expect(status.state).toBe('declined');
-    expect(status.declinedBy).toBe(LEE.id);
-  });
-
-  it('stays off when the Hell Nah who declined later steps off the take', () => {
+  it('a no from one Hell Nah leaves the rest still to answer', () => {
     const y = stake([answer(LEE.id, 'declined')]);
-    expect(stakeStatus(board(y, [nah(SAM.id)]), y, BEFORE_DUE).state).toBe('declined');
+    expect(stakeStatus(board(y), y, BEFORE_DUE).state).toBe('waiting');
+    expect(canRespondToStake(board(y), y, SAM, BEFORE_DUE)).toBe(true);
   });
 
-  it('treats silence past three days, or a grade, as not agreed', () => {
+  it('is null once every Hell Nah has declined', () => {
+    const y = stake([answer(SAM.id, 'declined'), answer(LEE.id, 'declined')]);
+    expect(stakeStatus(board(y), y, BEFORE_DUE).state).toBe('off');
+  });
+
+  it('is null when the window closes, or the take is graded, without a yes', () => {
+    const y = stake([answer(LEE.id, 'declined')]);
+    expect(stakeStatus(board(y), y, AFTER_DUE).state).toBe('off');
+    expect(stakeStatus(board(y, undefined, { status: 'correct' }), y, BEFORE_DUE).state).toBe('off');
+  });
+
+  it('stays in play with an acceptance after the window closes', () => {
     const y = stake([answer(SAM.id, 'accepted')]);
-    expect(stakeStatus(board(y), y, AFTER_DUE).state).toBe('lapsed');
-    expect(stakeStatus(board(y, undefined, { status: 'correct' }), y, BEFORE_DUE).state).toBe('lapsed');
+    expect(stakeStatus(board(y), y, AFTER_DUE).state).toBe('in_play');
   });
 
-  it('has nobody to agree with before the first Hell Nah', () => {
+  it('has nobody to take it on before the first Hell Nah, and is null if nobody comes', () => {
     const y = stake();
     expect(stakeStatus(board(y, []), y, BEFORE_DUE).state).toBe('unopposed');
+    expect(stakeStatus(board(y, []), y, AFTER_DUE).state).toBe('off');
   });
 
-  it('asks only a Hell Nah still to answer, inside the window', () => {
+  it('asks every Hell Nah who has not answered, inside the window', () => {
     const y = stake([answer(SAM.id, 'accepted')]);
     const b = board(y);
     expect(canRespondToStake(b, y, LEE, BEFORE_DUE)).toBe(true);
@@ -470,19 +485,20 @@ describe('Hell Yeah stakes need every Hell Nah to agree', () => {
     expect(stakeRequestsFor(b, SAM, BEFORE_DUE)).toEqual([]);
   });
 
-  it('asks nothing once somebody else has declined', () => {
-    const y = stake([answer(SAM.id, 'declined')]);
-    expect(canRespondToStake(board(y), y, LEE, BEFORE_DUE)).toBe(false);
+  it('asks a Hell Nah who joined after the stake, while it is still open', () => {
+    const y = stake();
+    const b = board(y, [nah(SAM.id, '2026-09-02T09:00:00Z')]);
+    expect(canRespondToStake(b, y, SAM, BEFORE_DUE)).toBe(true);
   });
 
-  it('lists the stakes a new Hell Nah would be agreeing to, and not the dead ones', () => {
-    const live = stake([answer(SAM.id, 'accepted')]);
-    const dead = { ...stake([answer(SAM.id, 'declined')]), id: 'y-other', userId: 'other' };
+  it('lists the stakes still open to answers for somebody about to say Hell Nah', () => {
+    const open = stake();
     const plain = { id: 'y-plain', userId: 'plain', side: 'yeah', wager: null, createdAt: STAKED_AT };
-    const b = board(live, [nah(SAM.id)]);
-    b.takeParticipants.push(dead, plain);
-    expect(liveBackerStakes(b, BEFORE_DUE).map((y) => y.id)).toEqual(['y-backer']);
-    expect(liveBackerStakes({ ...b, status: 'incorrect' }, BEFORE_DUE)).toEqual([]);
+    const b = board(open, []);
+    b.takeParticipants.push(plain);
+    expect(openBackerStakes(b, BEFORE_DUE).map((y) => y.id)).toEqual(['y-backer']);
+    expect(openBackerStakes(b, AFTER_DUE)).toEqual([]);
+    expect(openBackerStakes({ ...b, status: 'incorrect' }, BEFORE_DUE)).toEqual([]);
   });
 });
 

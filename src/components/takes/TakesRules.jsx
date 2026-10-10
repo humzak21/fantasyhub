@@ -93,19 +93,20 @@ export function TakesRules({ className }) {
           </li>
           <li>
             <span className="text-foreground">
-              Every Hell Nah has to agree to a Hell Yeah stake.
+              A Hell Yeah stake only binds the Hell Nahs who agree to it.
             </span>{' '}
-            Each one is asked to accept it. If they all do, it&rsquo;s a side bet: if the take
-            hits they owe the backer too, and if it misses the backer owes each of them.
+            Each Hell Nah is asked and decides for themselves. Accept and it&rsquo;s a side bet:
+            if the take hits you owe the backer too, and if it misses the backer owes you.
           </li>
           <li>
-            If anyone says no, or doesn&rsquo;t answer within {days(STAKE_RESPONSE_WINDOW_MS)},{' '}
-            <span className="text-foreground">the Hell Yeah stake is off</span>. The take&rsquo;s
-            own stake is still in play, and the Hell Yeah still counts. Answers are final.
+            Decline, or don&rsquo;t answer within {days(STAKE_RESPONSE_WINDOW_MS)}, and
+            you&rsquo;re only in on the take&rsquo;s own stake. If{' '}
+            <span className="text-foreground">no Hell Nah accepts, the Hell Yeah stake is off</span>
+            . The Hell Yeah still counts either way. Answers are final.
           </li>
           <li>
-            Saying Hell Nah to a take that already has Hell Yeah stakes on it means you agree to
-            them &mdash; you&rsquo;ll see them before you confirm.
+            Say Hell Nah while a Hell Yeah stake is still open and you&rsquo;ll be asked about it
+            too.
           </li>
         </RuleList>
       </RulesPanel>

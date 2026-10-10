@@ -340,18 +340,18 @@ export function fadeTerms(take) {
 
 /**
  * What a stake on a Hell Yeah means — the sentence the dialog has to get
- * across before somebody types into the box. It is a proposal to the Hell
- * Nahs, not a bet on its own: it only binds anybody once every one of them
- * has agreed, and a single no takes it off the table.
+ * across before somebody types into the box. It is an offer to the Hell Nahs,
+ * not a bet on its own: each of them decides whether to take it on, it binds
+ * only those who do, and if nobody does it is null.
  */
 export const HELL_YEAH_STAKE_TERMS =
-  "It's a side bet only if every Hell Nah on this take agrees to it. Each of them is asked; if they all accept, they owe you your stake too if the take hits, and you owe each of them if it misses. If anyone says no, or doesn't answer within 3 days, your stake is off — the take's own stake stays in play and your Hell Yeah still counts.";
+  "Every Hell Nah on this take is asked whether they'll take it on — each decides for themselves. Those who accept owe you your stake too if the take hits, and you owe each of them if it misses. If nobody accepts within 3 days, your stake is off. The take's own stake stays in play either way, and your Hell Yeah still counts.";
 
 /**
- * How long a Hell Nah has to answer a staked Hell Yeah, measured from the
- * stake. Mirrors the `now() < y.created_at + interval '72 hours'` clause of
- * the `take_stake_responses answer own` policy. Silence is not agreement: a
- * stake still waiting on somebody when this runs out never went into play.
+ * How long a staked Hell Yeah stays open to answers, measured from the stake.
+ * Mirrors the `now() < y.created_at + interval '72 hours'` clause of the
+ * `take_stake_responses answer own` policy. Silence is a no: a Hell Nah who
+ * has not accepted when this runs out is not in on the stake.
  */
 export const STAKE_RESPONSE_WINDOW_MS = 72 * 60 * 60 * 1000;
 
@@ -359,81 +359,86 @@ export const STAKE_RESPONSE_WINDOW_MS = 72 * 60 * 60 * 1000;
 export const STAKE_ACCEPTED = 'accepted';
 export const STAKE_DECLINED = 'declined';
 
-/** When the Hell Nahs' answers to this staked Hell Yeah are due, or null. */
+/** When answers to this staked Hell Yeah close, or null. */
 export function stakeResponseDeadline(hellYeah) {
   if (!hellYeah?.createdAt) return null;
   const at = new Date(hellYeah.createdAt).getTime();
   return Number.isNaN(at) ? null : at + STAKE_RESPONSE_WINDOW_MS;
 }
 
+/** Can this staked Hell Yeah still be answered? Ungraded, inside its window. */
+export function isStakeOpen(take, hellYeah, now = Date.now()) {
+  const deadline = stakeResponseDeadline(hellYeah);
+  return Boolean(hellYeah?.wager) && isPending(take) && deadline !== null && now < deadline;
+}
+
 /**
  * Where a Hell Yeah's stake stands. **Derived, never stored** — faders come
- * and go, and the answers are the facts:
+ * and go, and the answers are the facts. Each Hell Nah answers for
+ * themselves, so this is a roll call as much as a state:
  *
- *   - `declined`  — somebody said no. Final, for everybody: the stake is off.
- *   - `agreed`    — every Hell Nah on the take has accepted. It is in play.
- *   - `waiting`   — some Hell Nahs have not answered, and there is still time.
- *   - `lapsed`    — the take was graded, or three days passed, with somebody
- *                   still not answered. It never went into play.
- *   - `unopposed` — nobody has said Hell Nah yet, so there is nobody to agree
- *                   with. Whoever says Hell Nah later agrees by joining.
+ *   - `acceptedBy` — current Hell Nahs who took it on. The stake is in play
+ *                    with each of them.
+ *   - `declinedBy` — current Hell Nahs who said no. Not in on it.
+ *   - `waitingOn`  — current Hell Nahs who have not answered. While the stake
+ *                    is open they can; once it closes they are not in on it.
  *
- * Returns `{ state, waitingOn, declinedBy, deadline }`, or null for a Hell
- * Yeah with no stake. `waitingOn` is user ids, in the order the Hell Nahs
- * joined.
+ * and `state`:
+ *
+ *   - `in_play`   — at least one Hell Nah accepted.
+ *   - `waiting`   — nobody has accepted yet, and somebody still can.
+ *   - `unopposed` — no Hell Nahs yet, and the stake is still open.
+ *   - `off`       — nobody accepted and nobody can any more: every Hell Nah
+ *                   declined, or the window closed (or the take was graded)
+ *                   without a yes. The stake is null.
+ *
+ * Returns null for a Hell Yeah with no stake. The user-id lists keep the order
+ * the Hell Nahs joined in.
  */
 export function stakeStatus(take, hellYeah, now = Date.now()) {
   if (!hellYeah?.wager) return null;
 
-  const responses = hellYeah.takeStakeResponses || [];
-  const deadline = stakeResponseDeadline(hellYeah);
-  const declined = responses.find((response) => response.response === STAKE_DECLINED);
-  if (declined) {
-    return { state: 'declined', waitingOn: [], declinedBy: declined.userId, deadline };
-  }
-
-  const accepted = new Set(
-    responses.filter((response) => response.response === STAKE_ACCEPTED).map((r) => r.userId)
+  const answers = new Map(
+    (hellYeah.takeStakeResponses || []).map((response) => [response.userId, response.response])
   );
-  const faders = fades(take).filter((participant) => participant.userId !== hellYeah.userId);
-  if (faders.length === 0) {
-    return { state: 'unopposed', waitingOn: [], declinedBy: null, deadline };
-  }
+  const faders = fades(take)
+    .filter((participant) => participant.userId !== hellYeah.userId)
+    .map((participant) => participant.userId);
 
-  const waitingOn = faders.filter((f) => !accepted.has(f.userId)).map((f) => f.userId);
-  if (waitingOn.length === 0) {
-    return { state: 'agreed', waitingOn, declinedBy: null, deadline };
-  }
+  const acceptedBy = faders.filter((id) => answers.get(id) === STAKE_ACCEPTED);
+  const declinedBy = faders.filter((id) => answers.get(id) === STAKE_DECLINED);
+  const waitingOn = faders.filter((id) => !answers.has(id));
+  const open = isStakeOpen(take, hellYeah, now);
+  const deadline = stakeResponseDeadline(hellYeah);
 
-  const expired = deadline === null || now >= deadline || !isPending(take);
-  return { state: expired ? 'lapsed' : 'waiting', waitingOn, declinedBy: null, deadline };
-}
+  let state;
+  if (acceptedBy.length > 0) state = 'in_play';
+  else if (open && waitingOn.length > 0) state = 'waiting';
+  else if (open && faders.length === 0) state = 'unopposed';
+  else state = 'off';
 
-/** Is this stake still something a Hell Nah could be bound by — agreed, or
- *  not yet decided? The ones the Hell Nah dialog has to list. */
-export function isStakeLive(status) {
-  return status?.state === 'agreed' || status?.state === 'waiting' || status?.state === 'unopposed';
+  return { state, acceptedBy, declinedBy, waitingOn, open, deadline };
 }
 
 /**
- * The staked Hell Yeahs a new Hell Nah would be agreeing to by joining. The
- * `take_participants_accept_stakes_on_join` trigger records the acceptance;
- * this is what the dialog shows first, so nobody agrees to a stake unseen.
+ * The staked Hell Yeahs still open to answers on this take. Somebody saying
+ * Hell Nah now will be asked about each of these too, so the Hell Nah dialog
+ * mentions them.
  */
-export function liveBackerStakes(take, now = Date.now()) {
-  if (!isPending(take)) return [];
-  return hellYeahs(take).filter((yeah) => isStakeLive(stakeStatus(take, yeah, now)));
+export function openBackerStakes(take, now = Date.now()) {
+  return hellYeahs(take).filter((yeah) => isStakeOpen(take, yeah, now));
 }
 
 /**
  * May the viewer answer this staked Hell Yeah? They are on the Hell Nah side,
- * the take is ungraded, the stake is still waiting on them, and its three days
- * are not up. Mirrors the `take_stake_responses answer own` policy.
+ * have not answered it, and it is still open. Nobody else's answer matters
+ * here — each Hell Nah decides for themselves. Mirrors the
+ * `take_stake_responses answer own` policy and its unique key.
  */
 export function canRespondToStake(take, hellYeah, user, now = Date.now()) {
-  if (!user?.id || !hasFaded(take, user)) return false;
-  const status = stakeStatus(take, hellYeah, now);
-  return status?.state === 'waiting' && status.waitingOn.includes(user.id);
+  if (!user?.id || !hasFaded(take, user) || hellYeah?.userId === user.id) return false;
+  if (!isStakeOpen(take, hellYeah, now)) return false;
+  return !(hellYeah.takeStakeResponses || []).some((response) => response.userId === user.id);
 }
 
 /** The staked Hell Yeahs waiting on this viewer's answer. */
@@ -449,9 +454,10 @@ export function stakeRequestTerms(take, hellYeah, backer) {
   return `${backer} put ${hellYeah?.wager} on their Hell Yeah. Accepting means you'll have to pay out to ${backer} as well if this take hits — on top of the author's ${take?.wager} — and ${backer} pays you ${hellYeah?.wager} if it misses.`;
 }
 
-/** The rule every stake request restates: unanimity, and what a no leaves. */
+/** The rule every stake request restates: your call, and what nobody saying
+ *  yes leaves. */
 export const STAKE_AGREEMENT_RULE =
-  "Every Hell Nah has to agree to an extra stake. If anyone says no, or doesn't answer within 3 days, it's off — the take's own stake is still in play either way. Your answer is final.";
+  "It's your call — each Hell Nah decides for themselves. Decline, or don't answer within 3 days, and you're only in on the author's stake. If no Hell Nah accepts, this stake is off. Your answer is final.";
 
 /**
  * The deadline, in as few words as a card can spare: one muted line under the

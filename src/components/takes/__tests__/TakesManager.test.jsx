@@ -535,7 +535,7 @@ describe('TakesManager, Hell Yeah', () => {
     expect(takes.addHellYeah).toHaveBeenCalledWith({ takeId: 'stale', seasonId: 's1' });
   });
 
-  it('says in the dialog that a Hell Yeah stake needs every Hell Nah to agree', async () => {
+  it('says in the dialog that a Hell Yeah stake binds only the Hell Nahs who accept it', async () => {
     const user = userEvent.setup();
     renderTab();
     await screen.findByText('Somebody wins it from the 6 seed');
@@ -543,8 +543,8 @@ describe('TakesManager, Hell Yeah', () => {
     await user.click(screen.getByRole('button', { name: /^hell yeah$/i }));
     const dialog = await screen.findByRole('alertdialog');
 
-    expect(within(dialog).getByText(/only if every Hell Nah on this take agrees/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/If anyone says no/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/each decides for themselves/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/If nobody accepts within 3 days, your stake is off/i)).toBeInTheDocument();
   });
 
   it('offers no Hell Nah to somebody already backing the take', async () => {
@@ -713,11 +713,11 @@ describe('TakesManager, Hell Yeah stakes', () => {
     await user.click(screen.getByText('Somebody wins it from the 6 seed'));
     const panel = await screen.findByRole('region', { name: /stakes waiting on you/i });
     expect(within(panel).getByText(/pay out to .+ as well if this take hits/i)).toBeInTheDocument();
-    expect(within(panel).getByText(/Every Hell Nah has to agree/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/each Hell Nah decides for themselves/i)).toBeInTheDocument();
 
     await user.click(within(panel).getByRole('button', { name: /^decline$/i }));
     const confirm = await screen.findByRole('alertdialog');
-    expect(within(confirm).getByText(/off for everyone/i)).toBeInTheDocument();
+    expect(within(confirm).getByText(/The other Hell Nahs decide for themselves/i)).toBeInTheDocument();
     await user.click(within(confirm).getByRole('button', { name: /decline stake/i }));
 
     expect(takes.respondToStake).toHaveBeenCalledWith({
@@ -728,18 +728,27 @@ describe('TakesManager, Hell Yeah stakes', () => {
     });
   });
 
-  it('always shows the Hell Nah dialog when joining would accept a stake', async () => {
+  it('tells somebody about to say Hell Nah that they will be asked about an open stake', async () => {
     takes.getTakesForSeason.mockResolvedValue(stakedBoard([stakedYeah()]));
-    // The member opted out of the explanation; the stakes are not an explanation.
-    suppressHellNahConfirm(READER);
     const user = userEvent.setup();
     renderTab();
     await screen.findByText('Somebody wins it from the 6 seed');
 
     await user.click(screen.getByRole('button', { name: /^hell nah$/i }));
     const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText(/also accepting a Hell Yeah stake/i)).toBeInTheDocument();
     expect(within(dialog).getByText(/— \$10$/)).toBeInTheDocument();
-    expect(takes.addFade).not.toHaveBeenCalled();
+    expect(within(dialog).getByText(/doesn't sign you up for it/i)).toBeInTheDocument();
+  });
+
+  it('respects "don\'t show again" even with a stake open: saying Hell Nah accepts nothing', async () => {
+    takes.getTakesForSeason.mockResolvedValue(stakedBoard([stakedYeah()]));
+    suppressHellNahConfirm(READER);
+    const user = userEvent.setup();
+    renderTab();
+    await screen.findByText('Somebody wins it from the 6 seed');
+
+    await user.click(screen.getByRole('button', { name: /^hell nah$/i }));
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(takes.addFade).toHaveBeenCalledWith({ takeId: 'late', seasonId: 's1' });
   });
 });

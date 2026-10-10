@@ -1,48 +1,41 @@
--- Takes: a Hell Yeah stake is a bet once every Hell Nah has agreed to it.
+-- Takes: a Hell Yeah stake is a side bet with whichever Hell Nahs take it on.
 --
 -- Until now a backer's stake was "a show of confidence, not a bet": it sat
 -- beside their name and nobody owed anybody over it
 -- (20260918120000_takes_hell_yeah.sql). The league wants it to be able to be
 -- a real side bet -- but nobody can be signed up to pay a second person
--- without saying so. So a staked Hell Yeah is now a **proposal** to the
--- people on the other side of the take:
+-- without saying so. So a staked Hell Yeah is now an **offer** to the people
+-- on the other side of the take:
 --
 --   * **Every Hell Nah on the take is asked**, by push notification
 --     (`takes_stakes`) and on the take itself: "Do you accept this Hell Yeah?
 --     This means you will have to pay out to <backer> as well."
 --
---   * **All of them have to agree.** If every Hell Nah accepts, the stake is
---     in play: if the take hits, each Hell Nah owes the backer their stake as
---     well as owing the author; if it misses, the backer owes each Hell Nah.
+--   * **Each Hell Nah decides for themselves.** One who accepts is in on the
+--     backer's stake: if the take hits they owe the backer as well as the
+--     author; if it misses the backer owes them. One who declines is in on
+--     the author's stake only. Nobody's answer binds anybody else.
 --
---   * **One no ends it.** A single decline nullifies the backer's stake for
---     everybody. The take's own stake is untouched and stays in play; the
---     Hell Yeah itself still counts as support.
+--   * **If nobody accepts, the stake is null.** Every Hell Nah declined, or
+--     the time to answer ran out with no yes. The take's own stake is
+--     untouched either way, and the Hell Yeah itself still counts as support.
 --
---   * **Silence is not agreement.** Each Hell Nah has three days from the
---     staked Hell Yeah to answer. A stake still waiting on somebody when that
---     runs out -- or when the take is graded -- never went into play.
---
---   * **Saying Hell Nah later is agreeing.** Somebody who fades the take after
---     the stake was put up joins on the terms already on the table: a trigger
---     records their acceptance as they join (`by_joining`), and the client
---     always shows the Hell Nah dialog, listing the stakes, before it writes
---     one. Otherwise a latecomer could veto a stake everybody else had
---     already agreed to.
+--   * **Silence is a no.** The offer is open for three days from the staked
+--     Hell Yeah. A Hell Nah who has not accepted by then -- or by grading --
+--     is not in on it. Somebody who says Hell Nah while the offer is still
+--     open is asked like everybody else; after it has closed, they are not.
 --
 --   * **An answer is final.** There is no member UPDATE or DELETE policy. A
---     yes is a commitment and a no has already ended the stake for others.
---     Withdrawing the Hell Nah (inside its window) is still how a fader steps
---     off the take -- but a no they gave stays on the record, and so the stake
---     stays off.
+--     yes is a commitment to pay somebody. Withdrawing the Hell Nah (inside
+--     its window) is still how a fader steps off the take altogether.
 --
--- The state -- waiting, agreed, declined, lapsed -- is **derived, not stored**
--- (`stakeStatus` in src/components/takes/milestones.js, and the notification
--- planner). Faders join and leave; a stored status would need a trigger on
--- both tables to stay true, and would be one more thing to disagree.
+-- Who is in on a stake -- and whether it is in play, waiting, or null -- is
+-- **derived, not stored** (`stakeStatus` in src/components/takes/milestones.js,
+-- and the notification planner). Faders join and leave; a stored status would
+-- need a trigger on both tables to stay true.
 --
 -- A response points at the Hell Yeah *row*, so a backer who withdraws and
--- re-stakes makes a fresh proposal: the old answers go with the old row.
+-- re-stakes makes a fresh offer: the old answers go with the old row.
 
 -- ---------------------------------------------------------------------------
 -- 1. The table
@@ -55,15 +48,11 @@ CREATE TABLE IF NOT EXISTS "public"."take_stake_responses" (
   "hell_yeah_id" "uuid" NOT NULL,
   "user_id" "uuid" DEFAULT "auth"."uid"() NOT NULL,
   "response" "text" NOT NULL,
-  "by_joining" boolean DEFAULT false NOT NULL,
   "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
   CONSTRAINT "take_stake_responses_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "take_stake_responses_one_answer" UNIQUE ("hell_yeah_id", "user_id"),
   CONSTRAINT "take_stake_responses_response_check"
     CHECK (("response" = ANY (ARRAY['accepted'::"text", 'declined'::"text"]))),
-  -- Joining is agreeing; nobody joins by saying no.
-  CONSTRAINT "take_stake_responses_join_accepts"
-    CHECK ((NOT "by_joining") OR ("response" = 'accepted'::"text")),
   CONSTRAINT "take_stake_responses_take_id_fkey" FOREIGN KEY ("take_id")
     REFERENCES "public"."takes"("id") ON DELETE CASCADE,
   CONSTRAINT "take_stake_responses_season_id_fkey" FOREIGN KEY ("season_id")
@@ -81,13 +70,10 @@ CREATE INDEX IF NOT EXISTS "take_stake_responses_take_id_idx"
 ALTER TABLE "public"."take_stake_responses" OWNER TO "postgres";
 
 COMMENT ON TABLE "public"."take_stake_responses" IS
-  'A Hell Nah''s answer to a staked Hell Yeah on the same take. The backer''s stake is in play only once every Hell Nah on the take has accepted; one decline nullifies it (the take''s own stake stands), and a stake not accepted by everyone within 72 hours of the Hell Yeah, or by grading, never went into play. Answers are final. See 20261010120000_take_stake_responses.sql.';
+  'A Hell Nah''s answer to a staked Hell Yeah on the same take. Each Hell Nah decides for themselves: one who accepts is in on the backer''s stake (owes the backer too if the take hits, is owed by the backer if it misses); one who declines, or has not accepted within 72 hours of the Hell Yeah or by grading, is not. If nobody accepts, the backer''s stake is null; the take''s own stake stands either way. Answers are final. See 20261010120000_take_stake_responses.sql.';
 
 COMMENT ON COLUMN "public"."take_stake_responses"."hell_yeah_id" IS
-  'The staked Hell Yeah (take_participants row, side = yeah, wager not null) being answered. Cascades: a withdrawn Hell Yeah takes its answers with it, so re-staking is a fresh proposal.';
-
-COMMENT ON COLUMN "public"."take_stake_responses"."by_joining" IS
-  'True when the acceptance was recorded by saying Hell Nah after the stake was put up -- joining on the terms already on the table. Written only by take_participants_accept_stakes_on_join(); not logged as a separate act, since the faded event is the act.';
+  'The staked Hell Yeah (take_participants row, side = yeah, wager not null) being answered. Cascades: a withdrawn Hell Yeah takes its answers with it, so re-staking is a fresh offer.';
 
 ALTER TABLE "public"."take_stake_responses" ENABLE ROW LEVEL SECURITY;
 
@@ -108,7 +94,6 @@ CREATE POLICY "take_stake_responses answer own" ON "public"."take_stake_response
   FOR INSERT TO "authenticated"
   WITH CHECK ("public"."is_approved_member"()
               AND ("auth"."uid"() = "user_id")
-              AND (NOT "by_joining")
               AND EXISTS (
                 SELECT 1
                 FROM "public"."take_participants" y
@@ -138,53 +123,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE "public"."take_stake_responses" TO
 GRANT ALL ON TABLE "public"."take_stake_responses" TO "service_role";
 
 -- ---------------------------------------------------------------------------
--- 3. Saying Hell Nah after a stake is agreeing to it
--- ---------------------------------------------------------------------------
--- SECURITY DEFINER because the member's own insert policy refuses a stake
--- older than three days, and a latecomer joining a week-old staked take is
--- agreeing to it all the same. ON CONFLICT: a member who faded, accepted,
--- withdrew and faded again already has their answer, and a no stays a no.
-
-CREATE OR REPLACE FUNCTION "public"."take_participants_accept_stakes_on_join"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO 'public'
-    AS $$
-  BEGIN
-    INSERT INTO public.take_stake_responses
-      (take_id, season_id, hell_yeah_id, user_id, response, by_joining)
-    SELECT y.take_id, y.season_id, y.id, NEW.user_id, 'accepted', true
-    FROM public.take_participants y
-    WHERE y.take_id = NEW.take_id
-      AND y.side = 'yeah'
-      AND y.wager IS NOT NULL
-      AND y.user_id <> NEW.user_id
-    ON CONFLICT (hell_yeah_id, user_id) DO NOTHING;
-    RETURN NEW;
-  END;
-  $$;
-
-ALTER FUNCTION "public"."take_participants_accept_stakes_on_join"() OWNER TO "postgres";
-
-REVOKE ALL ON FUNCTION "public"."take_participants_accept_stakes_on_join"() FROM PUBLIC;
-REVOKE ALL ON FUNCTION "public"."take_participants_accept_stakes_on_join"() FROM "anon";
-REVOKE ALL ON FUNCTION "public"."take_participants_accept_stakes_on_join"() FROM "authenticated";
-
-COMMENT ON FUNCTION "public"."take_participants_accept_stakes_on_join"() IS
-  'A Hell Nah joining a take that already carries staked Hell Yeahs accepts them: it joins on the terms on the table. Records by_joining acceptances; never overwrites an earlier answer.';
-
-DROP TRIGGER IF EXISTS "take_participants_accept_stakes_on_join" ON "public"."take_participants";
-CREATE TRIGGER "take_participants_accept_stakes_on_join"
-  AFTER INSERT ON "public"."take_participants"
-  FOR EACH ROW WHEN (("new"."side" = 'nah'::"text"))
-  EXECUTE FUNCTION "public"."take_participants_accept_stakes_on_join"();
-
--- ---------------------------------------------------------------------------
--- 4. The log
+-- 3. The log
 -- ---------------------------------------------------------------------------
 -- An answer is an act on the take, and every act is logged by the database.
 -- `stake_accepted` / `stake_declined`, about the fader (subject), with the
 -- backer and the stake in `changes` -- the stake as it stood when the answer
--- was given. Acceptances by joining are not logged: the `faded` row is the act.
+-- was given.
 
 DO $$
 BEGIN
@@ -249,22 +193,22 @@ REVOKE ALL ON FUNCTION "public"."log_take_stake_response_event"() FROM "anon";
 REVOKE ALL ON FUNCTION "public"."log_take_stake_response_event"() FROM "authenticated";
 
 COMMENT ON FUNCTION "public"."log_take_stake_response_event"() IS
-  'Appends stake_accepted / stake_declined to take_events for an explicit answer to a staked Hell Yeah, stamping acted_as_admin when the admin answered for somebody or outside the window. Acceptances by joining are not logged.';
+  'Appends stake_accepted / stake_declined to take_events for a Hell Nah''s answer to a staked Hell Yeah, stamping acted_as_admin when the admin answered for somebody or outside the window.';
 
 DROP TRIGGER IF EXISTS "take_stake_responses_log" ON "public"."take_stake_responses";
 CREATE TRIGGER "take_stake_responses_log"
   AFTER INSERT ON "public"."take_stake_responses"
-  FOR EACH ROW WHEN ((NOT "new"."by_joining"))
+  FOR EACH ROW
   EXECUTE FUNCTION "public"."log_take_stake_response_event"();
 
 -- ---------------------------------------------------------------------------
--- 5. The notification topic
+-- 4. The notification topic
 -- ---------------------------------------------------------------------------
 -- `takes_stakes`: a staked Hell Yeah on a take you said Hell Nah to, asking
 -- whether you accept it. Its own topic rather than part of
 -- `takes_reactions` (which is about *your* takes): this one asks for an
 -- answer with a deadline, and turning off reactions should not silently cost
--- somebody the chance to say no. On for every device already subscribed.
+-- somebody the chance to take the stake on. On for every device already subscribed.
 
 DO $$
 BEGIN
@@ -333,10 +277,10 @@ CREATE OR REPLACE FUNCTION "public"."save_push_subscription"(
   $$;
 
 COMMENT ON COLUMN "public"."push_subscriptions"."topics" IS
-  'What this device wants to be sent: pickems_open, pickems_closing, takes_new (every new take but your own), takes_reactions (Hell Yeahs and Hell Nahs on your takes), takes_stakes (a staked Hell Yeah on a take you said Hell Nah to, asking you to accept it), matchup_facts (noon daily, a fact about your week). A subset of push_subscriptions_topics_check.';
+  'What this device wants to be sent: pickems_open, pickems_closing, takes_new (every new take but your own), takes_reactions (Hell Yeahs and Hell Nahs on your takes), takes_stakes (a staked Hell Yeah on a take you said Hell Nah to, asking whether you accept it), matchup_facts (noon daily, a fact about your week). A subset of push_subscriptions_topics_check.';
 
 -- ---------------------------------------------------------------------------
--- 6. One event, more than one notification
+-- 5. One event, more than one notification
 -- ---------------------------------------------------------------------------
 -- A staked Hell Yeah is one `backed` event that now tells two audiences: the
 -- author (takes_reactions) and the Hell Nahs (takes_stakes). The claim was

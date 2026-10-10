@@ -297,7 +297,6 @@ export function describeTakeEvent(event, { actorName, subjectName, nameOf, seaso
     // A Hell Nah's answer to a staked Hell Yeah. `changes.backer` is the
     // backer's id and `changes.wager.to` the stake as it stood; the stake is
     // named because "accepted the stake" is meaningless without the amount.
-    // Acceptances by saying Hell Nah are not logged — the faded row is the act.
     case 'stake_accepted':
     case 'stake_declined': {
       const accepted = event.eventType === 'stake_accepted';
@@ -323,7 +322,7 @@ export function describeTakeEvent(event, { actorName, subjectName, nameOf, seaso
               }
             ]
           : [],
-        note: accepted ? null : 'One no is enough: that stake is off. The take’s own stake still stands.'
+        note: accepted ? null : 'They’re not in on that stake — only the take’s own.'
       };
     }
 

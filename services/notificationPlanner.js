@@ -177,7 +177,7 @@ export function previewTake(body, max = TAKE_PREVIEW_LENGTH) {
  *   switching sides writes a fresh event for the new side.
  * - **backed with a stake** also goes, under `takes_stakes`, to every Hell
  *   Nah on the take who has not answered it yet: "Do you accept this Hell
- *   Yeah?" A staked Hell Yeah is a proposal they all have to agree to
+ *   Yeah?" A staked Hell Yeah is an offer each of them takes on or not
  *   (20261010120000_take_stake_responses.sql), and this is how they hear of it.
  * - Withdrawals, edits, grades and answers are not announced.
  *
@@ -215,7 +215,6 @@ export function planTakeNotifications({
   const readers = subscriptions.filter((sub) => !excludedUserIds.has(sub.userId) && Array.isArray(sub.topics));
 
   const answered = new Set(stakeResponses.map((r) => `${r.hellYeahId}:${r.userId}`));
-  const anyDeclined = new Set(stakeResponses.filter((r) => r.response === 'declined').map((r) => r.hellYeahId));
 
   const plans = [];
   const due = (event, kind) => !claimed.has(`${event.id}:${kind}`);
@@ -286,11 +285,10 @@ export function planTakeNotifications({
       });
     }
 
-    // A staked Hell Yeah asks every Hell Nah on the take whether they accept
-    // it. Only those still to answer: somebody who joined after it agreed by
-    // joining, and once one of them has said no there is nothing to ask.
+    // A staked Hell Yeah asks every Hell Nah on the take whether they'll
+    // take it on. Each answers for themselves, so somebody else's no changes
+    // nothing here; only those who have already answered are skipped.
     if (side !== 'yeah' || !participant.wager || !due(event, TOPICS.takesStakes)) continue;
-    if (participant.id && anyDeclined.has(participant.id)) continue;
 
     const askIds = new Set(participants
       .filter((p) => p.takeId === take.id && p.side === 'nah' && p.userId !== event.subjectId)
@@ -308,7 +306,7 @@ export function planTakeNotifications({
       // same thing on the take itself, where the answer is given.
       payload: {
         title: `Do you accept ${who}'s Hell Yeah?`,
-        body: `${who} put ${participant.wager} on ${quoted}. Accepting means you'll have to pay out to ${who} as well if it hits. Every Hell Nah has to agree, or the stake is off.`,
+        body: `${who} put ${participant.wager} on ${quoted}. Accepting means you'll have to pay out to ${who} as well if it hits. It's your call.`,
         url,
         tag: `take-stake-${event.id}`
       }

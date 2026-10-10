@@ -245,7 +245,7 @@ describe('planTakeNotifications, staked Hell Yeahs', () => {
     expect(ask.recipients.map((r) => r.userId)).toEqual(['sam', 'lee']);
     expect(ask.payload).toEqual({
       title: "Do you accept Jo's Hell Yeah?",
-      body: 'Jo put $10 on “Bijan finishes as the RB1.”. Accepting means you\'ll have to pay out to Jo as well if it hits. Every Hell Nah has to agree, or the stake is off.',
+      body: 'Jo put $10 on “Bijan finishes as the RB1.”. Accepting means you\'ll have to pay out to Jo as well if it hits. It\'s your call.',
       url: '/takes?take=t1',
       tag: 'take-stake-e-backed'
     });
@@ -256,14 +256,14 @@ describe('planTakeNotifications, staked Hell Yeahs', () => {
     expect(stakePlan(plan({ participants: plain }))).toBeUndefined();
   });
 
-  it('skips a Hell Nah who has already answered, and everybody once one said no', () => {
+  it('skips a Hell Nah who has already answered, and nobody else: each answers for themselves', () => {
     expect(stakePlan(plan({
       stakeResponses: [{ hellYeahId: 'y-jo', userId: 'sam', response: 'accepted' }]
     })).recipients.map((r) => r.userId)).toEqual(['lee']);
 
     expect(stakePlan(plan({
       stakeResponses: [{ hellYeahId: 'y-jo', userId: 'sam', response: 'declined' }]
-    }))).toBeUndefined();
+    })).recipients.map((r) => r.userId)).toEqual(['lee']);
   });
 
   it('respects the topic, and keeps the wording from accounts that may not read takes', () => {

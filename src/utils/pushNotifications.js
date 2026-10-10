@@ -61,7 +61,7 @@ export const PUSH_TOPIC_GROUPS = [
       {
         id: 'takes_stakes',
         label: 'Hell Yeah stakes to accept',
-        description: "When somebody stakes a Hell Yeah on a take you said Hell Nah to. Every Hell Nah has to accept it, so you'll be asked."
+        description: "When somebody stakes a Hell Yeah on a take you said Hell Nah to, asking whether you'll take it on too."
       }
     ]
   },

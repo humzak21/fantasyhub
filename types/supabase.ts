@@ -2345,7 +2345,6 @@ export type Database = {
       }
       take_stake_responses: {
         Row: {
-          by_joining: boolean
           created_at: string
           hell_yeah_id: string
           id: string
@@ -2355,7 +2354,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          by_joining?: boolean
           created_at?: string
           hell_yeah_id: string
           id?: string
@@ -2365,7 +2363,6 @@ export type Database = {
           user_id?: string
         }
         Update: {
-          by_joining?: boolean
           created_at?: string
           hell_yeah_id?: string
           id?: string

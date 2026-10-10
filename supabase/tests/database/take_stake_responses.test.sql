@@ -1,13 +1,14 @@
--- Hell Yeah stakes: every Hell Nah has to agree.
+-- Hell Yeah stakes: each Hell Nah decides for themselves.
 --
 -- What `20261010120000_take_stake_responses.sql` makes true, asserted where
 -- the anon key cannot get round it:
 --
 --   * a Hell Nah on the take may answer a staked Hell Yeah, once, inside
 --     three days of the stake; nobody else may answer it;
+--   * one Hell Nah's no does not stop another's yes;
 --   * an answer is final -- a member can neither change it nor take it back;
---   * saying Hell Nah after the stake is accepting it, recorded `by_joining`
---     and never by the member's own hand;
+--   * saying Hell Nah after the stake accepts nothing -- the newcomer is
+--     asked like everybody else, while the stake is open;
 --   * answers are logged as stake_accepted / stake_declined with the backer
 --     and the stake, and a withdrawn Hell Yeah takes its answers with it;
 --   * one staked Hell Yeah may be announced to the author and to the Hell
@@ -79,12 +80,6 @@ set local request.jwt.claims to
   '{"role":"authenticated","sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd"}';
 set local role authenticated;
 
-select throws_ok(
-  $$ insert into public.take_stake_responses (take_id, season_id, hell_yeah_id, response, by_joining)
-     values ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111',
-             'aaaaaaa1-0000-4000-8000-000000000002', 'accepted', true) $$,
-  '42501', null, 'a member cannot claim to have agreed by joining');
-
 select lives_ok(
   $$ insert into public.take_stake_responses (take_id, season_id, hell_yeah_id, response)
      values ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111',
@@ -123,7 +118,7 @@ select is(
   false, 'and signs it with the member''s own name');
 
 -- ---------------------------------------------------------------------------
--- 2. Joining later is agreeing
+-- 2. Joining later, and answering for yourself
 -- ---------------------------------------------------------------------------
 
 set local request.jwt.claims to
@@ -138,21 +133,33 @@ select lives_ok(
 reset role;
 
 select is(
-  (select response || ':' || by_joining from public.take_stake_responses
+  (select count(*)::int from public.take_stake_responses
     where hell_yeah_id = 'aaaaaaa1-0000-4000-8000-000000000002'
       and user_id = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'),
-  'accepted:true', 'and is recorded as accepting it by joining');
+  0, 'which accepts nothing by itself');
+
+set local request.jwt.claims to
+  '{"role":"authenticated","sub":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"}';
+set local role authenticated;
+
+select lives_ok(
+  $$ insert into public.take_stake_responses (take_id, season_id, hell_yeah_id, response)
+     values ('22222222-2222-4222-8222-222222222222', '11111111-1111-4111-8111-111111111111',
+             'aaaaaaa1-0000-4000-8000-000000000002', 'declined') $$,
+  'the newcomer answers for themselves, and says no');
+
+reset role;
 
 select is(
-  (select count(*)::int from public.take_events
-    where take_id = '22222222-2222-4222-8222-222222222222' and event_type like 'stake_%'),
-  1, 'which is not logged as an act of its own: the faded row is the act');
+  (select array_agg(response order by response) from public.take_stake_responses
+    where hell_yeah_id = 'aaaaaaa1-0000-4000-8000-000000000002'),
+  array['accepted', 'declined']::text[], 'and the earlier yes stands beside the no');
 
 -- ---------------------------------------------------------------------------
 -- 3. The window
 -- ---------------------------------------------------------------------------
 
--- A fresh stake from the backer, four days old, with the fader asked again.
+-- A fresh stake from the backer, four days old, with the Hell Nahs asked again.
 delete from public.take_participants where id = 'aaaaaaa1-0000-4000-8000-000000000002';
 
 select is(
@@ -196,7 +203,7 @@ reset role;
 select is(
   (select count(*)::int from public.take_events
     where take_id = '22222222-2222-4222-8222-222222222222' and event_type = 'stake_declined'),
-  1, 'and the decline is logged');
+  2, 'and both declines are logged');
 
 -- ---------------------------------------------------------------------------
 -- 4. Notifications

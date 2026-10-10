@@ -59,7 +59,7 @@ export async function getTakesForSeason(ctx, seasonId) {
   try {
     const { data, error } = await ctx.client
       .from('takes')
-      .select('*, take_participants(id, user_id, side, wager, created_at, take_stake_responses(user_id, response, by_joining, created_at))')
+      .select('*, take_participants(id, user_id, side, wager, created_at, take_stake_responses(user_id, response, created_at))')
       .eq('season_id', seasonId)
       .order('created_at', { ascending: false });
 
@@ -220,9 +220,9 @@ export async function addFade(ctx, { takeId, seasonId }) {
  * your own.
  *
  * The stake is optional and normalized exactly like a take's: a blank box is
- * no stake, and no stake is NULL. It is a proposal to the take's Hell Nahs,
- * not a bet on its own: it binds nobody until every one of them has accepted
- * it through `respondToStake`, and one decline ends it. That is why it is
+ * no stake, and no stake is NULL. It is an offer to the take's Hell Nahs,
+ * not a bet on its own: it binds each of them only once they accept it
+ * through `respondToStake`, and if nobody does it is off. That is why it is
  * allowed on any take, staked or not — with nobody on the other side it binds
  * nobody.
  */
@@ -257,7 +257,7 @@ const STAKE_RESPONSES = ['accepted', 'declined'];
 /**
  * Answer a staked Hell Yeah on a take you said Hell Nah to: accept it, and
  * owe the backer their stake as well if the take hits; or decline it, and
- * take it off the table for everybody.
+ * stay in on the author's stake only. Each Hell Nah answers for themselves.
  *
  * `user_id` is left to its `auth.uid()` default. Every rule — you are a Hell
  * Nah on this take, it is ungraded, the stake is under three days old, you
