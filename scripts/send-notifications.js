@@ -340,8 +340,26 @@ async function findUserByEmail(email) {
   return user;
 }
 
+/**
+ * The test notification's payload. A title (and optionally a body) given to
+ * the workflow replaces the default wording; with neither it is the standard
+ * "notifications are on" check.
+ */
+export function testPayload({ title = '', body = '' } = {}) {
+  const customTitle = title.trim();
+  if (!customTitle) {
+    return {
+      title: 'OG Jits notifications are on',
+      body: 'This is a test. Pick\'em reminders and take alerts will arrive like this.',
+      url: '/settings',
+      tag: 'test'
+    };
+  }
+  return { title: customTitle, body: body.trim(), url: '/', tag: 'test' };
+}
+
 /** A test notification to one member's devices, found by email. */
-async function sendTest(email) {
+async function sendTest(email, message = {}) {
   const user = await findUserByEmail(email);
 
   const devices = (await getDb(getContext()).notifications.getPushSubscriptions())
@@ -352,12 +370,7 @@ async function sendTest(email) {
 
   const { delivered, gone, failures } = await deliver({
     recipients: devices,
-    payload: {
-      title: 'OG Jits notifications are on',
-      body: 'This is a test. Pick\'em reminders and take alerts will arrive like this.',
-      url: '/settings',
-      tag: 'test'
-    }
+    payload: testPayload(message)
   }, { ttlSeconds: HOUR_S });
   await getDb(getContext()).notifications.deletePushSubscriptions(gone);
   return { email, devices: devices.length, delivered: delivered.length, removed: gone.length, failures };
@@ -369,6 +382,7 @@ async function main(argv = process.argv.slice(2)) {
   const matchups = argv.includes('--matchups');
   const testIndex = argv.indexOf('--test');
   const testEmail = testIndex >= 0 ? argv[testIndex + 1] ?? '' : null;
+  const valueOf = (flag) => (argv.indexOf(flag) >= 0 ? argv[argv.indexOf(flag) + 1] ?? '' : '');
 
   if (!dryRun) configureVapid();
 
@@ -376,7 +390,9 @@ async function main(argv = process.argv.slice(2)) {
   if (matchups) {
     const onlyUserId = testEmail != null ? (await findUserByEmail(testEmail)).id : null;
     result = await sendMatchupFacts({ dryRun, atNoon: argv.includes('--at-noon'), onlyUserId });
-  } else if (testEmail != null) result = await sendTest(testEmail);
+  } else if (testEmail != null) {
+    result = await sendTest(testEmail, { title: valueOf('--title'), body: valueOf('--body') });
+  }
   else if (takes) result = await sendTakeNotifications({ dryRun });
   else result = await sendDueNotifications({ dryRun });
 
