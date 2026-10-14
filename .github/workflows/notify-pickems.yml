@@ -11,7 +11,8 @@ name: Pick'em notifications
 # supabase/migrations/20261002120000_push_notifications.sql.
 #
 # Run it by hand to send what is due now, to see what would be sent
-# (dry run), or to send yourself a test notification (test_email).
+# (dry run), or to send yourself a test notification (test_email, with an
+# optional test_title / test_body in place of the standard wording).
 
 on:
   workflow_dispatch:
@@ -29,6 +30,16 @@ on:
         type: boolean
       test_email:
         description: 'Send one test notification to this member''s devices instead (their sign-in email).'
+        required: false
+        default: ''
+        type: string
+      test_title:
+        description: 'With test_email: the test notification''s title instead of the standard check. Over 30 characters with no body, it is sent as the body under "OG Jits".'
+        required: false
+        default: ''
+        type: string
+      test_body:
+        description: 'With test_title: its body (optional).'
         required: false
         default: ''
         type: string
@@ -62,9 +73,11 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
           TEST_EMAIL: ${{ inputs.test_email }}
+          TEST_TITLE: ${{ inputs.test_title }}
+          TEST_BODY: ${{ inputs.test_body }}
         run: |
           if [ -n "$TEST_EMAIL" ]; then
-            node scripts/send-notifications.js --test "$TEST_EMAIL"
+            node scripts/send-notifications.js --test "$TEST_EMAIL" --title "$TEST_TITLE" --body "$TEST_BODY"
           else
             node scripts/send-notifications.js ${{ inputs.dry_run && '--dry-run' || '' }}
           fi
