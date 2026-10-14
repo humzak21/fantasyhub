@@ -5,8 +5,9 @@
 -- `notification_inbox` is one row per member per notification (not per
 -- device: a member with a phone and a laptop was told once). The sender
 -- (`scripts/send-notifications.js`, service role) writes it for every kind it
--- sends — pick'ems, takes, matchup facts and test sends — and Settings → Alerts
--- reads it, with unread rows counted on the cog.
+-- sends — pick'ems, takes, matchup facts and test sends — and the Alerts
+-- page (`/alerts`, the bell beside the cog) reads it, with the unread count on
+-- the bell.
 --
 -- Members read, mark read and delete their own rows and nothing else. Nobody
 -- but the service role inserts: what a member was told is the sender's
@@ -29,7 +30,7 @@ CREATE TABLE IF NOT EXISTS "public"."notification_inbox" (
 );
 
 COMMENT ON TABLE "public"."notification_inbox" IS
-  'Every push notification sent to a member, one row per member per notification, for Settings → Alerts. Written by the sender (service role) only.';
+  'Every push notification sent to a member, one row per member per notification, for the Alerts page. Written by the sender (service role) only.';
 COMMENT ON COLUMN "public"."notification_inbox"."kind" IS
   'The notification''s kind as the sender names it: pickems_open, takes_new, matchup_facts:fri, test, …';
 COMMENT ON COLUMN "public"."notification_inbox"."read_at" IS

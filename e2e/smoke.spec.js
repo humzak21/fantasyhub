@@ -20,6 +20,7 @@ const ROUTES = [
   '/playoffs',
   '/awards',
   '/settings',
+  '/alerts',
 ]
 
 test.describe('smoke', () => {

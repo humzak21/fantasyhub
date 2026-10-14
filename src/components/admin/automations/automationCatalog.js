@@ -416,7 +416,7 @@ export const PASSIVE_AUTOMATIONS = [
       "\"pick'ems close soon\" in the six hours before the deadline to members who have not picked. The script " +
       'decides what is due from the open pick_em_weeks row, so a slot with nothing due sends nothing; each send is ' +
       'claimed in notification_log first, so a re-run never repeats one. Every send is also kept, one row per ' +
-      'member, in notification_inbox for Settings → Alerts. Needs the VAPID_PUBLIC_KEY, ' +
+      'member, in notification_inbox for the Alerts page (the bell). Needs the VAPID_PUBLIC_KEY, ' +
       'VAPID_PRIVATE_KEY and VAPID_SUBJECT secrets.',
     verify:
       'notification_log has a row per kind per week with delivered / failed / removed counts. Run the workflow with ' +
@@ -434,7 +434,7 @@ export const PASSIVE_AUTOMATIONS = [
       'private.dispatch_github_workflow as the crons and never refuses the take if the dispatch fails. The ' +
       'script announces events up to six hours old that are not yet in notification_log, claiming each by its ' +
       'take_event_id first, so a burst collapsed into one run is still sent once each. A Hell Nah withdrawn ' +
-      'before the run is not announced. Each send is kept in notification_inbox (Settings → Alerts).',
+      'before the run is not announced. Each send is kept in notification_inbox for the Alerts page.',
     verify:
       'notification_log rows with a take_event_id. A take with no row: net._http_response for the dispatch, ' +
       'then the workflow run. Run it by hand to catch up anything from the last six hours.'
@@ -450,7 +450,7 @@ export const PASSIVE_AUTOMATIONS = [
       'player weeks and pickups and picks the rarest one the member has not been told; matchup_fact_log is the ' +
       'memory, so a sentence is never repeated and a kind of fact rests for three weeks. Each day is claimed in ' +
       'notification_log as matchup_facts:<weekday> first, and each member\'s fact is kept in notification_inbox ' +
-      '(Settings → Alerts).',
+      'for the Alerts page.',
     verify:
       'notification_log has a matchup_facts:<weekday> row and matchup_fact_log a row per member each day of the season. ' +
       'Run the workflow with dry_run to ' +

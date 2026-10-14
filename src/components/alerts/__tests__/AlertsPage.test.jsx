@@ -1,5 +1,5 @@
 /**
- * Settings → Alerts keeps every push a member was sent, because a push is
+ * Alerts (/alerts) keeps every push a member was sent, because a push is
  * gone once tapped. What is pinned: unread alerts say so, tapping one marks
  * it read and goes where the push would have, "Mark all read" clears the
  * rest, and an alert can be deleted.
@@ -24,7 +24,7 @@ vi.mock('../../../../hooks/queries/index.js', async () => {
   };
 });
 
-const { default: AlertsPanel } = await import('../AlertsPanel.jsx');
+const { default: AlertsPage } = await import('../AlertsPage.jsx');
 
 const alert = (id, over = {}) => ({
   id,
@@ -42,9 +42,9 @@ beforeEach(() => {
   inbox = { data: [], isLoading: false, error: null };
 });
 
-describe('AlertsPanel', () => {
+describe('AlertsPage', () => {
   it('says there is nothing yet', () => {
-    render(<AlertsPanel />);
+    render(<AlertsPage />);
     expect(screen.getByText('No alerts yet')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /mark all read/i })).toBeDisabled();
   });
@@ -54,14 +54,14 @@ describe('AlertsPanel', () => {
       alert('a', { body: "Nikhil, your team is ass. You manage it like a chocolate bar with nuts." }),
       alert('b', { title: 'New take', readAt: new Date() })
     ];
-    render(<AlertsPanel />);
+    render(<AlertsPage />);
     expect(screen.getByText(/like a chocolate bar with nuts/)).toBeInTheDocument();
     expect(screen.getAllByText('(unread)')).toHaveLength(1);
   });
 
   it('marks an alert read and opens where the push would have', async () => {
     inbox.data = [alert('a', { kind: 'takes_new', title: 'New take', url: '/takes?take=t1' })];
-    render(<AlertsPanel />);
+    render(<AlertsPage />);
     await userEvent.click(screen.getByRole('button', { name: /^New take/ }));
     expect(markRead.mutate).toHaveBeenCalledWith(['a']);
     expect(navigate).toHaveBeenCalledWith('/takes?take=t1');
@@ -69,7 +69,7 @@ describe('AlertsPanel', () => {
 
   it('does not mark an alert read twice', async () => {
     inbox.data = [alert('a', { readAt: new Date(), url: null })];
-    render(<AlertsPanel />);
+    render(<AlertsPage />);
     await userEvent.click(screen.getByRole('button', { name: /^OG Jits/ }));
     expect(markRead.mutate).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
@@ -77,14 +77,14 @@ describe('AlertsPanel', () => {
 
   it('marks everything read at once', async () => {
     inbox.data = [alert('a'), alert('b')];
-    render(<AlertsPanel />);
+    render(<AlertsPage />);
     await userEvent.click(screen.getByRole('button', { name: /mark all read/i }));
     expect(markRead.mutate).toHaveBeenCalledWith(null);
   });
 
   it('deletes one alert', async () => {
     inbox.data = [alert('a', { title: 'Week 5: you vs Arya' })];
-    render(<AlertsPanel />);
+    render(<AlertsPage />);
     await userEvent.click(screen.getByRole('button', { name: 'Delete alert: Week 5: you vs Arya' }));
     expect(remove.mutate).toHaveBeenCalledWith('a');
     expect(markRead.mutate).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe('AlertsPanel', () => {
 
   it('shows a skeleton while loading, never a blank panel', () => {
     inbox = { data: undefined, isLoading: true, error: null };
-    const { container } = render(<AlertsPanel />);
+    const { container } = render(<AlertsPage />);
     expect(container.querySelector('.animate-pulse')).not.toBeNull();
   });
 

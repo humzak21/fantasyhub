@@ -3,9 +3,9 @@
  * `notification_inbox` because a push is gone the moment it is tapped
  * (20261014120000_notification_inbox.sql).
  *
- * One cache entry, `qk.viewer.inbox(userId)`, serves both the cog's unread
- * badge in the shell and the list in Settings → Alerts. Marking read updates
- * that entry in place first, so the dot on a row and the number on the cog
+ * One cache entry, `qk.viewer.inbox(userId)`, serves both the bell's unread
+ * badge in the shell and the list on the Alerts page. Marking read updates
+ * that entry in place first, so the dot on a row and the number on the bell
  * drop together, then refetches to take the database's timestamps.
  */
 

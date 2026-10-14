@@ -35,7 +35,7 @@
  * today's fact without claiming the day.
  *
  * Whatever is sent is also kept, one row per member, in `notification_inbox`
- * (Settings → Alerts), because a push is gone once it is tapped
+ * (the Alerts page), because a push is gone once it is tapped
  * (20261014120000_notification_inbox.sql). Keeping it never stops a send.
  *
  * Needs SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY,

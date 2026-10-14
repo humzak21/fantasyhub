@@ -71,7 +71,7 @@ export async function deleteMyPushSubscription(ctx, endpoint) {
 }
 
 // ---------------------------------------------------------------------------
-// The member's alerts (Settings → Alerts)
+// The member's alerts (the Alerts page, /alerts)
 // ---------------------------------------------------------------------------
 
 /** How many alerts the tab and the cog read: the newest, which is all anybody scrolls to. */
@@ -184,7 +184,7 @@ export async function finishNotification(ctx, id, { delivered, failed, removed }
 }
 
 /**
- * Keep what was sent, one row per member, for Settings → Alerts. `rows` are
+ * Keep what was sent, one row per member, for Alerts. `rows` are
  * `{ userId, kind, title, body, url }`, from `inboxRows` in the sender.
  */
 export async function addToInbox(ctx, rows) {

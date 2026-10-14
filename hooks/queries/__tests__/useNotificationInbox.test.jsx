@@ -1,6 +1,6 @@
 /**
- * The cog's badge and Settings → Alerts read one cache entry. Marking read
- * updates it before the round trip, so the number on the cog and the dot on
+ * The bell's badge and the Alerts page read one cache entry. Marking read
+ * updates it before the round trip, so the number on the bell and the dot on
  * the row drop together.
  */
 

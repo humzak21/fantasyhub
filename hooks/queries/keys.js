@@ -157,7 +157,7 @@ export const qk = {
     push: (userId) => ['viewer', 'push', userId],
     /**
      * The viewer's Alerts: every notification they were sent
-     * (`notification_inbox`). The shell's cog badge and Settings → Alerts read
+     * (`notification_inbox`). The bell's badge and the Alerts page read
      * the same entry, so the count and the list cannot disagree.
      */
     inbox: (userId) => ['viewer', 'inbox', userId]
