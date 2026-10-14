@@ -71,6 +71,52 @@ export async function deleteMyPushSubscription(ctx, endpoint) {
 }
 
 // ---------------------------------------------------------------------------
+// The member's alerts (the Alerts page, /alerts)
+// ---------------------------------------------------------------------------
+
+/** How many alerts the tab and the cog read: the newest, which is all anybody scrolls to. */
+export const INBOX_LIMIT = 100;
+
+/**
+ * The signed-in member's alerts, newest first. RLS limits the read to their
+ * own rows; see 20261014120000_notification_inbox.sql.
+ */
+export async function getMyInbox(ctx, { limit = INBOX_LIMIT } = {}) {
+  const rows = unwrap(
+    await ctx.client
+      .from('notification_inbox')
+      .select('id, kind, title, body, url, created_at, read_at')
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    'Get alerts'
+  ) ?? [];
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body ?? '',
+    url: row.url ?? null,
+    createdAt: new Date(row.created_at),
+    readAt: row.read_at ? new Date(row.read_at) : null
+  }));
+}
+
+/**
+ * Mark alerts read: these ids, or every unread one with no ids. The database
+ * stamps the time. Returns how many changed.
+ */
+export async function markInboxRead(ctx, ids = null) {
+  const result = await ctx.client.rpc('mark_notifications_read', { p_ids: ids?.length ? ids : null });
+  return unwrap(result, 'Mark alerts read') ?? 0;
+}
+
+/** Delete one of the member's own alerts. */
+export async function deleteInboxItem(ctx, id) {
+  if (!id) return;
+  unwrap(await ctx.client.from('notification_inbox').delete().eq('id', id), 'Delete alert');
+}
+
+// ---------------------------------------------------------------------------
 // The sender (service role)
 // ---------------------------------------------------------------------------
 
@@ -135,6 +181,25 @@ export async function finishNotification(ctx, id, { delivered, failed, removed }
     await ctx.client.from('notification_log').update({ delivered, failed, removed }).eq('id', id),
     'Finish notification'
   );
+}
+
+/**
+ * Keep what was sent, one row per member, for Alerts. `rows` are
+ * `{ userId, kind, title, body, url }`, from `inboxRows` in the sender.
+ */
+export async function addToInbox(ctx, rows) {
+  if (!rows?.length) return 0;
+  unwrap(
+    await ctx.client.from('notification_inbox').insert(rows.map((row) => ({
+      user_id: row.userId,
+      kind: row.kind,
+      title: row.title,
+      body: row.body ?? '',
+      url: row.url ?? null
+    }))),
+    'Add to alerts'
+  );
+  return rows.length;
 }
 
 /** Drop devices the push service says are gone (404/410). */

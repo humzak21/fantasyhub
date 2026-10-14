@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../../../src/contexts/AuthContext.jsx'
+import { useViewer } from '../../contexts/ViewerContext.jsx'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
@@ -7,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Avatar, AvatarFallback } from '../ui/avatar'
-import { User, LogIn, LogOut, Mail, Lock, CheckCircle, Wand2 } from 'lucide-react'
+import { User, LogIn, LogOut, Mail, Lock, CheckCircle, Wand2, Newspaper } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { NEWSLETTER_URL } from '../navigation/ResponsiveNavigation.jsx'
 
 /**
  * The popover has four faces, one `mode` at a time. Each carries one accent:
@@ -86,6 +88,7 @@ export const LoginDropdown = () => {
     user, signIn, signUp, signOut, resetPassword,
     signInWithMagicLink, authLinkError, clearAuthLinkError,
   } = useAuth()
+  const { isApproved } = useViewer()
   const [showLoginForm, setShowLoginForm] = useState(false)
   const [mode, setMode] = useState('signIn')
   const [formData, setFormData] = useState(EMPTY_FORM)
@@ -375,6 +378,17 @@ export const LoginDropdown = () => {
                 Settings is gone from here too: it is the cog beside this
                 avatar (`SettingsLink`), on screen at all times rather than
                 behind a click. */}
+            {/* Below sm the newsletter's header icon gives its room to the
+                Alerts bell — a 375px header with five icon buttons overlapped
+                the standings button — so on a phone it is here instead. */}
+            {isApproved && (
+              <DropdownMenuItem asChild className="sm:hidden">
+                <a href={NEWSLETTER_URL} target="_blank" rel="noopener noreferrer">
+                  <Newspaper className="mr-2 h-4 w-4" />
+                  <span>Newsletter</span>
+                </a>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>
