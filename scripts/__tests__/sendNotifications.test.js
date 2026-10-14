@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { deliver, sendDueNotifications, sendMatchupFacts, sendTakeNotifications, testPayload } from '../send-notifications.js';
+import { deliver, sendDueNotifications, sendMatchupFacts, sendTakeNotifications, testPayload, TITLE_FITS } from '../send-notifications.js';
 import { TOPICS } from '../../services/notificationPlanner.js';
 
 const WEEK = {
@@ -256,5 +256,12 @@ describe('testPayload', () => {
   it('sends a given title, and a body only when one is given', () => {
     expect(testPayload({ title: " if you're seeing this " })).toEqual({ title: "if you're seeing this", body: '', url: '/', tag: 'test' });
     expect(testPayload({ title: 'Hi', body: ' there ' }).body).toBe('there');
+  });
+
+  it('moves a title too long for one line into the body when there is none', () => {
+    const sentence = "if you're seeing this, your team is fraudulent";
+    expect(testPayload({ title: sentence })).toEqual({ title: 'OG Jits', body: sentence, url: '/', tag: 'test' });
+    expect(testPayload({ title: 'x'.repeat(TITLE_FITS) }).title).toBe('x'.repeat(TITLE_FITS));
+    expect(testPayload({ title: sentence, body: 'more' })).toMatchObject({ title: sentence, body: 'more' });
   });
 });

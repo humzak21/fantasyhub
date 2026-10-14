@@ -341,9 +341,17 @@ async function findUserByEmail(email) {
 }
 
 /**
+ * Longest title iOS shows on one line of a lock-screen banner. A title is
+ * never wrapped, only cut off with "…", while the body wraps to about four
+ * lines.
+ */
+export const TITLE_FITS = 30;
+
+/**
  * The test notification's payload. A title (and optionally a body) given to
  * the workflow replaces the default wording; with neither it is the standard
- * "notifications are on" check.
+ * "notifications are on" check. A long title with no body is sent as the body
+ * under "OG Jits", so the whole sentence is readable without opening it.
  */
 export function testPayload({ title = '', body = '' } = {}) {
   const customTitle = title.trim();
@@ -355,7 +363,11 @@ export function testPayload({ title = '', body = '' } = {}) {
       tag: 'test'
     };
   }
-  return { title: customTitle, body: body.trim(), url: '/', tag: 'test' };
+  const customBody = body.trim();
+  if (!customBody && customTitle.length > TITLE_FITS) {
+    return { title: 'OG Jits', body: customTitle, url: '/', tag: 'test' };
+  }
+  return { title: customTitle, body: customBody, url: '/', tag: 'test' };
 }
 
 /** A test notification to one member's devices, found by email. */

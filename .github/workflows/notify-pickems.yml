@@ -34,7 +34,7 @@ on:
         default: ''
         type: string
       test_title:
-        description: 'With test_email: the test notification''s title instead of the standard check.'
+        description: 'With test_email: the test notification''s title instead of the standard check. Over 30 characters with no body, it is sent as the body under "OG Jits".'
         required: false
         default: ''
         type: string
