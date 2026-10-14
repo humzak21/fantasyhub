@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings } from 'lucide-react';
+import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings, Bell } from 'lucide-react';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -12,6 +12,8 @@ import {
   useSeasonConfig,
   useMemberApprovals,
   countPendingApprovals,
+  useNotificationInbox,
+  countUnread,
   useTakesBoard,
   useTakesSeen
 } from './hooks/queries/index.js';
@@ -32,7 +34,7 @@ import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTab
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
 
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
-import { HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
+import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
@@ -50,6 +52,7 @@ const AwardsManager = lazy(() => import('./src/components/awards/AwardsManager.j
 const PlayoffsBracketManager = lazy(() => import('./src/components/playoffs/PlayoffsBracketManager.jsx'));
 const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueHistoryManager.jsx'));
 const TakesManager = lazy(() => import('./src/components/takes/TakesManager.jsx'));
+const AlertsPage = lazy(() => import('./src/components/alerts/AlertsPage.jsx'));
 const UserSettingsPage = lazy(() =>
   import('./src/components/auth/UserSettingsPage.jsx').then((m) => ({ default: m.UserSettingsPage }))
 );
@@ -129,6 +132,11 @@ const FantasyFootballApp = () => {
   // it costs nothing extra, and disabled for everyone else.
   const { data: approvalRows = [] } = useMemberApprovals({ enabled: isAdmin });
   const pendingApprovals = isAdmin ? countPendingApprovals(approvalRows) : 0;
+
+  // The bell's badge: the viewer's unread alerts, for every signed-in viewer.
+  // Same cache entry the Alerts page reads, so the number and the list agree.
+  const { data: alertRows = [] } = useNotificationInbox({ enabled: isAuthenticated });
+  const unreadAlerts = isAuthenticated ? countUnread(alertRows) : 0;
 
   // The badge on the Takes tab: predictions posted since this viewer last
   // opened the board. Takes is the one tab whose contents arrive without the
@@ -255,7 +263,11 @@ const FantasyFootballApp = () => {
       // page mounted outside the shell, with its own header and a Back
       // button; it acts like every other tab now. Any signed-in account,
       // approved or not: Profile (name, password) is theirs regardless.
-      { id: 'settings', label: 'Settings', icon: Settings, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false }
+      { id: 'settings', label: 'Settings', icon: Settings, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false },
+      // Every notification the viewer was sent. Reached by the bell beside
+      // the cog, which is on screen at every width — not a nav tab, because
+      // the phone tab bar scrolls and a tab at its end goes unseen.
+      { id: 'alerts', label: 'Alerts', icon: Bell, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false }
     ];
   }, [isApproved, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults, isAuthenticated]);
 
@@ -440,11 +452,18 @@ const FantasyFootballApp = () => {
                 />
               </div>
 
-              {/* The cog sits beside the account it belongs to, at every
-                  width. Signed out there is nothing to set. The newsletter
-                  is for approved members, like the members-only tabs. */}
+              {/* The bell and the cog sit beside the account they belong
+                  to, at every width. Signed out there is nothing to read or
+                  set. The newsletter is for approved members, like the
+                  members-only tabs. */}
               <div className="flex shrink-0 items-center gap-1">
-                {isApproved && <NewsletterLink />}
+                {/* Below sm it is an item in the avatar's menu instead:
+                    five icon buttons overlapped the standings button at
+                    375px once the Alerts bell joined them. */}
+                {isApproved && <NewsletterLink className="hidden sm:flex" />}
+                {isAuthenticated && (
+                  <AlertsLink active={activeTab === 'alerts'} badgeCount={unreadAlerts} />
+                )}
                 {isAuthenticated && (
                   <SettingsLink
                     active={activeTab === 'settings'}
@@ -653,6 +672,12 @@ const FantasyFootballApp = () => {
             {activeTab === 'settings' && (
               <ErrorBoundary key="settings-error-boundary">
                 <UserSettingsPage />
+              </ErrorBoundary>
+            )}
+
+            {activeTab === 'alerts' && (
+              <ErrorBoundary key="alerts-error-boundary">
+                <AlertsPage />
               </ErrorBoundary>
             )}
             </Suspense>

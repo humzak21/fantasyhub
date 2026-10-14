@@ -35,7 +35,7 @@ if (!OUT) {
 }
 
 const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:4173'
-const ROUTES = ['/rankings', '/statistics', '/schedule', '/teams', '/pickems', '/playoffs', '/settings']
+const ROUTES = ['/rankings', '/statistics', '/schedule', '/teams', '/pickems', '/playoffs', '/settings', '/alerts']
 const WIDTHS = [375, 768, 1280]
 
 mkdirSync(OUT, { recursive: true })

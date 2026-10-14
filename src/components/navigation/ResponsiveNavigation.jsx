@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Newspaper, Settings } from 'lucide-react';
+import { Bell, ChevronLeft, ChevronRight, Newspaper, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 
@@ -384,6 +384,27 @@ const HEADER_ICON_IDLE = 'text-muted-foreground hover:bg-accent/50 hover:text-fo
  * person is waiting" are different amounts of owed work, and the count is
  * already in hand.
  */
+/**
+ * The count on a header icon button. A number rather than a dot, and
+ * `aria-hidden`: the reason lives in the link's accessible name.
+ */
+const HeaderBadge = ({ count }) =>
+  count > 0 ? (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1',
+        'bg-destructive text-[10px] font-semibold leading-none tabular text-white',
+        // The ring separates the badge from the glyph under it; the cog's
+        // teeth are exactly the kind of busy edge a bare dot disappears
+        // against.
+        'ring-2 ring-card'
+      )}
+    >
+      {count > 9 ? '9+' : count}
+    </span>
+  ) : null;
+
 export const SettingsLink = ({ active = false, badgeCount = 0, badgeLabel, className }) => {
   const count = Number(badgeCount) || 0;
   const label = count > 0 ? `Settings (${badgeLabel || `${count} pending`})` : 'Settings';
@@ -401,21 +422,35 @@ export const SettingsLink = ({ active = false, badgeCount = 0, badgeLabel, class
       )}
     >
       <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
-      {count > 0 && (
-        <span
-          aria-hidden="true"
-          className={cn(
-            'absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1',
-            'bg-destructive text-[10px] font-semibold leading-none tabular text-white',
-            // The ring separates the badge from the glyph under it; the cog's
-            // teeth are exactly the kind of busy edge a bare dot disappears
-            // against.
-            'ring-2 ring-card'
-          )}
-        >
-          {count > 9 ? '9+' : count}
-        </span>
+      <HeaderBadge count={count} />
+    </NavLink>
+  );
+};
+
+/**
+ * Alerts: every notification the viewer was sent, one tap from anywhere.
+ * A bell beside the cog rather than a tab, because the header is on screen at
+ * every width while the phone tab bar scrolls — a tab at its far end is the
+ * Takes problem again. `badgeCount` is the viewer's unread alerts.
+ */
+export const AlertsLink = ({ active = false, badgeCount = 0, className }) => {
+  const count = Number(badgeCount) || 0;
+  const label = count > 0 ? `Alerts (${count} unread)` : 'Alerts';
+
+  return (
+    <NavLink
+      to="/alerts"
+      aria-label={label}
+      title={label}
+      className={cn(
+        HEADER_ICON_BUTTON,
+        'relative',
+        active ? 'bg-accent text-accent-foreground' : HEADER_ICON_IDLE,
+        className
       )}
+    >
+      <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
+      <HeaderBadge count={count} />
     </NavLink>
   );
 };

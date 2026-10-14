@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { deliver, sendDueNotifications, sendMatchupFacts, sendTakeNotifications, testPayload, TITLE_FITS } from '../send-notifications.js';
+import { deliver, inboxRows, sendDueNotifications, sendMatchupFacts, sendTakeNotifications, testPayload, TITLE_FITS } from '../send-notifications.js';
 import { TOPICS } from '../../services/notificationPlanner.js';
 
 const WEEK = {
@@ -25,7 +25,7 @@ const device = (userId, endpoint = `https://push.example/${userId}`) => ({
 });
 
 function fakeDb({ sent = [], devices = [], submitted = [], claim = 'log-1' } = {}) {
-  const calls = { claimed: [], finished: [], deleted: [], marked: [] };
+  const calls = { claimed: [], finished: [], deleted: [], marked: [], inboxed: [] };
   const notifications = {
     getOpenPickEmWeek: vi.fn(async () => ({ season: { id: 's26', year: 2026, timeZone: 'America/New_York' }, week: WEEK })),
     getSentNotificationKinds: vi.fn(async () => new Set(sent)),
@@ -34,7 +34,8 @@ function fakeDb({ sent = [], devices = [], submitted = [], claim = 'log-1' } = {
     claimNotification: vi.fn(async (row) => { calls.claimed.push(row); return claim; }),
     finishNotification: vi.fn(async (id, counts) => { calls.finished.push({ id, ...counts }); }),
     deletePushSubscriptions: vi.fn(async (endpoints) => { calls.deleted.push(...endpoints); }),
-    markPushSubscriptionsSent: vi.fn(async (endpoints) => { calls.marked.push(...endpoints); })
+    markPushSubscriptionsSent: vi.fn(async (endpoints) => { calls.marked.push(...endpoints); }),
+    addToInbox: vi.fn(async (rows) => { calls.inboxed.push(...rows); return rows.length; })
   };
   return { db: { notifications }, calls };
 }
@@ -244,6 +245,17 @@ describe('sendMatchupFacts', () => {
     expect(calls.claimed).toEqual([]);
     expect(db.notifications.getSentNotificationKinds).not.toHaveBeenCalled();
     expect(db.notifications.recordMatchupFacts).not.toHaveBeenCalled();
+    // What the member was shown is still kept in Alerts.
+    expect(calls.inboxed.map((row) => [row.userId, row.title])).toEqual([['anna', send.mock.calls[0][1].title]]);
+  });
+
+  it('keeps each member their own fact in Alerts', async () => {
+    const { db, calls } = matchupDb();
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+    await sendMatchupFacts({ db, now: SUNDAY_NOON, atNoon: true, send });
+    expect(calls.inboxed.map((row) => [row.userId, row.kind, row.body])).toEqual(
+      send.mock.calls.map(([recipient, payload]) => [recipient.userId, 'matchup_facts:sun', payload.body])
+    );
   });
 });
 
@@ -263,5 +275,46 @@ describe('testPayload', () => {
     expect(testPayload({ title: sentence })).toEqual({ title: 'OG Jits', body: sentence, url: '/', tag: 'test' });
     expect(testPayload({ title: 'x'.repeat(TITLE_FITS) }).title).toBe('x'.repeat(TITLE_FITS));
     expect(testPayload({ title: sentence, body: 'more' })).toMatchObject({ title: sentence, body: 'more' });
+  });
+});
+
+describe('Alerts', () => {
+  it('keeps one row per member, not per device', () => {
+    const plan = {
+      kind: 'takes_new',
+      payload: { title: 'New take', body: 'Jo says…', url: '/takes?take=t1' },
+      recipients: [device('a', 'https://push.example/a-phone'), device('a', 'https://push.example/a-mac'), device('b')]
+    };
+    expect(inboxRows(plan)).toEqual([
+      { userId: 'a', kind: 'takes_new', title: 'New take', body: 'Jo says…', url: '/takes?take=t1' },
+      { userId: 'b', kind: 'takes_new', title: 'New take', body: 'Jo says…', url: '/takes?take=t1' }
+    ]);
+  });
+
+  it("keeps a recipient's own payload over the plan's", () => {
+    const plan = { kind: 'matchup_facts:fri', recipients: [{ ...device('a'), payload: { title: 'Week 5: you vs Ben', body: 'fact', url: '/schedule' } }] };
+    expect(inboxRows(plan)[0]).toMatchObject({ title: 'Week 5: you vs Ben', body: 'fact', url: '/schedule' });
+  });
+
+  it('keeps a pick\'em send for every member it went to, even one whose device refused it', async () => {
+    const { db, calls } = fakeDb({ devices: [device('a'), device('a', 'https://push.example/a-2'), device('b')] });
+    const send = vi.fn(async (recipient) => (recipient.userId === 'b' ? { ok: false, statusCode: 500 } : { ok: true, statusCode: 201 }));
+    const result = await sendDueNotifications({ db, now: new Date('2026-10-06T14:00:00Z'), send });
+    expect(calls.inboxed.map((row) => row.userId)).toEqual(['a', 'b']);
+    expect(result.sent[0].inboxed).toBe(2);
+  });
+
+  it('never lets a failure to keep it stop the send', async () => {
+    const { db, calls } = fakeDb({ devices: [device('a')] });
+    db.notifications.addToInbox = vi.fn(async () => { throw new Error('relation "notification_inbox" does not exist'); });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+
+    const result = await sendDueNotifications({ db, now: new Date('2026-10-06T14:00:00Z'), send });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(calls.finished).toHaveLength(1);
+    expect(result.sent[0]).toMatchObject({ delivered: 1, inboxed: 'relation "notification_inbox" does not exist' });
+    warn.mockRestore();
   });
 });
