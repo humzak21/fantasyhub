@@ -34,6 +34,10 @@
  * one claim per day of the week. With `--test <email>` it sends that member
  * today's fact without claiming the day.
  *
+ * Whatever is sent is also kept, one row per member, in `notification_inbox`
+ * (Settings → Alerts), because a push is gone once it is tapped
+ * (20261014120000_notification_inbox.sql). Keeping it never stops a send.
+ *
  * Needs SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VAPID_PUBLIC_KEY,
  * VAPID_PRIVATE_KEY and VAPID_SUBJECT (a mailto: or https: URL Apple can
  * reach you at).
@@ -98,6 +102,45 @@ export async function deliver(plan, { send = pushTo, ttlSeconds = 12 * HOUR_S } 
 }
 
 /**
+ * One Alerts row per member a plan was sent to, whatever their devices made
+ * of it: a phone that refused the push is no reason to lose the message, and a
+ * member with two devices was told once. Each row carries what that member was
+ * sent — the recipient's own payload where it has one (a matchup fact).
+ * Exported for the test.
+ */
+export function inboxRows(plan, recipients = plan.recipients) {
+  const rows = new Map();
+  for (const recipient of recipients) {
+    if (!recipient.userId || rows.has(recipient.userId)) continue;
+    const payload = recipient.payload ?? plan.payload ?? {};
+    rows.set(recipient.userId, {
+      userId: recipient.userId,
+      kind: plan.kind ?? 'test',
+      title: payload.title ?? 'OG Jits',
+      body: payload.body ?? '',
+      url: payload.url ?? null
+    });
+  }
+  return [...rows.values()];
+}
+
+/**
+ * Keep a sent plan in Alerts. Never throws: the push has already gone out,
+ * and a failure here must not cost the next plan its send. Returns the number
+ * kept, or the error's message.
+ */
+async function keepInInbox(db, plan, recipients = plan.recipients) {
+  const rows = inboxRows(plan, recipients);
+  if (!rows.length) return 0;
+  try {
+    return await db.notifications.addToInbox(rows);
+  } catch (error) {
+    console.warn(`Could not keep ${plan.kind ?? 'test'} in Alerts:`, error.message);
+    return error.message;
+  }
+}
+
+/**
  * Plan and send what is due. Exported so the decision can be exercised
  * without a network; `send` is the one seam.
  */
@@ -141,6 +184,7 @@ export async function sendDueNotifications({ db = getDb(getContext()), now = new
       failed: failures.length,
       removed: gone.length
     });
+    const inboxed = await keepInInbox(db, plan);
 
     report.push({
       kind: plan.kind,
@@ -148,6 +192,7 @@ export async function sendDueNotifications({ db = getDb(getContext()), now = new
       recipients: plan.recipients.length,
       delivered: delivered.length,
       removed: gone.length,
+      inboxed,
       failures
     });
   }
@@ -196,6 +241,7 @@ export async function sendTakeNotifications({ db = getDb(getContext()), now = ne
       failed: result.failures.length,
       removed: result.gone.length
     });
+    const inboxed = await keepInInbox(db, plan, recipients);
 
     report.push({
       kind: plan.kind,
@@ -203,6 +249,7 @@ export async function sendTakeNotifications({ db = getDb(getContext()), now = ne
       recipients: recipients.length,
       delivered: result.delivered.length,
       removed: result.gone.length,
+      inboxed,
       failures: result.failures
     });
   }
@@ -311,12 +358,16 @@ export async function sendMatchupFacts({
       });
     }
 
+    // A test send is kept too: it is what the member was shown.
+    const inboxed = await keepInInbox(db, plan);
+
     report.push({
       kind: plan.kind,
       week: plan.week,
       recipients: plan.recipients.length,
       delivered: delivered.length,
       removed: gone.length,
+      inboxed,
       failures
     });
   }
@@ -380,12 +431,12 @@ async function sendTest(email, message = {}) {
     return { email, devices: 0, note: 'That account has no device with notifications turned on.' };
   }
 
-  const { delivered, gone, failures } = await deliver({
-    recipients: devices,
-    payload: testPayload(message)
-  }, { ttlSeconds: HOUR_S });
-  await getDb(getContext()).notifications.deletePushSubscriptions(gone);
-  return { email, devices: devices.length, delivered: delivered.length, removed: gone.length, failures };
+  const plan = { kind: 'test', recipients: devices, payload: testPayload(message) };
+  const { delivered, gone, failures } = await deliver(plan, { ttlSeconds: HOUR_S });
+  const db = getDb(getContext());
+  await db.notifications.deletePushSubscriptions(gone);
+  const inboxed = await keepInInbox(db, plan);
+  return { email, devices: devices.length, delivered: delivered.length, removed: gone.length, inboxed, failures };
 }
 
 async function main(argv = process.argv.slice(2)) {

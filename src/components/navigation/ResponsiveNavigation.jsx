@@ -374,7 +374,9 @@ const HEADER_ICON_BUTTON =
 const HEADER_ICON_IDLE = 'text-muted-foreground hover:bg-accent/50 hover:text-foreground';
 
 /**
- * `badgeCount` is the admin's pending approvals. The cog is Settings' one
+ * `badgeCount` is the viewer's unread alerts plus, for the admin, pending
+ * approvals; `to` opens Alerts directly when unread alerts are all it counts.
+ * The cog is Settings' one
  * entry point, and Approvals is two clicks inside it, so a member waiting for
  * an account is invisible until the admin happens to go looking — which is
  * the same failure the per-tab notification dots exist to prevent, on the one
@@ -384,13 +386,13 @@ const HEADER_ICON_IDLE = 'text-muted-foreground hover:bg-accent/50 hover:text-fo
  * person is waiting" are different amounts of owed work, and the count is
  * already in hand.
  */
-export const SettingsLink = ({ active = false, badgeCount = 0, badgeLabel, className }) => {
+export const SettingsLink = ({ active = false, to = '/settings', badgeCount = 0, badgeLabel, className }) => {
   const count = Number(badgeCount) || 0;
   const label = count > 0 ? `Settings (${badgeLabel || `${count} pending`})` : 'Settings';
 
   return (
     <NavLink
-      to="/settings"
+      to={to}
       aria-label={label}
       title={label}
       className={cn(

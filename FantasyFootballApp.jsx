@@ -12,6 +12,8 @@ import {
   useSeasonConfig,
   useMemberApprovals,
   countPendingApprovals,
+  useNotificationInbox,
+  countUnread,
   useTakesBoard,
   useTakesSeen
 } from './hooks/queries/index.js';
@@ -129,6 +131,18 @@ const FantasyFootballApp = () => {
   // it costs nothing extra, and disabled for everyone else.
   const { data: approvalRows = [] } = useMemberApprovals({ enabled: isAdmin });
   const pendingApprovals = isAdmin ? countPendingApprovals(approvalRows) : 0;
+
+  // And the viewer's unread alerts (Settings → Alerts), for every signed-in
+  // viewer. Same cache entry the Alerts panel reads, so the number and the
+  // list agree. When unread alerts are all the cog is counting, it opens
+  // Alerts rather than Profile.
+  const { data: alertRows = [] } = useNotificationInbox({ enabled: isAuthenticated });
+  const unreadAlerts = isAuthenticated ? countUnread(alertRows) : 0;
+  const settingsBadge = pendingApprovals + unreadAlerts;
+  const settingsBadgeLabel = [
+    pendingApprovals > 0 && `${pendingApprovals} ${pendingApprovals === 1 ? 'account' : 'accounts'} awaiting approval`,
+    unreadAlerts > 0 && `${unreadAlerts} unread ${unreadAlerts === 1 ? 'alert' : 'alerts'}`
+  ].filter(Boolean).join(', ');
 
   // The badge on the Takes tab: predictions posted since this viewer last
   // opened the board. Takes is the one tab whose contents arrive without the
@@ -448,8 +462,9 @@ const FantasyFootballApp = () => {
                 {isAuthenticated && (
                   <SettingsLink
                     active={activeTab === 'settings'}
-                    badgeCount={pendingApprovals}
-                    badgeLabel={`${pendingApprovals} ${pendingApprovals === 1 ? 'account' : 'accounts'} awaiting approval`}
+                    to={unreadAlerts > 0 && pendingApprovals === 0 ? '/settings?section=alerts' : '/settings'}
+                    badgeCount={settingsBadge}
+                    badgeLabel={settingsBadgeLabel}
                   />
                 )}
                 <LoginDropdown />

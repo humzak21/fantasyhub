@@ -24,6 +24,11 @@ describe('SettingsLink', () => {
     expect(link).toHaveAttribute('href', '/settings');
   });
 
+  it('can open a section directly', () => {
+    mount(<SettingsLink to="/settings?section=alerts" badgeCount={2} badgeLabel="2 unread alerts" />);
+    expect(screen.getByRole('link', { name: 'Settings (2 unread alerts)' })).toHaveAttribute('href', '/settings?section=alerts');
+  });
+
   it('carries the active treatment only when the settings tab is open', () => {
     const { rerender } = mount(<SettingsLink active={false} />);
     expect(screen.getByRole('link', { name: 'Settings' })).not.toHaveClass('bg-accent');

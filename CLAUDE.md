@@ -2153,8 +2153,12 @@ Rules that are load-bearing:
   `web.push.apple.com` means the subject or the key pair, never the device.
 - **Testing a real push:** run the workflow with `test_email` set to a
   member's sign-in email; `dry_run` prints what is due without sending or
-  claiming. The card's "Show a test notification" is local and only proves
-  the app may display one.
+  claiming. `test_title` / `test_body` replace the standard wording, and a
+  title over `TITLE_FITS` (30) characters with no body goes out as the body
+  under "OG Jits" — iOS shows a title on one line and cuts it off with "…",
+  which is how the first custom test reached a member as half a sentence. The
+  card's "Show a test notification" is local and only proves the app may
+  display one.
 
 **Takes notify on the event, not on a clock**
 (`20261007120000_take_notifications.sql`). Two more topics, `takes_new`
@@ -2267,6 +2271,33 @@ and `deliver` sends that in place of the plan's.
 - **Applied on merge** by `deploy-migrations.yml`. Before the merge there is
   no `matchup_fact_log`, so a manual run of `notify-matchups.yml` from the
   branch fails on the history read — test after the merge.
+
+**Every push is kept in Settings → Alerts**
+(`20261014120000_notification_inbox.sql`). A push on iOS is gone the moment
+it is tapped and shows one line of title on the lock screen, so a member who
+opened one had no way to read it again — the first member to get a custom
+test said so.
+
+- **`notification_inbox` is one row per member per notification**, not per
+  device: a member with a phone and a laptop was told once. The sender writes
+  it for every kind — pick'ems, takes, matchup facts and test sends
+  (`inboxRows` / `keepInInbox` in `scripts/send-notifications.js`), for every
+  member a plan went to, including one whose device refused the push. A
+  failure to keep it is a warning and an `inboxed` message on the report; it
+  never stops the send.
+- **Members read, mark read and delete their own, and nothing else.** No
+  member insert policy, so what a member was told is the sender's account. A
+  column grant limits member updates to `read_at`, and
+  `mark_notifications_read(p_ids)` (SECURITY INVOKER) stamps it with the
+  database's clock — the ids given, or every unread one with NULL.
+- **The cog's badge counts unread alerts** for every signed-in viewer, plus
+  pending approvals for the admin, from the same cache entry the panel reads
+  (`qk.viewer.inbox`, `useNotificationInbox`). With only unread alerts it links
+  to `/settings?section=alerts`. Marking read updates that entry before the
+  round trip, so the row's dot and the cog's number drop together.
+- **Only sends from 2026-10-14 on are kept**; nothing before the table existed
+  was recorded. `getMyInbox` reads the newest `INBOX_LIMIT` (100).
+- `supabase/tests/database/notification_inbox.test.sql` holds the rules.
 
 ### Password reset is a login, and the page makes it set a password
 

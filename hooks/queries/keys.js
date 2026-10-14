@@ -154,7 +154,13 @@ export const qk = {
      * but the endpoint is not known until the query has asked the browser, so
      * the key carries the user and the query answers for this device.
      */
-    push: (userId) => ['viewer', 'push', userId]
+    push: (userId) => ['viewer', 'push', userId],
+    /**
+     * The viewer's Alerts: every notification they were sent
+     * (`notification_inbox`). The shell's cog badge and Settings → Alerts read
+     * the same entry, so the count and the list cannot disagree.
+     */
+    inbox: (userId) => ['viewer', 'inbox', userId]
   },
 
   /**

@@ -36,7 +36,12 @@ vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
       isLeagueAdmin: () => isLeagueAdmin(),
       listMemberApprovals: vi.fn(async () => [])
     },
-    seasons: { getActiveSeason: async () => null, getSeasons: async () => [] }
+    seasons: { getActiveSeason: async () => null, getSeasons: async () => [] },
+    notifications: {
+      getMyInbox: async () => [
+        { id: 'a', kind: 'test', title: 'OG Jits', body: 'your team is fraudulent', url: '/', createdAt: new Date('2026-10-14T00:10:00Z'), readAt: null }
+      ]
+    }
   })
 }));
 
@@ -50,6 +55,19 @@ describe('UserSettingsPage', () => {
     expect(screen.queryByRole('button', { name: /back/i })).not.toBeInTheDocument();
     // The profile section is the member's own and is open by default.
     expect(screen.getByLabelText(/Full Name/)).toHaveValue('Arya Shah');
+  });
+
+  it('opens Alerts from ?section=alerts, with its unread count in the sidebar', async () => {
+    renderWithProviders(<UserSettingsPage />, { initialEntries: ['/settings?section=alerts'] });
+
+    expect(await screen.findByText('your team is fraudulent')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Alerts/ })).toHaveTextContent('1');
+    expect(screen.queryByLabelText(/Full Name/)).not.toBeInTheDocument();
+  });
+
+  it("opens Profile, not an empty panel, from a member's link to an admin section", () => {
+    renderWithProviders(<UserSettingsPage />, { initialEntries: ['/settings?section=approvals'] });
+    expect(screen.getByLabelText(/Full Name/)).toBeInTheDocument();
   });
 
   it('shows the admin sections only to the admin', () => {

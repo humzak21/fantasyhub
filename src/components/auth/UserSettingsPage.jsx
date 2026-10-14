@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import PageHeader from '../layout/PageHeader.jsx'
 import { EmptyState } from '../ui/empty-state'
 import { useAuth } from '../../contexts/AuthContext.jsx'
 import { useViewer } from '../../contexts/ViewerContext.jsx'
 import { supabase } from '../../../services/supabaseClient.js'
-import { useSeasons, useActiveSeason, useLeagueMutations, useMemberApprovals, countPendingApprovals } from '../../../hooks/queries/index.js'
+import { useSeasons, useActiveSeason, useLeagueMutations, useMemberApprovals, countPendingApprovals, useNotificationInbox, countUnread } from '../../../hooks/queries/index.js'
 import { getDb } from '../../../services/db/index.js'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -12,7 +13,7 @@ import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Badge } from '../ui/badge'
-import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow, Crown } from 'lucide-react'
+import { User, Bell, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow, Crown } from 'lucide-react'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
 import LeagueAdminsManager from '../admin/LeagueAdminsManager.jsx'
@@ -22,7 +23,11 @@ import { useAutomationReport } from '../admin/automations/useAutomationReport.js
 import ApprovalPendingNotice from './ApprovalPendingNotice.jsx'
 import ChangePasswordForm from './ChangePasswordForm.jsx'
 import NotificationsCard from './NotificationsCard.jsx'
+import AlertsPanel from './AlertsPanel.jsx'
 import ScheduleImportHistory from '../schedule/ScheduleImportHistory.jsx'
+
+const MEMBER_SECTIONS = ['profile', 'alerts']
+const ADMIN_SECTIONS = ['seasons', 'import', 'roles', 'admins', 'approvals', 'automations', 'testing']
 
 export const UserSettingsPage = () => {
   const { user, updatePassword } = useAuth()
@@ -33,7 +38,31 @@ export const UserSettingsPage = () => {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState({ type: '', text: '' })
   const [hasChanges, setHasChanges] = useState(false)
-  const [activeSettingsTab, setActiveSettingsTab] = useState('profile')
+  // `?section=alerts` opens a section directly: the cog links there when the
+  // only thing it is counting is unread alerts.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [chosenTab, setActiveSettingsTabState] = useState(
+    () => searchParams.get('section') || 'profile'
+  )
+  // The cog can be pressed while Settings is already open.
+  const linkedSection = searchParams.get('section')
+  useEffect(() => {
+    if (linkedSection) setActiveSettingsTabState(linkedSection)
+  }, [linkedSection])
+  // A member's link to an admin section, or a section that does not exist,
+  // shows Profile rather than an empty panel.
+  const activeSettingsTab =
+    MEMBER_SECTIONS.includes(chosenTab) || (isAdmin && ADMIN_SECTIONS.includes(chosenTab))
+      ? chosenTab
+      : 'profile'
+  const setActiveSettingsTab = (tab) => {
+    setActiveSettingsTabState(tab)
+    if (searchParams.has('section')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('section')
+      setSearchParams(next, { replace: true })
+    }
+  }
   const [shouldCrash, setShouldCrash] = useState(false)
 
   // Fantasy data for admin settings
@@ -45,6 +74,10 @@ export const UserSettingsPage = () => {
   // nothing extra; disabled (and empty) for anyone but the admin.
   const { data: approvalRows = [] } = useMemberApprovals({ enabled: isAdmin })
   const pendingApprovals = countPendingApprovals(approvalRows)
+
+  // Alerts' unread count, off the same cache entry the cog and the panel read.
+  const { data: alerts = [] } = useNotificationInbox()
+  const unreadAlerts = countUnread(alerts)
 
   // The Automations badge: how many recommendations need a person. Same
   // queries the panel reads, so opening it costs nothing extra; disabled for
@@ -197,8 +230,8 @@ export const UserSettingsPage = () => {
         title="Settings"
         description={
           isAdmin
-            ? 'Your profile, and the controls that run the league.'
-            : 'Your profile and password.'
+            ? 'Your profile and alerts, and the controls that run the league.'
+            : 'Your profile, alerts and password.'
         }
       />
 
@@ -220,6 +253,20 @@ export const UserSettingsPage = () => {
                 >
                   <User className="mr-2 h-4 w-4" />
                   Profile
+                </Button>
+
+                <Button
+                  variant={activeSettingsTab === 'alerts' ? 'default' : 'ghost'}
+                  className="w-full justify-start"
+                  onClick={() => setActiveSettingsTab('alerts')}
+                >
+                  <Bell className="mr-2 h-4 w-4" />
+                  Alerts
+                  {unreadAlerts > 0 && (
+                    <Badge variant="warning" className="ml-auto" aria-label={`${unreadAlerts} unread`}>
+                      {unreadAlerts}
+                    </Badge>
+                  )}
                 </Button>
 
                 {isAdmin && (
@@ -311,6 +358,9 @@ export const UserSettingsPage = () => {
           <div className="min-w-0 space-y-6">
             {/* Renders only for a signed-in account the admin has not approved. */}
             <ApprovalPendingNotice />
+
+            {/* Every notification this member was sent; see AlertsPanel. */}
+            {activeSettingsTab === 'alerts' && <AlertsPanel />}
 
             {/* Profile Settings */}
             {activeSettingsTab === 'profile' && (
