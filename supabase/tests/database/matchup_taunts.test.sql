@@ -64,7 +64,9 @@ set local request.jwt.claims to
 set local role authenticated;
 
 select is(
-  (select array_agg(fact order by fact) from public.matchup_taunts),
+  -- Ordered by time, not text: text order follows the database's collation,
+  -- which sorts these two differently in CI than under "C".
+  (select array_agg(fact order by created_at desc) from public.matchup_taunts),
   array['You''re 8-2 all-time against Arya.', 'old fact']::text[],
   'a member reads only their own taunt offers'
 );
