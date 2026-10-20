@@ -20,7 +20,8 @@ export const TOPICS = Object.freeze({
   takesReactions: 'takes_reactions',
   takesStakes: 'takes_stakes',
   // Planned by services/matchupFacts.js, which owns the topic's constant.
-  matchupFacts: 'matchup_facts'
+  matchupFacts: 'matchup_facts',
+  taunts: 'taunts'
 });
 
 export const ALL_TOPICS = Object.freeze([
@@ -29,7 +30,8 @@ export const ALL_TOPICS = Object.freeze([
   TOPICS.takesNew,
   TOPICS.takesReactions,
   TOPICS.takesStakes,
-  TOPICS.matchupFacts
+  TOPICS.matchupFacts,
+  TOPICS.taunts
 ]);
 
 /**
@@ -324,4 +326,34 @@ export function planTakeNotifications({
  */
 export function isGoneStatus(statusCode) {
   return statusCode === 404 || statusCode === 410;
+}
+
+/**
+ * Deliver the taunts members have sent. Each goes to every device of every
+ * approved account that owns the taunted team and wants `taunts`, and to all
+ * of those accounts' Alerts whether or not they have a device — `inbox` lists
+ * them. A taunt never reaches the member who sent it, even one who somehow
+ * owns both teams.
+ *
+ *   taunts        `getPendingTaunts` rows
+ *   teamAccounts  team id → approved user ids (`getTeamAccounts`)
+ */
+export function planTauntNotifications({ taunts = [], teamAccounts = new Map(), subscriptions = [] }) {
+  return taunts.map((taunt) => {
+    const inbox = (teamAccounts.get(taunt.toTeamId) ?? []).filter((userId) => userId !== taunt.fromUserId);
+    const told = new Set(inbox);
+    return {
+      kind: TOPICS.taunts,
+      tauntId: taunt.id,
+      inbox,
+      recipients: subscriptions.filter((sub) =>
+        told.has(sub.userId) && Array.isArray(sub.topics) && sub.topics.includes(TOPICS.taunts)),
+      payload: {
+        title: `${taunt.senderName} taunted you`,
+        body: taunt.taunt,
+        url: '/alerts',
+        tag: `taunt-${taunt.id}`
+      }
+    };
+  });
 }

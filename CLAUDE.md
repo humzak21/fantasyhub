@@ -2305,6 +2305,45 @@ custom test said so.
   was recorded. `getMyInbox` reads the newest `INBOX_LIMIT` (100).
 - `supabase/tests/database/notification_inbox.test.sql` holds the rules.
 
+**A matchup fact can be sent to the opponent as a taunt**
+(`20261020120000_matchup_taunts.sql`). Topic `taunts`, on by default; the
+migration added it to every device already subscribed.
+
+- **iOS shows no buttons on a web notification**, so there is no long-press
+  Taunt there. The fact's push links to `/alerts?taunt=<id>`, and tapping it on
+  the lock screen or in Alerts opens `TauntSheet`, which shows the fact and what
+  the opponent will read before anything is sent. The list row carries a
+  "Taunt <opponent>" button too, and "Taunted <opponent>" once used. Browsers
+  that do show buttons (Chrome on a Mac, Android) also get a Taunt action on the
+  notification itself. `public/sw.js` opens its `tauntUrl` (`…&send=1`), and the
+  sheet sends at once.
+- **The taunt is the same fact, written to the opponent.** `buildMatchupFacts`
+  builds each fact twice through `voiceOf`, once to the member and once naming
+  them, and `withTaunts` pairs the two by index and family. The opponent then
+  reads "Harshil is 8-2 all-time against you." A `self` fact gets a taunt only
+  when it flatters the sender (`good === true`). `opponent` and `rivalry` facts
+  always get one, since they already flatter the sender. Never write a
+  template with `you` hardcoded: use the voice, or the taunt reads back to its
+  own sender.
+- **One offer per member per day, used once, for 48 hours.** The matchup-fact
+  send stores the pairing in `matchup_taunts` (`saveTauntOffers`; unique on
+  member, season, week, day) and links the push to its id. A member reads only
+  their own offers and cannot write one. `send_taunt(id)` (SECURITY DEFINER,
+  approved members only) stamps `sent_at` once and returns `sent` /
+  `already_sent` / `expired` / `not_found`. `tauntState` and
+  `TAUNT_WINDOW_HOURS` in `src/utils/taunts.js` are the mirror.
+- **Delivery is the takes pattern.** A trigger on the `sent_at` stamp
+  dispatches `notify-taunts.yml` (`send-notifications.js --taunts`, its own
+  concurrency group) and never raises. The script claims each taunt by stamping
+  `delivered_at` before sending. It tells every account on `to_team_id`'s team
+  (owner by display name, `getTeamAccounts`), resolved at delivery so a later
+  account still hears. It keeps an Alerts row for each, and never tells the
+  sender. A manual run delivers anything sent in the last six hours.
+- **No offer without an opponent account.** A bye or an opponent with no
+  approved account gets a fact with no Taunt. A failure to store offers is a
+  warning, and the facts still go out.
+- **Apply the migration before the bundle**: Alerts reads `matchup_taunts`.
+
 ### Password reset is a login, and the page makes it set a password
 
 A Supabase recovery link is not "prove it's you, then choose a password". It

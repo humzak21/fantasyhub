@@ -86,6 +86,7 @@ export { useParlayLive } from './useParlayLive.js';
 
 export { usePushNotifications } from './usePushNotifications.js';
 export { useNotificationInbox, useInboxMutations, countUnread } from './useNotificationInbox.js';
+export { useMyTaunts, useSendTaunt } from './useTaunts.js';
 
 export {
   countPendingApprovals,

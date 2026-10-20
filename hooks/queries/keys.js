@@ -160,7 +160,9 @@ export const qk = {
      * (`notification_inbox`). The bell's badge and the Alerts page read
      * the same entry, so the count and the list cannot disagree.
      */
-    inbox: (userId) => ['viewer', 'inbox', userId]
+    inbox: (userId) => ['viewer', 'inbox', userId],
+    /** The viewer's taunt offers (`matchup_taunts`), read beside Alerts. */
+    taunts: (userId) => ['viewer', 'taunts', userId]
   },
 
   /**

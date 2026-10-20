@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { deliver, inboxRows, sendDueNotifications, sendMatchupFacts, sendTakeNotifications, testPayload, TITLE_FITS } from '../send-notifications.js';
+import { deliver, inboxRows, sendDueNotifications, sendMatchupFacts, sendTakeNotifications, sendTauntNotifications, testPayload, TITLE_FITS } from '../send-notifications.js';
 import { TOPICS } from '../../services/notificationPlanner.js';
 
 const WEEK = {
@@ -189,8 +189,12 @@ describe('sendMatchupFacts', () => {
   });
   const matchupDevice = (userId) => ({ ...device(userId), topics: ['matchup_facts'] });
 
-  function matchupDb({ sent = [], devices = [matchupDevice('anna'), matchupDevice('ben')] } = {}) {
+  function matchupDb({ sent = [], devices = [matchupDevice('anna'), matchupDevice('ben')], teamAccounts = new Map([['ta', ['anna']], ['tb', ['ben']]]) } = {}) {
     const { db, calls } = fakeDb({ sent, devices });
+    db.notifications.saveTauntOffers = vi.fn(async (offers) => {
+      calls.offers = offers;
+      return new Map(offers.map((offer) => [offer.userId, `taunt-${offer.userId}`]));
+    });
     db.notifications.getMatchupFactSeason = vi.fn(async () => SEASON);
     db.notifications.getMatchupFactHistory = vi.fn(async () => new Map());
     db.notifications.recordMatchupFacts = vi.fn(async (rows) => { calls.recorded = rows; });
@@ -200,6 +204,7 @@ describe('sendMatchupFacts', () => {
       results: [row('ta', 'tb', 130, 80), row('tb', 'ta', 80, 130)],
       pairings: [{ teamId: 'ta', opponentId: 'tb' }, { teamId: 'tb', opponentId: 'ta' }],
       memberTeams: new Map([['anna', 'ta'], ['ben', 'tb']]),
+      teamAccounts,
       excludedUserIds: new Set()
     }));
     return { db, calls };
@@ -247,6 +252,51 @@ describe('sendMatchupFacts', () => {
     expect(db.notifications.recordMatchupFacts).not.toHaveBeenCalled();
     // What the member was shown is still kept in Alerts.
     expect(calls.inboxed.map((row) => [row.userId, row.title])).toEqual([['anna', send.mock.calls[0][1].title]]);
+  });
+
+  it("offers each member a taunt and points their push at it", async () => {
+    const { db, calls } = matchupDb();
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+
+    const result = await sendMatchupFacts({ db, now: SUNDAY_NOON, atNoon: true, send });
+
+    const anna = calls.offers.find((offer) => offer.userId === 'anna');
+    expect(anna).toMatchObject({ seasonId: 's26', week: 3, day: 'sun', toTeamId: 'tb', senderName: 'Anna', opponentName: 'Ben' });
+    expect(anna.taunt).toMatch(/\b[Yy]ou(r|'re|'ve)?\b/);
+    const [, payload] = send.mock.calls.find(([recipient]) => recipient.userId === 'anna');
+    expect(payload).toMatchObject({
+      url: '/alerts?taunt=taunt-anna',
+      tauntUrl: '/alerts?taunt=taunt-anna&send=1',
+      actions: [{ action: 'taunt', title: 'Taunt Ben' }]
+    });
+    expect(payload.body).toBe(anna.fact);
+    expect(calls.inboxed.find((row) => row.userId === 'anna').url).toBe('/alerts?taunt=taunt-anna');
+    expect(result.sent[0].taunts).toBe(2);
+  });
+
+  it('offers no taunt when nobody owns the opponent\'s team', async () => {
+    const { db, calls } = matchupDb({ teamAccounts: new Map([['ta', ['anna']]]) });
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+    await sendMatchupFacts({ db, now: SUNDAY_NOON, atNoon: true, send });
+    // Anna's opponent, Ben, has no account; Ben's opponent, Anna, does.
+    expect(calls.offers.map((offer) => offer.userId)).toEqual(['ben']);
+    const [, annaPayload] = send.mock.calls.find(([recipient]) => recipient.userId === 'anna');
+    expect(annaPayload.url).toBe('/schedule');
+    expect(annaPayload.actions).toBeUndefined();
+  });
+
+  it('still sends the facts when the offers cannot be stored', async () => {
+    const { db } = matchupDb();
+    db.notifications.saveTauntOffers = vi.fn(async () => { throw new Error('relation "matchup_taunts" does not exist'); });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+
+    const result = await sendMatchupFacts({ db, now: SUNDAY_NOON, atNoon: true, send });
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0][1].url).toBe('/schedule');
+    expect(result.sent[0]).toMatchObject({ delivered: 2, taunts: 'relation "matchup_taunts" does not exist' });
+    warn.mockRestore();
   });
 
   it('keeps each member their own fact in Alerts', async () => {
@@ -316,5 +366,67 @@ describe('Alerts', () => {
     expect(calls.finished).toHaveLength(1);
     expect(result.sent[0]).toMatchObject({ delivered: 1, inboxed: 'relation "notification_inbox" does not exist' });
     warn.mockRestore();
+  });
+});
+
+describe('sendTauntNotifications', () => {
+  const NOW = new Date('2026-10-20T16:05:00Z');
+  const tauntDevice = (userId, endpoint) => ({ ...device(userId, endpoint), topics: ['taunts'] });
+  const pending = (over = {}) => ({
+    id: 't1', fromUserId: 'harshil', toTeamId: 'team-arya', senderName: 'Harshil', opponentName: 'Arya',
+    taunt: 'Harshil is 8-2 all-time against you.', sentAt: new Date('2026-10-20T16:04:00Z'), ...over
+  });
+
+  function tauntDb({ taunts = [pending()], devices = [], accounts = new Map([['team-arya', ['arya', 'arya-2']]]), claim = true } = {}) {
+    const { db, calls } = fakeDb({ devices });
+    calls.claimedTaunts = [];
+    db.notifications.getPendingTaunts = vi.fn(async () => taunts);
+    db.notifications.getTeamsById = vi.fn(async () => [{ id: 'team-arya', owner: 'Arya Shah' }]);
+    db.notifications.getTeamAccounts = vi.fn(async () => accounts);
+    db.notifications.claimTaunt = vi.fn(async (id) => { calls.claimedTaunts.push(id); return claim; });
+    return { db, calls };
+  }
+
+  it("claims each taunt, then tells the opponent's devices and Alerts", async () => {
+    const { db, calls } = tauntDb({
+      devices: [tauntDevice('arya'), { ...device('arya', 'https://push.example/arya-muted'), topics: ['matchup_facts'] }, tauntDevice('harshil')]
+    });
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+
+    const result = await sendTauntNotifications({ db, now: NOW, send });
+
+    expect(calls.claimedTaunts).toEqual(['t1']);
+    expect(send.mock.calls.map(([recipient]) => recipient.endpoint)).toEqual(['https://push.example/arya']);
+    expect(send.mock.calls[0][1]).toEqual({
+      title: 'Harshil taunted you', body: 'Harshil is 8-2 all-time against you.', url: '/alerts', tag: 'taunt-t1'
+    });
+    // Both of Arya's accounts are told in Alerts, device or not.
+    expect(calls.inboxed.map((row) => [row.userId, row.kind, row.title])).toEqual([
+      ['arya', 'taunts', 'Harshil taunted you'],
+      ['arya-2', 'taunts', 'Harshil taunted you']
+    ]);
+    expect(result.sent[0]).toMatchObject({ tauntId: 't1', delivered: 1, inboxed: 2 });
+  });
+
+  it('delivers nothing another run already claimed', async () => {
+    const { db, calls } = tauntDb({ devices: [tauntDevice('arya')], claim: false });
+    const send = vi.fn();
+    await sendTauntNotifications({ db, now: NOW, send });
+    expect(send).not.toHaveBeenCalled();
+    expect(calls.inboxed).toEqual([]);
+  });
+
+  it('never tells the member who sent it', async () => {
+    const { db, calls } = tauntDb({ devices: [tauntDevice('harshil')], accounts: new Map([['team-arya', ['harshil']]]) });
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+    await sendTauntNotifications({ db, now: NOW, send });
+    expect(send).not.toHaveBeenCalled();
+    expect(calls.inboxed).toEqual([]);
+  });
+
+  it('says so when there is nothing to deliver', async () => {
+    const { db } = tauntDb({ taunts: [] });
+    expect(await sendTauntNotifications({ db, now: NOW, send: vi.fn() })).toEqual({ reason: 'no taunts to deliver', sent: [] });
+    expect(db.notifications.getPendingTaunts.mock.calls[0][0]).toEqual(new Date('2026-10-20T10:05:00Z'));
   });
 });

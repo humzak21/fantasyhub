@@ -93,6 +93,26 @@ describe('buildMatchupFacts', () => {
     expect(new Set(anna.map((f) => f.key)).size).toBe(anna.length);
   });
 
+  it('writes each fact to the opponent as a taunt, with you and them swapped', () => {
+    expect(a['rivalry:h2h-record'].taunt).toBe('Anna is 3-1 all-time against you.');
+    expect(a['rivalry:h2h-playoff'].taunt).toBe('Anna beat you in the 2024 championship.');
+    expect(a['opponent:finals-lost'].taunt).toBe('You lost the 2024 championship game.');
+    expect(a['opponent:luck'].taunt).toBe("You're 3-0, but scored like a 1.0-2.0 team. That's luck.");
+    expect(a['self:start-own'].taunt)
+      .toBe("Anna's 420.0 points through 3 weeks are Anna's best start in 3 seasons (previous best: 367.0 in 2025).");
+    expect(byFamily(ben)['rivalry:h2h-their-low'].taunt).toBe('Your lowest score against Ben: 99.0 (2025 week 1).');
+  });
+
+  it('offers no taunt with a fact about yourself that does not flatter you', () => {
+    // Ben's own luck is honest to Ben, and no way to needle Anna.
+    expect(byFamily(ben)['self:luck'].taunt).toBeNull();
+    for (const fact of [...anna, ...ben]) {
+      if (fact.subject !== 'self') expect(fact.taunt, fact.family).toEqual(expect.any(String));
+      if (fact.taunt && fact.subject === 'self') expect(fact.taunt, fact.family).not.toMatch(/\b[Yy]ou(r|'re|'ve)?\b/);
+      if (fact.taunt && fact.subject !== 'self') expect(fact.taunt, fact.family).toMatch(/\b[Yy]ou(r|'re|'ve)?\b/);
+    }
+  });
+
   it('ranks by how hard each fact lands', () => {
     const scores = anna.map((f) => f.score);
     expect([...scores].sort((x, y) => y - x)).toEqual(scores);

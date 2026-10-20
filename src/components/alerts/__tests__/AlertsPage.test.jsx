@@ -2,17 +2,21 @@
  * Alerts (/alerts) keeps every push a member was sent, because a push is
  * gone once tapped. What is pinned: unread alerts say so, tapping one marks
  * it read and goes where the push would have, "Mark all read" clears the
- * rest, and an alert can be deleted.
+ * rest, and an alert can be deleted. A matchup fact that can still be used
+ * offers a Taunt, opened from the alert or straight from the push's link.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 
 const navigate = vi.fn();
 const markRead = { mutate: vi.fn(), isPending: false };
 const remove = { mutate: vi.fn(), isPending: false };
+const sendTaunt = { mutateAsync: vi.fn(), isPending: false };
 let inbox;
+let taunts;
 
 vi.mock('react-router-dom', async (actual) => ({ ...(await actual()), useNavigate: () => navigate }));
 vi.mock('../../../../hooks/queries/index.js', async () => {
@@ -20,11 +24,15 @@ vi.mock('../../../../hooks/queries/index.js', async () => {
   return {
     countUnread,
     useNotificationInbox: () => inbox,
-    useInboxMutations: () => ({ markRead, remove })
+    useInboxMutations: () => ({ markRead, remove }),
+    useMyTaunts: () => taunts,
+    useSendTaunt: () => sendTaunt
   };
 });
 
 const { default: AlertsPage } = await import('../AlertsPage.jsx');
+
+const render = (ui, { path = '/alerts' } = {}) => rtlRender(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
 
 const alert = (id, over = {}) => ({
   id,
@@ -40,6 +48,24 @@ const alert = (id, over = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   inbox = { data: [], isLoading: false, error: null };
+  taunts = { data: [], isLoading: false };
+});
+
+const offer = (over = {}) => ({
+  id: 't1',
+  opponentName: 'Arya',
+  fact: "You're 8-2 all-time against Arya.",
+  taunt: 'Harshil is 8-2 all-time against you.',
+  createdAt: new Date(),
+  sentAt: null,
+  ...over
+});
+
+const factAlert = alert('f', {
+  kind: 'matchup_facts:tue',
+  title: 'Week 7: you vs Arya',
+  body: "You're 8-2 all-time against Arya.",
+  url: '/alerts?taunt=t1'
 });
 
 describe('AlertsPage', () => {
@@ -96,4 +122,49 @@ describe('AlertsPage', () => {
     expect(container.querySelector('.animate-pulse')).not.toBeNull();
   });
 
+  it('offers a taunt on a matchup fact that can still be sent', async () => {
+    inbox.data = [factAlert];
+    taunts.data = [offer()];
+    render(<AlertsPage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Taunt Arya' }));
+    expect(await screen.findByText('Harshil is 8-2 all-time against you.')).toBeInTheDocument();
+  });
+
+  it('says a fact has been used, and offers nothing once it has', () => {
+    inbox.data = [factAlert];
+    taunts.data = [offer({ sentAt: new Date() })];
+    render(<AlertsPage />);
+    expect(screen.getByText('Taunted Arya')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Taunt Arya' })).toBeNull();
+  });
+
+  it('offers nothing for an expired fact', () => {
+    inbox.data = [factAlert];
+    taunts.data = [offer({ createdAt: new Date(Date.now() - 49 * 3600 * 1000) })];
+    render(<AlertsPage />);
+    expect(screen.queryByRole('button', { name: 'Taunt Arya' })).toBeNull();
+    expect(screen.queryByText('Taunted Arya')).toBeNull();
+  });
+
+  it('opens the taunt from the push and marks the fact read', async () => {
+    inbox.data = [factAlert];
+    taunts.data = [offer()];
+    sendTaunt.mutateAsync.mockResolvedValue('sent');
+    render(<AlertsPage />, { path: '/alerts?taunt=t1' });
+    expect(markRead.mutate).toHaveBeenCalledWith(['f']);
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('Arya gets');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Taunt Arya' }).at(-1));
+    expect(sendTaunt.mutateAsync).toHaveBeenCalledWith('t1');
+    expect(await screen.findByText('Taunt sent. Arya will get it in a minute.')).toBeInTheDocument();
+  });
+
+  it("sends at once from the notification's Taunt button", async () => {
+    inbox.data = [factAlert];
+    taunts.data = [offer()];
+    sendTaunt.mutateAsync.mockResolvedValue('sent');
+    render(<AlertsPage />, { path: '/alerts?taunt=t1&send=1' });
+    await waitFor(() => expect(sendTaunt.mutateAsync).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('Taunt sent. Arya will get it in a minute.')).toBeInTheDocument();
+  });
 });

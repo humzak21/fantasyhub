@@ -507,6 +507,8 @@ export async function getMatchupFactInputs(ctx, { season, week, userIds = [] }) 
     ]);
 
   const thisSeason = teams.filter((team) => team.seasonId === season.id);
+  // Who could be taunted: a team counts only when an approved account owns it.
+  const teamAccounts = await getTeamAccounts(ctx, thisSeason);
   const memberTeams = new Map();
   const members = [...new Set(userIds)];
   const names = members.length ? await getUserDisplayNames(ctx, members) : {};
@@ -521,6 +523,7 @@ export async function getMatchupFactInputs(ctx, { season, week, userIds = [] }) 
   return {
     seasons: seasonRows.map((row) => ({ id: row.id, year: row.year, isCompleted: Boolean(row.is_completed) })),
     teams,
+    teamAccounts,
     results: results.map((row) => ({
       seasonId: row.season_id,
       week: row.week,
@@ -606,4 +609,180 @@ export async function recordMatchupFacts(ctx, rows) {
     ),
     'Record matchup facts'
   );
+}
+
+// ---------------------------------------------------------------------------
+// Taunts (20261020120000_matchup_taunts.sql)
+// ---------------------------------------------------------------------------
+
+/**
+ * The approved accounts that own each of these teams, by team id: a member's
+ * display name against `teams.owner` (`ownerKey`), the matchup facts' rule.
+ * Admins are approved without a `member_approvals` row, so they are read from
+ * `league_admins` too. A team nobody has claimed is absent.
+ */
+export async function getTeamAccounts(ctx, teams) {
+  const [approved, admins] = await Promise.all([
+    ctx.client.from('member_approvals').select('user_id').eq('status', 'approved')
+      .then((result) => unwrap(result, 'Get approved members') ?? []),
+    ctx.client.from('league_admins').select('user_id')
+      .then((result) => unwrap(result, 'Get league admins') ?? [])
+  ]);
+  const ids = [...new Set([...approved, ...admins].map((row) => row.user_id))];
+  const names = ids.length ? await getUserDisplayNames(ctx, ids) : {};
+
+  const byOwner = new Map();
+  for (const id of ids) {
+    const key = ownerKey(names[id]);
+    if (!key) continue;
+    if (!byOwner.has(key)) byOwner.set(key, []);
+    byOwner.get(key).push(id);
+  }
+
+  const accounts = new Map();
+  for (const team of teams) {
+    const users = byOwner.get(ownerKey(team.owner));
+    if (users?.length) accounts.set(team.id, users);
+  }
+  return accounts;
+}
+
+/**
+ * Store today's taunt offers, one per member, and return their ids by user id.
+ * A member already offered one today keeps that row; if it has not been sent
+ * its wording is brought up to date (a test send and the noon send can pick
+ * different facts), and if it has been sent it is left exactly as it went.
+ * Every offer in one call shares a season, week and day — one plan.
+ */
+export async function saveTauntOffers(ctx, offers) {
+  const ids = new Map();
+  if (!offers?.length) return ids;
+  const { seasonId, week, day } = offers[0];
+
+  const existing = unwrap(
+    await ctx.client
+      .from('matchup_taunts')
+      .select('id, from_user_id, sent_at')
+      .eq('season_id', seasonId)
+      .eq('week', week)
+      .eq('day', day)
+      .in('from_user_id', offers.map((offer) => offer.userId)),
+    'Get taunt offers'
+  ) ?? [];
+  const byUser = new Map(existing.map((row) => [row.from_user_id, row]));
+
+  const columns = (offer) => ({
+    to_team_id: offer.toTeamId,
+    sender_name: offer.senderName,
+    opponent_name: offer.opponentName,
+    fact: offer.fact,
+    taunt: offer.taunt
+  });
+
+  const fresh = offers.filter((offer) => !byUser.has(offer.userId));
+  if (fresh.length) {
+    const inserted = unwrap(
+      await ctx.client
+        .from('matchup_taunts')
+        .insert(fresh.map((offer) => ({
+          from_user_id: offer.userId,
+          season_id: seasonId,
+          week,
+          day,
+          ...columns(offer)
+        })))
+        .select('id, from_user_id'),
+      'Save taunt offers'
+    ) ?? [];
+    for (const row of inserted) ids.set(row.from_user_id, row.id);
+  }
+
+  for (const offer of offers) {
+    const row = byUser.get(offer.userId);
+    if (!row) continue;
+    ids.set(offer.userId, row.id);
+    if (row.sent_at) continue;
+    unwrap(
+      await ctx.client.from('matchup_taunts').update(columns(offer)).eq('id', row.id).is('sent_at', null),
+      'Refresh taunt offer'
+    );
+  }
+  return ids;
+}
+
+/** Taunts pressed since `since` and not yet delivered, oldest first. */
+export async function getPendingTaunts(ctx, since) {
+  const rows = unwrap(
+    await ctx.client
+      .from('matchup_taunts')
+      .select('id, from_user_id, to_team_id, sender_name, opponent_name, taunt, sent_at')
+      .gte('sent_at', since.toISOString())
+      .is('delivered_at', null)
+      .order('sent_at'),
+    'Get pending taunts'
+  ) ?? [];
+  return rows.map((row) => ({
+    id: row.id,
+    fromUserId: row.from_user_id,
+    toTeamId: row.to_team_id,
+    senderName: row.sender_name,
+    opponentName: row.opponent_name,
+    taunt: row.taunt,
+    sentAt: new Date(row.sent_at)
+  }));
+}
+
+/** The teams these taunts are aimed at, for their owners. */
+export async function getTeamsById(ctx, teamIds) {
+  if (!teamIds?.length) return [];
+  return unwrap(
+    await ctx.client.from('teams').select('id, owner').in('id', [...new Set(teamIds)]),
+    'Get taunted teams'
+  ) ?? [];
+}
+
+/**
+ * Claim a taunt's delivery before sending it. Returns false when another run
+ * already did, which is what makes a re-run or a race deliver it once.
+ */
+export async function claimTaunt(ctx, id) {
+  const rows = unwrap(
+    await ctx.client
+      .from('matchup_taunts')
+      .update({ delivered_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('delivered_at', null)
+      .select('id'),
+    'Claim taunt'
+  ) ?? [];
+  return rows.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// The member's own taunts (the Alerts page)
+// ---------------------------------------------------------------------------
+
+/** The signed-in member's taunt offers, newest first. RLS limits it to their own. */
+export async function getMyTaunts(ctx, { limit = INBOX_LIMIT } = {}) {
+  const rows = unwrap(
+    await ctx.client
+      .from('matchup_taunts')
+      .select('id, opponent_name, fact, taunt, created_at, sent_at')
+      .order('created_at', { ascending: false })
+      .limit(limit),
+    'Get taunts'
+  ) ?? [];
+  return rows.map((row) => ({
+    id: row.id,
+    opponentName: row.opponent_name,
+    fact: row.fact,
+    taunt: row.taunt,
+    createdAt: new Date(row.created_at),
+    sentAt: row.sent_at ? new Date(row.sent_at) : null
+  }));
+}
+
+/** Taunt with one offer. Resolves to 'sent', 'already_sent', 'expired' or 'not_found'. */
+export async function sendTaunt(ctx, id) {
+  return unwrap(await ctx.client.rpc('send_taunt', { p_id: id }), 'Send taunt');
 }

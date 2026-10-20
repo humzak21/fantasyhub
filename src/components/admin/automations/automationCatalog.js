@@ -457,6 +457,21 @@ export const PASSIVE_AUTOMATIONS = [
       'see every member\'s fact, or test_email to send one member today\'s without claiming the day.'
   },
   {
+    id: 'taunt-notifications',
+    name: 'Taunt notifications',
+    where: 'GitHub Actions · notify-taunts.yml, dispatched by a trigger on matchup_taunts',
+    fires: 'When a member presses Taunt on a matchup fact (send_taunt() stamps sent_at; trigger matchup_taunts_dispatch_notifications)',
+    does:
+      'Delivers the taunt — the sender\'s matchup fact, rewritten to the opponent — to every device on the ' +
+      'opponent\'s team with the taunts topic, and to their Alerts. The matchup-fact send stores one offer per ' +
+      'member per day in matchup_taunts; each can be sent once, within 48 hours. The script claims a taunt by ' +
+      'stamping delivered_at before sending, so a re-run sends nothing twice, and picks up anything sent in the ' +
+      'last six hours that was missed.',
+    verify:
+      'matchup_taunts rows with sent_at but no delivered_at are waiting. Older than a few minutes: ' +
+      'net._http_response for the dispatch, then the workflow run. Run it by hand to deliver them.'
+  },
+  {
     id: 'deploy-migrations',
     name: 'Database migrations (deploy-migrations.yml)',
     where: 'GitHub Actions · a merge to main that touches supabase/migrations/',

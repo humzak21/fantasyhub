@@ -73,6 +73,11 @@ export const PUSH_TOPIC_GROUPS = [
         id: 'matchup_facts',
         label: 'Daily matchup facts',
         description: "Noon every day: one stat about your season, this week's opponent or your rivalry, never the same one twice."
+      },
+      {
+        id: 'taunts',
+        label: 'Taunts',
+        description: 'When your opponent taunts you with their matchup fact.'
       }
     ]
   }

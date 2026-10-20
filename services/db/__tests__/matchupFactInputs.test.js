@@ -21,13 +21,15 @@ function team(id, owner, userId = ADMIN) {
   return { id, season_id: SEASON.id, franchise_id: id, owner, user_id: userId, made_playoffs: null, playoff_finish: null, final_rank: null };
 }
 
-function ctxWith(teams, displayNames) {
+function ctxWith(teams, displayNames, { approved = [], admins = [] } = {}) {
   return makeCtx({
     'seasons.select': () => [{ id: SEASON.id, year: SEASON.year, is_completed: false }],
     'teams.select': () => teams,
     'v_game_results.select': () => [],
     'games.select': () => [],
-    'member_approvals.select': () => [],
+    'member_approvals.select': (state) =>
+      (state.filters.status === 'approved' ? approved.map((user_id) => ({ user_id })) : []),
+    'league_admins.select': () => admins.map((user_id) => ({ user_id })),
     'team_week_lineups.select': () => [],
     'player_week_stats.select': () => [],
     'transaction_events.select': () => [],
@@ -55,5 +57,20 @@ describe('getMatchupFactInputs member teams', () => {
 
     expect(memberTeams.get(STRANGER)).toBe('t-one');
     expect(memberTeams.has(ADMIN)).toBe(false);
+  });
+
+  it('counts a team as tauntable only when an approved account owns it', async () => {
+    const teams = [team('t-humza', 'Humza Khalil'), team('t-harshil', 'Harshil Pareek'), team('t-arya', 'Arya Shah')];
+    const ctx = ctxWith(teams, { [ADMIN]: 'Humza Khalil', [MEMBER]: 'Harshil Pareek', [STRANGER]: 'Arya Shah' }, {
+      approved: [MEMBER],
+      admins: [ADMIN]
+    });
+
+    const { teamAccounts } = await getMatchupFactInputs(ctx, { season: SEASON, week: 5, userIds: [] });
+
+    expect(teamAccounts.get('t-humza')).toEqual([ADMIN]);
+    expect(teamAccounts.get('t-harshil')).toEqual([MEMBER]);
+    // Arya's account exists but is not approved, so nobody could be told.
+    expect(teamAccounts.has('t-arya')).toBe(false);
   });
 });
