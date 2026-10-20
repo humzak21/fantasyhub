@@ -1,12 +1,21 @@
-import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck, ListChecks, MessageSquare, Swords, Trash2 } from 'lucide-react';
+import { useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Bell, Check, CheckCheck, ListChecks, MessageSquare, Swords, Trash2 } from 'lucide-react';
 
 import PageHeader from '../layout/PageHeader.jsx';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { EmptyState } from '../ui/empty-state';
 import { formatDateTime, cn } from '../../lib/utils';
-import { countUnread, useInboxMutations, useNotificationInbox } from '../../../hooks/queries/index.js';
+import {
+  countUnread,
+  useInboxMutations,
+  useMyTaunts,
+  useNotificationInbox,
+  useSendTaunt
+} from '../../../hooks/queries/index.js';
+import { tauntIdFromUrl, tauntState } from '../../utils/taunts.js';
+import TauntSheet from './TauntSheet.jsx';
 
 /**
  * Alerts (`/alerts`): every push notification this member was sent, newest
@@ -21,12 +30,18 @@ import { countUnread, useInboxMutations, useNotificationInbox } from '../../../h
  *
  * Tapping an alert marks it read and goes where the push would have; "Mark
  * all read" clears the rest. The bell's badge counts the same rows.
+ *
+ * A matchup fact links back here (`?taunt=<id>`), because iOS shows no
+ * buttons on a web notification: the link opens `TauntSheet`, which sends the
+ * fact to the opponent. In the list, a fact that can still be sent carries a
+ * "Taunt <opponent>" button and a sent one says "Taunted".
  */
 
 const KIND_ICON = [
   [/^pickems/, ListChecks],
   [/^take/, MessageSquare],
-  [/^matchup_facts/, Swords]
+  [/^matchup_facts/, Swords],
+  [/^taunts/, Swords]
 ];
 
 function alertIcon(kind = '') {
@@ -49,6 +64,22 @@ const AlertsPage = () => {
   const { data: alerts = [], isLoading, error } = useNotificationInbox();
   const { markRead, remove } = useInboxMutations();
   const unread = countUnread(alerts);
+  const [params, setParams] = useSearchParams();
+  const tauntParam = params.get('taunt');
+  const { data: taunts = [], isLoading: tauntsLoading } = useMyTaunts();
+  const sendTaunt = useSendTaunt();
+  const tauntsById = useMemo(() => new Map(taunts.map((taunt) => [taunt.id, taunt])), [taunts]);
+
+  // Arriving from the push is reading it.
+  useEffect(() => {
+    if (!tauntParam) return;
+    const ids = alerts.filter((a) => !a.readAt && tauntIdFromUrl(a.url) === tauntParam).map((a) => a.id);
+    if (ids.length) markRead.mutate(ids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tauntParam, alerts]);
+
+  const openTaunt = (id) => setParams({ taunt: id });
+  const closeTaunt = () => setParams({}, { replace: true });
 
   const open = (alert) => {
     if (!alert.readAt) markRead.mutate([alert.id]);
@@ -92,34 +123,52 @@ const AlertsPage = () => {
               {alerts.map((alert) => {
                 const Icon = alertIcon(alert.kind);
                 const isUnread = !alert.readAt;
+                const taunt = tauntsById.get(tauntIdFromUrl(alert.url));
+                const tauntStatus = tauntState(taunt);
                 return (
                   <li key={alert.id} className={cn('flex items-start gap-1 pr-2', isUnread && 'bg-primary/5')}>
-                    <button
-                      type="button"
-                      onClick={() => open(alert)}
-                      className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <span className="relative mt-0.5 shrink-0">
-                        <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                        {isUnread && (
-                          <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary ring-2 ring-card" />
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className={cn('block text-sm text-foreground', isUnread ? 'font-semibold' : 'font-medium')}>
-                          {alert.title}
-                          {isUnread && <span className="sr-only"> (unread)</span>}
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => open(alert)}
+                        className="flex w-full min-w-0 items-start gap-3 px-4 py-3 text-left hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span className="relative mt-0.5 shrink-0">
+                          <Icon className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                          {isUnread && (
+                            <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary ring-2 ring-card" />
+                          )}
                         </span>
-                        {alert.body && (
-                          <span className="mt-0.5 block whitespace-pre-line break-words text-sm text-muted-foreground">
-                            {alert.body}
+                        <span className="min-w-0 flex-1">
+                          <span className={cn('block text-sm text-foreground', isUnread ? 'font-semibold' : 'font-medium')}>
+                            {alert.title}
+                            {isUnread && <span className="sr-only"> (unread)</span>}
                           </span>
-                        )}
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          {formatDateTime(alert.createdAt)}
+                          {alert.body && (
+                            <span className="mt-0.5 block whitespace-pre-line break-words text-sm text-muted-foreground">
+                              {alert.body}
+                            </span>
+                          )}
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            {formatDateTime(alert.createdAt)}
+                          </span>
                         </span>
-                      </span>
-                    </button>
+                      </button>
+                      {tauntStatus === 'open' && (
+                        <div className="pb-3 pl-11 pr-4">
+                          <Button variant="outline" size="sm" onClick={() => openTaunt(taunt.id)}>
+                            <Swords className="mr-2 h-4 w-4" aria-hidden="true" />
+                            Taunt {taunt.opponentName}
+                          </Button>
+                        </div>
+                      )}
+                      {tauntStatus === 'sent' && (
+                        <p className="flex items-center gap-1 pb-3 pl-11 pr-4 text-xs text-muted-foreground">
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                          Taunted {taunt.opponentName}
+                        </p>
+                      )}
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -136,6 +185,18 @@ const AlertsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {tauntParam && (
+        <TauntSheet
+          key={tauntParam}
+          taunt={tauntsById.get(tauntParam)}
+          isLoading={tauntsLoading}
+          autoSend={params.get('send') === '1'}
+          onSend={(id) => sendTaunt.mutateAsync(id)}
+          isSending={sendTaunt.isPending}
+          onClose={closeTaunt}
+        />
+      )}
     </div>
   );
 };

@@ -59,14 +59,14 @@ describe('NotificationsCard', () => {
     withState('off');
     render(<NotificationsCard />);
     await userEvent.click(screen.getByRole('button', { name: 'Turn on notifications' }));
-    expect(hook.turnOn.mutate).toHaveBeenCalledWith(['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts']);
+    expect(hook.turnOn.mutate).toHaveBeenCalledWith(['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
   });
 
   it('toggles one topic and keeps the others', async () => {
-    withState('on', ['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts']);
+    withState('on', ['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
     render(<NotificationsCard />);
     await userEvent.click(screen.getByRole('switch', { name: "Pick'ems are open" }));
-    expect(hook.setTopics.mutate).toHaveBeenCalledWith(['pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts']);
+    expect(hook.setTopics.mutate).toHaveBeenCalledWith(['pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
   });
 
   it('switches daily matchup facts off on their own', async () => {

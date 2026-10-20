@@ -9,6 +9,7 @@
  *   node scripts/send-notifications.js --matchups   # today's matchup fact to every member
  *   node scripts/send-notifications.js --matchups --at-noon
  *                                                   # the same, only during the noon hour (the cron)
+ *   node scripts/send-notifications.js --taunts     # deliver the taunts members have sent
  *   node scripts/send-notifications.js --test you@example.com
  *                                                   # one test notification to that member's devices
  *
@@ -34,6 +35,11 @@
  * one claim per day of the week. With `--test <email>` it sends that member
  * today's fact without claiming the day.
  *
+ * `--taunts` delivers taunts: a member who taps today's matchup fact can send
+ * it to the opponent, written to them (20261020120000_matchup_taunts.sql).
+ * `send_taunt()` dispatches .github/workflows/notify-taunts.yml, and each
+ * taunt is claimed (`delivered_at`) before it is sent.
+ *
  * Whatever is sent is also kept, one row per member, in `notification_inbox`
  * (the Alerts page), because a push is gone once it is tapped
  * (20261014120000_notification_inbox.sql). Keeping it never stops a send.
@@ -52,7 +58,8 @@ import {
   TAKE_EVENT_MAX_AGE_HOURS,
   isGoneStatus,
   planPickemNotifications,
-  planTakeNotifications
+  planTakeNotifications,
+  planTauntNotifications
 } from '../services/notificationPlanner.js';
 
 const HOUR_S = 60 * 60;
@@ -138,6 +145,58 @@ async function keepInInbox(db, plan, recipients = plan.recipients) {
     console.warn(`Could not keep ${plan.kind ?? 'test'} in Alerts:`, error.message);
     return error.message;
   }
+}
+
+/**
+ * Store a taunt offer for every member whose fact can be sent to an opponent
+ * with an account, and point their push at it: tapping opens the offer in
+ * Alerts, and a device that shows notification buttons gets a Taunt button
+ * too (`actions`; iOS shows none). Never throws: a fact without its taunt is
+ * still worth sending. Returns the plan to deliver and how many were offered,
+ * or the error's message.
+ */
+async function offerTaunts(db, plan, { season, week, day, teamAccounts = new Map() }) {
+  const offers = new Map();
+  for (const recipient of plan.recipients) {
+    const taunt = recipient.taunt;
+    if (!taunt || offers.has(recipient.userId) || !teamAccounts.has(taunt.opponentTeamId)) continue;
+    offers.set(recipient.userId, {
+      userId: recipient.userId,
+      seasonId: season.id,
+      week,
+      day,
+      toTeamId: taunt.opponentTeamId,
+      senderName: taunt.senderName,
+      opponentName: taunt.opponentName,
+      fact: recipient.fact.text,
+      taunt: taunt.text
+    });
+  }
+  if (!offers.size) return { plan, taunts: 0 };
+
+  let ids;
+  try {
+    ids = await db.notifications.saveTauntOffers([...offers.values()]);
+  } catch (error) {
+    console.warn('Could not offer taunts:', error.message);
+    return { plan, taunts: error.message };
+  }
+
+  const recipients = plan.recipients.map((recipient) => {
+    const id = ids.get(recipient.userId);
+    if (!id) return recipient;
+    const url = `/alerts?taunt=${id}`;
+    return {
+      ...recipient,
+      payload: {
+        ...recipient.payload,
+        url,
+        tauntUrl: `${url}&send=1`,
+        actions: [{ action: 'taunt', title: `Taunt ${recipient.taunt.opponentName}` }]
+      }
+    };
+  });
+  return { plan: { ...plan, recipients }, taunts: ids.size };
 }
 
 /**
@@ -313,7 +372,9 @@ export async function sendMatchupFacts({
         kind: plan.kind,
         week: plan.week,
         recipients: plan.recipients.length,
-        messages: plan.recipients.map((r) => ({ userId: r.userId, subject: r.fact.subject, family: r.fact.family, ...r.payload })),
+        messages: plan.recipients.map((r) => ({
+          userId: r.userId, subject: r.fact.subject, family: r.fact.family, ...r.payload, taunt: r.taunt?.text ?? null
+        })),
         dryRun: true
       });
       continue;
@@ -330,7 +391,8 @@ export async function sendMatchupFacts({
       if (!logId) continue;
     }
 
-    const { delivered, gone, failures } = await deliver(plan, { send, ttlSeconds: 8 * HOUR_S });
+    const offered = await offerTaunts(db, plan, { season, week: plan.week, day: plan.kind.split(':')[1], teamAccounts: inputs.teamAccounts });
+    const { delivered, gone, failures } = await deliver(offered.plan, { send, ttlSeconds: 8 * HOUR_S });
     await db.notifications.deletePushSubscriptions(gone);
     await db.notifications.markPushSubscriptionsSent(delivered, now);
     if (logId) {
@@ -359,7 +421,7 @@ export async function sendMatchupFacts({
     }
 
     // A test send is kept too: it is what the member was shown.
-    const inboxed = await keepInInbox(db, plan);
+    const inboxed = await keepInInbox(db, offered.plan);
 
     report.push({
       kind: plan.kind,
@@ -368,11 +430,56 @@ export async function sendMatchupFacts({
       delivered: delivered.length,
       removed: gone.length,
       inboxed,
+      taunts: offered.taunts,
       failures
     });
   }
 
   return { week: day.week, day: day.dayKey, sent: report };
+}
+
+/**
+ * Deliver the taunts sent in the last `TAKE_EVENT_MAX_AGE_HOURS`, each to the
+ * opponent's devices and Alerts. Each is claimed before it is sent, so a
+ * re-run, a manual press and a race all deliver it once.
+ */
+export async function sendTauntNotifications({ db = getDb(getContext()), now = new Date(), dryRun = false, send } = {}) {
+  const since = new Date(now.getTime() - TAKE_EVENT_MAX_AGE_HOURS * HOUR_S * 1000);
+  const taunts = await db.notifications.getPendingTaunts(since);
+  if (!taunts.length) return { reason: 'no taunts to deliver', sent: [] };
+
+  const [teams, subscriptions] = await Promise.all([
+    db.notifications.getTeamsById(taunts.map((taunt) => taunt.toTeamId)),
+    db.notifications.getPushSubscriptions()
+  ]);
+  const teamAccounts = await db.notifications.getTeamAccounts(teams);
+  const plans = planTauntNotifications({ taunts, teamAccounts, subscriptions });
+
+  const report = [];
+  for (const plan of plans) {
+    if (dryRun) {
+      report.push({ kind: plan.kind, tauntId: plan.tauntId, recipients: plan.recipients.length, inbox: plan.inbox.length, payload: plan.payload, dryRun: true });
+      continue;
+    }
+    if (!(await db.notifications.claimTaunt(plan.tauntId))) continue;
+
+    const { delivered, gone, failures } = await deliver(plan, { send, ttlSeconds: TAKE_EVENT_MAX_AGE_HOURS * HOUR_S });
+    await db.notifications.deletePushSubscriptions(gone);
+    await db.notifications.markPushSubscriptionsSent(delivered, now);
+    // Every account that owns the team is told in Alerts, device or not.
+    const inboxed = await keepInInbox(db, plan, plan.inbox.map((userId) => ({ userId })));
+
+    report.push({
+      kind: plan.kind,
+      tauntId: plan.tauntId,
+      recipients: plan.recipients.length,
+      delivered: delivered.length,
+      removed: gone.length,
+      inboxed,
+      failures
+    });
+  }
+  return { sent: report };
 }
 
 /** The account with this sign-in email, or a thrown error. */
@@ -443,6 +550,7 @@ async function main(argv = process.argv.slice(2)) {
   const dryRun = argv.includes('--dry-run');
   const takes = argv.includes('--takes');
   const matchups = argv.includes('--matchups');
+  const taunts = argv.includes('--taunts');
   const testIndex = argv.indexOf('--test');
   const testEmail = testIndex >= 0 ? argv[testIndex + 1] ?? '' : null;
   const valueOf = (flag) => (argv.indexOf(flag) >= 0 ? argv[argv.indexOf(flag) + 1] ?? '' : '');
@@ -457,6 +565,7 @@ async function main(argv = process.argv.slice(2)) {
     result = await sendTest(testEmail, { title: valueOf('--title'), body: valueOf('--body') });
   }
   else if (takes) result = await sendTakeNotifications({ dryRun });
+  else if (taunts) result = await sendTauntNotifications({ dryRun });
   else result = await sendDueNotifications({ dryRun });
 
   console.log(JSON.stringify(result, null, 2));

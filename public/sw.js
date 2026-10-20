@@ -7,7 +7,12 @@
  * worker without a fetch handler never sits between the page and the network.
  *
  * Payloads are JSON from scripts/send-notifications.js:
- *   { title, body, url, tag }
+ *   { title, body, url, tag, actions?, tauntUrl? }
+ *
+ * `actions` is a matchup fact's Taunt button. iOS shows no buttons on web
+ * notifications and ignores it; there, tapping the fact opens the same offer
+ * through `url`. Where the button shows, pressing it opens `tauntUrl`, which
+ * sends the taunt straight away.
  */
 
 self.addEventListener('install', () => {
@@ -35,14 +40,17 @@ self.addEventListener('push', (event) => {
       // The same tag replaces rather than stacks: a re-sent reminder is one
       // notification on the lock screen, not two.
       tag: data.tag || undefined,
-      data: { url: data.url || '/' }
+      actions: Array.isArray(data.actions) ? data.actions : undefined,
+      data: { url: data.url || '/', tauntUrl: data.tauntUrl || null }
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || '/', self.location.origin).href;
+  const data = event.notification.data || {};
+  const path = event.action === 'taunt' && data.tauntUrl ? data.tauntUrl : data.url || '/';
+  const target = new URL(path, self.location.origin).href;
 
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

@@ -1,0 +1,64 @@
+name: Taunt notifications
+
+# Delivers taunts. A member who taps today's matchup fact can send it to the
+# opponent, written to them ("Harshil is 8-2 all-time against you."); the
+# opponent gets it as a push (topic `taunts`) and in Alerts.
+#
+# No `schedule:` and no pg_cron job: pressing Taunt calls send_taunt(), and a
+# trigger on matchup_taunts dispatches this through the same
+# private.dispatch_github_workflow the crons use (so it arrives with
+# trigger = cron, which here means "the database", not a person). The script
+# delivers every taunt sent in the last six hours that has not been delivered,
+# claiming each first, so a burst collapsed into one pending run still sends
+# each taunt, once. See supabase/migrations/20261020120000_matchup_taunts.sql.
+#
+# Run it by hand to deliver anything the trigger missed, or as a dry run to
+# see what would be sent.
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: 'Who started this run. The database trigger sends "cron"; leave it on "manual".'
+        required: false
+        default: manual
+        type: choice
+        options: [manual, cron]
+      dry_run:
+        description: 'Only print what would be sent.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  # Its own group: a run of taunts replacing each other's pending run is
+  # fine, and must never replace a pending pick'em reminder or take alert.
+  group: notify-taunts
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Deliver taunts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node scripts/send-notifications.js --taunts ${{ inputs.dry_run && '--dry-run' || '' }}

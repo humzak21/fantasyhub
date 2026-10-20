@@ -271,10 +271,16 @@ const nameOf = (index, key) => index.names.get(key) ?? 'Somebody';
 /** How a sentence refers to its subject: "you" for the recipient, a name otherwise. */
 function voiceOf(index, key, you) {
   if (you) {
-    return { you, Name: 'You', name: 'you', Poss: 'Your', poss: 'your', Is: "You're", Has: "You've", like: 'like you' };
+    return {
+      you, Name: 'You', name: 'you', Poss: 'Your', poss: 'your', Is: "You're", Has: "You've", hasnt: "haven't",
+      like: 'like you', s: (verb) => verb
+    };
   }
   const n = nameOf(index, key);
-  return { you, Name: n, name: n, Poss: `${n}'s`, poss: `${n}'s`, Is: `${n} is`, Has: `${n} has`, like: `like ${n}` };
+  return {
+    you, Name: n, name: n, Poss: `${n}'s`, poss: `${n}'s`, Is: `${n} is`, Has: `${n} has`, hasnt: "hasn't",
+    like: `like ${n}`, s: (verb) => `${verb}s`
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -684,8 +690,12 @@ function seasonFacts(index, subject, v) {
 // Facts about the opponent's whole history (always unflattering)
 // ---------------------------------------------------------------------------
 
-function careerFacts(index, them, me) {
-  const O = nameOf(index, them);
+/**
+ * `v` is the opponent's voice — a name for the recipient, "you" when the same
+ * fact is written to the opponent as a taunt — and `meRef` how the recipient
+ * is named in it.
+ */
+function careerFacts(index, them, me, v = voiceOf(index, them, false), meRef = 'you') {
   const facts = [];
   const add = (family, score, text, extra = {}) => facts.push({ family, score, good: false, text, ...extra });
   const theirGames = index.gamesByFranchise.get(them) ?? [];
@@ -694,40 +704,40 @@ function careerFacts(index, them, me) {
   if (completed.length) {
     const titles = completed.filter((s) => s.playoffFinish === 'champion').map((s) => s.year);
     if (!titles.length && completed.length >= 2) {
-      add('titles', 65 + 3 * completed.length, `${O} has played ${completed.length} seasons in this league and won zero championships.`);
+      add('titles', 65 + 3 * completed.length, `${v.Has} played ${completed.length} seasons in this league and won zero championships.`);
     } else if (titles.length) {
       const lastTitle = titles[titles.length - 1];
       const since = completed.filter((s) => s.year > lastTitle).length;
-      if (since >= 2) add('titles', 45 + 5 * since, `${O} hasn't won a championship since ${lastTitle}.`);
+      if (since >= 2) add('titles', 45 + 5 * since, `${v.Name} ${v.hasnt} won a championship since ${lastTitle}.`);
     }
 
     const finals = completed.filter((s) => s.playoffFinish === '2nd').map((s) => s.year);
     if (finals.length) {
       add('finals-lost', 60 + 10 * finals.length, finals.length === 1
-        ? `${O} lost the ${finals[0]} championship game.`
-        : `${O} has lost ${finals.length} championship games (${listYears(finals)}).`);
+        ? `${v.Name} lost the ${finals[0]} championship game.`
+        : `${v.Has} lost ${finals.length} championship games (${listYears(finals)}).`);
     }
 
     const known = completed.filter((s) => typeof s.madePlayoffs === 'boolean');
     const missed = known.filter((s) => !s.madePlayoffs);
     if (known.length >= 2 && missed.length >= 2) {
-      add('playoffs-missed', 40 + (40 * missed.length) / known.length, `${O} has missed the playoffs in ${missed.length} of ${known.length} seasons.`);
+      add('playoffs-missed', 40 + (40 * missed.length) / known.length, `${v.Has} missed the playoffs in ${missed.length} of ${known.length} seasons.`);
     }
 
     const lastPlace = completed
       .filter((s) => Number.isFinite(s.finalRank) && s.finalRank === index.teamsInSeason.get(s.seasonId))
       .map((s) => s.year);
-    if (lastPlace.length) add('last-place', 85, `${O} finished dead last in ${listYears(lastPlace)}.`);
+    if (lastPlace.length) add('last-place', 85, `${v.Name} finished dead last in ${listYears(lastPlace)}.`);
   }
 
   const bracket = theirGames.filter((g) => g.phase === 'playoff');
   if (bracket.length) {
     const w = bracket.filter((g) => g.result === 'W').length;
     const l = bracket.filter((g) => g.result === 'L').length;
-    if (l > w) add('playoff-record', 50 + 8 * (l - w), `${O} is ${record(w, l)} in playoff games.`);
+    if (l > w) add('playoff-record', 50 + 8 * (l - w), `${v.Is} ${record(w, l)} in playoff games.`);
     const firstRound = bracket.filter((g) => g.type === 'playoff_first_round' && g.result === 'L');
     if (firstRound.length >= 2) {
-      add('first-round-exits', 55 + 5 * firstRound.length, `${O} has gone out in the first round of the playoffs ${times(firstRound.length)}.`);
+      add('first-round-exits', 55 + 5 * firstRound.length, `${v.Has} gone out in the first round of the playoffs ${times(firstRound.length)}.`);
     }
   }
 
@@ -736,15 +746,15 @@ function careerFacts(index, them, me) {
     const w = regular.filter((g) => g.result === 'W').length;
     const l = regular.filter((g) => g.result === 'L').length;
     const t = regular.length - w - l;
-    if (l > w) add('career-record', 55 + 3 * (l - w), `${O} is ${record(w, l, t)} all-time in the regular season.`);
+    if (l > w) add('career-record', 55 + 3 * (l - w), `${v.Is} ${record(w, l, t)} all-time in the regular season.`);
 
     const low = regular.reduce((min, g) => (g.pf < min.pf ? g : min));
     const rank = rankAsc(index.regularScores, low.pf);
     add('career-low', rank <= 10 ? 95 - 3 * rank : 45, rank === 1
-      ? `${O} owns the lowest score in league history: ${pts(low.pf)} in ${when(low)}.`
+      ? `${v.Name} ${v.s('own')} the lowest score in league history: ${pts(low.pf)} in ${when(low)}.`
       : rank <= 10
-        ? `${O}'s ${pts(low.pf)} in ${when(low)} is the ${ordinal(rank)}-lowest score in league history.`
-        : `${O}'s lowest score ever: ${pts(low.pf)} in ${when(low)}.`, { game: low });
+        ? `${v.Poss} ${pts(low.pf)} in ${when(low)} is the ${ordinal(rank)}-lowest score in league history.`
+        : `${v.Poss} lowest score ever: ${pts(low.pf)} in ${when(low)}.`, { game: low });
 
     const losses = regular.filter((g) => g.result === 'L');
     const worst = losses.reduce((max, g) => (!max || g.pa - g.pf > max.pa - max.pf ? g : max), null);
@@ -752,7 +762,7 @@ function careerFacts(index, them, me) {
       const margin = worst.pa - worst.pf;
       const byMe = worst.opponent === me;
       add('worst-loss', 45 + margin / 3 + (byMe ? 20 : 0),
-        `${O}'s worst beating ever: lost by ${pts(margin)} to ${byMe ? 'you' : nameOf(index, worst.opponent)} in ${when(worst)}.`, { game: worst });
+        `${v.Poss} worst beating ever: lost by ${pts(margin)} to ${byMe ? meRef : nameOf(index, worst.opponent)} in ${when(worst)}.`, { game: worst });
     }
 
     let longest = null;
@@ -765,13 +775,13 @@ function careerFacts(index, them, me) {
       if (run > (longest?.length ?? 0)) longest = { length: run, year: g.year };
     }
     if (longest && longest.length >= 4) {
-      add('losing-streak', 40 + 5 * longest.length, `${O} once lost ${longest.length} straight (${longest.year}).`);
+      add('losing-streak', 40 + 5 * longest.length, `${v.Name} once lost ${longest.length} straight (${longest.year}).`);
     }
 
     const close = regular.filter((g) => Math.abs(g.pf - g.pa) <= 5 && g.result !== 'T');
     const cw = close.filter((g) => g.result === 'W').length;
     if (close.length >= 10 && cw / close.length <= 0.35) {
-      add('close-career', 55 + 40 * (0.5 - cw / close.length), `${O} is ${record(cw, close.length - cw)} all-time in games decided by 5 points or fewer.`);
+      add('close-career', 55 + 40 * (0.5 - cw / close.length), `${v.Is} ${record(cw, close.length - cw)} all-time in games decided by 5 points or fewer.`);
     }
   }
 
@@ -782,8 +792,11 @@ function careerFacts(index, them, me) {
 // Head to head (only to the side it flatters)
 // ---------------------------------------------------------------------------
 
-function rivalryFacts(index, me, them) {
-  const O = nameOf(index, them);
+/**
+ * `vMe` / `vThem`: the recipient as "you" and the opponent by name, or the
+ * other way round when the same fact is written to the opponent as a taunt.
+ */
+function rivalryFacts(index, me, them, vMe = voiceOf(index, me, true), vThem = voiceOf(index, them, false)) {
   const facts = [];
   const add = (family, score, text, extra = {}) => facts.push({ family, score, good: true, text, ...extra });
   const myGames = index.gamesByFranchise.get(me) ?? [];
@@ -794,14 +807,14 @@ function rivalryFacts(index, me, them) {
   const w = meetings.filter((g) => g.result === 'W').length;
   const l = meetings.filter((g) => g.result === 'L').length;
   const t = meetings.length - w - l;
-  if (w > l && meetings.length >= 2) add('h2h-record', 50 + 8 * (w - l), `You're ${record(w, l, t)} all-time against ${O}.`);
+  if (w > l && meetings.length >= 2) add('h2h-record', 50 + 8 * (w - l), `${vMe.Is} ${record(w, l, t)} all-time against ${vThem.name}.`);
 
   const streak = trailingRun(meetings, (g) => g.result === 'W');
-  if (streak >= 2) add('h2h-streak', 60 + 8 * streak, `You've beaten ${O} ${streak} straight times.`);
+  if (streak >= 2) add('h2h-streak', 60 + 8 * streak, `${vMe.Has} beaten ${vThem.name} ${streak} straight times.`);
 
   const last = meetings[meetings.length - 1];
   if (last.result === 'W' && streak < 2) {
-    add('h2h-last', 55, `Last time you met, you beat ${O} ${pts(last.pf)}–${pts(last.pa)} (${when(last)}).`, { game: last });
+    add('h2h-last', 55, `Last time you met, ${vMe.name} beat ${vThem.name} ${pts(last.pf)}–${pts(last.pa)} (${when(last)}).`, { game: last });
   }
 
   const wins = meetings.filter((g) => g.result === 'W');
@@ -809,16 +822,16 @@ function rivalryFacts(index, me, them) {
   if (biggest && biggest.pf - biggest.pa >= 20) {
     const margin = biggest.pf - biggest.pa;
     add('h2h-biggest-win', 40 + margin / 2,
-      `Your biggest win over ${O}: ${pts(biggest.pf)}–${pts(biggest.pa)} in ${when(biggest)}, by ${pts(margin)}.`, { game: biggest });
+      `${vMe.Poss} biggest win over ${vThem.name}: ${pts(biggest.pf)}–${pts(biggest.pa)} in ${when(biggest)}, by ${pts(margin)}.`, { game: biggest });
   }
 
   const theirLow = wins.reduce((low, g) => (!low || g.pa < low.pa ? g : low), null);
-  if (theirLow) add('h2h-their-low', 45, `${O}'s lowest score against you: ${pts(theirLow.pa)} (${when(theirLow)}).`, { game: theirLow });
+  if (theirLow) add('h2h-their-low', 45, `${vThem.Poss} lowest score against ${vMe.name}: ${pts(theirLow.pa)} (${when(theirLow)}).`, { game: theirLow });
 
   for (const g of wins.filter((game) => game.phase === 'playoff')) {
     add(`h2h-playoff`, g.type === 'playoff_championship' ? 97 : 90, g.type === 'playoff_championship'
-      ? `You beat ${O} in the ${g.year} championship.`
-      : `You knocked ${O} out of the ${g.year} playoffs (${ROUND_NAMES[g.type] ?? 'bracket'}).`, { game: g });
+      ? `${vMe.Name} beat ${vThem.name} in the ${g.year} championship.`
+      : `${vMe.Name} knocked ${vThem.name} out of the ${g.year} playoffs (${ROUND_NAMES[g.type] ?? 'bracket'}).`, { game: g });
   }
 
   const others = theirGames.filter((g) => g.opponent !== me);
@@ -828,7 +841,7 @@ function rivalryFacts(index, me, them) {
     const gap = vsRest - vsMe;
     if (gap >= 5) {
       add('h2h-their-average', 40 + gap * 2,
-        `${O} averages ${pts(vsMe)} points against you, ${pts(gap)} fewer than against everyone else.`);
+        `${vThem.Name} ${vThem.s('average')} ${pts(vsMe)} points against ${vMe.name}, ${pts(gap)} fewer than against everyone else.`);
     }
   }
 
@@ -840,9 +853,25 @@ function rivalryFacts(index, me, them) {
 // ---------------------------------------------------------------------------
 
 /**
+ * Pair each fact with the same fact written to the opponent — `them` and
+ * `you` swapped — as its `taunt`. The two lists come from the same data with
+ * only the voice changed, so they line up one for one; a fact whose partner
+ * does not match carries no taunt rather than a wrong one.
+ */
+function withTaunts(facts, flipped) {
+  return facts.map((fact, i) => ({
+    ...fact,
+    taunt: flipped[i]?.family === fact.family ? flipped[i].text : null
+  }));
+}
+
+/**
  * Every fact worth sending `me`, strongest first: `{ key, family, subject,
- * score, text }`. `them` may be null (no game this week); then only facts
- * about `me` are offered. A second fact about the same game is dropped.
+ * score, text, taunt }`. `taunt` is the fact written to the opponent ("Harshil
+ * is 7-2 all-time against you."), or null when it is not one to taunt with:
+ * a fact about yourself that does not flatter you. `them` may be null (no
+ * game this week); then only facts about `me` are offered. A second fact about
+ * the same game is dropped.
  */
 export function buildMatchupFacts(index, me, them) {
   const facts = [];
@@ -852,14 +881,31 @@ export function buildMatchupFacts(index, me, them) {
     subject,
     score: Math.max(0, Math.min(100, Math.round(fact.score))),
     text: fact.text,
+    taunt: fact.taunt ?? null,
     game: fact.game ? `${fact.game.seasonId}:${fact.game.week}` : null
   });
 
-  for (const fact of seasonFacts(index, me, voiceOf(index, me, true))) push('self', fact);
+  const meYou = voiceOf(index, me, true);
+  const meNamed = voiceOf(index, me, false);
+  // A fact about yourself is a taunt only when it flatters you; told to the
+  // opponent, it is written with your name.
+  const own = withTaunts(seasonFacts(index, me, meYou), seasonFacts(index, me, meNamed));
+  for (const fact of own) push('self', fact.good === true ? fact : { ...fact, taunt: null });
   if (them) {
-    for (const fact of seasonFacts(index, them, voiceOf(index, them, false))) if (fact.good === false) push('opponent', fact);
-    for (const fact of careerFacts(index, them, me)) push('opponent', fact);
-    for (const fact of rivalryFacts(index, me, them)) push('rivalry', fact);
+    const themNamed = voiceOf(index, them, false);
+    const themYou = voiceOf(index, them, true);
+    const theirs = withTaunts(seasonFacts(index, them, themNamed), seasonFacts(index, them, themYou));
+    for (const fact of theirs) if (fact.good === false) push('opponent', fact);
+    const career = withTaunts(
+      careerFacts(index, them, me, themNamed, 'you'),
+      careerFacts(index, them, me, themYou, nameOf(index, me))
+    );
+    for (const fact of career) push('opponent', fact);
+    const rivalry = withTaunts(
+      rivalryFacts(index, me, them, meYou, themNamed),
+      rivalryFacts(index, me, them, meNamed, themYou)
+    );
+    for (const fact of rivalry) push('rivalry', fact);
   }
 
   const seen = new Set();
@@ -991,6 +1037,11 @@ export function planMatchupFactNotifications({
     recipients.push({
       ...sub,
       fact,
+      // What the member could send the opponent; the sender stores it as an
+      // offer only when an account owns the opponent's team.
+      taunt: them && fact.taunt
+        ? { opponentTeamId, senderName: nameOf(index, me), opponentName: nameOf(index, them), text: fact.taunt }
+        : null,
       payload: {
         title: them ? `Week ${day.week}: you vs ${nameOf(index, them)}` : `Week ${day.week}`,
         body: fact.text,
