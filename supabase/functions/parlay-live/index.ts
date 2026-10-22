@@ -18,11 +18,21 @@
 // modules along with it.
 //
 // Deploy (one-time, from a machine linked to the project):
+//   supabase secrets set SB_SECRET_KEY=<an sb_secret_… key>
 //   supabase functions deploy parlay-live --no-verify-jwt
 // The `[functions.parlay-live] verify_jwt = false` in config.toml keeps it
 // callable by signed-out viewers, since the parlay board is public.
+//
+// The key is our own secret, not the runtime's. Supabase injects
+// SUPABASE_SERVICE_ROLE_KEY into every function, but that is the *legacy*
+// service_role JWT, and it stops working the moment legacy API keys are
+// disabled — which they had to be on 2026-10-22, after Railway leaked them.
+// SB_SECRET_KEY holds one of the project's new secret keys (Project Settings →
+// API Keys). Custom secrets may not start with `SUPABASE_`, hence the name. The
+// injected key remains a fallback only so that deploying this before the secret
+// is set changes nothing.
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.0';
+import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 
 import { fetchNflScoreboard, fetchGameSummary } from '../../../services/espnLiveScoreFetcher.js';
 import {
@@ -45,6 +55,8 @@ const json = (body: unknown, status = 200) =>
     headers: { ...CORS, 'Content-Type': 'application/json' }
   });
 
+const serviceKey = Deno.env.get('SB_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
@@ -58,18 +70,27 @@ Deno.serve(async (req) => {
   const pickEmWeekId = body?.pickEmWeekId;
   if (!pickEmWeekId) return json({ error: 'pickEmWeekId is required' }, 400);
 
+  if (!serviceKey) {
+    console.error('parlay-live: neither SB_SECRET_KEY nor SUPABASE_SERVICE_ROLE_KEY is set');
+    return json({ error: 'Not configured' }, 500);
+  }
+
   try {
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  );
+  const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey, {
+    // A server-side client has no user session to keep or refresh.
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
 
   // The last thing we stored for this week, if anything.
-  const { data: prev } = await supabase
+  // Checked, because outside a game window this is the only query: a bad key
+  // ignored here would read as "nothing live" until Sunday instead of failing.
+  const { data: prev, error: prevError } = await supabase
     .from('parlay_live_snapshot')
     .select('status, event_states, live, refreshed_at')
     .eq('pick_em_week_id', pickEmWeekId)
     .maybeSingle();
+
+  if (prevError) return json({ error: prevError.message }, 500);
 
   const now = new Date();
   const windowOpen = isLikelyGameWindow(now);
