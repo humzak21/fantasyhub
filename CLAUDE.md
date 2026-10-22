@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a React-based fantasy football power rankings application built with
 Vite, Tailwind CSS, and Supabase. It deploys as a **static bundle** — there is
-no application server. The weekly ESPN sync runs as a GitHub Actions workflow
+no application server. GitHub Actions builds it and Cloudflare Pages serves it
+(`.github/workflows/deploy-site.yml`; see "The site is built by GitHub, served
+by Cloudflare"). The weekly ESPN sync runs as a GitHub Actions workflow
 (`.github/workflows/sync-week.yml`) that Supabase's pg_cron dispatches on
 schedule, not as an in-process scheduler — see "The crons are Supabase's
 clock, GitHub's runners".
@@ -17,7 +19,8 @@ clock, GitHub's runners".
 - `npm run dev` - Start development server (opens on localhost:3000)
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build locally
-- `npm start` - Serve the built `dist/` statically (Railway/Docker entry point)
+- `npm start` - Serve the built `dist/` statically (the Railway/Docker entry
+  point; retired with Railway once ogjits.com points at Cloudflare Pages)
 
 ### Code Quality
 - `npm run lint` - Run ESLint to check for code issues
@@ -304,11 +307,15 @@ unapplied for two weeks while every sync reported success.
   workflow by hand pointed at the branch (*Run workflow* takes a branch, and
   has a `dry_run` option), or `npm run db:push` locally — both write the
   file's own version, so the merge's run then finds nothing pending.
-- **Order with the bundle.** Railway builds the static bundle from the same
-  push. The migration usually lands first — the push takes about a minute,
-  the build several — but nothing enforces it, so a migration the running
-  bundle cannot tolerate still needs the two-step: the additive migration in
-  one PR, the code that depends on it in the next.
+- **Order with the bundle.** `deploy-site.yml` builds the bundle from the
+  same push and, when the push carries a migration, waits for this workflow's
+  run on that commit and deploys only if it succeeded. So the schema is live
+  before the code that reads it. The reverse still needs care: members' open
+  tabs run the previous bundle against the new schema until they reload, so a
+  migration that removes or renames something the running bundle uses still
+  needs the two-step — the additive migration in one PR, the code that
+  depends on it in the next. (Railway, before this, built in parallel and
+  nothing enforced the order.)
 - **Secrets:** `SUPABASE_ACCESS_TOKEN` (a personal access token) and
   `SUPABASE_DB_PASSWORD` (the push connects to Postgres directly, so the
   service-role key the sync workflows hold is not enough). Missing, the first
@@ -318,6 +325,51 @@ unapplied for two weeks while every sync reported success.
   `espn_teams` and `espn_schedule_imports.raw_data` still exist live, and
   nothing reads them. It is pending, and the next run — or `npm run db:push`
   — applies it.
+
+### The site is built by GitHub, served by Cloudflare
+
+`.github/workflows/deploy-site.yml` builds `dist/` on GitHub's runners on
+every push to `main` and uploads it to Cloudflare Pages, project `ogjits`,
+with `wrangler pages deploy`. Cloudflare only stores and serves files; it
+never builds.
+
+That is the point. Until 2026-10 Railway built and served the site from each
+push. On 2026-10-20 Railway paused builds for all customers. The Taunts merge
+(#132) and its test fix (#134) landed during the pause and Railway dropped
+both pushes. The site served the Oct 14 build for two days while the database
+already had the Taunts migration, so every matchup fact linked to a Taunt
+button the live bundle did not have.
+
+- **Free, and both admins can be members.** Vercel was considered: its free
+  Hobby plan has one owner and no team, and team access is paid.
+- **Single-page fallback is Pages' default when the upload has no
+  `404.html`.** Every path that is not a file serves `index.html`, as
+  `serve -s` did. The workflow refuses to deploy a `dist/404.html`, which
+  would turn the fallback off and 404 every route but `/`.
+- **`public/_headers` sets the cache rules.** `sw.js` and the manifest get
+  `no-cache`, so a member's phone picks up notification changes on its next
+  load. `/assets/*` is content-hashed, so it is cached for a year. `serve`
+  ignores the file.
+- **ogjits.com keeps its address.** Push subscriptions belong to an origin,
+  and so do Supabase's auth redirect URLs. A new hostname would mean every
+  member turning notifications on again, so the move is DNS only. Pages needs
+  the apex domain's zone on Cloudflare, so ogjits.com's nameservers move from
+  Squarespace to Cloudflare. The zone holds an A record (Railway), an SPF
+  `-all` and a DMARC reject, and no mail records.
+- **Without `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` the run warns
+  and skips** rather than failing, so `main` does not go red before the
+  account exists. The first configured run creates the Pages project if it is
+  missing. The build reads the same `VITE_SUPABASE_URL` /
+  `VITE_SUPABASE_ANON_KEY` secrets CI uses.
+- **Undo is Pages' rollback**: Deployments → an earlier one → Rollback,
+  instantly, without a build. A merge that never deployed is fixed by running
+  the workflow by hand.
+- **Before the DNS cutover, `ogjits.pages.dev` is the preview.** Sign in with
+  a password there to check a release. Do not turn notifications on there:
+  that subscribes a second origin, which the cutover leaves behind.
+- **Railway stays until Cloudflare has served ogjits.com for a day.** Then
+  remove the domain and service there, and delete the `Dockerfile`,
+  `railway.json`, `npm start` and the `serve` dependency in a follow-up.
 
 ### The crons are Supabase's clock, GitHub's runners
 

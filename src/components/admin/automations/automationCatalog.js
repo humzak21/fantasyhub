@@ -486,6 +486,21 @@ export const PASSIVE_AUTOMATIONS = [
       'no remote version is pending: the next run applies it, and so does npm run db:push.'
   },
   {
+    id: 'deploy-site',
+    name: 'Site deploy (deploy-site.yml)',
+    where: 'GitHub Actions · every merge to main, uploaded to Cloudflare Pages (project ogjits)',
+    fires: 'On push to main; or by hand to redeploy the current main',
+    does:
+      'Builds the static bundle on GitHub\'s runners and uploads it to Cloudflare Pages, which serves ogjits.com. ' +
+      'When the push carries a migration it waits for deploy-migrations.yml on the same commit and deploys only ' +
+      'if that succeeded, so a bundle never goes live ahead of its schema. Built here, not by the host, because ' +
+      'on 2026-10-20 Railway paused builds and two merges were never deployed. Without the Cloudflare secrets ' +
+      'it warns and skips rather than failing.',
+    verify:
+      `${workflowUrl('deploy-site.yml')} for the run, then the Pages project's Deployments list. A merge with no ` +
+      'deployment: re-run the workflow by hand. To undo a bad release, roll back to the previous deployment in Pages.'
+  },
+  {
     id: 'ci',
     name: 'CI (ci.yml)',
     where: 'GitHub Actions · every push and pull request',

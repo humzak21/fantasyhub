@@ -1,0 +1,166 @@
+name: Deploy site
+
+# Builds the static bundle here, on GitHub's runners, and uploads it to
+# Cloudflare Pages (project `ogjits`).
+#
+# Until 2026-10 the site was built and served by Railway from each push to
+# main. On 2026-10-20 Railway paused builds for every customer, and the
+# Taunts merge (#132) and its test fix (#134) were never deployed: the
+# pushes arrived during the pause and Railway dropped them. The site kept
+# serving the Oct 14 build for two days. Building here means a host's build
+# outage cannot hold a release back; Cloudflare only stores and serves files.
+#
+# It also enforces the order CLAUDE.md asks for and nothing used to enforce:
+# when a push carries a migration, this waits for deploy-migrations.yml to
+# apply it, and does not deploy if that run fails, so a bundle never goes live
+# ahead of the schema it reads.
+#
+# Secrets (repository Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   an API token with Account › Cloudflare Pages › Edit,
+#                          limited to the league's account.
+#   CLOUDFLARE_ACCOUNT_ID  that account's id (Workers & Pages overview).
+#   VITE_SUPABASE_URL,
+#   VITE_SUPABASE_ANON_KEY already set for CI; both are public values that
+#                          Vite inlines into the bundle.
+# Without the Cloudflare pair the run says so and stops without failing,
+# so main does not go red before the account exists. The first run creates the
+# Pages project if it is missing.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  # One deploy at a time, in push order. A later push waits rather than
+  # cancelling the one in flight, so every merge is deployed.
+  group: deploy-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PAGES_PROJECT: ogjits
+      WRANGLER: npx --yes wrangler@4.145.0
+
+    steps:
+      - name: Check Cloudflare is set up
+        id: setup
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning title=Site not deployed::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are not set. See the comment at the top of deploy-site.yml."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          fetch-depth: 0
+
+      # A push that changes supabase/migrations/ also starts
+      # deploy-migrations.yml. Wait for that run on this commit and deploy only
+      # if it succeeded. A push without a migration, or a manual run, skips this.
+      - name: Wait for this push's migrations
+        if: steps.setup.outputs.ready == 'true' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "$SHA^" "$SHA" -- supabase/migrations .github/workflows/deploy-migrations.yml)
+          else
+            changed=$(git diff --name-only "$BEFORE" "$SHA" -- supabase/migrations .github/workflows/deploy-migrations.yml)
+          fi
+          if [ -z "$changed" ]; then
+            echo "No migration in this push."
+            exit 0
+          fi
+          echo "This push changes:"; echo "$changed"
+          for i in $(seq 1 60); do
+            run=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy-migrations.yml \
+              --commit "$SHA" --event push --limit 1 --json status,conclusion,url \
+              --jq '.[0] // empty | "\(.status) \(.conclusion) \(.url)"')
+            set -- $run
+            if [ "$1" = "completed" ]; then
+              if [ "$2" = "success" ]; then
+                echo "Migrations applied: $3"
+                exit 0
+              fi
+              echo "::error title=Site not deployed::deploy-migrations.yml ended '$2' for this commit ($3). The bundle may need the schema it was meant to apply, so the old site stays up. Fix the migration run, then run this workflow by hand."
+              exit 1
+            fi
+            echo "deploy-migrations.yml: ${1:-not started yet} (check $i of 60)"
+            sleep 15
+          done
+          echo "::error title=Site not deployed::deploy-migrations.yml did not finish within 15 minutes for this commit."
+          exit 1
+
+      - uses: actions/setup-node@v7
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+        if: steps.setup.outputs.ready == 'true'
+
+      - run: npm run build
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      # The same check CI runs: a bundle without the Tailwind theme layer
+      # renders unstyled while every other check passes.
+      - run: npm run check-css-tokens
+        if: steps.setup.outputs.ready == 'true'
+
+      # With no 404.html in the upload, Pages serves index.html for every path
+      # that is not a file, which is what `serve -s` did on Railway.
+      - name: Check the bundle is a single-page app
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          test -f dist/index.html
+          test -f dist/_headers
+          test -f dist/sw.js
+          if [ -e dist/404.html ]; then
+            echo "::error::dist/404.html would turn off Pages' single-page fallback, and every route but / would 404."
+            exit 1
+          fi
+
+      - name: Create the Pages project if it is missing
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          if $WRANGLER pages project list 2>/dev/null | grep -qw "$PAGES_PROJECT"; then
+            echo "Pages project $PAGES_PROJECT exists."
+          else
+            $WRANGLER pages project create "$PAGES_PROJECT" --production-branch=main
+          fi
+
+      - name: Deploy
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          $WRANGLER pages deploy dist \
+            --project-name="$PAGES_PROJECT" \
+            --branch=main \
+            --commit-hash="$GITHUB_SHA" \
+            --commit-message="$(git log -1 --format=%s "$GITHUB_SHA")" \
+            --commit-dirty=true
+          {
+            echo '## Deployed'
+            echo
+            echo "Commit \`${GITHUB_SHA::7}\` is live on https://$PAGES_PROJECT.pages.dev and on every custom domain attached to the project."
+          } >> "$GITHUB_STEP_SUMMARY"
