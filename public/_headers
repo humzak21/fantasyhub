@@ -1,0 +1,17 @@
+# Cache rules for Cloudflare Pages, which reads this file from the root of the
+# deployed site (Vite copies public/ into dist/). `serve` on Railway ignores
+# it, so it changes nothing there.
+
+# The service worker and the manifest must be re-checked on every load. A
+# cached sw.js keeps a member's phone on the old notification handling (the
+# Taunt action button, for one) until the browser happens to let it go.
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.webmanifest
+  Cache-Control: no-cache
+
+# Vite puts a content hash in every file name under /assets, so a changed file
+# is a new URL and these can be cached for good.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
