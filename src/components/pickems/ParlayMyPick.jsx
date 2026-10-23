@@ -32,8 +32,20 @@ import { usePickDraft } from './pickDraft.js';
  * @param {number} props.weekNumber
  * @param {object} [props.liveStatus] - `useParlayLive`'s per-pick map
  * @param {string} [props.idPrefix] - keeps the picker's ids unique per page
+ * @param {boolean} [props.initialEditing] - open straight into the picker (the
+ *   home card opens this panel to make or change the pick)
+ * @param {() => void} [props.onDone] - after a save or a cancel
  */
-export function ParlayMyPick({ pickEmWeek, seasonYear = null, status, weekNumber, liveStatus, idPrefix }) {
+export function ParlayMyPick({
+  pickEmWeek,
+  seasonYear = null,
+  status,
+  weekNumber,
+  liveStatus,
+  idPrefix,
+  initialEditing = false,
+  onDone
+}) {
   // `isApproved` gates the form; `isAuthenticated` only chooses the copy —
   // a signed-in member the admin has not approved yet is told so, rather
   // than being asked to sign in again.
@@ -49,7 +61,7 @@ export function ParlayMyPick({ pickEmWeek, seasonYear = null, status, weekNumber
   // season, shared by both — see `hooks/queries/useNflSchedule.js`.
   const { data: opponents = {} } = useNflOpponentMap(seasonYear, weekNumber);
 
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(initialEditing);
   const [error, setError] = useState(null);
 
   const submit = useSubmitParlayPick(pickEmWeek?.seasonId ?? null);
@@ -78,6 +90,7 @@ export function ParlayMyPick({ pickEmWeek, seasonYear = null, status, weekNumber
       await submit.mutateAsync({ pickEmWeekId: pickEmWeek.id, playerId, playerName });
       clearDraft('parlay');
       setIsEditing(false);
+      onDone?.();
     } catch (err) {
       setError(err?.message || 'Could not save your pick.');
     }
@@ -139,6 +152,7 @@ export function ParlayMyPick({ pickEmWeek, seasonYear = null, status, weekNumber
               ? () => {
                   clearDraft('parlay');
                   setIsEditing(false);
+                  onDone?.();
                 }
               : null
           }

@@ -23,7 +23,7 @@ export default function RecentFormChart({ rows, team }) {
   }));
 
   return (
-    <ChartContainer config={{}} className="h-[120px] sm:h-[120px]" aria-label="Points for, week by week, against the league average">
+    <ChartContainer config={{}} className="h-auto max-h-[260px] min-h-[120px] flex-1 sm:h-auto" aria-label="Points for, week by week, against the league average">
       <ComposedChart data={data} margin={{ top: 6, right: 4, bottom: 0, left: -6 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis dataKey="label" tickLine={false} axisLine={false} {...axis} />

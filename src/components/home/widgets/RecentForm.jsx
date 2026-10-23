@@ -49,9 +49,12 @@ export default function RecentForm({ ctx }) {
       loading={ranksQuery.isPending}
       skeleton={<FormSkeleton />}
       empty={!form && <p className="text-sm text-muted-foreground">No games played yet.</p>}
+      // A column, so that when the card is stretched to end its desktop
+      // column the chart takes the room rather than leaving it blank.
+      bodyClassName="flex flex-col"
     >
       {form && (
-        <div className="space-y-4">
+        <div className="flex flex-1 flex-col gap-4">
           <ol className="divide-y divide-border/60">
             {[...form.rows].reverse().map((row) => (
               <li key={row.week}>
@@ -78,9 +81,11 @@ export default function RecentForm({ ctx }) {
             ))}
           </ol>
 
-          <Suspense fallback={<Skeleton className="h-[120px] w-full" />}>
-            <RecentFormChart rows={form.rows} team={viewerTeam} />
-          </Suspense>
+          <div className="flex min-h-[120px] flex-1 flex-col">
+            <Suspense fallback={<Skeleton className="h-[120px] w-full" />}>
+              <RecentFormChart rows={form.rows} team={viewerTeam} />
+            </Suspense>
+          </div>
 
           <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <Movement label="Standing" span={form.standing} format={formatOrdinal} />
