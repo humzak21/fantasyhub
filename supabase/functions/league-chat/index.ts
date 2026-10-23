@@ -17,7 +17,8 @@
 //   supabase secrets set LLM_BASE_URL=… LLM_API_KEY=… LLM_MODEL=…
 //   supabase functions deploy league-chat
 // Without the LLM_* secrets the chat says it is not switched on: there is no
-// way to answer an open question without a model.
+// way to answer an open question without a model. After setting them, a GET
+// to the function is the check (see `health` below).
 // `verify_jwt = false` in config.toml: the gateway's legacy JWT check does not
 // apply to the new API keys, so the caller's session is checked here instead,
 // with auth.getUser.
@@ -32,7 +33,7 @@ import { ownerKey } from '../../../utils/ownerAliases.js';
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
 };
 
 const json = (body: unknown, status = 200) =>
@@ -85,6 +86,52 @@ const one = (db: any, sql: string, params: unknown[] = []) => {
   }
 };
 
+// The health check (GET): which settings the function can see — present or
+// not, never their values — whether the snapshot is in the bucket, and one
+// tiny model call, so a mistyped secret shows up before a member asks anything.
+// The model call is remembered per warm instance for HEALTH_TTL_MS, so the
+// endpoint cannot be used to spend the model's daily allowance.
+const HEALTH_TTL_MS = 10 * 60 * 1000;
+let lastPing: { at: number; result: Record<string, unknown> } | null = null;
+
+async function pingModel() {
+  if (!llm) return { ok: false, error: 'LLM_BASE_URL, LLM_API_KEY and LLM_MODEL are not all set' };
+  if (lastPing && Date.now() - lastPing.at < HEALTH_TTL_MS) return { ...lastPing.result, cached: true };
+  const started = Date.now();
+  let result: Record<string, unknown>;
+  try {
+    const ping = openAiCompatibleModel({
+      baseUrl: Deno.env.get('LLM_BASE_URL')!,
+      apiKey: Deno.env.get('LLM_API_KEY')!,
+      model: llm.name,
+      maxTokens: 10
+    });
+    const reply = await ping([{ role: 'user', content: 'Reply with the single word: ok' }]);
+    result = { ok: reply.trim().length > 0, reply: reply.trim().slice(0, 40), latencyMs: Date.now() - started };
+  } catch (e) {
+    result = { ok: false, error: String((e as Error)?.message ?? e).slice(0, 300), latencyMs: Date.now() - started };
+  }
+  lastPing = { at: Date.now(), result };
+  return result;
+}
+
+async function health() {
+  const settings = Object.fromEntries(
+    ['SB_SECRET_KEY', 'LLM_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL'].map((name) => [name, Boolean(Deno.env.get(name))])
+  );
+  let snapshot: Record<string, unknown> = { ok: false, error: 'SB_SECRET_KEY is not set' };
+  if (serviceKey) {
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data, error } = await supabase.storage.from(BUCKET).list('', { limit: 10 });
+    const names = (data ?? []).map((f: any) => f.name);
+    snapshot = error
+      ? { ok: false, error: error.message }
+      : { ok: names.includes('league.sqlite') && names.includes('sql-wasm.wasm'), files: names };
+  }
+  const model = await pingModel();
+  return json({ ok: Boolean(serviceKey) && Boolean(model.ok) && Boolean(snapshot.ok), settings, model: llm?.name ?? null, modelCheck: model, snapshot });
+}
+
 const cleanHistory = (raw: unknown) =>
   (Array.isArray(raw) ? raw : [])
     .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
@@ -93,6 +140,7 @@ const cleanHistory = (raw: unknown) =>
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method === 'GET') return health();
   if (!serviceKey) {
     console.error('league-chat: SB_SECRET_KEY is not set');
     return json({ error: 'Not configured' }, 500);

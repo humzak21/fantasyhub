@@ -2454,7 +2454,11 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   (30) per member per UTC day by counting `chat_log`, caches the snapshot for
   ten minutes per warm instance, and logs every question with its queries,
   drafts and why a draft failed. It reads with `SB_SECRET_KEY` and is deployed
-  by hand (`supabase functions deploy league-chat`).
+  by hand (`supabase functions deploy league-chat`). **A GET is its health
+  check**: which settings it can see (present or not, never values), whether
+  the snapshot is in the bucket, and one tiny model call, remembered for ten
+  minutes so the endpoint cannot spend the model's allowance. It is how to
+  check the secrets after setting them.
 - **Members never read `chat_log`** (RLS on, no policies, no `anon` /
   `authenticated` grants; `supabase/tests/database/league_chat.test.sql`). The
   bucket has no storage policies, so only the service role reaches it.
