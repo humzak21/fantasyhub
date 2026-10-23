@@ -30,6 +30,7 @@ export {
   ViewedWeekProvider,
   useViewedWeek,
   useActualWeek,
+  useNow,
   useSeasonConfig
 } from './useWeek.jsx';
 
@@ -90,6 +91,7 @@ export { useMyTaunts, useSendTaunt } from './useTaunts.js';
 
 export {
   countPendingApprovals,
+  useApprovedMemberCount,
   useIsApprovedMember,
   useMemberApprovals,
   useSetMemberApproval,

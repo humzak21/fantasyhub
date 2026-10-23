@@ -42,8 +42,10 @@ const WEEK_TICK_MS = 60 * 60 * 1000;
 /**
  * A Date that updates on an interval. One timer, no data writes — the only
  * thing it does is re-render so pure derivations from "now" stay honest.
+ * Exported for countdowns (the home page's pick'em deadline), which pass a
+ * minute rather than this hour.
  */
-function useNow(intervalMs = WEEK_TICK_MS) {
+export function useNow(intervalMs = WEEK_TICK_MS) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {

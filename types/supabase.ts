@@ -3978,6 +3978,7 @@ export type Database = {
           week2_rank: number
         }[]
       }
+      count_approved_members: { Args: never; Returns: number }
       create_pick_em_week: {
         Args: {
           p_results_reveal_at?: string

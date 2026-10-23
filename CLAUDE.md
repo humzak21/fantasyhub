@@ -989,7 +989,7 @@ any policy in the file, so no existing member ever saw a refusal.
 `/` resolves to `/home` (`DEFAULT_TAB = 'home'` in `FantasyFootballApp`),
 and so does an unknown or forbidden tab — a page that explains itself to
 whoever arrives, where the rankings table did not. The plan it follows, in
-four PRs, is JITS-45; this is the first.
+four PRs, is JITS-45; the first two (the page, then pick'ems) have landed.
 
 - **Two shapes, chosen by the nav's own flags.** A signed-out viewer or an
   account awaiting approval gets `HomeDirectory`: a card per tab
@@ -1027,7 +1027,47 @@ four PRs, is JITS-45; this is the first.
   Alerts, which have no tab.
 - **The rankings slice is the one table that stays a table at 375px**: five
   rows is the content. `table-fixed`, fixed numeric columns, the team mark
-  hidden below `sm`. The smoke job's overflow check is what holds it.
+  hidden in a card narrower than `@md` — a container query, because the
+  card is a third of the page at `lg`. The smoke job's overflow check is
+  what holds it.
+
+**Pick'ems and the parlay can be made and submitted from Home**
+(`widgets/PickemsParlayWidget.jsx`), through the tab's own pieces, so the two
+surfaces cannot drift:
+
+- **One form state, `pickems/usePickEmForm.js`.** The selection, the edit
+  state, submit and cancel, for `PickEmsSubmission` and the widget alike. A
+  refusal from `submit_pick_em_picks` comes back as `error`; it used to be an
+  unhandled rejection the page never showed. The picks count only the games
+  still to pick, so a pick on a finished game no longer keeps the form from
+  ever reading complete.
+- **Unsubmitted choices are a draft** (`pickems/pickDraft.js`):
+  `localStorage`, `pickems:draft:<userId>:<pickEmWeekId>`, a convenience like
+  `confirmPreference.js` and never a rule. Precedence when a form mounts is
+  the draft, then what was submitted, then nothing — per game
+  (`initialSelections`). A draft that changes a submitted pick reopens the
+  form for editing. Submitting clears the draft's picks, and so does
+  cancelling an edit. A write sweeps the member's other weeks. Every storage
+  call is wrapped. Tests that render a form clear `localStorage` in
+  `beforeEach`, or one test's typing becomes the next one's form.
+- **Shared components, not copies:** `PickEmGameRow` (with `compact` and
+  `showResult`), `PlayerPicker` (`idPrefix`, `onChange`), `ParlayCurrentPick`,
+  `ParlayMyPick`, `PickEmsSubmitBar` (a `className` to re-fit it in a card).
+- **`PickEmsManager` reads through the `usePickEms` hooks** — it used to load
+  with raw `getDb()` calls into `useState`, so a submission anywhere else was
+  invisible to it, and its own submissions never cleared the nav's "you owe
+  picks" dot, which reads the shared `userPicks` entry.
+- **"9 of 14 picked · 7 of 14 parlays in"**: the denominator is
+  `public.count_approved_members()`
+  (`20261023120000_count_approved_members.sql`), approved `member_approvals`
+  rows plus admins — the `is_approved_member()` fold, so exactly who may
+  submit — as one integer, executable by `authenticated` only. Read through
+  `users.countApprovedMembers` and `useApprovedMemberCount`
+  (`qk.approvals.count()`, under the prefix the approval mutations already
+  invalidate). Until it answers the line reads "9 picked", never "of —" and
+  never the team count, which is a different set. `utils/home/pickems.js` is
+  the arithmetic; `supabase/tests/database/count_approved_members.test.sql`
+  holds the rule.
 
 ### Settings is a tab, reached by the cog
 
@@ -1523,9 +1563,11 @@ The badge is `aria-hidden`, so the reason lives in the link's accessible name.
 Each member names one NFL player they think scores a touchdown. It lives at the
 foot of the pick'ems form (`src/components/pickems/ParlayPickSection.jsx`) and
 has **no deadline of its own**: `pick_em_weeks` supplies the window, the row's
-existence supplies the activation, and PickEmsSubmission passes its own
-`getPickEmStatus()` result down rather than letting the section recompute one.
-No pick'em week, no parlay — the section renders `null`.
+existence supplies the activation, and the window is
+`pickems/pickEmWindow.js::pickEmWindowState` — one definition, computed by
+the form (or the home widget) and passed down rather than recomputed.
+No pick'em week, no parlay — the section renders `null`. The viewer's own
+pick, picker and draft are `ParlayMyPick`, which the home page renders too.
 
 Three rules are the database's, not the UI's, and that is what makes them true:
 

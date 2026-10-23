@@ -52,19 +52,19 @@ export function usePickEmGameData(seasonId, week) {
   });
 }
 
-export function usePickEmStandings(seasonId) {
+export function usePickEmStandings(seasonId, { enabled = true } = {}) {
   return useQuery({
     queryKey: qk.pickems.standings(seasonId),
     queryFn: () => db().pickems.getSeasonPickEmStandings(seasonId),
-    enabled: Boolean(seasonId)
+    enabled: Boolean(seasonId) && enabled
   });
 }
 
-export function useAllSeasonPicks(seasonId) {
+export function useAllSeasonPicks(seasonId, { enabled = true } = {}) {
   return useQuery({
     queryKey: qk.pickems.allSeasonPicks(seasonId),
     queryFn: () => db().pickems.getAllSeasonPicks(seasonId),
-    enabled: Boolean(seasonId)
+    enabled: Boolean(seasonId) && enabled
   });
 }
 

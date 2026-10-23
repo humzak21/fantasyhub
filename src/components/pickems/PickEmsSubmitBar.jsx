@@ -32,6 +32,9 @@ export function PickEmsSubmitBar({
   onSubmit,
   onEdit,
   onCancelEdit,
+  /** Merged last, so a host can re-fit the bar to its own padding — the home
+   *  page's widget sits it inside a card, not the page gutter. */
+  className,
 }) {
   const complete = totalPicks === totalGames;
 
@@ -39,7 +42,8 @@ export function PickEmsSubmitBar({
     <div
       className={cn(
         'sticky bottom-16 z-30 -mx-4 border-t bg-card/95 px-4 py-3 backdrop-blur',
-        'sm:-mx-6 sm:px-6 lg:bottom-0 lg:mx-0 lg:rounded-lg lg:border'
+        'sm:-mx-6 sm:px-6 lg:bottom-0 lg:mx-0 lg:rounded-lg lg:border',
+        className
       )}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">

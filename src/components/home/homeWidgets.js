@@ -18,6 +18,7 @@
  */
 
 import MatchupHero from './widgets/MatchupHero.jsx';
+import PickemsParlayWidget from './widgets/PickemsParlayWidget.jsx';
 import RankingsSlice from './widgets/RankingsSlice.jsx';
 import StandingsMini from './widgets/StandingsMini.jsx';
 
@@ -30,6 +31,16 @@ export const HOME_WIDGETS = [
     column: 'hero',
     Component: MatchupHero,
     when: (ctx) => Boolean(ctx.seasonId)
+  },
+  {
+    // Second on a phone: it is the one card with a deadline on it. It says
+    // so itself on the weeks with no pick'em row (a playoff week), rather
+    // than vanishing — a card that comes and goes is harder to learn.
+    id: 'pickems',
+    title: "Pick'ems & TD parlay",
+    column: 'main',
+    Component: PickemsParlayWidget,
+    when: (ctx) => ctx.phase === 'active' || ctx.phase === 'loading'
   },
   {
     id: 'rankings',
