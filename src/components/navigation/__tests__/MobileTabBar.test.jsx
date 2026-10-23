@@ -7,7 +7,7 @@
  * without scrolling is `npm run test:e2e`'s to assert.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -35,6 +35,27 @@ const mount = (props = {}, route = '/home') =>
   );
 
 const bar = () => screen.getByRole('navigation', { name: 'Main' });
+
+// vaul reads the drawer's computed `transform` on every pointer release inside
+// it, and jsdom computes no `transform` at all — `undefined.match` throws from
+// an event handler, which vitest reports as an unhandled error after the test
+// has passed. A browser reports `none` for an untransformed element.
+beforeEach(() => {
+  const real = window.getComputedStyle.bind(window);
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+    const style = real(el, pseudo);
+    if (!style.transform) {
+      return new Proxy(style, {
+        get: (target, prop) => (prop === 'transform' ? 'none' : Reflect.get(target, prop, target)),
+      });
+    }
+    return style;
+  });
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('MobileTabBar', () => {
   it('holds the slotted tabs in slot order, then Menu, and nothing else', () => {
