@@ -1023,21 +1023,49 @@ then the design pass.
   `utils/viewerTeam.js` (whose team — owner name through
   `normalizeOwnerName`, never `teams.user_id`), `utils/home/matchup.js`
   (season phase, the week's game, a bye, the series sentence),
-  `utils/home/windowAround.js` (five ranking rows, viewer centred, clamped
-  at the ends).
+  `utils/home/streak.js` (a standings row's streak, from the games when the
+  RPC's is blank).
 - **The hero shares the Schedule tab's lineup.** `LineupPanel` was lifted
   out of `ScheduleManager` into `schedule/LineupPanel.jsx`; both import it.
 - **The brand is a link to `/home`** — the only way back from Settings and
   Alerts, which have no tab.
-- **The rankings slice is the one table that stays a table at 375px**: five
-  rows is the content. `table-fixed`, fixed numeric columns, the team mark
-  hidden in a card narrower than `@md` — a container query, because the
-  card is a third of the page at `lg`. The smoke job's overflow check is
-  what holds it.
+- **The rankings and standings are tables wider than their cards, on
+  purpose** (`home/ScrollTable.jsx`). The columns a reader wants first fill
+  the card by default; the rest are a swipe or a scrollbar to the right.
+  Only the rank is `sticky` (the team scrolls with its figures), and so is
+  the header. The default view is
+  exact at any card width because the viewport is an `@container` and the
+  team column is `max(<twelve letters>, 100cqw - <the other default
+  columns>)`. The table's width is that plus every other column; the sums are
+  spelt out beside each table, and **changing a column's width means changing
+  the sum**. A name never loses its first twelve letters, so in a narrow card
+  the last default column moves off to the right instead.
+  - Sticky cells inherit the row's background, so row tints are **opaque**:
+    `color-mix(...)` over `--card` (`home/tableTones.js`), never `bg-x/15`.
+    A translucent tint lets the scrolled columns show through a sticky
+    cell. The viewer's rail is an inset shadow on the first cell, as
+    `ff-viewer-row` draws it.
+  - The rankings show every team about five rows tall, and scroll
+    themselves on load so the viewer's row is centred: once per mount, in a
+    layout effect. "Playoff%" is the odds column's name.
+  - The scroller's chevron sits above the sticky header (`z-10`); without it
+    the header cells paint over it.
+  - Not `ui/scroll-hint.jsx`, which captions content that happens to
+    overflow. Here every table overflows by design, and a caption under each
+    would be noise.
 
 **Pick'ems and the parlay can be made and submitted from Home**
 (`widgets/PickemsParlayWidget.jsx`), through the tab's own pieces, so the two
 surfaces cannot drift:
+
+- **Two tiles and one panel.** Each tile answers one question ("are my picks
+  in?", "who is my scorer?") with one headline and one line under it, and
+  carries the league's answer to the same question as a meter at its foot.
+  Tapping a tile opens the single panel under both: the matchups with the
+  submit bar, or the player picker (`ParlayMyPick` with `initialEditing`,
+  which folds the panel on save through `onDone`). Never a box for every
+  fact. A tile is a `<button>`, so nothing inside it may be a `div`, and
+  that includes `Skeleton`.
 
 - **One form state, `pickems/usePickEmForm.js`.** The selection, the edit
   state, submit and cancel, for `PickEmsSubmission` and the widget alike. A
@@ -1129,7 +1157,8 @@ surfaces cannot drift:
   when both ids are franchises it knows.
 - **The desktop columns end level.** Which column a widget sits in was
   chosen by measuring: Standings in the wide column, with its divisions side
-  by side; Records in the narrow one, as a one-card carousel. Even so, card
+  by side, then Last 3 weeks; Records in the narrow one, as a one-card
+  carousel. Even so, card
   heights move with the data, so the column wrappers stretch
   (`lg:self-stretch`) and the last card in each grows to the column's end.
   Never `items-stretch` on the outer grid: below `lg` the columns are

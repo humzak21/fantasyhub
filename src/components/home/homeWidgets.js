@@ -70,17 +70,10 @@ export const HOME_WIDGETS = [
   },
   {
     id: 'rankings',
-    title: 'Power rankings',
+    title: 'Power Rankings',
     column: 'side',
     Component: RankingsSlice,
     when: inSeason
-  },
-  {
-    id: 'recent-form',
-    title: 'Last 3 weeks',
-    column: 'main',
-    Component: RecentForm,
-    when: (ctx) => inSeason(ctx) && hasPlayed(ctx)
   },
   {
     // In the wide column on a desktop: its two division tables sit side by
@@ -91,6 +84,13 @@ export const HOME_WIDGETS = [
     column: 'main',
     Component: StandingsMini,
     when: inSeason
+  },
+  {
+    id: 'recent-form',
+    title: 'Last 3 weeks',
+    column: 'main',
+    Component: RecentForm,
+    when: (ctx) => inSeason(ctx) && hasPlayed(ctx)
   },
   {
     id: 'takes',

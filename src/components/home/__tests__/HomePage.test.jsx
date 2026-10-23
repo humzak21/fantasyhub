@@ -188,36 +188,41 @@ describe('HomePage — a member who owns a team', () => {
     expect(within(hero).getByRole('button', { name: 'Rosters' })).toBeInTheDocument();
   });
 
-  it('shows five ranking rows with them in the middle', () => {
+  it('shows every team in the ranking, with their row marked to centre on', () => {
     render();
 
-    const table = within(screen.getByRole('region', { name: /power rankings/i })).getByRole('table');
+    const table = within(screen.getByRole('region', { name: 'Power Rankings table' })).getByRole('table');
     const rows = within(table).getAllByRole('row').slice(1);
-    expect(rows).toHaveLength(5);
-    expect(rows.map((row) => within(row).getAllByRole('cell')[0].textContent)).toEqual(['5', '6', '7', '8', '9']);
-    expect(rows[2]).toHaveClass('ff-viewer-row');
+    expect(rows).toHaveLength(14);
+    expect(rows[6]).toHaveAttribute('data-viewer', 'true');
+    expect(within(rows[6]).getAllByRole('cell')[0]).toHaveTextContent('7');
+    expect(within(table).getByRole('columnheader', { name: 'Playoff%' })).toBeInTheDocument();
   });
 
   it('reads "Clinched" and "Out" for the two certain odds', () => {
     queries.rankings.data = RANKINGS.map((row, i) => ({ ...row, playoffOdds: i === 4 ? 100 : i === 8 ? 0 : 50 }));
     render();
 
-    const table = within(screen.getByRole('region', { name: /power rankings/i })).getByRole('table');
+    const table = within(screen.getByRole('region', { name: 'Power Rankings table' })).getByRole('table');
     expect(within(table).getByText('Clinched')).toBeInTheDocument();
     expect(within(table).getByText('Out')).toBeInTheDocument();
   });
 
-  it('shows the division tables', () => {
+  it('shows the division tables, every column of them', () => {
     render();
 
-    const standings = screen.getByRole('region', { name: /standings/i });
-    expect(within(standings).getAllByRole('table')).toHaveLength(2);
+    const standings = screen.getByRole('region', { name: /^standings$/i });
+    const tables = within(standings).getAllByRole('table');
+    expect(tables).toHaveLength(2);
+    for (const label of ['W-L', 'PF', 'PA', 'Diff', 'Win%', 'Streak']) {
+      expect(within(tables[0]).getByRole('columnheader', { name: label })).toBeInTheDocument();
+    }
     expect(within(standings).getByRole('button', { name: /full standings/i })).toBeInTheDocument();
   });
 });
 
 describe('HomePage — a member with no team', () => {
-  it("shows the week's scoreboard and the top five", () => {
+  it("shows the week's scoreboard and the ranking from the top", () => {
     viewerTeam = null;
     render();
 
@@ -225,9 +230,10 @@ describe('HomePage — a member with no team', () => {
     expect(within(board).getByText('Team 1')).toBeInTheDocument();
     expect(within(board).getByText('Team 2')).toBeInTheDocument();
 
-    const table = within(screen.getByRole('region', { name: /power rankings/i })).getByRole('table');
+    const table = within(screen.getByRole('region', { name: 'Power Rankings table' })).getByRole('table');
     const rows = within(table).getAllByRole('row').slice(1);
-    expect(rows.map((row) => within(row).getAllByRole('cell')[0].textContent)).toEqual(['1', '2', '3', '4', '5']);
+    expect(within(rows[0]).getAllByRole('cell')[0]).toHaveTextContent('1');
+    expect(rows.some((row) => row.getAttribute('data-viewer') === 'true')).toBe(false);
   });
 });
 
@@ -236,10 +242,10 @@ describe('HomePage — one widget failing', () => {
     queries.rankings = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     render();
 
-    const rankings = screen.getByRole('region', { name: /power rankings/i });
+    const rankings = screen.getByRole('region', { name: /^power rankings$/i });
     expect(within(rankings).getByRole('alert')).toHaveTextContent(/couldn't load power rankings/i);
     expect(within(rankings).getByRole('button', { name: /retry/i })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /^standings/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /^standings$/i })).toBeInTheDocument();
   });
 
   it('a render crash is caught at the widget, not the page', () => {
@@ -250,7 +256,7 @@ describe('HomePage — one widget failing', () => {
     render();
 
     expect(screen.getByRole('alert')).toHaveTextContent(/couldn't load standings/i);
-    expect(screen.getByRole('region', { name: /power rankings/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /^power rankings$/i })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: /your matchup/i })).toBeInTheDocument();
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
     spy.mockRestore();

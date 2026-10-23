@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ListOrdered } from 'lucide-react';
 
 import HomeWidget from '../HomeWidget';
@@ -8,14 +8,29 @@ import { SkeletonTable } from '../../ui/skeleton';
 import { TeamAvatar } from '../../ui/team-identity';
 import { cn } from '../../../lib/utils';
 import { getMaskedDivisionName, getMaskedTeamName } from '../../../utils/displayNameUtils';
-import { getUserTeamHighlightClasses } from '../../../utils/userTeamUtils';
+import { StreakChip } from '../../ui/streak-chip';
+import { ScrollTable } from '../ScrollTable';
+import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../tableTones';
 import { teamRosterPath } from '../../teams/teamLink';
 import { QualifierKey } from '../../standings/DrawerStandingsTable';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useDivisions, useStandings } from '../../../../hooks/queries/index.js';
 import { usesSeededPlayoffs } from '../../../../utils/playoffSeeding.js';
+import { streakOf } from '../../../../utils/home/streak.js';
 
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+
+/**
+ * The table's width: the team column (whatever the card has after the 9.25rem
+ * of rank, record and points for, but never under twelve letters of name —
+ * 11ch, since `ch` is a digit and letters run narrower) plus every other
+ * column: 9.25rem shown by default, 15.5rem to the right, and the seed's 3rem
+ * from 2026. Literal strings, so Tailwind generates them.
+ */
+const TABLE_WIDTH = {
+  seeded: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_27.75rem)]',
+  plain: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_24.75rem)]'
+};
 
 /**
  * Each division as a compact table — rank, team, record, points for — with the
@@ -25,13 +40,17 @@ const sameId = (a, b) => a != null && b != null && String(a) === String(b);
  * renders, so the two cannot disagree. "Full standings" opens the drawer
  * itself rather than a second copy of it.
  *
- * Four columns is a plain table at every width — the `ResponsiveDataTable`
- * threshold is about four. Divisions stack in a narrow card and sit side by
- * side in a wide one (a container query, `@xl`).
+ * Every column the drawer has, in a table wider than the card: rank, team,
+ * record and points for fill the card by default, and points against,
+ * differential, win %, streak and seed are a swipe (or a scrollbar) to the
+ * right, with the rank held in place (`ScrollTable`). Divisions stack in
+ * a narrow card and sit side by side in a wide one (a container query, `@xl`).
+ * The whole row opens the team's roster.
  */
 export default function StandingsMini({ ctx }) {
   const { seasonId, season, viewerTeam, onOpenStandings } = ctx;
   const { user, isAdmin, teamOwnerNames } = useViewer();
+  const navigate = useNavigate();
   const standings = useStandings(seasonId);
   const divisionsQuery = useDivisions(seasonId);
 
@@ -45,9 +64,10 @@ export default function StandingsMini({ ctx }) {
     }))
     .filter((division) => division.teams.length > 0);
 
-  const tint = (team) => {
-    if (seeded && team.isBye) return 'bg-warning/15';
-    return team.isPlayoffSpot ? 'bg-success/10' : '';
+  // The drawer's tints, made opaque (see `tableTones.js`).
+  const tone = (team) => {
+    if (seeded && team.isBye) return ROW_TONE.bye;
+    return team.isPlayoffSpot ? ROW_TONE.qualifier : ROW_TONE.base;
   };
 
   return (
@@ -77,63 +97,111 @@ export default function StandingsMini({ ctx }) {
             card can hold two tables, whichever column it sits in. */}
         <div className="grid gap-5 @xl:grid-cols-2 @xl:gap-6">
           {divisions.map((division) => (
-            <table key={division.id} className="w-full table-fixed text-sm">
-              <caption className="pb-1.5 text-left text-sm font-semibold">{division.label}</caption>
-              <colgroup>
-                <col className="w-8" />
-                <col />
-                <col className="w-14" />
-                <col className="w-16" />
-              </colgroup>
-              <thead>
-                <tr className="border-b border-border/60 text-xs text-muted-foreground">
-                  <th scope="col" className="py-1.5 pl-2 text-left font-medium">
-                    <span className="sr-only">Division rank</span>#
-                  </th>
-                  <th scope="col" className="px-1.5 py-1.5 text-left font-medium">Team</th>
-                  <th scope="col" className="px-1 py-1.5 text-center font-medium">W-L</th>
-                  <th scope="col" className="py-1.5 pl-1 pr-2 text-right font-medium">PF</th>
-                </tr>
-              </thead>
-              <tbody>
-                {division.teams.map((team, index) => {
-                  const isViewer = viewerTeam && sameId(team.id, viewerTeam.id);
-                  const name = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
-                  return (
-                    <tr
-                      key={team.id}
-                      className={cn(
-                        'relative h-11 border-b border-border/40 last:border-0',
-                        tint(team),
-                        getUserTeamHighlightClasses(isViewer)
-                      )}
-                    >
-                      <td className="pl-2 font-semibold tabular text-muted-foreground">
-                        {team.divisionRank ?? index + 1}
-                      </td>
-                      <td className="px-1.5">
-                        <Link
-                          to={teamRosterPath(team.id)}
-                          title={name}
-                          className="flex min-w-0 items-center gap-2 outline-none after:absolute after:inset-0 focus-visible:after:rounded-sm focus-visible:after:ring-2 focus-visible:after:ring-ring"
+            <div key={division.id} className="min-w-0">
+              <h3 className="pb-1.5 text-sm font-semibold">{division.label}</h3>
+              <ScrollTable label={`${division.label} standings table`}>
+                <table
+                  className={cn(
+                    'table-fixed border-separate border-spacing-0 text-sm',
+                    seeded ? TABLE_WIDTH.seeded : TABLE_WIDTH.plain
+                  )}
+                >
+                  <colgroup>
+                    <col className="w-9" />
+                    {/* Whatever the card has left after rank, record and
+                        points for — so the default view is those four
+                        columns exactly — and never so little that a name
+                        loses its first twelve letters. */}
+                    <col className="w-[max(11ch_+_2.75rem,100cqw_-_9.25rem)]" />
+                    <col className="w-[3.25rem]" />
+                    <col className="w-[3.75rem]" />
+                    <col className="w-16" />
+                    <col className="w-[4.25rem]" />
+                    <col className="w-[3.75rem]" />
+                    <col className="w-14" />
+                    {seeded && <col className="w-12" />}
+                  </colgroup>
+                  <thead className="text-xs text-muted-foreground">
+                    <tr>
+                      <th scope="col" className={cn(STICKY_HEAD, 'left-0 z-[3] border-b border-r border-border/60 py-1.5 pl-2 text-left font-medium')}>
+                        <span className="sr-only">Division rank</span>#
+                      </th>
+                      <th scope="col" className={cn(STICKY_HEAD, 'border-b border-border/60 px-1.5 py-1.5 text-left font-medium')}>
+                        Team
+                      </th>
+                      {['W-L', 'PF', 'PA', 'Diff', 'Win%', 'Streak', ...(seeded ? ['Seed'] : [])].map((label) => (
+                        <th
+                          key={label}
+                          scope="col"
+                          className={cn(
+                            STICKY_HEAD,
+                            'border-b border-border/60 px-1.5 py-1.5 font-medium',
+                            label === 'W-L' || label === 'Streak' || label === 'Seed' ? 'text-center' : 'text-right'
+                          )}
                         >
-                          <TeamAvatar team={team} size="xs" />
-                          <span className="truncate font-medium">{name}</span>
-                          {team.isBye && <span className="sr-only">First-round bye</span>}
-                          {team.isWildcard && <span className="sr-only">Wild card</span>}
-                        </Link>
-                      </td>
-                      <td className="px-1 text-center text-[13px]">
-                        <RecordText wins={team.wins} losses={team.losses} ties={team.ties} />
-                      </td>
-                      <td className="pl-1 pr-2 text-right text-[13px] text-muted-foreground">
-                        <NumberText value={team.pointsFor} />
-                      </td>
+                          {label}
+                        </th>
+                      ))}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {division.teams.map((team, index) => {
+                      const isViewer = viewerTeam && sameId(team.id, viewerTeam.id);
+                      const name = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
+                      const to = teamRosterPath(team.id);
+                      const cell = 'h-11 border-b border-border/40 group-last:border-0';
+                      return (
+                        <tr
+                          key={team.id}
+                          onClick={() => navigate(to)}
+                          className={cn('group cursor-pointer', tone(team), isViewer && ROW_TONE.viewer)}
+                        >
+                          <td className={cn(cell, STICKY_CELL, 'left-0 pl-2 font-semibold tabular text-muted-foreground', isViewer && VIEWER_RAIL)}>
+                            {team.divisionRank ?? index + 1}
+                          </td>
+                          <td className={cn(cell, 'px-1.5')}>
+                            <Link
+                              to={to}
+                              title={name}
+                              onClick={(event) => event.stopPropagation()}
+                              className="flex min-w-0 items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <TeamAvatar team={team} size="xs" />
+                              <span className="truncate font-medium">{name}</span>
+                              {team.isBye && <span className="sr-only">First-round bye</span>}
+                              {team.isWildcard && <span className="sr-only">Wild card</span>}
+                            </Link>
+                          </td>
+                          <td className={cn(cell, 'px-1.5 text-center text-[13px]')}>
+                            <RecordText wins={team.wins} losses={team.losses} ties={team.ties} />
+                          </td>
+                          <td className={cn(cell, 'px-1.5 text-right text-[13px]')}>
+                            <NumberText value={team.pointsFor} />
+                          </td>
+                          <td className={cn(cell, 'px-1.5 text-right text-[13px] text-muted-foreground')}>
+                            <NumberText value={team.pointsAgainst} />
+                          </td>
+                          <td className={cn(cell, 'px-1.5 text-right text-[13px]')}>
+                            <NumberText value={team.pointDifferential} variant="delta" emphasis="signed" />
+                          </td>
+                          <td className={cn(cell, 'px-1.5 text-right text-[13px] text-muted-foreground')}>
+                            <NumberText value={team.winPercentage == null ? null : team.winPercentage * 100} variant="percent" />
+                          </td>
+                          <td className={cn(cell, 'px-1.5 text-center')}>
+                            <StreakChip streak={streakOf(team, season?.schedule ?? [])} />
+                          </td>
+                          {seeded && (
+                            <td className={cn(cell, 'px-1.5 text-center text-[13px] tabular text-muted-foreground')}>
+                              {team.playoffSeed ?? '—'}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </ScrollTable>
+            </div>
           ))}
         </div>
       </div>

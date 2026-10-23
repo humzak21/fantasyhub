@@ -36,6 +36,8 @@ vi.mock('../../../../hooks/queries/index.js', () => ({
   useParlayWeekPicks: () => q.parlayPicks,
   useApprovedMemberCount: () => q.count,
   useParlayLive: () => ({ data: undefined }),
+  useMyParlayPick: () => q.myParlay,
+  useNflOpponentMap: () => ({ data: {} }),
   usePickEmMutations: () => ({ submitPicks: { mutateAsync } }),
   useWeeklyPickEmScores: () => ({ data: [], isPending: false })
 }));
@@ -73,37 +75,59 @@ beforeEach(() => {
     userPicks: ok([]),
     allPicks: ok(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((userId) => ({ userId, gameId: 'g1' }))),
     parlayPicks: ok(Array.from({ length: 7 }, (_, i) => ({ id: `p${i}`, userId: `m${i}` }))),
-    count: { data: 14 }
+    count: { data: 14 },
+    myParlay: { data: null, isLoading: false }
   };
 });
 
 describe('PickemsParlayWidget', () => {
-  it('reads "of 14" once the member count is in', () => {
+  it('pairs each tile with the league\'s turnout, "of 14" once the count is in', () => {
     render();
-    expect(screen.getByText('9 of 14 picked · 7 of 14 parlays in')).toBeInTheDocument();
+    expect(screen.getByText('9 of 14 picked')).toBeInTheDocument();
+    expect(screen.getByText('7 of 14 parlays in')).toBeInTheDocument();
     expect(screen.getByText(/closes in 1d 4h/i)).toBeInTheDocument();
   });
 
-  it('reads "9 picked" before it arrives, never "of —"', () => {
+  it('reads "9 picked" before the count arrives, never "of —"', () => {
     q.count = { data: undefined };
     render();
-    expect(screen.getByText('9 picked · 7 parlays in')).toBeInTheDocument();
+    expect(screen.getByText('9 picked')).toBeInTheDocument();
+    expect(screen.getByText('7 parlays in')).toBeInTheDocument();
+  });
+
+  it('says what is left to do: picks not in, and no scorer yet', () => {
+    render();
+    const picks = screen.getByRole('button', { name: /^pick'ems/i });
+    expect(within(picks).getByText('Not submitted yet')).toBeInTheDocument();
+    expect(within(picks).getByText('0')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /td parlay/i })).toHaveTextContent(/pick a scorer/i);
+  });
+
+  it('opens one panel at a time from the tiles', async () => {
+    render();
+    await userEvent.click(screen.getByRole('button', { name: /td parlay/i }));
+    expect(screen.getByText('parlay pick')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /^pick'ems/i }));
+    expect(screen.queryByText('parlay pick')).not.toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Pick the winner of game 1' })).toBeInTheDocument();
   });
 
   it('opens on a draft made elsewhere', async () => {
     writeDraft(browserStorage(), 'u1', 'w7', { picks: { g1: 't2' } });
     render();
 
-    await userEvent.click(screen.getByRole('button', { name: /your picks/i }));
+    const tile = screen.getByRole('button', { name: /^pick'ems/i });
+    expect(within(tile).getByText(/draft — not submitted/i)).toBeInTheDocument();
+    await userEvent.click(tile);
 
     const game1 = screen.getByRole('radiogroup', { name: 'Pick the winner of game 1' });
     expect(within(game1).getByRole('radio', { name: /team t2/i })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByText('Draft')).toBeInTheDocument();
   });
 
   it('submits through the tab’s mutation and clears the draft', async () => {
     render();
-    await userEvent.click(screen.getByRole('button', { name: /your picks/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^pick'ems/i }));
 
     await userEvent.click(screen.getByRole('radio', { name: /team t1/i }));
     await userEvent.click(screen.getByRole('radio', { name: /team t4/i }));
@@ -127,14 +151,15 @@ describe('PickemsParlayWidget', () => {
     expect(screen.getByText(/no pick'ems this week/i)).toBeInTheDocument();
   });
 
-  it('hides the counters and the picks before the window opens', () => {
+  it('says when picks open, and offers nothing to do before then', () => {
     q.week = ok({
       ...openWeek(),
       submissionOpensAt: new Date(Date.now() + 2 * HOUR).toISOString()
     });
     render();
     expect(screen.queryByText(/picked/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /your picks/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/picks open/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByText(/^pick'ems$/i)).toBeInTheDocument();
+    expect(screen.getByText(/opens with pick'ems/i)).toBeInTheDocument();
   });
 });
