@@ -97,14 +97,15 @@ jobs:
             --skip-snapshot \
             ${{ inputs.trigger != 'cron' && '--manual' || '' }}
 
-      # The league chat's fact cards (JITS-42), rebuilt from what the step above
-      # wrote. Non-fatal: yesterday's cards are better than a failed sync, and
-      # the next run rebuilds them. Runs even if the sync step failed, since
-      # the cards read whatever is stored.
-      - name: Rebuild the league chat's fact cards
+      # The league chat's snapshot (JITS-42): the league's history as one
+      # SQLite file the chat queries, rebuilt from what the step above wrote.
+      # Non-fatal: yesterday's snapshot is better than a failed sync, and the
+      # next run rebuilds it. Runs even if the sync step failed, since the
+      # snapshot reads whatever is stored.
+      - name: Rebuild the league chat's snapshot
         if: ${{ !cancelled() }}
         continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scripts/build-league-facts.js
+        run: node scripts/build-league-chat-db.js

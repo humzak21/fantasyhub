@@ -70,6 +70,12 @@ clock, GitHub's runners".
   week so the season is one formula. Run for 2025 with `--replace` on
   2026-09-27; see "The franchise profile opens week by week".
 
+- `npm run build-league-chat-db` - Rebuild the league chat's snapshot (one
+  SQLite file of the league's history) and upload it to the private
+  `league-chat` bucket. `--dry-run` to print row counts, `--out=FILE` to keep
+  a local copy. The daily refresh and weekly sync run it; see "The league chat
+  queries a snapshot".
+
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
 - `npm run check-bundle` - Assert no circular static imports between eager chunks
@@ -81,7 +87,7 @@ clock, GitHub's runners".
 - **Data Layer**: `services/db/` - one module per domain (`seasons`, `teams`,
   `divisions`, `rosters`, `players`, `playerWeekStats`, `games`, `rankings`,
   `schedule`, `nflSchedule`, `pickems`, `parlay`, `awards`, `playoffs`,
-  `transactions`, `takes`, `history`, `users`, `espnMapping`).
+  `transactions`, `takes`, `history`, `users`, `espnMapping`, `leagueChat`).
   **Write new data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
@@ -2396,57 +2402,71 @@ migration added it to every device already subscribed.
   warning, and the facts still go out.
 - **Apply the migration before the bundle**: Alerts reads `matchup_taunts`.
 
-### The league chat answers from fact cards, and code checks every number
+### The league chat queries a snapshot, and code checks every number
 
-**Ask og jits** (JITS-42; `src/components/ask/AskLeagueSheet.jsx`, opened from
-Alerts and from a taunt's "Ask og jits about this rivalry") answers a member's
-question about the league. A small open model only *words* the answer. It
-never supplies a fact, because small models are confidently wrong about
-records and totals, and a wrong "7-3" reads exactly like a right "8-2".
+**Ask og jits** (JITS-42) answers a member's question about the league, any
+question: there are no prepared answers. A model writes SQL against a snapshot
+of the league's history, reads the results, and answers; code then refuses any
+number or member in the answer that the queries did not return. Small models
+are confidently wrong about records and totals, and a wrong "7-3" reads exactly
+like a right "8-2", so a sentence that cannot be checked is never shown.
 
-- **Fact cards are the only source** (`league_facts`,
-  `20261023120000_league_chat.sql`). `services/leagueFacts.js` (pure) writes
-  one short sentence per fact from the same code the History tab draws with:
-  `indexLeague` for every game, careers and seasons, and `summarizeMatchup`
-  for head-to-heads. Each card is tagged with the owners (`ownerKey`),
-  seasons, weeks and phase it is about. `scripts/build-league-facts.js`
-  rebuilds them as a non-fatal step of the daily refresh and the weekly sync.
-  Phase 1 covers games, head-to-head, seasons, careers, champions and this
-  week; a new area is a new builder there.
-- **A rebuild never shows half a set.** It inserts a new `generation`, points
-  `league_facts_meta` at it, then deletes the old one. The meta row also holds
-  the names a question can use (`lexicon`) and this week's pairings.
-- **Code picks the cards, not the model** (`services/leagueQuestion.js`).
-  `readQuestion` finds people (full, first or last name, "me", "my opponent"),
-  years, weeks and the phase. `selectCards` keeps cards about those and ranks
-  the card type the wording asks for (`INTENTS`: record → `h2h_series`,
-  "last time" → `h2h_last_meeting`, titles → `postseason`/`champions`, …). A
-  question that names nobody must share a word with a card, or it gets "I don't
-  have anything on that" without a model call.
-- **Nothing reaches the member unchecked.** `verifyAnswer` refuses any
-  number, record (in either order) or person the selected cards did not
-  supply. The only arithmetic allowed is a sum or difference of two numbers
-  the answer itself states ("3-1, so 2 more wins"). A failed draft is retried
-  once with the problem named; a second failure shows the cards themselves
-  (`kind: 'facts'`).
+- **The snapshot is a SQLite file, not the database**
+  (`services/leagueSnapshot.js`, pure). `buildSnapshotTables` reshapes the
+  league's rows into tables a question needs no tricky joins for: `games`
+  twice, once from each side; everybody by owner name (a franchise by its
+  latest owner); `teams`, `lineups`, `team_weeks`, `transactions` (one row per
+  player per side), `transaction_totals`, `power_rankings`, `awards`, `seasons`,
+  `members`, `about`. `SNAPSHOT_TABLES` is the one statement of the schema: the
+  DDL and the prompt's description are both written from it, so a column
+  cannot exist in one and not the other. `scripts/build-league-chat-db.js`
+  builds it with sql.js and uploads it, with the sql.js wasm that wrote it, to
+  the private `league-chat` bucket, as a non-fatal step of the daily refresh
+  and the weekly sync. About 3 MB.
+- **Model-written SQL never reaches Postgres.** The edge function loads the
+  file into memory with sql.js and runs queries there, so a query can neither
+  change anything nor read anything the site does not already show members.
+  `runQuery` also refuses anything but one SELECT (a confused model, not a
+  security boundary) and caps the rows returned.
+- **The loop is `services/leagueAgent.js`, pure and tested with scripted
+  replies against a real snapshot.** The model replies with JSON, `{"sql"}` or
+  `{"answer"}`, up to `MAX_QUERIES` (4) queries, and sees each result
+  (`describeResult`). Follow-ups work: the browser sends the last
+  `HISTORY_TURNS` turns.
+- **`verifyAnswer` is the truth rule.** Every number in the answer (digits or
+  words) must be a value in a result, a number inside one, a row count, or in
+  the question, allowing rounding; a sum or difference of two numbers the
+  answer itself states is allowed. The season and week from the prompt count
+  only when said as a week or a year, never as a bare figure where a result
+  belongs. Every member named must be in a result, be the asker, their
+  opponent this week, or be named in the question. A failed draft goes back
+  once with the problems named; a second failure shows the member the query
+  results instead (`kind: 'data'`). An answer with no query behind it fails.
 - **The model is configuration, not code.** `openAiCompatibleModel` talks to
   any OpenAI-compatible endpoint; `league-chat` reads `LLM_BASE_URL`,
-  `LLM_API_KEY` and `LLM_MODEL` from its secrets. With them unset it answers
-  with the matching cards and costs nothing. Choosing a provider is a cost
-  decision, so ask before setting one.
+  `LLM_API_KEY` and `LLM_MODEL` from its secrets. Unset, the chat replies that
+  it is not switched on (`kind: 'off'`): an open question has no answer
+  without a model. Choosing a provider is a cost decision, so ask before
+  setting one.
 - **`supabase/functions/league-chat`** checks the session with
   `auth.getUser` (hence `verify_jwt = false`), lets in approved members and
   admins only (the `is_approved_member()` rule), enforces `CHAT_DAILY_LIMIT`
-  (30) per member per UTC day by counting `chat_log`, and logs every question
-  with the cards used, the attempts and why a draft failed. It reads with
-  `SB_SECRET_KEY`. It is deployed by hand (`supabase functions deploy
-  league-chat`).
-- **Members never read the tables.** `league_facts`, `league_facts_meta` and
-  `chat_log` have RLS on, no policies and no `anon`/`authenticated` grants.
-  `supabase/tests/database/league_chat.test.sql` holds that.
-- `services/__tests__/leagueQuestion.test.js` is the phase 1 question set: real
-  question shapes with recorded model replies, plus drafts that invent a
-  record or a score and must be retried or replaced by the cards.
+  (30) per member per UTC day by counting `chat_log`, caches the snapshot for
+  ten minutes per warm instance, and logs every question with its queries,
+  drafts and why a draft failed. It reads with `SB_SECRET_KEY` and is deployed
+  by hand (`supabase functions deploy league-chat`).
+- **Members never read `chat_log`** (RLS on, no policies, no `anon` /
+  `authenticated` grants; `supabase/tests/database/league_chat.test.sql`). The
+  bucket has no storage policies, so only the service role reaches it.
+- **The UI is one tree** (`src/components/ask/`). `LeagueChatProvider` in the
+  shell holds the conversation, so it survives changing tabs, and is enabled
+  for approved members only. `LeagueChat` renders the bottom-left launcher at
+  the app root (above the phone tab bar below `lg`); on a phone the chat is a
+  bottom sheet, from `md` a panel down the left side, and from `lg`
+  `LeagueChatOffset` moves the page over beside it. Each answer has "Show the
+  data" (`QueryData`: the rows and the query). `useLeagueChat().open(question)`
+  opens it from anywhere, as the taunt sheet's "Ask og jits about this
+  rivalry" does.
 
 ### Password reset is a login, and the page makes it set a password
 

@@ -3,7 +3,8 @@
  * gone once tapped. What is pinned: unread alerts say so, tapping one marks
  * it read and goes where the push would have, "Mark all read" clears the
  * rest, and an alert can be deleted. A matchup fact that can still be used
- * offers a Taunt, opened from the alert or straight from the push's link.
+ * offers a Taunt, opened from the alert or straight from the push's link, and
+ * the taunt can hand its rivalry to the league chat.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -15,12 +16,12 @@ const navigate = vi.fn();
 const markRead = { mutate: vi.fn(), isPending: false };
 const remove = { mutate: vi.fn(), isPending: false };
 const sendTaunt = { mutateAsync: vi.fn(), isPending: false };
-const askLeague = { mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, data: undefined };
 let inbox;
 let taunts;
-let viewer;
+let chat;
 
 vi.mock('react-router-dom', async (actual) => ({ ...(await actual()), useNavigate: () => navigate }));
+vi.mock('../../ask/LeagueChatContext.jsx', () => ({ useLeagueChat: () => chat }));
 vi.mock('../../../../hooks/queries/index.js', async () => {
   const { countUnread } = await import('../../../../hooks/queries/useNotificationInbox.js');
   return {
@@ -28,11 +29,9 @@ vi.mock('../../../../hooks/queries/index.js', async () => {
     useNotificationInbox: () => inbox,
     useInboxMutations: () => ({ markRead, remove }),
     useMyTaunts: () => taunts,
-    useSendTaunt: () => sendTaunt,
-    useAskLeague: () => askLeague
+    useSendTaunt: () => sendTaunt
   };
 });
-vi.mock('../../../contexts/ViewerContext.jsx', () => ({ useViewer: () => viewer }));
 
 const { default: AlertsPage } = await import('../AlertsPage.jsx');
 
@@ -53,7 +52,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   inbox = { data: [], isLoading: false, error: null };
   taunts = { data: [], isLoading: false };
-  viewer = { isApproved: true };
+  chat = { available: false, open: vi.fn() };
 });
 
 const offer = (over = {}) => ({
@@ -164,6 +163,23 @@ describe('AlertsPage', () => {
     expect(await screen.findByText('Taunt sent. Arya will get it in a minute.')).toBeInTheDocument();
   });
 
+  it('offers no chat link without the league chat', async () => {
+    inbox.data = [factAlert];
+    taunts.data = [offer()];
+    render(<AlertsPage />, { path: '/alerts?taunt=t1' });
+    await screen.findByRole('dialog');
+    expect(screen.queryByRole('button', { name: 'Ask og jits about this rivalry' })).toBeNull();
+  });
+
+  it('asks the league chat about the rivalry from the taunt', async () => {
+    chat = { available: true, open: vi.fn() };
+    inbox.data = [factAlert];
+    taunts.data = [offer()];
+    render(<AlertsPage />, { path: '/alerts?taunt=t1' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask og jits about this rivalry' }));
+    expect(chat.open).toHaveBeenCalledWith("What's my record against Arya?");
+  });
+
   it("sends at once from the notification's Taunt button", async () => {
     inbox.data = [factAlert];
     taunts.data = [offer()];
@@ -171,25 +187,5 @@ describe('AlertsPage', () => {
     render(<AlertsPage />, { path: '/alerts?taunt=t1&send=1' });
     await waitFor(() => expect(sendTaunt.mutateAsync).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Taunt sent. Arya will get it in a minute.')).toBeInTheDocument();
-  });
-
-  it('opens Ask og jits from the header, for approved members only', async () => {
-    render(<AlertsPage />);
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
-    expect(await screen.findByRole('dialog')).toHaveTextContent('Every number comes from the league');
-  });
-
-  it('hides Ask og jits from an account awaiting approval', () => {
-    viewer = { isApproved: false };
-    render(<AlertsPage />);
-    expect(screen.queryByRole('button', { name: 'Ask og jits' })).toBeNull();
-  });
-
-  it('asks about the rivalry from a taunt, with the question filled in', async () => {
-    inbox.data = [factAlert];
-    taunts.data = [offer()];
-    render(<AlertsPage />, { path: '/alerts?taunt=t1' });
-    await userEvent.click(await screen.findByRole('button', { name: 'Ask og jits about this rivalry' }));
-    expect(await screen.findByRole('textbox', { name: 'Your question' })).toHaveValue("What's my record against Arya?");
   });
 });

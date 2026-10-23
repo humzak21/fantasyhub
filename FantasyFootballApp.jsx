@@ -36,6 +36,8 @@ import InlineWeekNavigator from './src/components/week-controls/InlineWeekNaviga
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
 import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
+import LeagueChat, { LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
+import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
 import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
@@ -368,7 +370,8 @@ const FantasyFootballApp = () => {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-background">
+      <LeagueChatProvider enabled={isApproved}>
+      <LeagueChatOffset className="min-h-screen bg-background">
         {/* Header - Responsive Design */}
         <header className="sticky top-0 z-50 w-full border-b bg-card/80 backdrop-blur-sm">
           <PageContainer>
@@ -691,6 +694,10 @@ const FantasyFootballApp = () => {
             bar rendered directly beneath it at the top of the screen. */}
         <MobileTabBar tabs={navTabs} activeTab={activeTab} shouldShowTab={shouldShowTab} />
 
+        {/* Ask og jits: the bottom-left launcher and the chat it opens, for
+            approved members. At the root for the same reason as the tab bar. */}
+        <LeagueChat />
+
         {/* Standings Drawer */}
         {activeSeason && (
           <StandingsDrawer
@@ -728,7 +735,8 @@ const FantasyFootballApp = () => {
           surface already owns its loading state (RouteLoading, per-page empty
           states), so nothing here needs a modal on top of them.
         */}
-      </div>
+      </LeagueChatOffset>
+      </LeagueChatProvider>
     </ErrorBoundary>
   );
 };

@@ -1,27 +1,32 @@
-// The league chat (JITS-42): an approved member asks about the league, and the
-// answer is worded from fact cards the site's own code wrote.
+// The league chat (JITS-42): an approved member asks anything about the
+// league, and a model answers by querying a snapshot of the league's history.
 //
-// This file is the I/O around services/leagueQuestion.js, where every decision
-// lives and is unit-tested in Node: which cards a question is about, the one
-// prompt, and the check that refuses any number, record or name the cards did
-// not supply. Here: who is asking, the daily cap, reading the cards, calling
-// the model, logging.
+// This file is the I/O around services/leagueAgent.js, where the decisions
+// live and are unit-tested in Node: the prompt, the query loop, and the check
+// that refuses any number or member the queries did not return. Here: who is
+// asking, the daily cap, loading the snapshot, calling the model, logging.
 //
-// Without a model configured it still answers — with the matching cards
-// themselves — so it costs nothing until a provider is chosen.
+// The snapshot is a SQLite file in the private `league-chat` bucket, rebuilt by
+// scripts/build-league-chat-db.js after every daily refresh and weekly sync. It
+// is loaded into memory with sql.js — the same version that wrote it, whose
+// wasm sits beside it — and cached for a few minutes. Model-written SQL runs
+// there and nowhere else: it cannot reach the league's database.
 //
 // Deploy (one-time, from a machine linked to the project):
 //   supabase secrets set SB_SECRET_KEY=<an sb_secret_… key>
-//   # optional — any OpenAI-compatible endpoint; unset means cards only
 //   supabase secrets set LLM_BASE_URL=… LLM_API_KEY=… LLM_MODEL=…
 //   supabase functions deploy league-chat
+// Without the LLM_* secrets the chat says it is not switched on: there is no
+// way to answer an open question without a model.
 // `verify_jwt = false` in config.toml: the gateway's legacy JWT check does not
 // apply to the new API keys, so the caller's session is checked here instead,
 // with auth.getUser.
 
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
+import initSqlJs from 'npm:sql.js@1.14.2';
 
-import { answerQuestion, openAiCompatibleModel, readQuestion } from '../../../services/leagueQuestion.js';
+import { answerQuestion, openAiCompatibleModel } from '../../../services/leagueAgent.js';
+import { runQuery } from '../../../services/leagueSnapshot.js';
 import { ownerKey } from '../../../utils/ownerAliases.js';
 
 const CORS = {
@@ -36,7 +41,8 @@ const json = (body: unknown, status = 200) =>
 const serviceKey = Deno.env.get('SB_SECRET_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const DAILY_LIMIT = Number(Deno.env.get('CHAT_DAILY_LIMIT') ?? 30);
 const MAX_QUESTION = 300;
-const TITLE_WORDS = /\b(champion|champions|championship|championships|title|titles|rings?)\b/i;
+const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
+const BUCKET = 'league-chat';
 
 const llm = Deno.env.get('LLM_BASE_URL') && Deno.env.get('LLM_API_KEY') && Deno.env.get('LLM_MODEL')
   ? {
@@ -48,6 +54,42 @@ const llm = Deno.env.get('LLM_BASE_URL') && Deno.env.get('LLM_API_KEY') && Deno.
     })
   }
   : null;
+
+// One open snapshot per warm instance, reloaded after SNAPSHOT_TTL_MS.
+let SQL: any = null;
+let cached: { db: any; loadedAt: number } | null = null;
+
+async function openSnapshot(supabase: any) {
+  if (cached && Date.now() - cached.loadedAt < SNAPSHOT_TTL_MS) return cached.db;
+  const bucket = supabase.storage.from(BUCKET);
+  if (!SQL) {
+    const { data: wasm, error } = await bucket.download('sql-wasm.wasm');
+    if (error) throw new Error(`snapshot reader missing: ${error.message}`);
+    SQL = await initSqlJs({ wasmBinary: new Uint8Array(await wasm.arrayBuffer()) });
+  }
+  const { data: file, error } = await bucket.download('league.sqlite');
+  if (error) throw new Error(`snapshot missing: ${error.message}`);
+  const db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
+  cached?.db.close();
+  cached = { db, loadedAt: Date.now() };
+  return db;
+}
+
+const one = (db: any, sql: string, params: unknown[] = []) => {
+  const stmt = db.prepare(sql);
+  try {
+    stmt.bind(params);
+    return stmt.step() ? stmt.get() : null;
+  } finally {
+    stmt.free();
+  }
+};
+
+const cleanHistory = (raw: unknown) =>
+  (Array.isArray(raw) ? raw : [])
+    .filter((m: any) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
+    .slice(-6)
+    .map((m: any) => ({ role: m.role, content: m.content.slice(0, 1200) }));
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -75,12 +117,23 @@ Deno.serve(async (req) => {
   }
 
   let question = '';
+  let history: Array<{ role: string; content: string }> = [];
   try {
-    question = String((await req.json())?.question ?? '').trim().slice(0, MAX_QUESTION);
+    const body = await req.json();
+    question = String(body?.question ?? '').trim().slice(0, MAX_QUESTION);
+    history = cleanHistory(body?.history);
   } catch {
     return json({ error: 'Expected a JSON body with a question.' }, 400);
   }
   if (!question) return json({ error: 'Ask a question.' }, 400);
+
+  const log = (row: Record<string, unknown>) =>
+    supabase.from('chat_log').insert({ user_id: user.id, question, model: llm?.name ?? null, ...row });
+
+  if (!llm) {
+    await log({ kind: 'off', answer: '' });
+    return json({ kind: 'off', text: "The league chat isn't switched on yet.", queries: [], asOf: null });
+  }
 
   // The daily cap, counted from the log.
   const since = new Date();
@@ -96,80 +149,46 @@ Deno.serve(async (req) => {
 
   const started = Date.now();
   try {
-    const { data: meta, error: metaError } = await supabase
-      .from('league_facts_meta')
-      .select('generation, lexicon, this_week, current_year, played_week')
-      .maybeSingle();
-    if (metaError) throw metaError;
-    if (!meta) return json({ kind: 'none', text: 'The league facts have not been built yet.', sources: [], asOf: null });
+    const db = await openSnapshot(supabase);
+    const about: Record<string, string | null> = {};
+    for (const row of db.exec('select key, value from about')[0]?.values ?? []) about[row[0]] = row[1];
+    const members: string[] = (db.exec('select owner from members order by owner')[0]?.values ?? []).map((r: any[]) => r[0]);
 
-    const lexicon = meta.lexicon ?? [];
+    // The asker is their display name, matched to an owner the way the rest of
+    // the league does it (ownerKey); their opponent is this week's game.
     const displayName = user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? '';
-    const viewerKey = lexicon.some((p: any) => p.key === ownerKey(displayName)) ? ownerKey(displayName) : null;
-    const pairing = (meta.this_week ?? []).find((p: any) => p.a === viewerKey || p.b === viewerKey);
-    const opponentKey = pairing ? (pairing.a === viewerKey ? pairing.b : pairing.a) : null;
-    const viewerName = viewerKey ? (lexicon.find((p: any) => p.key === viewerKey)?.name ?? null) : null;
+    const viewerName = members.find((m) => ownerKey(m) === ownerKey(displayName)) ?? null;
+    const opponentName = viewerName && about.current_season && about.current_week
+      ? (one(db, 'select opponent from games where season = ? and week = ? and owner = ?', [Number(about.current_season), Number(about.current_week), viewerName])?.[0] ?? null)
+      : null;
 
-    // Narrow in the database by who and when; services/leagueQuestion.js ranks.
-    const q = readQuestion(question, { lexicon, viewerKey, opponentKey, currentYear: meta.current_year });
-    const base = () => supabase
-      .from('league_facts')
-      .select('id, topic, owners, seasons, weeks, phase, text, link')
-      .eq('generation', meta.generation)
-      .limit(600);
-    const queries = q.owners.length
-      ? [base().overlaps('owners', q.owners)]
-      : q.seasons.length
-        ? [base().overlaps('seasons', q.seasons)]
-        : [base().in('topic', ['champions', 'career', 'postseason'])];
-    // The champions list names only champions, so it is asked for by topic too.
-    if (q.owners.length && TITLE_WORDS.test(question)) queries.push(base().eq('topic', 'champions'));
-    const fetched = await Promise.all(queries);
-    const failed = fetched.find((r) => r.error);
-    if (failed) throw failed.error;
-    const byId = new Map();
-    for (const r of fetched) for (const card of r.data ?? []) byId.set(card.id, card);
-    const cards = [...byId.values()];
-
-    const asOf = meta.current_year ? `${meta.current_year} week ${meta.played_week}` : null;
     const result = await answerQuestion({
       question,
-      cards: cards ?? [],
-      lexicon,
-      viewerKey,
-      viewerName,
-      opponentKey,
-      currentYear: meta.current_year,
-      asOf,
-      model: llm?.call ?? null
+      history,
+      model: llm.call,
+      runSql: (sql: string) => runQuery(db, sql),
+      context: { viewerName, opponentName, about, members }
     });
 
-    await supabase.from('chat_log').insert({
-      user_id: user.id,
-      question,
+    await log({
       kind: result.kind,
       answer: result.text,
-      card_ids: result.sources.map((c: any) => c.id).filter(Boolean),
+      queries: result.queries.map((q: any) => ({ sql: q.sql, rowCount: q.rowCount, error: q.error })),
       attempts: result.attempts,
+      model_calls: result.modelCalls,
       problems: result.problems,
-      model: llm?.name ?? null,
       latency_ms: Date.now() - started
     });
 
-    return json({
-      kind: result.kind,
-      text: result.text,
-      sources: result.sources.map((c: any) => ({ text: c.text, link: c.link ?? null })),
-      asOf
-    });
+    const asOf = about.current_season
+      ? about.last_scored_week ? `${about.current_season} week ${about.last_scored_week}` : `${about.current_season}, before week 1`
+      : null;
+    return json({ kind: result.kind, text: result.text, queries: result.queries, asOf });
   } catch (e) {
     console.error('league-chat failed:', e);
-    await supabase.from('chat_log').insert({
-      user_id: user.id,
-      question,
+    await log({
       kind: 'error',
       problems: [String((e as Error)?.message ?? e).slice(0, 300)],
-      model: llm?.name ?? null,
       latency_ms: Date.now() - started
     });
     return json({ error: 'Something went wrong answering that. Try again in a minute.' }, 500);

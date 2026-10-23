@@ -26,7 +26,7 @@
     "db:types": "supabase gen types typescript --project-id kvcnijyyfylxfarrlxkv > types/supabase.ts",
     "sync-schedule": "node scripts/sync-schedule.js",
     "sync-nfl-schedule": "node scripts/sync-nfl-schedule.js",
-    "build-league-facts": "node scripts/build-league-facts.js",
+    "build-league-chat-db": "node scripts/build-league-chat-db.js",
     "sync-nfl-ratings": "node scripts/sync-nfl-ratings.js",
     "sync-week": "node scripts/sync-week.js",
     "backfill-transactions": "node scripts/backfill-transactions.js",
@@ -67,6 +67,7 @@
     "recharts": "^2.15.4",
     "serve": "^14.2.6",
     "sonner": "^2.0.7",
+    "sql.js": "1.14.2",
     "tailwind-merge": "^2.2.0",
     "vaul": "^1.1.2",
     "web-push": "^3.6.7"
