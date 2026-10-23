@@ -17,7 +17,13 @@
 # runs `npm ci` before copying the source, precisely so the install layer
 # caches. In that layer `scripts/` does not exist yet, and `sh: not found`
 # exits 127 before anything in this file can decide otherwise.
-set -uo pipefail
+#
+# That same `prepare` entry runs this file with `sh`, not with the shebang
+# above, so everything here has to be POSIX. `set -o pipefail` was not: dash
+# (Ubuntu's `sh`) rejects it with "Illegal option -o pipefail" and aborts
+# before the first `git config`, and the hook's `|| true` hid that on every
+# install from the day the driver landed. There is no pipeline here to guard.
+set -u
 
 # Not a git checkout — a tarball, a CI cache restore, an install as a
 # dependency. Nothing to configure.
