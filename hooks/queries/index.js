@@ -127,6 +127,7 @@ export {
   useRecordBook,
   useRecordTrends,
   useStatComparison,
+  useHomeRecordBooks,
   useFranchiseProfile,
   useTransactionLeaderboard,
   useFranchiseTransactions,

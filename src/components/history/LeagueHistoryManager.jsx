@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { History, Users, Target, Award, Medal } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Card } from '../ui/card';
@@ -32,6 +33,10 @@ import MatchupDetail from './headtohead/MatchupDetail';
 // Import records and awards components
 import RecordBook from './records/RecordBook';
 import AwardsGallery from './awards/AwardsGallery';
+import { HISTORY_TAB_PARAM, RECORD_PARAM } from './records/recordLink';
+
+/** The sub-tabs a `?tab=` link may open. */
+const SUB_TABS = ['overview', 'franchises', 'headtohead', 'records', 'awards'];
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 const LeagueHistoryManager = ({
@@ -66,8 +71,18 @@ const LeagueHistoryManager = ({
     championshipsQuery.refetch();
   };
 
-  // Sub-tab state
-  const [activeSubTab, setActiveSubTab] = useState('overview');
+  // Sub-tab state. `?tab=records&record=<id>` — the home page's record cards —
+  // opens a sub-tab directly and names a record for the book to open; see
+  // `records/recordLink.js`. An unknown tab is ignored rather than trusted.
+  const [searchParams] = useSearchParams();
+  const linkedTab = SUB_TABS.includes(searchParams.get(HISTORY_TAB_PARAM))
+    ? searchParams.get(HISTORY_TAB_PARAM)
+    : null;
+  const linkedRecordId = searchParams.get(RECORD_PARAM);
+  const [activeSubTab, setActiveSubTab] = useState(linkedTab ?? 'overview');
+  useEffect(() => {
+    if (linkedTab) setActiveSubTab(linkedTab);
+  }, [linkedTab, linkedRecordId]);
 
   // Selection state
   const [selectedFranchiseId, setSelectedFranchiseId] = useState(null);
@@ -315,6 +330,7 @@ const LeagueHistoryManager = ({
         {/* Records Tab */}
         <TabsContent value="records" className="space-y-6">
           <RecordBook
+            focusRecordId={linkedRecordId}
             franchises={franchises}
             user={user}
             isAdmin={isAdmin}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeftRight, Dices, Flame, ListChecks, Medal, Sigma, Sparkles, Target, Trophy, Zap } from 'lucide-react';
 import { Card } from '../../ui/card';
 import { EmptyState } from '../../ui/empty-state';
@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { useRecordBook } from '../../../../hooks/queries/index.js';
 import { rankRows, recordRows } from '../../../../utils/recordBook/index.js';
-import { canViewFullData, getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { RecordCard } from './RecordCard';
+import { buildRecordIdentity } from './recordIdentity';
 import { RECORDS, SECTIONS, hidesZero } from './recordCatalog';
 
 const SECTION_ICONS = {
@@ -56,6 +56,9 @@ function RecordSkeleton() {
  * out and masks identities, and nothing else.
  */
 const RecordBook = ({
+  // A record to open: its tab and season filter are set to show it, its card
+  // is scrolled into view and expanded. From `?record=` (`recordLink.js`).
+  focusRecordId = null,
   franchises = [],
   user = null,
   isAdmin = false,
@@ -63,36 +66,39 @@ const RecordBook = ({
   onViewFranchise = () => {}
 }) => {
   const { data: book, isLoading, error } = useRecordBook();
-  const [scope, setScope] = useState('career');
+  const focusRecord = useMemo(
+    () => RECORDS.find((record) => record.id === focusRecordId) ?? null,
+    [focusRecordId]
+  );
+  const [scope, setScope] = useState(focusRecord?.scope ?? 'career');
   const [yearValue, setYearValue] = useState('all');
+
+  // A link that arrives while the book is already open moves it too.
+  useEffect(() => {
+    if (!focusRecord) return;
+    setScope(focusRecord.scope);
+    setYearValue('all');
+  }, [focusRecord]);
+
+  // Scroll the linked card into view once it has rendered — once per link, so
+  // reading on down the book is not yanked back on the next render.
+  const scrolledTo = useRef(null);
+  useEffect(() => {
+    if (!focusRecord || !book || scrolledTo.current === focusRecord.id) return;
+    const card = document.getElementById(`record-${focusRecord.id}`)?.closest('[role="region"]');
+    if (!card) return;
+    scrolledTo.current = focusRecord.id;
+    card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [focusRecord, book, scope]);
 
   const year = scope === 'season' && yearValue !== 'all' ? Number(yearValue) : null;
   const selectedSeason = year == null ? null : book?.years.find((entry) => entry.year === year);
   const inProgress = Boolean(selectedSeason && !selectedSeason.isCompleted);
 
-  const identity = useMemo(() => {
-    const byId = new Map(franchises.map((franchise) => [franchise.id, franchise]));
-    const fullData = canViewFullData(user, isAdmin, teamOwnerNames);
-    const franchiseName = (id) =>
-      getMaskedFranchiseName(byId.get(id) ?? (id ? { id } : null), user, isAdmin, teamOwnerNames);
-
-    return {
-      franchiseName,
-      teamName: (teamId) => {
-        const team = book?.teams?.[teamId];
-        if (!team) return null;
-        return fullData ? team.name : `Team ${String(team.id).substring(0, 8)}`;
-      },
-      // Initials come from the owner, so a masked viewer's avatar is keyed on
-      // the masked name instead: the colour still tells franchises apart.
-      avatar: (id) => {
-        const franchise = byId.get(id);
-        return fullData && franchise
-          ? { franchiseId: id, owner_name: franchise.owner_name }
-          : { franchiseId: id, name: franchiseName(id) };
-      }
-    };
-  }, [franchises, user, isAdmin, teamOwnerNames, book]);
+  const identity = useMemo(
+    () => buildRecordIdentity({ franchises, book, user, isAdmin, teamOwnerNames }),
+    [franchises, user, isAdmin, teamOwnerNames, book]
+  );
 
   // With a season picked, a card with nothing for that season is left out —
   // an in-progress year has games and streaks but no season totals yet — and
@@ -168,6 +174,7 @@ const RecordBook = ({
                       record={record}
                       book={book}
                       year={year}
+                      focused={record.id === focusRecord?.id}
                       identity={identity}
                       onViewFranchise={onViewFranchise}
                     />

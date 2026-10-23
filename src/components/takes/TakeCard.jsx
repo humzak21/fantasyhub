@@ -37,6 +37,10 @@ import {
  * prediction nobody can be on the other side of, so it shows no fade
  * affordance at all rather than a disabled one or a "0 hell nahs" that means
  * nothing. Hell Yeah is not: backing a call needs nothing staked.
+ *
+ * `compact` is the home page's density: tighter padding and the body clamped
+ * to four lines. The action row is unchanged — one component, two densities,
+ * never a `HomeTakeCard` twin whose buttons could drift from these.
  */
 export function TakeCard({
   take,
@@ -46,7 +50,8 @@ export function TakeCard({
   onWithdraw,
   onHellYeah,
   onWithdrawHellYeah,
-  pending
+  pending,
+  compact = false
 }) {
   const { user, isAdmin, teamOwnerNames } = useViewer();
 
@@ -90,7 +95,8 @@ export function TakeCard({
         }
       }}
       className={cn(
-        'w-full rounded-lg border border-border bg-card p-4 text-left transition-colors',
+        'w-full rounded-lg border border-border bg-card text-left transition-colors',
+        compact ? 'p-3' : 'p-4',
         'shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]',
         'hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
       )}
@@ -110,7 +116,12 @@ export function TakeCard({
         </Badge>
       </div>
 
-      <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+      <p
+        className={cn(
+          'whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground',
+          compact ? 'mt-2 line-clamp-4 text-pretty' : 'mt-3'
+        )}
+      >
         {take.body}
       </p>
 
