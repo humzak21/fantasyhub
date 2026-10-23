@@ -34,6 +34,7 @@ import MatchupDetail from './headtohead/MatchupDetail';
 import RecordBook from './records/RecordBook';
 import AwardsGallery from './awards/AwardsGallery';
 import { HISTORY_TAB_PARAM, RECORD_PARAM } from './records/recordLink';
+import { FRANCHISE1_PARAM, FRANCHISE2_PARAM } from './headtohead/headToHeadLink';
 
 /** The sub-tabs a `?tab=` link may open. */
 const SUB_TABS = ['overview', 'franchises', 'headtohead', 'records', 'awards'];
@@ -91,6 +92,20 @@ const LeagueHistoryManager = ({
   // View-specific state
   const [selectedH2HFranchise1, setSelectedH2HFranchise1] = useState(null);
   const [selectedH2HFranchise2, setSelectedH2HFranchise2] = useState(null);
+
+  // `?tab=headtohead&franchise1=<id>&franchise2=<id>` — the home page's "Full
+  // head-to-head" — opens that pairing (`headtohead/headToHeadLink.js`). Ids
+  // that are not this league's franchises open nothing rather than an empty
+  // detail page.
+  const linkedFranchise1 = searchParams.get(FRANCHISE1_PARAM);
+  const linkedFranchise2 = searchParams.get(FRANCHISE2_PARAM);
+  useEffect(() => {
+    if (linkedTab !== 'headtohead' || !linkedFranchise1 || !linkedFranchise2) return;
+    const known = new Set(franchises.map((franchise) => franchise.id));
+    if (!known.has(linkedFranchise1) || !known.has(linkedFranchise2)) return;
+    setSelectedH2HFranchise1(linkedFranchise1);
+    setSelectedH2HFranchise2(linkedFranchise2);
+  }, [linkedTab, linkedFranchise1, linkedFranchise2, franchises]);
 
   const selectedFranchise = franchises.find(f => f.id === selectedFranchiseId) ?? null;
   const selectedSeason = seasons.find(s => s.year === selectedSeasonYear) ?? null;

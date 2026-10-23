@@ -1,19 +1,23 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Flame } from 'lucide-react';
 
+import { Badge } from '../../ui/badge';
 import { Skeleton } from '../../ui/skeleton';
 import { cn } from '../../../lib/utils';
 import { formatScore } from '../../../utils/format';
 import { useMatchupHistory } from '../../../../hooks/queries/index.js';
-import { summarizeMatchup } from '../../history/headtohead/matchupSummary';
+import { phaseOf, summarizeMatchup } from '../../history/headtohead/matchupSummary';
 import { describeSeries, meetingResult } from '../../../../utils/home/matchup.js';
 
-const RESULT_TONE = {
-  W: 'text-success',
-  L: 'text-destructive',
-  T: 'text-muted-foreground'
+const RESULT = {
+  W: { label: 'W', tone: 'bg-success/15 text-success ring-success/30' },
+  L: { label: 'L', tone: 'bg-destructive/15 text-destructive ring-destructive/30' },
+  T: { label: 'T', tone: 'bg-muted text-muted-foreground ring-border' }
 };
+
+const STANDING_LABEL = { lead: 'You lead', trail: 'You trail', level: 'Level' };
+const PHASE_LABEL = { playoff: 'Playoffs', consolation: 'Consolation' };
 
 /**
  * The viewer's all-time series against this week's opponent.
@@ -22,8 +26,14 @@ const RESULT_TONE = {
  * detail reads — with the viewer's franchise first, so every row is oriented
  * with the viewer as team 1 and `summarizeMatchup`'s `sides[0]` is them. The
  * sentences come from `describeSeries`; this only lays them out.
+ *
+ * Two columns from `lg`: the series on the left (the record, set large, its
+ * split by phase, the streak, the two games worth remembering), the meetings
+ * on the right, newest first and one per row with the season leading — the
+ * year is what a reader scans for. "Full history" opens the same pairing on
+ * History → Head-to-Head (`historyHref`, by franchise id).
  */
-export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId }) {
+export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, historyHref = null }) {
   const { data: meetings, isPending, isError, refetch } = useMatchupHistory(
     viewerFranchiseId,
     opponentFranchiseId
@@ -38,12 +48,15 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId }) {
 
   if (isPending) {
     return (
-      <div role="status" aria-label="Loading series history" className="space-y-2.5">
-        <Skeleton className="h-4 w-3/5" />
-        <Skeleton className="h-3 w-2/5" />
-        <div className="flex gap-2" aria-hidden="true">
+      <div role="status" aria-label="Loading series history" className="grid gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <div className="space-y-2.5" aria-hidden="true">
+          <Skeleton className="h-3 w-1/3" />
+          <Skeleton className="h-10 w-1/2" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+        <div className="space-y-2" aria-hidden="true">
           {[0, 1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-11 flex-1" />
+            <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
       </div>
@@ -66,71 +79,123 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1">
-        <p className="text-[15px] font-semibold leading-snug">{series.headline}</p>
-        {series.phases.length > 1 && (
-          <p className="text-[13px] text-muted-foreground tabular">
-            {series.phases.map((phase) => `${phase.label} ${phase.record}`).join(' · ')}
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-8">
+      <section aria-label="Series" className="space-y-4">
+        <div>
+          <p className="text-[13px] font-medium text-muted-foreground">All-time series</p>
+          <p className="mt-1 flex items-baseline gap-3">
+            <span className="font-display text-[44px] font-semibold leading-none tracking-[-0.01em] tabular">
+              {series.record}
+            </span>
+            <span
+              className={cn(
+                'text-sm font-medium',
+                series.standing === 'lead' && 'text-success',
+                series.standing === 'trail' && 'text-destructive',
+                series.standing === 'level' && 'text-muted-foreground'
+              )}
+            >
+              {STANDING_LABEL[series.standing]}
+            </span>
           </p>
-        )}
-        {series.streak && <p className="text-[13px] text-muted-foreground">{series.streak}</p>}
-      </div>
+          {series.streak && (
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs">
+              <Flame className="h-3.5 w-3.5 text-warning" aria-hidden="true" />
+              {series.streak}
+            </p>
+          )}
+        </div>
 
-      <div>
-        <h4 className="mb-2 text-[13px] font-medium text-muted-foreground">Last meetings</h4>
-        {/* Newest first. A wrapping list, never a sideways scroller: five
-            chips fit two-up at 375px and the reader keeps every one. */}
-        <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {series.phases.length > 1 && (
+          <dl className="divide-y divide-border/60 rounded-lg border border-border/60 text-sm">
+            {series.phases.map((phase) => (
+              <div key={phase.label} className="flex items-center justify-between px-3 py-2">
+                <dt className="text-muted-foreground">{phase.label}</dt>
+                <dd className="font-medium tabular">{phase.record}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
+        <dl className="grid grid-cols-2 gap-2">
+          {summary.highestCombined && (
+            <Notable
+              label="Highest-scoring"
+              value={formatScore(summary.highestCombined.value)}
+              game={summary.highestCombined.game}
+            />
+          )}
+          {summary.closest && (
+            <Notable label="Closest" value={formatScore(summary.closest.value)} game={summary.closest.game} />
+          )}
+        </dl>
+      </section>
+
+      <section aria-labelledby="home-meetings-title" className="min-w-0">
+        <h4 id="home-meetings-title" className="mb-1.5 text-[13px] font-medium text-muted-foreground">
+          Last meetings
+        </h4>
+        <ol className="divide-y divide-border/60">
           {summary.recent.map((game) => {
-            const result = meetingResult(game);
+            const result = RESULT[meetingResult(game)];
+            const phase = phaseOf(game);
             return (
-              <li
-                key={`${game.year}-${game.week}`}
-                className="rounded-lg border border-border bg-muted/30 px-2.5 py-2"
-              >
-                <p className="flex items-baseline gap-1.5 text-[13px] tabular">
-                  <span className={cn('font-semibold', RESULT_TONE[result])}>{result}</span>
-                  <span className="truncate">
-                    {formatScore(game.team1Score)}–{formatScore(game.team2Score)}
+              <li key={`${game.year}-${game.week}`} className="flex min-h-12 items-center gap-3 py-1.5">
+                <span className="w-14 shrink-0">
+                  <span className="block font-display text-xl font-semibold leading-none tabular">{game.year}</span>
+                  <span className="block text-[11px] text-muted-foreground tabular">Week {game.week}</span>
+                </span>
+                <span
+                  className={cn(
+                    'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold ring-1 ring-inset',
+                    result.tone
+                  )}
+                  aria-label={result.label === 'W' ? 'Win' : result.label === 'L' ? 'Loss' : 'Tie'}
+                >
+                  {result.label}
+                </span>
+                {PHASE_LABEL[phase] && (
+                  <Badge variant="outline" className="hidden shrink-0 px-1.5 py-0 text-[10px] sm:inline-flex">
+                    {PHASE_LABEL[phase]}
+                  </Badge>
+                )}
+                <span className="ml-auto shrink-0 text-right text-sm tabular">
+                  <span className="font-semibold">{formatScore(game.team1Score)}</span>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    – {formatScore(game.team2Score)}
                   </span>
-                </p>
-                <p className="text-[11px] text-muted-foreground tabular">
-                  Wk {game.week} · {game.year}
-                </p>
+                </span>
               </li>
             );
           })}
         </ol>
-      </div>
 
-      <dl className="grid gap-2 text-[13px] sm:grid-cols-2">
-        {summary.highestCombined && (
-          <div className="flex flex-wrap gap-x-1.5">
-            <dt className="text-muted-foreground">Highest-scoring</dt>
-            <dd className="tabular">
-              {formatScore(summary.highestCombined.value)} combined · Wk {summary.highestCombined.game.week},{' '}
-              {summary.highestCombined.game.year}
-            </dd>
-          </div>
+        {historyHref && (
+          <Link
+            to={historyHref}
+            className="mt-2 inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            Full head-to-head
+            <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          </Link>
         )}
-        {summary.closest && (
-          <div className="flex flex-wrap gap-x-1.5">
-            <dt className="text-muted-foreground">Closest</dt>
-            <dd className="tabular">
-              {formatScore(summary.closest.value)} · Wk {summary.closest.game.week}, {summary.closest.game.year}
-            </dd>
-          </div>
-        )}
-      </dl>
+      </section>
+    </div>
+  );
+}
 
-      <Link
-        to="/history"
-        className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-2 hover:underline"
-      >
-        Full history
-        <ChevronRight className="h-4 w-4" aria-hidden="true" />
-      </Link>
+/** A game worth remembering: its figure, and when. */
+function Notable({ label, value, game }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+      <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1">
+        <span className="block font-display text-lg font-semibold leading-none tabular">{value}</span>
+        <span className="mt-1 block text-[11px] text-muted-foreground tabular">
+          <span className="font-medium text-foreground">{game.year}</span> · Week {game.week}
+        </span>
+      </dd>
     </div>
   );
 }

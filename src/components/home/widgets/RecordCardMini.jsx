@@ -7,6 +7,7 @@ import { formatOrdinal } from '../../../utils/format';
 import { describeRow } from '../../history/records/describeRow';
 import { formatRecordValue } from '../../history/records/recordCatalog';
 import { recordPath } from '../../history/records/recordLink';
+import { useCountUp } from '../../../hooks/use-count-up.js';
 
 const KIND = {
   new: { label: (place) => `New · ${place}`, tone: 'bg-warning/12 text-warning' },
@@ -29,6 +30,8 @@ export function RecordCardMini({ card, identity, linkable = true }) {
   const scope = record.scope === 'career' ? 'All-time' : 'Single season';
   const place = `${row.tied ? 'T-' : ''}${formatOrdinal(rank)}`;
   const kicker = KIND[kind] ?? KIND.day;
+  // The figure counts up once, like the hero's totals.
+  const shown = useCountUp(row.value);
 
   const body = (
     <>
@@ -57,7 +60,7 @@ export function RecordCardMini({ card, identity, linkable = true }) {
         </div>
         <p className="shrink-0 text-right">
           <span className="font-display text-[28px] font-semibold leading-none tracking-[-0.01em] tabular">
-            {formatRecordValue(record, row.value)}
+            {formatRecordValue(record, shown)}
           </span>
           {record.unit && (
             <span className="ml-1 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">{record.unit}</span>

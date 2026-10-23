@@ -992,8 +992,8 @@ any policy in the file, so no existing member ever saw a refusal.
 `/` resolves to `/home` (`DEFAULT_TAB = 'home'` in `FantasyFootballApp`),
 and so does an unknown or forbidden tab — a page that explains itself to
 whoever arrives, where the rankings table did not. The plan it follows, in
-four PRs, is JITS-45; the first three (the page; pick'ems; records, takes
-and recent form) have landed.
+four PRs, is JITS-45: the page; pick'ems; records, takes and recent form;
+then the design pass.
 
 - **Two shapes, chosen by the nav's own flags.** A signed-out viewer or an
   account awaiting approval gets `HomeDirectory`: a card per tab
@@ -1105,6 +1105,49 @@ surfaces cannot drift:
   never the heavy `useSeasonWeeks` source. Its chart is a lazy chunk
   (`RecentFormChart.jsx`), so recharts stays out of the landing bundle.
   Hidden until the viewer's team has a scored game.
+
+**How it looks, and the rules that keep it that way:**
+
+- **The matchup is one scoreboard band.** From `md`, each side is one row,
+  identity at the outer edge and score toward the middle, so the card has no
+  dead centre. On a phone the identity sits over the score. Behind it is
+  `FieldBackdrop`: each side washed in its franchise colour
+  (`color-mix` over `getTeamColor(team).value`, inline, never a runtime
+  class name), with faint yard lines and a midfield. That is the page's one
+  decorative element. `ShareBar` is each side's share of the combined
+  points, a tug of war and not a probability. Everything else the
+  scoreline has to say is one line from `utils/home/matchup.js::matchupStatus`
+  ("Projected · You trail by 12.6"; a final reads to the hundredth).
+- **Head to head is two columns from `lg`:** the series (the record set
+  large, the split by phase, the streak, two notable games) and the last
+  meetings, one per row with the **year leading**, since that is what a
+  reader scans. "Full head-to-head" is
+  `history/headtohead/headToHeadLink.js::headToHeadPath`:
+  `/history?tab=headtohead&franchise1=<id>&franchise2=<id>`. These are
+  **franchise ids, never names**: an opaque uuid in a shared URL says nothing
+  about who is in the league. `LeagueHistoryManager` opens the pairing only
+  when both ids are franchises it knows.
+- **The desktop columns end level.** Which column a widget sits in was
+  chosen by measuring: Standings in the wide column, with its divisions side
+  by side; Records in the narrow one, as a one-card carousel. Even so, card
+  heights move with the data, so the column wrappers stretch
+  (`lg:self-stretch`) and the last card in each grows to the column's end.
+  Never `items-stretch` on the outer grid: below `lg` the columns are
+  `display: contents` and every card is a grid item, which would stretch
+  cards across rows on a tablet.
+- **Cards size by their own width, not the viewport** (`@container`, `@md`,
+  `@xl`, `@3xl`) wherever one widget can be a whole phone, half a tablet or
+  a third of a desktop: the rankings slice, the record carousel, the
+  standings.
+- **Motion reveals, once.** Cards rise 8px and fade in, staggered 40ms
+  (`.home-reveal` in `globals.css`, `--reveal-delay` set inline by
+  `HomePage`). The animation uses `translate` with `backwards` fill, so no
+  property is left on the card afterwards: a lingering transform would make
+  every card the containing block for a `position: fixed` child. Scores and
+  record figures count up over 600ms on first arrival (`useCountUp`,
+  `src/hooks/use-count-up.js`), then follow refetches without animating.
+  Both honour `prefers-reduced-motion`. Nothing loops except the parlay's
+  existing live dot.
 
 ### Settings is a tab, reached by the cog
 
