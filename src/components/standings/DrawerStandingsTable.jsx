@@ -22,9 +22,10 @@ import {
 /**
  * What the row tints mean, above the first division. Only seeded seasons
  * (2026+) render it: before that a green row meant "top three in the
- * division" and there was nothing else to tell apart.
+ * division" and there was nothing else to tell apart. Exported for the home
+ * page's standings widget, which tints its rows the same way.
  */
-const QualifierKey = () => (
+export const QualifierKey = () => (
   <dl className="flex items-center gap-4 px-1 text-xs text-muted-foreground" aria-label="Key">
     <div className="flex items-center gap-1.5">
       <dt className="h-3 w-3 shrink-0 rounded-sm bg-warning/40 ring-1 ring-inset ring-warning/60" aria-hidden="true" />

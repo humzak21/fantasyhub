@@ -984,6 +984,51 @@ any policy in the file, so no existing member ever saw a refusal.
   the admin's own id. Note that temp tables created before `set local role`
   need a `GRANT` to `authenticated` or the probe fails on its own scaffolding.
 
+### Home is the front door
+
+`/` resolves to `/home` (`DEFAULT_TAB = 'home'` in `FantasyFootballApp`),
+and so does an unknown or forbidden tab — a page that explains itself to
+whoever arrives, where the rankings table did not. The plan it follows, in
+four PRs, is JITS-45; this is the first.
+
+- **Two shapes, chosen by the nav's own flags.** A signed-out viewer or an
+  account awaiting approval gets `HomeDirectory`: a card per tab
+  `shouldShowTab` allows, built from the shell's `navTabs` — never a
+  hand-written list, so a tab's access rule and its card cannot disagree.
+  An approved member gets the dashboard. `HomePage` waits on `isAuthLoading`
+  and `isApprovalLoading` before choosing, for the reason the route guard
+  does.
+- **Present tense only.** Home reads `useActualWeek()`, never the viewed
+  week, and passes `actualWeek: null` until the season config has a start
+  date. The tab carries `weekAware: false`, and the shell renders
+  `InlineWeekNavigator` only when `activeTabDef?.weekAware !== false` — a
+  flag on the definition, not an `activeTab === 'home'` literal. Links into
+  a week-aware tab call `ctx.openTab()`, which resets the viewed week to the
+  actual week first.
+- **Widgets are registered, not placed.** `src/components/home/homeWidgets.js`
+  is the ordered list (`id`, `title`, `column`, `Component`, `when(ctx)`);
+  `HomePage` maps it into the grid. Below `lg` the columns are
+  `display: contents` and the list order is the reading order. A widget
+  receives `{ ctx }` only and calls its own hooks against keys the tabs
+  already use, so opening a tab from Home is a cache hit.
+- **Every widget renders inside `HomeWidget`**, which owns the card, the
+  header and chevron, the skeleton, the empty state and the query-error card
+  with Retry. `HomePage` also wraps each one in an `ErrorBoundary` with a
+  `fallback`, so a render crash takes one card, never the page.
+- **One pure function behind each widget, and the tests live there:**
+  `utils/viewerTeam.js` (whose team — owner name through
+  `normalizeOwnerName`, never `teams.user_id`), `utils/home/matchup.js`
+  (season phase, the week's game, a bye, the series sentence),
+  `utils/home/windowAround.js` (five ranking rows, viewer centred, clamped
+  at the ends).
+- **The hero shares the Schedule tab's lineup.** `LineupPanel` was lifted
+  out of `ScheduleManager` into `schedule/LineupPanel.jsx`; both import it.
+- **The brand is a link to `/home`** — the only way back from Settings and
+  Alerts, which have no tab.
+- **The rankings slice is the one table that stays a table at 375px**: five
+  rows is the content. `table-fixed`, fixed numeric columns, the team mark
+  hidden below `sm`. The smoke job's overflow check is what holds it.
+
 ### Settings is a tab, reached by the cog
 
 `/settings` is a tab in `FantasyFootballApp`'s `mainTabs` like every other —
@@ -1981,9 +2026,16 @@ each replaced four or five hand-rolled variants:
 - `ui/team-identity.jsx` — a team's chip, name, owner, record.
 - `ui/rank-badge.jsx`, `ui/streak-chip.jsx`, `ui/stat-card.jsx`,
   `ui/empty-state.jsx`.
-- `ui/skeleton.jsx` — `SkeletonTable` / `SkeletonCards`. **Loading is a
-  skeleton, never `return null`** (which renders a blank tab) and never a bare
-  spinner.
+- `ui/skeleton.jsx` — `Skeleton` (one bar), `SkeletonTable`, `SkeletonCards`.
+  **Loading is a skeleton, never `return null`** (which renders a blank tab)
+  and never a bare spinner. This was documented here for months before the
+  file existed (it arrived with the home page, 2026-10); a route-level
+  fallback is still `RouteLoading`, because a chunk load does not know the
+  shape of what is coming.
+- `utils/errorBoundary.jsx` takes an optional `fallback={({ error,
+  resetError }) => node}`. Without it the boundary renders the full-screen
+  card; with it, a region fails on its own. One boundary class — never a
+  second `WidgetErrorBoundary`.
 - `utils/positionColors.js` — lineup-slot chips, shared by Schedule and Teams.
 - `ui/opponent-chip.jsx` — a player's NFL opponent ("vs BUF" / "@ KC" / "BYE"),
   over `utils/nflOpponent.js`. **It renders nothing when the calendar has no

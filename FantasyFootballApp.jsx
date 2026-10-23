@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings, Bell } from 'lucide-react';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { House, Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings, Bell } from 'lucide-react';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -29,6 +29,9 @@ import ErrorBoundary from './utils/errorBoundary.jsx';
 import './globals.css';
 
 // Components
+// The landing tab is eager, so the first paint never waits on a chunk. The
+// rankings table stays eager too: it is the next tab most people open.
+import HomePage from './src/components/home/HomePage.jsx';
 import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTable.jsx';
 
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
@@ -42,7 +45,7 @@ import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
 
 // One chunk per tab. Every tab, both app shells and recharts used to ship in
-// the initial bundle; only the landing tab's table is eager now.
+// the initial bundle; only the home page and the rankings table are eager now.
 const StatisticsPanel = lazy(() => import('./src/components/dashboard/StatisticsPanel.jsx'));
 const ScheduleManager = lazy(() => import('./src/components/schedule/ScheduleManager.jsx'));
 const TeamsAndRosters = lazy(() => import('./src/components/teams/TeamsAndRosters.jsx'));
@@ -57,8 +60,10 @@ const UserSettingsPage = lazy(() =>
   import('./src/components/auth/UserSettingsPage.jsx').then((m) => ({ default: m.UserSettingsPage }))
 );
 
-/** The tab `/` resolves to. Also where an unknown or forbidden tab lands. */
-const DEFAULT_TAB = 'rankings';
+/** The tab `/` resolves to. Also where an unknown or forbidden tab lands —
+ *  which is why it is Home: it explains itself to whoever arrives (a
+ *  directory and a sign-in line for a visitor), where a table did not. */
+const DEFAULT_TAB = 'home';
 
 /** Shown while a tab's chunk is in flight — see RouteLoading for why this is
  *  not a skeleton. Skeletons belong where the shape is known; a route-level
@@ -195,6 +200,7 @@ const FantasyFootballApp = () => {
 
   const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
   const [standingsOpen, setStandingsOpen] = useState(false);
+  const openStandings = useCallback(() => setStandingsOpen(true), []);
 
   // Check if awards are accessible
   const isAwardsAccessible = () => {
@@ -229,6 +235,15 @@ const FantasyFootballApp = () => {
       // names at every width; "Power Rankings" and "Teams & Rosters" were
       // dropped on 2026-09-10 because the nav is not where the page explains
       // itself.
+      //
+      // Home is everyone's — the page itself decides its shape (a directory
+      // for visitors, the dashboard for members). `weekAware: false` hides the
+      // header's week control while it is open: Home is present tense, and a
+      // control that changes nothing on the page it sits on is one the reader
+      // will press and then distrust. A flag on the definition rather than an
+      // `activeTab === 'home'` in the header, so another present-tense tab can
+      // opt out the same way.
+      { id: 'home', label: 'Home', icon: House, requiresSeason: false, requiresAuth: false, weekAware: false },
       { id: 'rankings', label: 'Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
       { id: 'statistics', label: 'Statistics', shortLabel: 'Stats', icon: BarChart3, requiresSeason: true, requiresAuth: false },
       { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
@@ -283,6 +298,7 @@ const FantasyFootballApp = () => {
   }, [isAdmin]);
 
   const activeTabDef = mainTabs.find((t) => t.id === activeTab);
+  const showWeekControl = activeTabDef?.weekAware !== false;
 
   // What the nav actually renders: the tab list plus the one piece of state
   // that is the shell's to know — whether a tab is waiting on the viewer.
@@ -398,12 +414,22 @@ const FantasyFootballApp = () => {
                   3px past the viewport. Truncating the league name is the
                   right thing to give up there. */}
               <div className="flex min-w-0 shrink items-center gap-2 sm:gap-3 lg:shrink-0">
-                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-                  <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
+                {/* The brand is the way home: one link around the logo, the
+                    wordmark and the season line — one hit area, at least
+                    44px tall. It is the only route back from Settings and
+                    Alerts, which have no tab of their own, and it is what
+                    every member already expects a logo to do. */}
+                <Link
+                  to="/home"
+                  aria-label="og jits home"
+                  aria-current={activeTab === 'home' ? 'page' : undefined}
+                  className="group -mx-1 flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-1 no-underline outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-3"
+                >
+                  <div className="h-8 w-8 shrink-0 overflow-hidden rounded-lg transition-transform group-hover:scale-[1.02]">
                     <img src="og jits logo.jpg" alt="" className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0">
-                    <h1 className="truncate font-display text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+                    <h1 className="truncate font-display text-lg font-semibold leading-tight tracking-tight text-foreground sm:text-xl">
                       og jits
                     </h1>
                     {activeSeason && (
@@ -412,7 +438,7 @@ const FantasyFootballApp = () => {
                       </p>
                     )}
                   </div>
-                </div>
+                </Link>
 
                 {activeSeason && (
                   <>
@@ -420,14 +446,18 @@ const FantasyFootballApp = () => {
                         two read as identity *and* tools rather than as one
                         undifferentiated cluster. */}
                     <span className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
-                    <InlineWeekNavigator
-                      currentWeek={viewedWeek}
-                      totalWeeks={activeSeason.totalWeeks}
-                      regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                      onWeekChange={setViewedWeek}
-                      completedWeeks={completedWeeks}
-                      season={activeSeason}
-                    />
+                    {/* Absent on a present-tense tab (`weekAware: false`).
+                        The standings stay: they mean the same on every page. */}
+                    {showWeekControl && (
+                      <InlineWeekNavigator
+                        currentWeek={viewedWeek}
+                        totalWeeks={activeSeason.totalWeeks}
+                        regularSeasonWeeks={activeSeason.regularSeasonWeeks}
+                        onWeekChange={setViewedWeek}
+                        completedWeeks={completedWeeks}
+                        season={activeSeason}
+                      />
+                    )}
                     <StandingsTrigger onClick={() => setStandingsOpen(true)} />
                   </>
                 )}
@@ -509,9 +539,19 @@ const FantasyFootballApp = () => {
           )}
 
           {/* Tab Content. One Suspense boundary covers every lazy tab; the
-              landing tab's table is eager so the first paint needs no chunk. */}
+              landing tab is eager so the first paint needs no chunk. */}
           <div className="space-y-6">
             <Suspense fallback={<TabFallback />}>
+            {activeTab === 'home' && (
+              <ErrorBoundary key="home-error-boundary">
+                <HomePage
+                  tabs={navTabs}
+                  shouldShowTab={shouldShowTab}
+                  onOpenStandings={openStandings}
+                />
+              </ErrorBoundary>
+            )}
+
             {activeTab === 'rankings' && (
               <ErrorBoundary key="rankings-error-boundary">
                 {/* The header names the viewed week, and the viewed week is

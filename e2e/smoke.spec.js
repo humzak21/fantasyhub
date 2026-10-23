@@ -4,13 +4,14 @@ import { test, expect } from '@playwright/test'
  * Every tab is a route now, so every tab is reachable from here.
  *
  * `/history`, `/takes`, `/pickems`, `/playoffs` and `/awards` are access-gated
- * and redirect a signed-out viewer to `/rankings`; that is correct behaviour,
+ * and redirect a signed-out viewer to `/home`; that is correct behaviour,
  * not a failure, so the assertions below are about layout and about the page
  * not being broken — never about which URL you ended up on. The members-only
  * gate itself is asserted separately, below.
  */
 const ROUTES = [
   '/',
+  '/home',
   '/rankings',
   '/statistics',
   '/schedule',
@@ -93,7 +94,41 @@ test.describe('smoke', () => {
 
   test('an unknown tab falls back to the default one', async ({ page }) => {
     await page.goto('/not-a-real-tab', { waitUntil: 'domcontentloaded' })
-    await expect(page).toHaveURL(/\/rankings$/)
+    await expect(page).toHaveURL(/\/home$/)
+  })
+
+  // The front door for a visitor is a directory: a card per tab they may
+  // open, derived from the nav's own access rule, and nothing members-only.
+  test('a signed-out viewer gets the directory at /home', async ({ page }) => {
+    await page.goto('/home', { waitUntil: 'domcontentloaded' })
+
+    const sections = page.getByRole('navigation', { name: 'Sections' })
+    await expect(sections).toBeVisible()
+    for (const name of ['Rankings', 'Statistics', 'Schedule', 'Teams']) {
+      await expect(sections.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible()
+    }
+    for (const name of ["Pick'ems", 'Playoffs', 'Awards', 'Takes', 'History']) {
+      await expect(sections.getByRole('link', { name: new RegExp(`^${name}`) })).toHaveCount(0)
+    }
+  })
+
+  // Home is present tense, so the week control is not on it — and it is
+  // still on the tabs that are about a week.
+  test('the week control is absent on home and present on rankings', async ({ page }) => {
+    await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
+    const standings = page.getByRole('button', { name: /open standings/i })
+    const hasSeason = await standings
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .then(() => true)
+      .catch(() => false)
+    test.skip(!hasSeason, 'no active season in this environment')
+
+    await expect(page.getByLabel('Week navigation control')).toBeVisible()
+
+    await page.getByRole('link', { name: 'og jits home' }).click()
+    await expect(page).toHaveURL(/\/home$/)
+    await expect(page.getByRole('button', { name: /open standings/i })).toBeVisible()
+    await expect(page.getByLabel('Week navigation control')).toHaveCount(0)
   })
 
   // Pick'ems, Playoffs, Awards and Takes are for approved members, and so is
@@ -101,7 +136,7 @@ test.describe('smoke', () => {
   // or the phone tab bar, and a deep link lands on the default tab.
   test('members-only destinations are hidden from a signed-out viewer', async ({ page }) => {
     await page.goto('/pickems', { waitUntil: 'domcontentloaded' })
-    await expect(page).toHaveURL(/\/rankings$/)
+    await expect(page).toHaveURL(/\/home$/)
 
     // The nav has rendered before its absences mean anything.
     await expect(page.getByRole('link', { name: 'Schedule', exact: true }).first()).toBeVisible()
