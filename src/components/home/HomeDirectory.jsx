@@ -9,8 +9,7 @@ import { cn } from '../../lib/utils';
  * directory for want of a sentence.
  */
 const TAB_BLURBS = {
-  rankings: 'Every team rated on more than its record, week by week.',
-  statistics: 'Scoring, luck and form across the season, and league history compared.',
+  rankings: 'Power rankings week by week, plus scoring, luck and league history compared.',
   schedule: 'Every matchup, with scores, projections and lineups.',
   teams: 'Every roster and lineup in the league.',
   history: 'Every season since 2020: champions, records and rivalries.'
