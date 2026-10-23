@@ -130,8 +130,23 @@ export default function HomePage({ tabs = [], shouldShowTab = () => true, onOpen
   const side = visible.filter((w) => w.column === 'side');
   const orderOf = (widget) => ORDER[visible.indexOf(widget)] ?? '';
 
+  // The last card in each desktop column stretches to the column's end, so
+  // the two columns finish level whatever the cards' own heights — a card
+  // with a little room under its content, never a hole under the shorter
+  // column.
+  const lastOf = (list) => list[list.length - 1];
   const render = (widget, className) => (
-    <div key={widget.id} className={cn('min-w-0', orderOf(widget), 'lg:order-none', className)}>
+    <div
+      key={widget.id}
+      className={cn(
+        'home-reveal min-w-0',
+        orderOf(widget),
+        'lg:order-none',
+        widget === lastOf(main) || widget === lastOf(side) ? 'lg:flex lg:flex-1 lg:flex-col lg:[&>*]:flex-1' : null,
+        className
+      )}
+      style={{ '--reveal-delay': `${visible.indexOf(widget) * 40}ms` }}
+    >
       {/* A boundary per widget: a render crash in one leaves its card
           saying so, with a Retry, and every other widget standing. */}
       <ErrorBoundary
@@ -152,7 +167,7 @@ export default function HomePage({ tabs = [], shouldShowTab = () => true, onOpen
         {hero.map((widget) => render(widget, 'md:col-span-2 lg:col-span-12'))}
 
         {main.length > 0 && (
-          <div className="contents lg:col-span-8 lg:flex lg:flex-col lg:gap-4">
+          <div className="contents lg:col-span-8 lg:flex lg:flex-col lg:gap-4 lg:self-stretch">
             {main.map((widget) => render(widget))}
           </div>
         )}
@@ -165,7 +180,7 @@ export default function HomePage({ tabs = [], shouldShowTab = () => true, onOpen
             className={cn(
               'contents',
               main.length > 0
-                ? 'lg:col-span-4 lg:flex lg:flex-col lg:gap-4'
+                ? 'lg:col-span-4 lg:flex lg:flex-col lg:gap-4 lg:self-stretch'
                 : 'lg:col-span-12 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4'
             )}
           >

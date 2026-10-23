@@ -16,14 +16,18 @@ import { getMaskedOwnerName, getMaskedTeamName } from '../../../utils/displayNam
 import { teamRosterPath } from '../../teams/teamLink';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useLineupsForWeek, useRankingsForWeek } from '../../../../hooks/queries/index.js';
-import { starterTotal, totalAsPoints } from '../../../../utils/lineupTotals.js';
+import { isScoringStarter, starterTotal, totalAsPoints } from '../../../../utils/lineupTotals.js';
 import { gamePhaseLabel } from '../../../../utils/franchiseWeeks.js';
 import { franchiseIdOf } from '../../../../utils/viewerTeam.js';
 import {
   findMatchup,
+  matchupStatus,
   nextMatchup,
   orientScores
 } from '../../../../utils/home/matchup.js';
+import { getTeamColor } from '../../../utils/teamColors';
+import { useCountUp } from '../../../hooks/use-count-up.js';
+import { headToHeadPath } from '../../history/headtohead/headToHeadLink.js';
 
 const FINISH_LABEL = {
   champion: 'Champion',
@@ -88,7 +92,7 @@ function useMasked() {
 }
 
 function ViewerMatchup({ ctx, matchup }) {
-  const { season, seasonId, actualWeek, viewerTeam, openTab } = ctx;
+  const { season, seasonId, actualWeek, viewerTeam, openTab, canOpenTab } = ctx;
   const { game, side, opponentId } = matchup;
   const masked = useMasked();
 
@@ -107,13 +111,25 @@ function ViewerMatchup({ ctx, matchup }) {
 
   const scores = orientScores(game, side);
   const hasScores = scores.own != null && scores.opponent != null;
-  const totals = {
-    own: starterTotal(lineups.data?.[viewerTeam.id] ?? []),
-    opponent: starterTotal(lineups.data?.[opponentId] ?? [])
-  };
+  const ownRows = lineups.data?.[viewerTeam.id] ?? [];
+  const opponentRows = lineups.data?.[opponentId] ?? [];
+  const totals = { own: starterTotal(ownRows), opponent: starterTotal(opponentRows) };
+
+  // The imported score wins; until there is one, the starters' total stands in.
+  const status = matchupStatus({
+    completed: Boolean(game.isCompleted),
+    own: hasScores ? scores.own : totals.own?.total ?? null,
+    opponent: hasScores ? scores.opponent : totals.opponent?.total ?? null,
+    anyActual: [...ownRows, ...opponentRows].some((row) => isScoringStarter(row) && row.actualPoints != null)
+  });
 
   const phaseLabel = gamePhaseLabel(game.type);
-  const margin = game.isCompleted && hasScores ? scores.own - scores.opponent : null;
+  const viewerFranchiseId = franchiseIdOf(viewerTeam);
+  const opponentFranchiseId = franchiseIdOf(opponent);
+  const historyHref =
+    viewerFranchiseId && opponentFranchiseId && (canOpenTab?.('history') ?? true)
+      ? headToHeadPath(viewerFranchiseId, opponentFranchiseId)
+      : null;
 
   return (
     <HomeWidget
@@ -124,158 +140,230 @@ function ViewerMatchup({ ctx, matchup }) {
       to="/schedule"
       toLabel="Open this week's schedule"
       onNavigate={() => openTab?.()}
+      flush
     >
-      <div className="space-y-4">
-        {(phaseLabel || game.isCompleted) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {phaseLabel && <Badge variant="outline">{phaseLabel}</Badge>}
-            {game.isCompleted && <Badge variant="secondary">Final</Badge>}
+      {/* The scoreboard: the page's one lit object, on the page's one field. */}
+      <div className="relative overflow-hidden px-4 pb-4 pt-4 sm:px-6 sm:pb-5">
+        <FieldBackdrop left={viewerTeam} right={opponent} />
+
+        <div className="relative">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 sm:gap-5">
+            <MatchupSide
+              team={viewerTeam}
+              name={masked.teamName(viewerTeam)}
+              owner={masked.ownerName(viewerTeam)}
+              standing={standingOf(viewerTeam.id)}
+              score={hasScores ? scores.own : null}
+              total={totals.own}
+              loading={!hasScores && lineups.isLoading}
+              isViewer
+            />
+            <div className="flex flex-col items-center gap-1.5 self-center">
+              <span
+                aria-hidden="true"
+                className="rounded-md border border-border bg-card/80 px-2 py-1 font-display text-sm font-semibold uppercase leading-none tracking-[0.08em] text-muted-foreground"
+              >
+                vs
+              </span>
+            </div>
+            <MatchupSide
+              team={opponent}
+              name={masked.teamName(opponent)}
+              owner={masked.ownerName(opponent)}
+              standing={standingOf(opponentId)}
+              score={hasScores ? scores.opponent : null}
+              total={totals.opponent}
+              loading={!hasScores && lineups.isLoading}
+              align="end"
+            />
           </div>
-        )}
 
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-4">
-          <TeamSide
-            team={viewerTeam}
-            name={masked.teamName(viewerTeam)}
-            owner={masked.ownerName(viewerTeam)}
-            standing={standingOf(viewerTeam.id)}
-            isViewer
-          />
-          <span
-            aria-hidden="true"
-            className="mt-2 rounded-md border border-border bg-muted px-1.5 py-0.5 font-display text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground"
-          >
-            vs
-          </span>
-          <TeamSide
-            team={opponent}
-            name={masked.teamName(opponent)}
-            owner={masked.ownerName(opponent)}
-            standing={standingOf(opponentId)}
-            align="end"
-          />
+          <ShareBar share={status.share} left={viewerTeam} right={opponent} />
 
-          <Total
-            score={scores.own}
-            hasScores={hasScores}
-            total={totals.own}
-            loading={lineups.isLoading}
-            label={`${masked.teamName(viewerTeam)} points`}
-          />
-          <span aria-hidden="true" />
-          <Total
-            score={scores.opponent}
-            hasScores={hasScores}
-            total={totals.opponent}
-            loading={lineups.isLoading}
-            label={`${masked.teamName(opponent)} points`}
-            align="end"
-          />
+          <div className="mt-2.5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[13px]">
+            <span className="font-medium uppercase tracking-[0.06em] text-[11px] text-muted-foreground">
+              {status.phase}
+            </span>
+            {phaseLabel && (
+              <>
+                <span aria-hidden="true" className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground">{phaseLabel}</span>
+              </>
+            )}
+            {status.text && (
+              <>
+                <span aria-hidden="true" className="text-muted-foreground">·</span>
+                <span
+                  className={cn(
+                    'font-medium tabular',
+                    status.lead > 0 && 'text-success',
+                    status.lead < 0 && 'text-destructive'
+                  )}
+                >
+                  {status.text}
+                </span>
+              </>
+            )}
+          </div>
         </div>
+      </div>
 
-        {margin != null && margin !== 0 && (
-          <p className={cn('text-sm font-medium tabular', margin > 0 ? 'text-success' : 'text-destructive')}>
-            {margin > 0 ? 'Won' : 'Lost'} by {formatPoints(Math.abs(margin), 2)}
-          </p>
-        )}
-
-        <div className="-mx-4 divide-y divide-border/60 border-t border-border/60">
-          <Disclosure label="History" defaultOpenAtLg>
-            <MatchupHistory
-              viewerFranchiseId={franchiseIdOf(viewerTeam)}
-              opponentFranchiseId={franchiseIdOf(opponent)}
-            />
-          </Disclosure>
-          <Disclosure label="Rosters" flush>
-            <LineupPanel
-              seasonId={seasonId}
-              nflSeasonYear={season.espnSeasonYear ?? season.espn_season_year ?? season.year ?? null}
-              week={actualWeek}
-              actualWeek={actualWeek}
-              sides={[
-                { teamId: viewerTeam.id, teamName: masked.teamName(viewerTeam) },
-                { teamId: opponentId, teamName: masked.teamName(opponent) }
-              ]}
-            />
-          </Disclosure>
-        </div>
+      <div className="divide-y divide-border/60 border-t border-border/60">
+        <Disclosure label="Head to head" defaultOpenAtLg>
+          <MatchupHistory
+            viewerFranchiseId={viewerFranchiseId}
+            opponentFranchiseId={opponentFranchiseId}
+            historyHref={historyHref}
+          />
+        </Disclosure>
+        <Disclosure label="Rosters" flush>
+          <LineupPanel
+            seasonId={seasonId}
+            nflSeasonYear={season.espnSeasonYear ?? season.espn_season_year ?? season.year ?? null}
+            week={actualWeek}
+            actualWeek={actualWeek}
+            sides={[
+              { teamId: viewerTeam.id, teamName: masked.teamName(viewerTeam) },
+              { teamId: opponentId, teamName: masked.teamName(opponent) }
+            ]}
+          />
+        </Disclosure>
       </div>
     </HomeWidget>
   );
 }
 
 /**
- * One team's half: mark, name, owner, and its record and power rank. The
- * whole block links to the team's roster.
+ * The field behind the scoreboard: each side washed in its franchise colour,
+ * brightest at the outer edge and gone by the centre, over faint yard lines
+ * every tenth with a brighter midfield. The one decorative element on the
+ * page, in the one place that is a field. Inline gradients over the team's
+ * `var(--team-N)` — no class names built at runtime.
  */
-function TeamSide({ team, name, owner, standing, isViewer = false, align = 'start' }) {
-  if (!team) {
-    return <div className="text-sm text-muted-foreground">Unknown team</div>;
-  }
+function FieldBackdrop({ left, right }) {
+  const wash = (team, direction) =>
+    team
+      ? `linear-gradient(${direction}, color-mix(in oklab, ${getTeamColor(team).value} 16%, transparent), transparent 48%)`
+      : 'none';
 
-  const end = align === 'end';
   return (
-    <Link
-      to={teamRosterPath(team.id)}
-      title={name}
-      className={cn(
-        'group -m-1.5 flex min-w-0 flex-col gap-2 rounded-lg p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        end ? 'items-end text-right' : 'items-start text-left'
-      )}
-    >
-      <TeamAvatar team={team} size="md" />
-      <div className="w-full min-w-0">
-        <p className="truncate text-[15px] font-semibold leading-tight tracking-[-0.006em] underline-offset-2 decoration-foreground/40 group-hover:underline">
-          {name}
-        </p>
-        {owner && <p className="truncate text-xs text-muted-foreground">{owner}</p>}
-      </div>
-      <div className={cn('flex flex-wrap items-center gap-1.5', end && 'justify-end')}>
-        {isViewer && (
-          <span className="rounded px-1 text-[10px] font-medium uppercase tracking-[0.08em] text-primary ring-1 ring-inset ring-primary/40">
-            You
-          </span>
-        )}
-        {standing && (
-          <>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium tabular text-muted-foreground">
-              <RecordText wins={standing.wins} losses={standing.losses} ties={standing.ties} />
-            </span>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] font-medium tabular text-muted-foreground">
-              #{standing.rank} · {formatPoints(standing.powerRating)}
-            </span>
-          </>
-        )}
-      </div>
-    </Link>
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+      <div className="absolute inset-0" style={{ backgroundImage: `${wash(left, '90deg')}, ${wash(right, '270deg')}` }} />
+      <div
+        className="absolute inset-0 opacity-70"
+        style={{
+          backgroundImage:
+            'linear-gradient(90deg, transparent calc(50% - 1px), color-mix(in oklab, var(--foreground) 14%, transparent) calc(50% - 1px), color-mix(in oklab, var(--foreground) 14%, transparent) calc(50% + 1px), transparent calc(50% + 1px)), repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), var(--border) calc(10% - 1px), var(--border) 10%)',
+          maskImage: 'linear-gradient(180deg, transparent, black 25%, black 75%, transparent)',
+          WebkitMaskImage: 'linear-gradient(180deg, transparent, black 25%, black 75%, transparent)'
+        }}
+      />
+    </div>
   );
 }
 
 /**
- * A side's number. The imported score always wins; until there is one the
- * lineup's starter total stands in, labelled "proj" by `PlayerPoints` while
- * any starter is still a projection. A week with no lineup data is the em
- * dash, never 0.
+ * The two totals as one bar: each side's share of the combined points, in
+ * its franchise colour. A tug of war, not a probability — it says who is
+ * ahead and by how much at a glance, and the line under it says it in words.
  */
-function Total({ score, hasScores, total, loading, label, align = 'start' }) {
+function ShareBar({ share, left, right }) {
+  if (share == null) return <div className="mt-4 h-1.5 rounded-full bg-muted" aria-hidden="true" />;
+  return (
+    <div className="mt-4 flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
+      <div
+        className="h-full rounded-l-full transition-[width] duration-700 ease-out"
+        style={{ width: `${share}%`, background: left ? getTeamColor(left).value : 'var(--muted)' }}
+      />
+      <div
+        className="h-full flex-1 rounded-r-full opacity-70"
+        style={{ background: right ? getTeamColor(right).value : 'var(--muted)' }}
+      />
+    </div>
+  );
+}
+
+/**
+ * One team's half. On a phone the identity sits over the score; from `md`
+ * they share a row — identity at the outer edge, score toward the middle — so
+ * the card has no dead centre. The identity links to the team's roster.
+ */
+function MatchupSide({ team, name, owner, standing, score, total, loading, isViewer = false, align = 'start' }) {
+  const end = align === 'end';
+  return (
+    <div
+      className={cn(
+        'flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4',
+        end ? 'items-end md:flex-row-reverse' : 'items-start'
+      )}
+    >
+      {team ? (
+        <Link
+          to={teamRosterPath(team.id)}
+          title={name}
+          className={cn(
+            'group -m-1.5 flex min-w-0 max-w-full flex-col gap-2 rounded-lg p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex-row md:items-center md:gap-3',
+            end ? 'items-end text-right md:flex-row-reverse' : 'items-start text-left'
+          )}
+        >
+          <TeamAvatar team={team} size="lg" className="h-10 w-10 lg:h-12 lg:w-12" />
+          <div className="min-w-0 max-w-full">
+            <p className="truncate text-[15px] font-semibold leading-tight tracking-[-0.006em] underline-offset-2 decoration-foreground/40 group-hover:underline lg:text-base">
+              {name}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {owner}
+              {isViewer && <span className="ml-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-primary">You</span>}
+            </p>
+            {standing && (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground tabular">
+                <RecordText wins={standing.wins} losses={standing.losses} ties={standing.ties} />
+                <span aria-hidden="true"> · </span>
+                Power #{standing.rank}
+              </p>
+            )}
+          </div>
+        </Link>
+      ) : (
+        <p className="text-sm text-muted-foreground">Unknown team</p>
+      )}
+
+      <Score score={score} total={total} loading={loading} label={name} align={align} />
+    </div>
+  );
+}
+
+/**
+ * A side's number, counting up once on arrival. The imported score always
+ * wins; until there is one the lineup's starter total stands in, labelled
+ * "proj" by `PlayerPoints` while any starter is still a projection. No lineup
+ * data is the em dash, never 0.
+ */
+function Score({ score, total, loading, label, align = 'start' }) {
+  const isResult = score != null;
+  const target = isResult ? score : total?.total ?? null;
+  const shown = useCountUp(target);
   const className = cn(
-    'block font-display text-[40px] font-semibold leading-none tracking-[-0.01em] tabular',
+    'block shrink-0 font-display text-[40px] font-semibold leading-none tracking-[-0.01em] tabular lg:text-[56px]',
     align === 'end' && 'text-right'
   );
 
-  if (hasScores) {
+  if (loading) return <Skeleton className="h-10 w-24 shrink-0 lg:h-14 lg:w-32" />;
+
+  if (isResult) {
     return (
       <span className={className} aria-label={`${label}: ${formatPoints(score)}`}>
-        {formatPoints(score)}
+        {formatPoints(shown)}
       </span>
     );
   }
-  if (loading) return <Skeleton className={cn('h-10 w-24', align === 'end' && 'justify-self-end')} />;
 
   return (
-    <div className={cn(align === 'end' && 'text-right')}>
-      <PlayerPoints {...totalAsPoints(total)} display className={cn(className, 'inline')} />
-    </div>
+    <PlayerPoints
+      {...totalAsPoints(total ? { ...total, total: shown } : total)}
+      display
+      className={cn(className, 'whitespace-nowrap')}
+    />
   );
 }
 
@@ -315,7 +403,7 @@ function Disclosure({ label, defaultOpenAtLg = false, flush = false, children })
 }
 
 function ByeWeek({ ctx }) {
-  const { season, actualWeek, viewerTeam } = ctx;
+  const { season, actualWeek, viewerTeam, canOpenTab } = ctx;
   const masked = useMasked();
   const next = nextMatchup(season.schedule, viewerTeam.id, actualWeek);
   const opponent = next ? season.teams.find((t) => sameId(t.id, next.opponentId)) : null;
@@ -337,6 +425,11 @@ function ByeWeek({ ctx }) {
               <MatchupHistory
                 viewerFranchiseId={franchiseIdOf(viewerTeam)}
                 opponentFranchiseId={franchiseIdOf(opponent)}
+                historyHref={
+                  franchiseIdOf(viewerTeam) && franchiseIdOf(opponent) && (canOpenTab?.('history') ?? true)
+                    ? headToHeadPath(franchiseIdOf(viewerTeam), franchiseIdOf(opponent))
+                    : null
+                }
               />
             </Disclosure>
           </div>

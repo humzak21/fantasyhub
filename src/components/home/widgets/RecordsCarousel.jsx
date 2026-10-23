@@ -22,7 +22,9 @@ const NONE = [];
  *
  * A horizontal scroller that snaps a card to the gutter. On a phone a card is
  * 85% of the row, so the next one peeks — that peek is the swipe affordance.
- * From `sm` two fit, from `lg` three. Previous / next buttons sit at the edges
+ * Two fit in a card of `@md` and three in `@3xl` — the card's own width, not
+ * the viewport's, since the same carousel is a whole phone screen or two-thirds
+ * of a desktop. Previous / next buttons sit at the edges
  * only while there is more that way (`useScrollEdges`, as the nav's chevrons),
  * and the dots follow the scroll. Nothing auto-advances.
  *
@@ -66,7 +68,9 @@ export default function RecordsCarousel({ ctx }) {
   const linkable = canOpenTab ? canOpenTab('history') : true;
 
   return (
-    <div ref={anchorRef}>
+    // A box of its own (the viewport observer needs one) that passes a
+    // stretch from the column on to the card.
+    <div ref={anchorRef} className="flex flex-col [&>section]:flex-1">
       <HomeWidget
         id="records"
         icon={Medal}
@@ -140,7 +144,7 @@ function Carousel({ cards, identity, linkable }) {
   const overflows = edges.start || edges.end;
 
   return (
-    <div className="relative">
+    <div className="@container relative">
       <ul
         ref={scrollerRef}
         aria-label="Records"
@@ -154,7 +158,7 @@ function Carousel({ cards, identity, linkable }) {
         {cards.map((card) => (
           <li
             key={`${card.kind}:${card.key}`}
-            className="w-[85%] shrink-0 snap-start sm:w-[calc(50%-0.375rem)] lg:w-[calc((100%-1.5rem)/3)]"
+            className="w-[85%] shrink-0 snap-start @md:w-[calc(50%-0.375rem)] @3xl:w-[calc((100%-1.5rem)/3)]"
           >
             <RecordCardMini card={card} identity={identity} linkable={linkable} />
           </li>
@@ -211,12 +215,12 @@ function EdgeButton({ side, label, onClick }) {
 
 function CarouselSkeleton() {
   return (
-    <div role="status" aria-label="Loading records" className="flex gap-3 overflow-hidden">
+    <div role="status" aria-label="Loading records" className="@container flex gap-3 overflow-hidden">
       {[0, 1, 2].map((i) => (
         <div
           key={i}
           aria-hidden="true"
-          className="w-[85%] shrink-0 space-y-3 rounded-lg border border-border p-3.5 sm:w-[calc(50%-0.375rem)] lg:w-[calc((100%-1.5rem)/3)]"
+          className="w-[85%] shrink-0 space-y-3 rounded-lg border border-border p-3.5 @md:w-[calc(50%-0.375rem)] @3xl:w-[calc((100%-1.5rem)/3)]"
         >
           <Skeleton className="h-4 w-1/3" />
           <Skeleton className="h-4 w-2/3" />

@@ -103,6 +103,7 @@ export function orientScores(game, side) {
  *
  * @returns {null | {
  *   headline: string,
+ *   standing: 'lead'|'trail'|'level',
  *   record: string,
  *   phases: Array<{ label: string, record: string }>,
  *   streak: string | null
@@ -113,10 +114,11 @@ export function describeSeries(summary) {
   const [you, them] = summary.sides;
 
   const record = formatWlt(you);
+  const standing = you.wins > them.wins ? 'lead' : you.wins < them.wins ? 'trail' : 'level';
   const headline =
-    you.wins > them.wins
+    standing === 'lead'
       ? `You lead the series ${record}`
-      : you.wins < them.wins
+      : standing === 'trail'
         ? `You trail the series ${record}`
         : `The series is level at ${record}`;
 
@@ -135,7 +137,7 @@ export function describeSeries(summary) {
     streak = side === 0 ? `You've won ${games}` : `You've lost ${games}`;
   }
 
-  return { headline, record, phases, streak };
+  return { headline, standing, record, phases, streak };
 }
 
 function formatWlt({ wins = 0, losses = 0, ties = 0 } = {}) {
@@ -147,4 +149,37 @@ export function meetingResult(game) {
   if (game.team1Score > game.team2Score) return 'W';
   if (game.team1Score < game.team2Score) return 'L';
   return 'T';
+}
+
+/**
+ * Where the matchup stands, in one line under the scoreline.
+ *
+ * - `Final` once the game is completed: "Won by 12.40" / "Lost by 3.10".
+ * - `In progress` while any starter's actual is in.
+ * - `Projected` before that.
+ *
+ * The margin is to the hundredth only for a final, which is a result; a
+ * projection reads to one decimal like every other projection. `share` is the
+ * viewer's part of the combined total (0-100), for the tug-of-war bar; null
+ * when either side is unknown.
+ *
+ * @param {{ completed?: boolean, own: number|null, opponent: number|null, anyActual?: boolean }} input
+ * @returns {{ phase: 'Final'|'In progress'|'Projected', lead: number|null, text: string|null, share: number|null }}
+ */
+export function matchupStatus({ completed = false, own, opponent, anyActual = false }) {
+  const phase = completed ? 'Final' : anyActual ? 'In progress' : 'Projected';
+  const known = Number.isFinite(own) && Number.isFinite(opponent);
+  if (!known) return { phase, lead: null, text: null, share: null };
+
+  const lead = own - opponent;
+  const total = own + opponent;
+  const share = total > 0 ? (own / total) * 100 : 50;
+  const amount = Math.abs(lead).toFixed(completed ? 2 : 1);
+
+  let text;
+  if (lead === 0) text = completed ? 'Tied' : 'Dead level';
+  else if (completed) text = `${lead > 0 ? 'Won' : 'Lost'} by ${amount}`;
+  else text = `You ${lead > 0 ? 'lead' : 'trail'} by ${amount}`;
+
+  return { phase, lead, text, share };
 }

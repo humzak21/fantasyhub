@@ -60,10 +60,11 @@ export const HOME_WIDGETS = [
   },
   {
     // League history, so it is worth a look in any phase, the off-season
-    // included.
+    // included. In the narrow column on a desktop, where it is a one-card
+    // carousel: measured, that is what levels the two columns.
     id: 'records',
     title: 'Records',
-    column: 'main',
+    column: 'side',
     Component: RecordsCarousel,
     when: (ctx) => Boolean(ctx.seasonId)
   },
@@ -82,9 +83,12 @@ export const HOME_WIDGETS = [
     when: (ctx) => inSeason(ctx) && hasPlayed(ctx)
   },
   {
+    // In the wide column on a desktop: its two division tables sit side by
+    // side there, and stacked in the narrow one they made that column twice
+    // the height of this one and left a hole under it.
     id: 'standings',
     title: 'Standings',
-    column: 'side',
+    column: 'main',
     Component: StandingsMini,
     when: inSeason
   },

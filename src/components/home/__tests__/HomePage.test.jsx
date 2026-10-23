@@ -184,7 +184,7 @@ describe('HomePage — a member who owns a team', () => {
     expect(within(hero).getByText('Team 7')).toBeInTheDocument();
     expect(within(hero).getByText('Team 3')).toBeInTheDocument();
     expect(within(hero).getByText(/week 7/i)).toBeInTheDocument();
-    expect(within(hero).getByRole('button', { name: 'History' })).toBeInTheDocument();
+    expect(within(hero).getByRole('button', { name: 'Head to head' })).toBeInTheDocument();
     expect(within(hero).getByRole('button', { name: 'Rosters' })).toBeInTheDocument();
   });
 

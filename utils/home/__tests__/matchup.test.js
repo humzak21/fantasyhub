@@ -3,6 +3,7 @@ import {
   daysUntilStart,
   describeSeries,
   findMatchup,
+  matchupStatus,
   meetingResult,
   nextMatchup,
   orientScores,
@@ -103,6 +104,7 @@ describe('describeSeries', () => {
       ])
     );
     expect(series.headline).toBe('You lead the series 3–1');
+    expect(series.standing).toBe('lead');
     expect(series.phases).toEqual([
       { label: 'Regular season', record: '2–1' },
       { label: 'Playoffs', record: '1–0' }
@@ -128,5 +130,31 @@ describe('meetingResult', () => {
     expect(meetingResult({ team1Score: 2, team2Score: 1 })).toBe('W');
     expect(meetingResult({ team1Score: 1, team2Score: 2 })).toBe('L');
     expect(meetingResult({ team1Score: 1, team2Score: 1 })).toBe('T');
+  });
+});
+
+describe('matchupStatus', () => {
+  it('reads a projection to one decimal, from the viewer side', () => {
+    expect(matchupStatus({ own: 102.6, opponent: 115.2 })).toMatchObject({
+      phase: 'Projected',
+      text: 'You trail by 12.6'
+    });
+  });
+
+  it('says in progress once an actual is in', () => {
+    expect(matchupStatus({ own: 90, opponent: 80, anyActual: true })).toMatchObject({
+      phase: 'In progress',
+      text: 'You lead by 10.0'
+    });
+  });
+
+  it('reads a final to the hundredth', () => {
+    expect(matchupStatus({ completed: true, own: 120.36, opponent: 75.82 }).text).toBe('Won by 44.54');
+    expect(matchupStatus({ completed: true, own: 100, opponent: 100 }).text).toBe('Tied');
+  });
+
+  it('splits the combined total for the bar, and knows nothing without both sides', () => {
+    expect(matchupStatus({ own: 75, opponent: 25 }).share).toBe(75);
+    expect(matchupStatus({ own: null, opponent: 25 })).toMatchObject({ text: null, share: null, lead: null });
   });
 });

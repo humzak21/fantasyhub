@@ -26,8 +26,8 @@ const sameId = (a, b) => a != null && b != null && String(a) === String(b);
  * itself rather than a second copy of it.
  *
  * Four columns is a plain table at every width — the `ResponsiveDataTable`
- * threshold is about four. Divisions stack on a phone and sit side by side
- * from `md` when the widget has the width.
+ * threshold is about four. Divisions stack in a narrow card and sit side by
+ * side in a wide one (a container query, `@xl`).
  */
 export default function StandingsMini({ ctx }) {
   const { seasonId, season, viewerTeam, onOpenStandings } = ctx;
@@ -71,9 +71,11 @@ export default function StandingsMini({ ctx }) {
       }}
       empty={divisions.length === 0 && <p className="text-sm text-muted-foreground">No standings yet.</p>}
     >
-      <div className="space-y-4">
+      <div className="@container space-y-4">
         {seeded && <QualifierKey />}
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-1">
+        {/* By the card's width, not the viewport's: side by side once the
+            card can hold two tables, whichever column it sits in. */}
+        <div className="grid gap-5 @xl:grid-cols-2 @xl:gap-6">
           {divisions.map((division) => (
             <table key={division.id} className="w-full table-fixed text-sm">
               <caption className="pb-1.5 text-left text-sm font-semibold">{division.label}</caption>
