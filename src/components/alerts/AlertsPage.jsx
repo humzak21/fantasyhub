@@ -1,6 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Bell, Check, CheckCheck, ListChecks, MessageSquare, Swords, Trash2 } from 'lucide-react';
+import { Bell, Check, CheckCheck, ListChecks, MessageCircleQuestion, MessageSquare, Swords, Trash2 } from 'lucide-react';
 
 import PageHeader from '../layout/PageHeader.jsx';
 import { Card, CardContent } from '../ui/card';
@@ -16,6 +16,8 @@ import {
 } from '../../../hooks/queries/index.js';
 import { tauntIdFromUrl, tauntState } from '../../utils/taunts.js';
 import TauntSheet from './TauntSheet.jsx';
+import AskLeagueSheet from '../ask/AskLeagueSheet.jsx';
+import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 /**
  * Alerts (`/alerts`): every push notification this member was sent, newest
@@ -69,6 +71,9 @@ const AlertsPage = () => {
   const { data: taunts = [], isLoading: tauntsLoading } = useMyTaunts();
   const sendTaunt = useSendTaunt();
   const tauntsById = useMemo(() => new Map(taunts.map((taunt) => [taunt.id, taunt])), [taunts]);
+  const { isApproved } = useViewer();
+  // Ask og jits, opened from the header or from a taunt with its rivalry filled in.
+  const [ask, setAsk] = useState({ open: false, question: '' });
 
   // Arriving from the push is reading it.
   useEffect(() => {
@@ -94,15 +99,23 @@ const AlertsPage = () => {
         title="Alerts"
         description="Every notification you have been sent, newest first. They stay here after you tap them on your phone."
         actions={(
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={unread === 0 || markRead.isPending}
-            onClick={() => markRead.mutate(null)}
-          >
-            <CheckCheck className="mr-2 h-4 w-4" aria-hidden="true" />
-            Mark all read
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {isApproved && (
+              <Button variant="outline" size="sm" onClick={() => setAsk({ open: true, question: '' })}>
+                <MessageCircleQuestion className="mr-2 h-4 w-4" aria-hidden="true" />
+                Ask og jits
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={unread === 0 || markRead.isPending}
+              onClick={() => markRead.mutate(null)}
+            >
+              <CheckCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+              Mark all read
+            </Button>
+          </div>
         )}
       />
 
@@ -195,8 +208,18 @@ const AlertsPage = () => {
           onSend={(id) => sendTaunt.mutateAsync(id)}
           isSending={sendTaunt.isPending}
           onClose={closeTaunt}
+          onAskAbout={isApproved ? (opponent) => {
+            closeTaunt();
+            setAsk({ open: true, question: `What's my record against ${opponent}?` });
+          } : null}
         />
       )}
+
+      <AskLeagueSheet
+        open={ask.open}
+        initialQuestion={ask.question}
+        onOpenChange={(open) => setAsk((prev) => ({ ...prev, open }))}
+      />
     </div>
   );
 };

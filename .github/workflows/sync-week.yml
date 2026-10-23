@@ -70,3 +70,15 @@ jobs:
             ${{ inputs.week }} \
             ${{ inputs.dry_run == true && '--dry-run' || '' }} \
             ${{ inputs.trigger != 'cron' && '--manual' || '' }}
+
+      # The league chat's fact cards (JITS-42), rebuilt from what the step above
+      # wrote. Non-fatal: yesterday's cards are better than a failed sync, and
+      # the next run rebuilds them. Runs even if the sync step failed, since
+      # the cards read whatever is stored.
+      - name: Rebuild the league chat's fact cards
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/build-league-facts.js ${{ inputs.dry_run == true && '--dry-run' || '' }}

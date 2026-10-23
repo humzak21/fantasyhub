@@ -15,8 +15,10 @@ const navigate = vi.fn();
 const markRead = { mutate: vi.fn(), isPending: false };
 const remove = { mutate: vi.fn(), isPending: false };
 const sendTaunt = { mutateAsync: vi.fn(), isPending: false };
+const askLeague = { mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false, data: undefined };
 let inbox;
 let taunts;
+let viewer;
 
 vi.mock('react-router-dom', async (actual) => ({ ...(await actual()), useNavigate: () => navigate }));
 vi.mock('../../../../hooks/queries/index.js', async () => {
@@ -26,9 +28,11 @@ vi.mock('../../../../hooks/queries/index.js', async () => {
     useNotificationInbox: () => inbox,
     useInboxMutations: () => ({ markRead, remove }),
     useMyTaunts: () => taunts,
-    useSendTaunt: () => sendTaunt
+    useSendTaunt: () => sendTaunt,
+    useAskLeague: () => askLeague
   };
 });
+vi.mock('../../../contexts/ViewerContext.jsx', () => ({ useViewer: () => viewer }));
 
 const { default: AlertsPage } = await import('../AlertsPage.jsx');
 
@@ -49,6 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   inbox = { data: [], isLoading: false, error: null };
   taunts = { data: [], isLoading: false };
+  viewer = { isApproved: true };
 });
 
 const offer = (over = {}) => ({
@@ -166,5 +171,25 @@ describe('AlertsPage', () => {
     render(<AlertsPage />, { path: '/alerts?taunt=t1&send=1' });
     await waitFor(() => expect(sendTaunt.mutateAsync).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Taunt sent. Arya will get it in a minute.')).toBeInTheDocument();
+  });
+
+  it('opens Ask og jits from the header, for approved members only', async () => {
+    render(<AlertsPage />);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    expect(await screen.findByRole('dialog')).toHaveTextContent('Every number comes from the league');
+  });
+
+  it('hides Ask og jits from an account awaiting approval', () => {
+    viewer = { isApproved: false };
+    render(<AlertsPage />);
+    expect(screen.queryByRole('button', { name: 'Ask og jits' })).toBeNull();
+  });
+
+  it('asks about the rivalry from a taunt, with the question filled in', async () => {
+    inbox.data = [factAlert];
+    taunts.data = [offer()];
+    render(<AlertsPage />, { path: '/alerts?taunt=t1' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask og jits about this rivalry' }));
+    expect(await screen.findByRole('textbox', { name: 'Your question' })).toHaveValue("What's my record against Arya?");
   });
 });

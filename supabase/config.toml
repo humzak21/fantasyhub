@@ -20,3 +20,10 @@ schema_paths = []
 # table (as the service role); there is nothing here to protect behind auth.
 [functions.parlay-live]
 verify_jwt = false
+
+# The league chat (JITS-42). Members only, but the gateway's legacy JWT check
+# does not cover the new API keys, so the function verifies the caller's
+# session itself (auth.getUser) and refuses anyone who is not an approved
+# member before reading a card.
+[functions.league-chat]
+verify_jwt = false

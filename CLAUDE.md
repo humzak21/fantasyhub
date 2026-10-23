@@ -2396,6 +2396,58 @@ migration added it to every device already subscribed.
   warning, and the facts still go out.
 - **Apply the migration before the bundle**: Alerts reads `matchup_taunts`.
 
+### The league chat answers from fact cards, and code checks every number
+
+**Ask og jits** (JITS-42; `src/components/ask/AskLeagueSheet.jsx`, opened from
+Alerts and from a taunt's "Ask og jits about this rivalry") answers a member's
+question about the league. A small open model only *words* the answer. It
+never supplies a fact, because small models are confidently wrong about
+records and totals, and a wrong "7-3" reads exactly like a right "8-2".
+
+- **Fact cards are the only source** (`league_facts`,
+  `20261023120000_league_chat.sql`). `services/leagueFacts.js` (pure) writes
+  one short sentence per fact from the same code the History tab draws with:
+  `indexLeague` for every game, careers and seasons, and `summarizeMatchup`
+  for head-to-heads. Each card is tagged with the owners (`ownerKey`),
+  seasons, weeks and phase it is about. `scripts/build-league-facts.js`
+  rebuilds them as a non-fatal step of the daily refresh and the weekly sync.
+  Phase 1 covers games, head-to-head, seasons, careers, champions and this
+  week; a new area is a new builder there.
+- **A rebuild never shows half a set.** It inserts a new `generation`, points
+  `league_facts_meta` at it, then deletes the old one. The meta row also holds
+  the names a question can use (`lexicon`) and this week's pairings.
+- **Code picks the cards, not the model** (`services/leagueQuestion.js`).
+  `readQuestion` finds people (full, first or last name, "me", "my opponent"),
+  years, weeks and the phase. `selectCards` keeps cards about those and ranks
+  the card type the wording asks for (`INTENTS`: record → `h2h_series`,
+  "last time" → `h2h_last_meeting`, titles → `postseason`/`champions`, …). A
+  question that names nobody must share a word with a card, or it gets "I don't
+  have anything on that" without a model call.
+- **Nothing reaches the member unchecked.** `verifyAnswer` refuses any
+  number, record (in either order) or person the selected cards did not
+  supply. The only arithmetic allowed is a sum or difference of two numbers
+  the answer itself states ("3-1, so 2 more wins"). A failed draft is retried
+  once with the problem named; a second failure shows the cards themselves
+  (`kind: 'facts'`).
+- **The model is configuration, not code.** `openAiCompatibleModel` talks to
+  any OpenAI-compatible endpoint; `league-chat` reads `LLM_BASE_URL`,
+  `LLM_API_KEY` and `LLM_MODEL` from its secrets. With them unset it answers
+  with the matching cards and costs nothing. Choosing a provider is a cost
+  decision, so ask before setting one.
+- **`supabase/functions/league-chat`** checks the session with
+  `auth.getUser` (hence `verify_jwt = false`), lets in approved members and
+  admins only (the `is_approved_member()` rule), enforces `CHAT_DAILY_LIMIT`
+  (30) per member per UTC day by counting `chat_log`, and logs every question
+  with the cards used, the attempts and why a draft failed. It reads with
+  `SB_SECRET_KEY`. It is deployed by hand (`supabase functions deploy
+  league-chat`).
+- **Members never read the tables.** `league_facts`, `league_facts_meta` and
+  `chat_log` have RLS on, no policies and no `anon`/`authenticated` grants.
+  `supabase/tests/database/league_chat.test.sql` holds that.
+- `services/__tests__/leagueQuestion.test.js` is the phase 1 question set: real
+  question shapes with recorded model replies, plus drafts that invent a
+  record or a score and must be retried or replaced by the cards.
+
 ### Password reset is a login, and the page makes it set a password
 
 A Supabase recovery link is not "prove it's you, then choose a password". It
