@@ -14,15 +14,31 @@
  * - `when(ctx)` hides a widget that has no business rendering.
  *
  * `ctx` is `{ seasonId, season, config, phase, actualWeek, daysToStart,
- * viewerTeam, onOpenStandings, openTab }` — see `HomePage`.
+ * viewerTeam, onOpenStandings, openTab, openWeek, canOpenTab }` — see
+ * `HomePage`.
  */
 
 import MatchupHero from './widgets/MatchupHero.jsx';
 import PickemsParlayWidget from './widgets/PickemsParlayWidget.jsx';
 import RankingsSlice from './widgets/RankingsSlice.jsx';
+import RecentForm from './widgets/RecentForm.jsx';
+import RecordsCarousel from './widgets/RecordsCarousel.jsx';
 import StandingsMini from './widgets/StandingsMini.jsx';
+import TakesWidget from './widgets/TakesWidget.jsx';
 
 const inSeason = (ctx) => ctx.phase === 'active' || ctx.phase === 'complete';
+
+/** The viewer's team has a scored game this season. "Nothing yet" above the
+ *  fold is dead weight — the hero already says it is week 1. */
+const hasPlayed = (ctx) =>
+  Boolean(ctx.viewerTeam) &&
+  (ctx.season?.schedule ?? []).some(
+    (game) =>
+      (game.team1Id === ctx.viewerTeam.id || game.team2Id === ctx.viewerTeam.id) &&
+      game.team1Score != null &&
+      game.team2Score != null &&
+      game.team2Id != null
+  );
 
 export const HOME_WIDGETS = [
   {
@@ -43,6 +59,15 @@ export const HOME_WIDGETS = [
     when: (ctx) => ctx.phase === 'active' || ctx.phase === 'loading'
   },
   {
+    // League history, so it is worth a look in any phase, the off-season
+    // included.
+    id: 'records',
+    title: 'Records',
+    column: 'main',
+    Component: RecordsCarousel,
+    when: (ctx) => Boolean(ctx.seasonId)
+  },
+  {
     id: 'rankings',
     title: 'Power rankings',
     column: 'side',
@@ -50,11 +75,25 @@ export const HOME_WIDGETS = [
     when: inSeason
   },
   {
+    id: 'recent-form',
+    title: 'Last 3 weeks',
+    column: 'main',
+    Component: RecentForm,
+    when: (ctx) => inSeason(ctx) && hasPlayed(ctx)
+  },
+  {
     id: 'standings',
     title: 'Standings',
     column: 'side',
     Component: StandingsMini,
     when: inSeason
+  },
+  {
+    id: 'takes',
+    title: 'Takes',
+    column: 'side',
+    Component: TakesWidget,
+    when: (ctx) => Boolean(ctx.seasonId)
   }
 ];
 

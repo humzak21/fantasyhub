@@ -23,11 +23,14 @@ let viewerTeam;
 let queries;
 
 vi.mock('../../../contexts/ViewerContext.jsx', () => ({ useViewer: () => viewer }));
-// The pick'ems widget has its own suite and its own hooks; here it is a
-// marker, so this file stays about the page's shapes.
+// The widgets with suites (and hooks) of their own are markers here, so this
+// file stays about the page's shapes.
 vi.mock('../widgets/PickemsParlayWidget.jsx', () => ({
   default: () => <section aria-label="Pick'ems stub" />
 }));
+vi.mock('../widgets/RecordsCarousel.jsx', () => ({ default: () => <section aria-label="Records stub" /> }));
+vi.mock('../widgets/RecentForm.jsx', () => ({ default: () => <section aria-label="Recent form stub" /> }));
+vi.mock('../widgets/TakesWidget.jsx', () => ({ default: () => <section aria-label="Takes stub" /> }));
 vi.mock('../../../hooks/use-viewer-team.js', () => ({
   useViewerTeam: () => ({ team: viewerTeam, isLoading: false })
 }));

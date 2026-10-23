@@ -707,7 +707,7 @@ lands on the click.
 - `canHellYeah`, `canStakeHellYeah` and `canWithdrawHellYeah` in
   `milestones.js` are the mirror; `supabase/tests/database/take_hell_yeah.test.sql`
   is what makes it true. Every Hell Yeah routes through `requestHellYeah` in
-  `TakesManager`, for the reason every Hell Nah routes through `requestFade`.
+  `useTakeActions`, for the reason every Hell Nah routes through `requestFade`.
 
 **A Hell Yeah stake is an offer, and each Hell Nah takes it on or not**
 (`20261010120000_take_stake_responses.sql`). Until 2026-10-10 a backer's stake
@@ -761,9 +761,12 @@ app that commits the viewer to paying somebody, and now the only one with a
 deadline on changing their mind, so `HellNahDialog` restates the price and the
 deadline over the take's own wording at the moment of the click — a sentence on
 a card is read when the card is new, and the button is pressed weeks later.
-Both call sites route through `requestFade` in `TakesManager`: a dialog per
+Every call site routes through `requestFade` in
+`takes/useTakeActions.js`, which `TakesManager` and the home page's takes
+card both call, each mounting `TakeActionDialogs` once: a dialog per
 component would be a second answer to "has this member opted out", and the
-board renders a dozen cards beside the one sheet. The checkbox
+board renders a dozen cards beside the one sheet. A component that owns its
+own dialog is still the bug. The checkbox
 (`confirmPreference.js`) is a **preference, not a rule** — it suppresses the
 explanation and nothing else, which is why it may live in `localStorage`, and
 why it is keyed per user within a browser.
@@ -989,7 +992,8 @@ any policy in the file, so no existing member ever saw a refusal.
 `/` resolves to `/home` (`DEFAULT_TAB = 'home'` in `FantasyFootballApp`),
 and so does an unknown or forbidden tab — a page that explains itself to
 whoever arrives, where the rankings table did not. The plan it follows, in
-four PRs, is JITS-45; the first two (the page, then pick'ems) have landed.
+four PRs, is JITS-45; the first three (the page; pick'ems; records, takes
+and recent form) have landed.
 
 - **Two shapes, chosen by the nav's own flags.** A signed-out viewer or an
   account awaiting approval gets `HomeDirectory`: a card per tab
@@ -1068,6 +1072,39 @@ surfaces cannot drift:
   never the team count, which is a different set. `utils/home/pickems.js` is
   the arithmetic; `supabase/tests/database/count_approved_members.test.sql`
   holds the rule.
+
+**Records, takes and the last three weeks** complete the dashboard:
+
+- **The records carousel** (`widgets/RecordsCarousel.jsx`) is
+  `utils/home/records.js` over the record book. *New this week* compares two
+  books by row identity (`rowIdentity`: a streak keyed on where it began):
+  the book now, and the book built from the same source without the latest
+  scored week (`withoutWeek`). Records built on season transaction counts are
+  left out of that slot, because a count cannot be rolled back a week.
+  *Record of the day* is a #1 picked by an FNV hash of the local date over
+  the sorted #1s, the same for everyone and stored nowhere. *Yours* is the
+  viewer's best top-five place. `useHomeRecordBooks` is the record book's
+  own query key with its own `select` (`buildHomeRecordBooks`), so Records,
+  Compare stats and Home share one fetch. It waits on `useNearViewport`.
+  Rows are named through `records/describeRow.js` and
+  `records/recordIdentity.js`, both lifted out of the Records tab, so a row
+  reads the same in both places.
+- **`/history?tab=records&record=<id>`** (`records/recordLink.js`) opens the
+  Records tab on that record's scope, rings the card, expands it and scrolls
+  it into view once. A card links only when `ctx.canOpenTab('history')`:
+  History is the admin's and the team owners'.
+- **The takes card** (`widgets/TakesWidget.jsx`) shows
+  `takes/homeTakes.js::selectHomeTakes`: the two newest, plus every take
+  graded in the last 72 hours, graded first. It renders the board's own
+  `TakeCard` with `compact` (one component, two densities). It **never writes
+  the seen mark**: two cards are not the board, and marking them read would
+  clear a badge for takes the member has not seen.
+- **Last 3 weeks** (`widgets/RecentForm.jsx`) is
+  `utils/home/recentForm.js` over a *light* `buildSeasonIndex` (season,
+  teams, games, rank snapshots) through the franchise profile's `seasonArc`,
+  never the heavy `useSeasonWeeks` source. Its chart is a lazy chunk
+  (`RecentFormChart.jsx`), so recharts stays out of the landing bundle.
+  Hidden until the viewer's team has a scored game.
 
 ### Settings is a tab, reached by the cog
 

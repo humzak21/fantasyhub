@@ -5,9 +5,10 @@ import { Button } from '../../ui/button';
 import { RankBadge } from '../../ui/rank-badge';
 import { TeamAvatar } from '../../ui/team-identity';
 import { cn, formatDate } from '../../../lib/utils';
-import { formatOrdinal, formatRecord, formatScore } from '../../../utils/format';
+import { formatOrdinal } from '../../../utils/format';
 import { isRecentRecord, rankRows, recordRows, tradesForRow } from '../../../../utils/recordBook/index.js';
 import { expandsTrades, formatRecordValue, hidesZero } from './recordCatalog';
+import { describeRow } from './describeRow';
 
 /** Rows a card shows before it is opened. */
 export const COLLAPSED_ROWS = 5;
@@ -16,70 +17,6 @@ const PHASES = [
   { id: 'regular', label: 'Regular' },
   { id: 'playoff', label: 'Playoffs' }
 ];
-
-/**
- * Who a row is and the one line of context under the name.
- *
- * `identity` does the masking — franchise names, team names and avatars all
- * come through it — so nothing here can print an owner a signed-out viewer
- * should not see.
- */
-function describeRow(record, row, identity) {
-  const franchise = identity.franchiseName(row.franchiseId);
-
-  switch (record.kind) {
-    case 'franchise': {
-      const parts = [];
-      if (record.detail === 'record' && row.record) parts.push(formatRecord(row.record));
-      if (row.seasons) parts.push(`${row.seasons} ${row.seasons === 1 ? 'season' : 'seasons'}`);
-      return { name: franchise, meta: parts.join(' · ') };
-    }
-    case 'teamSeason': {
-      const parts = [identity.teamName(row.teamId), row.year];
-      if (record.detail === 'record' && row.record) parts.push(formatRecord(row.record));
-      return { name: franchise, meta: parts.filter(Boolean).join(' · ') };
-    }
-    case 'game': {
-      const [pf, pa] = row.score ?? [];
-      return {
-        name: franchise,
-        meta: `${formatScore(pf)}–${formatScore(pa)} vs ${identity.franchiseName(row.opponentFranchiseId)} · Wk ${row.week}, ${row.year}`
-      };
-    }
-    case 'streak': {
-      const { start, end } = row;
-      const span = start.year === end.year
-        ? `${start.year} · wk ${start.week}–${end.week}`
-        : `${start.year} wk ${start.week} – ${end.year} wk ${end.week}`;
-      return { name: franchise, meta: span, active: row.active };
-    }
-    case 'seasonStreak':
-      return { name: franchise, meta: `${row.startYear}–${row.endYear}`, active: row.active };
-    case 'pair':
-      return {
-        name: `${franchise} & ${identity.franchiseName(row.partnerFranchiseId)}`,
-        meta: row.year ? String(row.year) : null
-      };
-    case 'bid':
-      return {
-        name: franchise,
-        meta: [row.playerName ?? 'Unknown player', row.week ? `Wk ${row.week}, ${row.year}` : row.year]
-          .filter(Boolean)
-          .join(' · ')
-      };
-    // The league as one team: the row is a week or a season, not a franchise.
-    case 'leagueWeek': {
-      let meta = null;
-      if (row.franchiseIds?.length) meta = row.franchiseIds.map((id) => identity.franchiseName(id)).join(' & ');
-      else if (row.average != null) meta = `${formatScore(row.average)} per team`;
-      return { name: `Week ${row.week}, ${row.year}`, meta };
-    }
-    case 'leagueSeason':
-      return { name: String(row.year), meta: `${row.weeks} weeks · ${row.games} games` };
-    default:
-      return { name: franchise, meta: null };
-  }
-}
 
 const playerName = (player) => player.name ?? 'Unknown player';
 
@@ -279,8 +216,10 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, rec
  * carry a Regular / Playoffs toggle; the record proper is the regular season.
  * A trade record's row opens to its trades rather than linking to the franchise.
  */
-export function RecordCard({ record, book, year = null, identity, onViewFranchise = () => {} }) {
-  const [expanded, setExpanded] = useState(false);
+export function RecordCard({ record, book, year = null, identity, onViewFranchise = () => {}, focused = false }) {
+  // A card opened from a link starts expanded, and is ringed so the eye finds
+  // the one the link was about.
+  const [expanded, setExpanded] = useState(focused);
   const [phase, setPhase] = useState('regular');
   const expandedLimit = year == null ? 20 : 10;
   const titleId = `record-${record.id}`;
@@ -303,7 +242,11 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
   const hasRecent = rows.some(isRecent);
 
   return (
-    <Card role="region" aria-labelledby={titleId} className="flex flex-col">
+    <Card
+      role="region"
+      aria-labelledby={titleId}
+      className={cn('flex flex-col scroll-mt-24', focused && 'ring-2 ring-primary/60')}
+    >
       <CardHeader className="space-y-1 pb-3 sm:pb-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-1.5">

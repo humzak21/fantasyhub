@@ -80,7 +80,10 @@ export function useApprovedMemberCount({ enabled = true } = {}) {
     queryKey: qk.approvals.count(),
     queryFn: () => db().users.countApprovedMembers(),
     enabled: enabled && Boolean(isAuthenticated),
-    staleTime: 5 * 60_000
+    staleTime: 5 * 60_000,
+    // A missing function (the migration not yet applied) is not going to
+    // appear on the third try, and the counters already read without it.
+    retry: 1
   });
 }
 

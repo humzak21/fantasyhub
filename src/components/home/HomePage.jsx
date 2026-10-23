@@ -24,7 +24,7 @@ import { HOME_WIDGETS } from './homeWidgets';
  * is an item of one grid, so the registry's order is the reading order on a
  * phone. Literal class names: Tailwind cannot see one built at runtime.
  */
-const ORDER = ['order-1', 'order-2', 'order-3', 'order-4', 'order-5', 'order-6', 'order-7', 'order-8', 'order-9'];
+const ORDER = ['order-1', 'order-2', 'order-3', 'order-4', 'order-5', 'order-6', 'order-7', 'order-8', 'order-9', 'order-10', 'order-11', 'order-12'];
 
 /**
  * The front door: `/` and `/home`.
@@ -62,6 +62,19 @@ export default function HomePage({ tabs = [], shouldShowTab = () => true, onOpen
     if (actualWeek != null) setViewedWeek(actualWeek);
   }, [actualWeek, setViewedWeek]);
 
+  // A link to one past week (a game in "Last 3 weeks") sets that week instead.
+  const openWeek = useCallback((week) => setViewedWeek(week), [setViewedWeek]);
+
+  // Whether the viewer may open a tab, by the nav's own rule — so a widget
+  // only links where the link would not bounce.
+  const canOpenTab = useCallback(
+    (id) => {
+      const tab = tabs.find((t) => t.id === id);
+      return Boolean(tab && shouldShowTab(tab));
+    },
+    [tabs, shouldShowTab]
+  );
+
   const ctx = useMemo(
     () => ({
       seasonId: activeSeason?.id ?? null,
@@ -72,9 +85,11 @@ export default function HomePage({ tabs = [], shouldShowTab = () => true, onOpen
       daysToStart: daysUntilStart(config),
       viewerTeam,
       onOpenStandings,
-      openTab
+      openTab,
+      openWeek,
+      canOpenTab
     }),
-    [activeSeason, config, phase, actualWeek, viewerTeam, onOpenStandings, openTab]
+    [activeSeason, config, phase, actualWeek, viewerTeam, onOpenStandings, openTab, openWeek, canOpenTab]
   );
 
   if (isAuthLoading || isApprovalLoading) {
