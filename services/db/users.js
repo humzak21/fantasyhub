@@ -297,6 +297,27 @@ export async function deleteMemberAccount(ctx, userId) {
   }
 }
 
+/**
+ * How many accounts may submit pick'ems: approved members plus admins, folded
+ * the way `is_approved_member()` folds them. One integer and no identities —
+ * the denominator of the home page's "9 of 14 picked".
+ *
+ * Unlike the identity checks above this throws: a missing denominator is shown
+ * as no denominator ("9 picked"), and the caller can only do that if it can
+ * tell a failure from a count.
+ */
+export async function countApprovedMembers(ctx) {
+  try {
+    const { data, error } = await ctx.client.rpc('count_approved_members');
+
+    if (error) throw error;
+
+    return Number.isFinite(Number(data)) ? Number(data) : null;
+  } catch (error) {
+    throwDbError(error, 'Count approved members');
+  }
+}
+
 // ---------------------------------------------------------------------------
 // League admins
 // ---------------------------------------------------------------------------

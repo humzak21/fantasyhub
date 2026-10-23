@@ -23,6 +23,11 @@ let viewerTeam;
 let queries;
 
 vi.mock('../../../contexts/ViewerContext.jsx', () => ({ useViewer: () => viewer }));
+// The pick'ems widget has its own suite and its own hooks; here it is a
+// marker, so this file stays about the page's shapes.
+vi.mock('../widgets/PickemsParlayWidget.jsx', () => ({
+  default: () => <section aria-label="Pick'ems stub" />
+}));
 vi.mock('../../../hooks/use-viewer-team.js', () => ({
   useViewerTeam: () => ({ team: viewerTeam, isLoading: false })
 }));
