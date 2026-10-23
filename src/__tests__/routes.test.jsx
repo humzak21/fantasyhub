@@ -21,7 +21,7 @@ vi.mock('../../FantasyFootballApp.jsx', async () => {
   return {
     default: function ShellStub() {
       const { tab } = useParams();
-      return <div data-testid="shell">tab:{tab || 'rankings'}</div>;
+      return <div data-testid="shell">tab:{tab || 'home'}</div>;
     },
   };
 });
@@ -53,10 +53,10 @@ describe('tab routing', () => {
 
   it('renders the default tab at /', async () => {
     render(<App />, { initialEntries: ['/'] });
-    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:rankings'));
+    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:home'));
   });
 
-  it.each(['statistics', 'schedule', 'teams', 'history', 'pickems', 'playoffs', 'awards'])(
+  it.each(['home', 'rankings', 'statistics', 'schedule', 'teams', 'history', 'pickems', 'playoffs', 'awards'])(
     'renders /%s as that tab',
     async (tab) => {
       render(<App />, { initialEntries: [`/${tab}`] });
@@ -85,6 +85,6 @@ describe('tab routing', () => {
 
   it('redirects the legacy /overview and /fantasy paths to the shell', async () => {
     render(<App />, { initialEntries: ['/overview'] });
-    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:rankings'));
+    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:home'));
   });
 });
