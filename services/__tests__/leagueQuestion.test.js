@@ -78,6 +78,13 @@ describe('selectCards', () => {
     expect(cards.every((c) => c.topic !== 'game' || (c.seasons.includes(2024) && c.weeks.includes(2)))).toBe(true);
   });
 
+  it('answers "my biggest win" from the bests over everybody, and "over Ben" from the series', () => {
+    const pick = (question) => selectCards(built.cards, readQuestion(question, { lexicon: built.lexicon, viewerKey: ANNA }), { question, lexicon: built.lexicon, viewerKey: ANNA })[0];
+    expect(pick('What was my biggest win ever?').topic).toBe('career_best');
+    expect(pick("What's my lowest score?").topic).toBe('career_best');
+    expect(pick('What was my biggest win over Ben?').text).toMatch(/^Anna Park's biggest win over Ben Cole/);
+  });
+
   it('brings in the champions list for a title question', () => {
     const question = 'Has Ben ever won a title?';
     const q = readQuestion(question, { lexicon: built.lexicon });
@@ -133,6 +140,7 @@ describe('answerQuestion: the phase 1 question set', () => {
     ['How did Ben do in 2024?', 'Ben went 1-2 in the regular season and finished 2nd, losing the championship game. [F1]', '1-2', /Ben Cole in 2024/],
     ['Is my series with Cara close?', "It's tied 1-1 over 2 games. [F1]", '1-1', /tied 1-1/],
     ['When did Ben and Cara last play?', 'Ben beat Cara 111.11 to 90.00 in 2024 week 3. [F1]', '111.11', /Ben Cole 111\.11, Cara Diaz 90\.00/],
+    ['What was my biggest win ever?', 'Your biggest win was by 40.30 over Ben, 140.20 to 99.90, in 2024 week 4. [F1]', '40.30', /best and worst games ever/],
     ['How many more games have I won than lost against Ben?', "You're 3-1 against Ben, so 2 more wins than losses. [F1]", '2 more', /3-1/]
   ];
 

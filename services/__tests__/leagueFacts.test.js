@@ -61,6 +61,12 @@ describe('buildLeagueFacts', () => {
     expect(texts('champions')).toEqual(['League champions: 2024 Anna Park.']);
   });
 
+  it('names each franchise\'s best and worst games over everybody', () => {
+    expect(texts('career_best')).toContain(
+      "Anna Park's best and worst games ever: biggest win by 40.30 over Ben Cole, 140.20 to 99.90, in 2024 week 4 (regular season); worst loss by 32.29 to Ben Cole, 101.01 to 133.30, in 2025 week 1 (regular season); highest score 150.66 against Ben Cole in 2024 week 15 (championship game); lowest score 92.20 against Cara Diaz in 2025 week 2 (regular season)."
+    );
+  });
+
   it('knows this week\'s pairings and the names a question may use', () => {
     expect(built.thisWeek).toEqual([{ a: 'anna park', b: 'ben cole' }]);
     expect(built.lexicon.find((p) => p.key === 'ben cole').names).toEqual(['ben cole', 'ben', 'cole']);

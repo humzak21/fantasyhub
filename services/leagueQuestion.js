@@ -77,8 +77,9 @@ const TITLE_WORDS = /\b(champion|champions|championship|championships|title|titl
  */
 const INTENTS = [
   [/\b(record|series|leads?|all-?time|head.to.head|h2h|vs\.?|versus|against|beaten?)\b/, ['h2h_series']],
-  [/\b(biggest|largest|blowout|margin|crushed|destroyed)\b/, ['h2h_biggest_win']],
-  [/\b(highest|most points|best score|top score|career high)\b/, ['h2h_high_score']],
+  [/\b(biggest|largest|blowout|margin|crushed|destroyed)\b/, ['h2h_biggest_win', 'career_best']],
+  [/\b(highest|most points|best score|top score|career high)\b/, ['h2h_high_score', 'career_best']],
+  [/\b(lowest|worst|fewest|career low)\b/, ['career_best']],
   [/\b(points|average|averages|ppg|scored against)\b/, ['h2h_points']],
   [/\b(streak|in a row|straight)\b/, ['h2h_streak', 'h2h_last_win']],
   [/\b(closest|narrowest|tightest|nail.?biter)\b/, ['h2h_closest']],
@@ -135,6 +136,8 @@ export function selectCards(cards, q, { limit = 30, question = '', lexicon = [],
     let s = ownerHits * 10;
     if (q.owners.length > 1 && ownerHits === q.owners.length) s += 15;
     if (q.owners.length === 1 && card.topic === 'game' && !q.weeks.length) s -= 4;
+    // One person's "biggest win" is over everybody, not one opponent.
+    if (q.owners.length === 1 && card.topic === 'career_best') s += 3;
 
     if (q.seasons.length) {
       if (card.seasons.some((y) => q.seasons.includes(y))) s += 6;

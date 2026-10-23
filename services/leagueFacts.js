@@ -263,6 +263,34 @@ export function buildLeagueFacts({ seasons = [], teams = [], results = [], curre
       seasons: years,
       text: `${name}'s career (${years[0]}–${years[years.length - 1]}, ${years.length} ${years.length === 1 ? 'season' : 'seasons'}): ${record(regular.w, regular.l, regular.t)} in the regular season with ${score(regular.pf)} points for; ${record(playoff.w, playoff.l, playoff.t)} in playoff games.`
     });
+    // Bests and worsts over every game, for "my biggest win ever".
+    const played = games.filter((g) => Number.isFinite(g.pf) && Number.isFinite(g.pa));
+    if (played.length) {
+      const pick = (better) => played.reduce((best, g) => (better(g, best) ? g : best));
+      const wins = played.filter((g) => g.result === 'W');
+      const losses = played.filter((g) => g.result === 'L');
+      const when = (g) => `${g.year} week ${g.week} (${gameLabel(g)})`;
+      const vs = (g) => ownerAt(g.opponent, g.year);
+      const parts = [];
+      if (wins.length) {
+        const g = wins.reduce((best, x) => (x.pf - x.pa > best.pf - best.pa ? x : best));
+        parts.push(`biggest win by ${score(g.pf - g.pa)} over ${vs(g)}, ${score(g.pf)} to ${score(g.pa)}, in ${when(g)}`);
+      }
+      if (losses.length) {
+        const g = losses.reduce((worst, x) => (x.pa - x.pf > worst.pa - worst.pf ? x : worst));
+        parts.push(`worst loss by ${score(g.pa - g.pf)} to ${vs(g)}, ${score(g.pf)} to ${score(g.pa)}, in ${when(g)}`);
+      }
+      const high = pick((g, best) => g.pf > best.pf);
+      const low = pick((g, best) => g.pf < best.pf);
+      parts.push(`highest score ${score(high.pf)} against ${vs(high)} in ${when(high)}`);
+      parts.push(`lowest score ${score(low.pf)} against ${vs(low)} in ${when(low)}`);
+      add({
+        topic: 'career_best',
+        owners,
+        seasons: years,
+        text: `${name}'s best and worst games ever: ${parts.join('; ')}.`
+      });
+    }
     add({
       topic: 'postseason',
       owners,
