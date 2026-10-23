@@ -17,16 +17,18 @@ import { Flame, Target, Trophy } from 'lucide-react';
 
 import { HeaderNav, MobileTabBar } from '../ResponsiveNavigation.jsx';
 
+// Each carries a `tabBarSlot` so all three sit in the phone bar itself; what
+// the bar's Menu says about the tabs inside it is MobileTabBar.test.jsx's.
 const tabs = ({ badgeCount = 0, showNotification = false } = {}) => [
-  { id: 'rankings', label: 'Rankings', icon: Trophy },
-  { id: 'pickems', label: "Pick'ems", icon: Target, showNotification },
-  { id: 'takes', label: 'Takes', icon: Flame, badgeCount }
+  { id: 'rankings', label: 'Rankings', icon: Trophy, tabBarSlot: 0 },
+  { id: 'pickems', label: "Pick'ems", icon: Target, showNotification, tabBarSlot: 1 },
+  { id: 'takes', label: 'Takes', icon: Flame, badgeCount, tabBarSlot: 2 }
 ];
 
 const mount = (ui) => render(<MemoryRouter initialEntries={['/rankings']}>{ui}</MemoryRouter>);
 
-// jsdom implements neither, and the phone bar scrolls its active tab into view
-// on mount. Nothing here is about scrolling — see NavScrollIndicators for that.
+// jsdom implements neither. Nothing here is about scrolling — see
+// NavScrollIndicators for that.
 beforeEach(() => {
   Element.prototype.scrollBy = vi.fn();
   Element.prototype.scrollTo = vi.fn();

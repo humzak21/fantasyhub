@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { BarChart3, Calendar, Flame, History, House, Target, Trophy, Users } from 'lucide-react';
+import { BarChart3, Calendar, Flame, History, House, Target, Users } from 'lucide-react';
 
 import { toSeasonConfig } from '../../../../utils/seasonConfig.js';
 
@@ -83,8 +83,7 @@ const RANKINGS = TEAMS.map((team, i) => ({
 
 const TABS = [
   { id: 'home', label: 'Home', icon: House },
-  { id: 'rankings', label: 'Rankings', icon: Trophy },
-  { id: 'statistics', label: 'Statistics', icon: BarChart3 },
+  { id: 'rankings', label: 'Statistics', icon: BarChart3 },
   { id: 'schedule', label: 'Schedule', icon: Calendar },
   { id: 'teams', label: 'Teams', icon: Users },
   { id: 'history', label: 'History', icon: History, customAccess: false },
@@ -149,7 +148,6 @@ describe('HomePage — who sees what', () => {
     const links = within(sections).getAllByRole('link');
     expect(links.map((link) => link.getAttribute('href'))).toEqual([
       '/rankings',
-      '/statistics',
       '/schedule',
       '/teams'
     ]);

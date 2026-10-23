@@ -89,6 +89,13 @@ function App() {
         <Route path="/" element={<FantasyFootballApp />} />
         <Route path="/:tab" element={<FantasyFootballApp />} />
 
+        {/* Statistics was a tab until 2026-10-23. It is a view of the
+            rankings tab now, so links and bookmarks land on that view. */}
+        <Route
+          path="/statistics"
+          element={<Navigate to="/rankings?view=statistics" replace />}
+        />
+
         {/* Legacy routes - redirect to main */}
         <Route
           path="/overview"

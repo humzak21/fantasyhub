@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { House, Trophy, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings, Bell } from 'lucide-react';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { House, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings, Bell } from 'lucide-react';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -19,10 +19,12 @@ import {
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
+import { useAuth } from './src/contexts/AuthContext.jsx';
 import { countUnseenTakes } from './src/components/takes/seen.js';
 import { viewableResultSeasons } from './src/components/awards/resultsAccess.js';
 import { Card, CardContent } from './src/components/ui/card';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
+import { cn } from './src/lib/utils';
 import ErrorBoundary from './utils/errorBoundary.jsx';
 
 // Import global styles
@@ -42,6 +44,7 @@ import PageContainer from './src/components/layout/PageContainer.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
 import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
+import { RANKINGS_VIEWS } from './src/components/power-rankings/rankingsViews.js';
 import { ErrorFallback } from './utils/errorBoundary.jsx';
 
 // One chunk per tab. Every tab, both app shells and recharts used to ship in
@@ -87,6 +90,7 @@ const FantasyFootballApp = () => {
     isAdminLoading,
     isTeamOwner
   } = useViewer();
+  const { signOut } = useAuth();
 
   // One query per thing, each with its own loading state. Replaces the
   // 60-callback mega-hook whose every mutation refetched the entire league.
@@ -198,7 +202,17 @@ const FantasyFootballApp = () => {
   const activeTab = tab || DEFAULT_TAB;
   const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
 
-  const [rankingsView, setRankingsView] = useState('table'); // 'table' or 'analysis'
+  // The Statistics tab's face — the rankings table, the analysis charts or the
+  // league statistics — is in the URL (`?view=`), so the phone's back button
+  // walks back through it and `/statistics`, the tab it replaced, can land on
+  // it (App.jsx redirects there).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedView = searchParams.get('view');
+  const rankingsView = RANKINGS_VIEWS.includes(requestedView) ? requestedView : 'table';
+  const setRankingsView = useCallback(
+    (view) => setSearchParams(view === 'table' ? {} : { view }),
+    [setSearchParams]
+  );
   const [standingsOpen, setStandingsOpen] = useState(false);
   const openStandings = useCallback(() => setStandingsOpen(true), []);
 
@@ -229,12 +243,14 @@ const FantasyFootballApp = () => {
     const awardsAccessible = isAwardsAccessible();
 
     return [
-      // `shortLabel` is what the phone tab bar shows. A 72px tab cannot hold
-      // "Statistics", and a truncated label — "Statist…" — is a worse
-      // affordance than the icon alone. Rankings and Teams carry their short
-      // names at every width; "Power Rankings" and "Teams & Rosters" were
-      // dropped on 2026-09-10 because the nav is not where the page explains
-      // itself.
+      // `shortLabel` is what a narrow nav shows in place of `label`. Teams
+      // carries its short name at every width; "Power Rankings" and "Teams &
+      // Rosters" were dropped on 2026-09-10 because the nav is not where the
+      // page explains itself.
+      //
+      // `tabBarSlot` puts a tab in the phone tab bar, in that position; every
+      // other tab the viewer may open is in the bar's Menu. Four slots and
+      // Menu make five, which fit a 375px screen without scrolling.
       //
       // Home is everyone's — the page itself decides its shape (a directory
       // for visitors, the dashboard for members). `weekAware: false` hides the
@@ -243,19 +259,22 @@ const FantasyFootballApp = () => {
       // will press and then distrust. A flag on the definition rather than an
       // `activeTab === 'home'` in the header, so another present-tense tab can
       // opt out the same way.
-      { id: 'home', label: 'Home', icon: House, requiresSeason: false, requiresAuth: false, weekAware: false },
-      { id: 'rankings', label: 'Rankings', icon: Trophy, requiresSeason: true, requiresAuth: false },
-      { id: 'statistics', label: 'Statistics', shortLabel: 'Stats', icon: BarChart3, requiresSeason: true, requiresAuth: false },
+      { id: 'home', label: 'Home', icon: House, requiresSeason: false, requiresAuth: false, weekAware: false, tabBarSlot: 0 },
+      // Rankings and Statistics are one tab since 2026-10-23: the rankings
+      // table, with Analysis and Statistics as views beside it
+      // (`RankingsHeader`). Its id stays `rankings` so every existing link
+      // and bookmark still lands; `/statistics` redirects to the view.
+      { id: 'rankings', label: 'Statistics', icon: BarChart3, requiresSeason: true, requiresAuth: false, tabBarSlot: 1 },
       { id: 'schedule', label: 'Schedule', icon: Calendar, requiresSeason: true, requiresAuth: false },
       { id: 'teams', label: 'Teams', icon: Users, requiresSeason: true, requiresAuth: false },
       // The admin is let through explicitly, the way every `getMasked*` helper
       // already treats them — owning a team is not a prerequisite for running
       // the league.
-      { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAdmin || isTeamOwner },
+      { id: 'history', label: 'History', icon: History, requiresSeason: false, requiresAuth: false, customAccess: isAdmin || isTeamOwner, tabBarSlot: 3 },
       // Pick'ems, Playoffs and Awards are for approved members, like Takes:
       // signed-out and unapproved viewers do not see them at all. This is the
       // shell's gate only — the tables behind them stay public-read.
-      { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false, customAccess: isApproved },
+      { id: 'pickems', label: 'Pick\'ems', icon: Target, requiresSeason: true, requiresAuth: false, customAccess: isApproved, tabBarSlot: 2 },
       // Members only — approved members, not merely signed-in ones; the
       // board's RLS asks the same question. `requiresAuth` is *not* the flag
       // for this — despite the name it means admin-only (`requiresAuth &&
@@ -273,15 +292,16 @@ const FantasyFootballApp = () => {
       { id: 'awards', label: 'Awards', icon: Award, requiresSeason: true, requiresAuth: false, customAccess: isApproved && awardsAccessible },
       // Settings is a tab — same route table, same guard, same shell — but
       // not a nav item: `inNav: false` keeps it out of the header list and
-      // the phone tab bar, and the cog beside the account control
-      // (`SettingsLink`) is its one entry point. It used to be a separate
+      // the phone tab bar. From lg the cog beside the account control
+      // (`SettingsLink`) opens it; below lg, the phone tab bar's Menu does.
+      // It used to be a separate
       // page mounted outside the shell, with its own header and a Back
       // button; it acts like every other tab now. Any signed-in account,
       // approved or not: Profile (name, password) is theirs regardless.
       { id: 'settings', label: 'Settings', icon: Settings, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false },
-      // Every notification the viewer was sent. Reached by the bell beside
-      // the cog, which is on screen at every width — not a nav tab, because
-      // the phone tab bar scrolls and a tab at its end goes unseen.
+      // Every notification the viewer was sent. Reached by the bell in the
+      // header, which is on screen at every width — not a nav tab, so it is
+      // never one tap further away inside the phone tab bar's Menu.
       { id: 'alerts', label: 'Alerts', icon: Bell, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false }
     ];
   }, [isApproved, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults, isAuthenticated]);
@@ -309,6 +329,8 @@ const FantasyFootballApp = () => {
   // presumably meant, and either way it contradicts the design directly above:
   // every tab renders its own "no season yet" state, which explains the
   // situation, where a dead nav item explains nothing.
+  const settingsBadgeLabel = `${pendingApprovals} ${pendingApprovals === 1 ? 'account' : 'accounts'} awaiting approval`;
+
   const needsPicks =
     isApproved && !hasUserSubmittedPicks && !pickemNotificationLoading && arePickemsOpen();
   const navTabs = useMemo(
@@ -482,26 +504,29 @@ const FantasyFootballApp = () => {
                 />
               </div>
 
-              {/* The bell and the cog sit beside the account they belong
-                  to, at every width. Signed out there is nothing to read or
-                  set. The newsletter is for approved members, like the
-                  members-only tabs. */}
+              {/* The bell stays at every width. From lg the newsletter, the
+                  cog and the avatar sit beside it; below lg those three are
+                  in the phone tab bar's Menu, and the header keeps only the
+                  bell — and Login, for a signed-out viewer, which is never in
+                  the menu. Signed out there is nothing to read or set. The
+                  newsletter is for approved members, like the members-only
+                  tabs. */}
               <div className="flex shrink-0 items-center gap-1">
-                {/* Below sm it is an item in the avatar's menu instead:
-                    five icon buttons overlapped the standings button at
-                    375px once the Alerts bell joined them. */}
-                {isApproved && <NewsletterLink className="hidden sm:flex" />}
+                {isApproved && <NewsletterLink className="hidden lg:flex" />}
                 {isAuthenticated && (
                   <AlertsLink active={activeTab === 'alerts'} badgeCount={unreadAlerts} />
                 )}
                 {isAuthenticated && (
                   <SettingsLink
+                    className="hidden lg:flex"
                     active={activeTab === 'settings'}
                     badgeCount={pendingApprovals}
-                    badgeLabel={`${pendingApprovals} ${pendingApprovals === 1 ? 'account' : 'accounts'} awaiting approval`}
+                    badgeLabel={settingsBadgeLabel}
                   />
                 )}
-                <LoginDropdown />
+                <div className={cn(user && 'hidden lg:block')}>
+                  <LoginDropdown />
+                </div>
               </div>
             </div>
           </PageContainer>
@@ -570,17 +595,27 @@ const FantasyFootballApp = () => {
                       view={rankingsView}
                       onViewChange={setRankingsView}
                     />
-                    {rankingsView === 'table' ? (
+                    {rankingsView === 'table' && (
                       <PowerRankingsTable
                         rankings={weeklyRankings}
                         currentWeek={viewedWeek}
                         loading={rankingsLoading}
                         initializing={isLoading}
                       />
-                    ) : (
+                    )}
+                    {rankingsView === 'analysis' && (
                       <PowerRankingsVisualization
                         rankings={weeklyRankings}
                         currentWeek={viewedWeek}
+                        loading={rankingsLoading}
+                      />
+                    )}
+                    {rankingsView === 'statistics' && (
+                      <StatisticsPanel
+                        embedded
+                        rankings={weeklyRankings}
+                        currentWeek={viewedWeek}
+                        season={activeSeason}
                         loading={rankingsLoading}
                       />
                     )}
@@ -589,17 +624,6 @@ const FantasyFootballApp = () => {
               </ErrorBoundary>
             )}
 
-
-            {activeTab === 'statistics' && (
-              <ErrorBoundary key="statistics-error-boundary">
-                <StatisticsPanel
-                  rankings={weeklyRankings}
-                  currentWeek={viewedWeek}
-                  season={activeSeason}
-                  loading={rankingsLoading}
-                />
-              </ErrorBoundary>
-            )}
 
             {activeTab === 'schedule' && (
               <ErrorBoundary key="schedule-error-boundary">
@@ -729,7 +753,18 @@ const FantasyFootballApp = () => {
             element the containing block for `position: fixed` descendants —
             nested inside it, `bottom-0` resolved against the header and the
             bar rendered directly beneath it at the top of the screen. */}
-        <MobileTabBar tabs={navTabs} activeTab={activeTab} shouldShowTab={shouldShowTab} />
+        <MobileTabBar
+          tabs={navTabs}
+          activeTab={activeTab}
+          shouldShowTab={shouldShowTab}
+          account={{
+            user: isAuthenticated ? user : null,
+            showNewsletter: isApproved,
+            settingsBadgeCount: pendingApprovals,
+            settingsBadgeLabel,
+            onSignOut: signOut
+          }}
+        />
 
         {/* Standings Drawer */}
         {activeSeason && (

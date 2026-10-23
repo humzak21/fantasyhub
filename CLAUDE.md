@@ -95,7 +95,7 @@ clock, GitHub's runners".
   user-agent sniffing that used to pick between two whole applications. Every
   component is responsive. See "Mobile is not a separate app" below.
 - **Layout**: `src/components/layout/PageContainer.jsx` is the page gutter.
-- **Tabs are routes** (`/rankings`, `/statistics`, …), not `useState`.
+- **Tabs are routes** (`/rankings`, `/schedule`, …), not `useState`.
 - **Viewer identity**: `user`, `isAdmin` and `teamOwnerNames` come from
   `useViewer()` (`src/contexts/ViewerContext.jsx`), not from props.
 
@@ -964,8 +964,8 @@ any policy in the file, so no existing member ever saw a refusal.
 - **Pick'ems, Playoffs and Awards are members-only tabs, and so is the
   newsletter link** (since 2026-09-15). `customAccess: isApproved` on the first
   two; `isApproved && awardsAccessible` on Awards, so the release rules still
-  apply to members; and `isApproved` around `NewsletterLink` (an item in the
-  avatar's menu below `sm`). Signed-out and
+  apply to members; and `isApproved` around `NewsletterLink` (a row in the
+  phone tab bar's Menu below `lg`). Signed-out and
   unapproved viewers see none of them, and a deep link redirects to the default
   tab once approval has loaded (the guard above). **This is a shell gate
   only:** unlike Takes, the tables behind these tabs are still public-read at
@@ -1178,16 +1178,18 @@ surfaces cannot drift:
   Both honour `prefers-reduced-motion`. Nothing loops except the parlay's
   existing live dot.
 
-### Settings is a tab, reached by the cog
+### Settings is a tab, reached by the cog (or the Menu)
 
 `/settings` is a tab in `FantasyFootballApp`'s `mainTabs` like every other —
 same route table, same route guard, rendered inside the shell's `main` with
 the header, week control and phone tab bar still in place. What makes it
 different is `inNav: false`: it appears in neither the header list nor the
-phone tab bar, and its one entry point is `SettingsLink`
+phone tab bar. From `lg` its entry point is `SettingsLink`
 (`src/components/navigation/ResponsiveNavigation.jsx`), the cog the shell
-renders beside `LoginDropdown` for a signed-in viewer at every width. Access
-is `customAccess: isAuthenticated` — approved or not, Profile is theirs.
+renders beside `LoginDropdown` for a signed-in viewer; below `lg` it is the
+Settings row in the tab bar's Menu (see "The phone tab bar is five slots").
+Access is `customAccess: isAuthenticated` — approved or not, Profile is
+theirs.
 
 Before 2026-09-10 it was a static `/settings` route in `App.jsx` to a page
 mounted *outside* the shell, with its own header row and a Back button that
@@ -1197,6 +1199,19 @@ history; the nav and week control vanished while you were on it. Do not put
 it back in the dropdown, and do not give it a header of its own —
 `UserSettingsPage` uses `PageHeader` like every tab. `App.jsx` still skips
 `DisplayNamePrompt` on that path, because the page already offers the field.
+
+### Statistics is one tab with the rankings
+
+Since 2026-10-23 there is no `statistics` tab. The rankings tab (id
+`rankings`, so every link and bookmark still lands) is labelled **Statistics**
+in both navs and has three faces, in `?view=` (`power-rankings/rankingsViews.js`):
+the power rankings table (the default, no param), `analysis` and
+`statistics` (`StatisticsPanel` with `embedded`, which drops its own
+`PageHeader`). `RankingsHeader` titles all three and draws Analysis and
+Statistics as toggles beside each other: pressing the lit one goes back to the
+table. The view is in the URL so the phone's back button walks through it, and
+`/statistics` is a static redirect in `App.jsx` to
+`/rankings?view=statistics`.
 
 ### The automation dashboard watches; it cannot run anything
 
@@ -1492,7 +1507,8 @@ meeting.
 
 ### The stat comparison is the record book's facts, re-cut
 
-The Statistics tab ends with **Compare stats**
+The Statistics view of the Statistics tab (`/rankings?view=statistics`, see
+"Statistics is one tab with the rankings") ends with **Compare stats**
 (`src/components/statistics/compare/StatComparison.jsx`), below the season's
 charts and in place even before the season's first game — it is league
 history, not this season. It offers around fifty
@@ -1505,7 +1521,7 @@ from the selection. Rules that are load-bearing:
   (`buildComparisonFacts`). Opening either surface after the other fetches
   nothing. The card also passes `enabled` only once it is near the viewport
   (`src/hooks/use-near-viewport.js`), because it sits below the
-  Statistics tab's fold. A hidden page never gets an `IntersectionObserver` callback,
+  Statistics view's fold. A hidden page never gets an `IntersectionObserver` callback,
   so a background preview tab shows the skeleton; that is expected.
 - **One definition.** `utils/statComparison/facts.js` builds on the record
   book's exported `buildSides` + `markWeeks`, so a blowout, a phase, an
@@ -1665,6 +1681,8 @@ nav (`inNav: false`), so it has no notification dot of its own and Approvals is
 a panel two clicks inside it — a member who signed up was invisible until the
 admin went looking. `SettingsLink`'s `badgeCount` comes from the shell, off the
 same `useMemberApprovals` query the panel reads, disabled for everyone else.
+Below `lg` the same count is on the Menu's Settings row and summed into the
+Menu button's badge.
 The badge is `aria-hidden`, so the reason lives in the link's accessible name.
 
 ### The TD parlay is one row per member per week
@@ -1971,8 +1989,7 @@ desktop behaviour at the same time. `sm:` remains fine for cosmetic shifts:
 padding, wrapping, a grid gaining a column.
 
 **Navigation is a bottom tab bar below `lg`, labelled header items above it.**
-Every destination is in the bar; it scrolls horizontally and scrolls the active
-tab into view. There is no icon-only tier at any width — the one that covered
+There is no icon-only tier at any width — the one that covered
 640-1535px delivered labels through the `title` attribute, which is delayed on
 a desktop and does not exist on touch. **Render `MobileTabBar` at the app root,
 never inside the header:** the header has `backdrop-blur`, and `backdrop-filter`
@@ -1980,10 +1997,35 @@ never inside the header:** the header has `backdrop-blur`, and `backdrop-filter`
 descendants, which pins the bar directly under the header. Pages must keep the
 bottom padding that clears it.
 
-**Both navs hide their scrollbar, so both say when they are scrolled.** A
+**The phone tab bar is five slots and never scrolls** (since 2026-10-23):
+the tabs whose definition carries `tabBarSlot` — Home, Statistics, Pick'ems,
+History, in slot order — and **Menu**, a vaul drawer (`navigation/TabBarMenu.jsx`)
+that slides up with every other tab the viewer may open, then the account:
+the profile card (Profile has no page yet and says "Soon"), Settings with the
+pending-approval count, the newsletter (approved members) and **Log out, which
+asks first** in an `AlertDialog`. It used to hold every destination in a strip
+that scrolled sideways, and the tabs past the edge went unfound however it was
+signposted.
+
+- **A slot is the tab's, not the next one's.** A tab the viewer may not open
+  leaves its slot empty — a visitor sees Home, Statistics and Menu — rather
+  than one being pulled up from the menu, so a tab is always where it was.
+- **Below `lg` the header keeps the bell and nothing else of the account.**
+  The cog, the newsletter icon and the avatar are `lg`-only; a signed-out
+  viewer's Login stays in the header at every width and is never in the menu.
+- **Menu speaks for what is inside it.** It is lit when the open tab lives in
+  the menu (or Settings), and its badge is the sum of the menu tabs' counts and
+  the pending approvals; a tab's dot becomes a dot on Menu.
+- **The confirmation opens as the drawer closes.** vaul dedupes to our
+  `@radix-ui/react-dialog`, so the two share Radix's layer stack and the body's
+  pointer-events lock is counted across them. A second copy of the package
+  would make the order matter, and Cancel could leave the page unclickable.
+- `navigation/__tests__/MobileTabBar.test.jsx` holds all of this.
+
+**The header nav hides its scrollbar, so it says when it is scrolled.** A
 scroller with no scrollbar is indistinguishable from content that ends, and the
-last visible tab reads as the last tab — which is how a phone user never finds
-Takes. `NavScrollChevron` is a chevron chip over a short fade at whichever edge
+last visible tab reads as the last tab — which is how a phone user never found
+Takes in the old scrolling tab bar. `NavScrollChevron` is a chevron chip over a short fade at whichever edge
 still has tabs behind it, driven by `useScrollEdges`
 (`src/hooks/use-scroll-edges.js`): measured from `scrollWidth`/`scrollLeft`,
 never assumed, so nothing renders when the tabs fit and each side disappears as
@@ -2547,15 +2589,16 @@ custom test said so.
   `mark_notifications_read(p_ids)` (SECURITY INVOKER) stamps it with the
   database's clock — the ids given, or every unread one with NULL.
 - **`/alerts` is a tab with `inNav: false`, reached by `AlertsLink`**, the
-  bell in the header beside `SettingsLink`, for every signed-in viewer at
-  every width. Not a nav tab: the phone tab bar scrolls, and a tab at its far
-  end is how Takes went unfound. The bell's badge is the unread count, from
+  bell in the header, for every signed-in viewer at every width — the one
+  account control that stays in the header below `lg`. Not a nav tab: it would
+  be a tap further away inside the phone tab bar's Menu. The bell's badge is the unread count, from
   the same cache entry the page reads (`qk.viewer.inbox`,
   `useNotificationInbox`), and marking read updates that entry before the
   round trip, so the row's dot and the bell's number drop together.
-- **Below `sm` the newsletter moved into the avatar's menu** to make room:
-  five header icon buttons at 375px put the newsletter on top of the
-  standings button (measured with a touch viewport, where each is 44px).
+- **Below `lg` the newsletter, the cog and the avatar are in the phone tab
+  bar's Menu**: five header icon buttons at 375px put the newsletter on top
+  of the standings button (measured with a touch viewport, where each is
+  44px), which is what first moved the newsletter into the avatar's menu.
 - **Only sends from 2026-10-14 on are kept**; nothing before the table existed
   was recorded. `getMyInbox` reads the newest `INBOX_LIMIT` (100).
 - `supabase/tests/database/notification_inbox.test.sql` holds the rules.

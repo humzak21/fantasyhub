@@ -1,7 +1,7 @@
 /**
  * A nav that scrolls says so, and only while it has something to say.
  *
- * Both navs hide their scrollbar, so the tabs past the right edge are
+ * The header nav hides its scrollbar, so the tabs past the right edge are
  * invisible *and* unannounced — the last visible tab reads as the last tab.
  * The chevrons are the only thing that contradicts that, which makes "shown
  * exactly when that edge has more behind it" the behaviour worth pinning.
@@ -17,7 +17,7 @@ import { render, screen, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { Trophy, BarChart3, Calendar } from 'lucide-react';
 
-import { HeaderNav, MobileTabBar } from '../ResponsiveNavigation.jsx';
+import { HeaderNav } from '../ResponsiveNavigation.jsx';
 
 const TABS = [
   { id: 'rankings', label: 'Power Rankings', shortLabel: 'Rankings', icon: Trophy },
@@ -56,9 +56,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// The phone tab bar no longer scrolls — five fixed slots, the rest in its
+// Menu (MobileTabBar.test.jsx) — so only the header nav is under test here.
 describe.each([
   ['HeaderNav', (props) => <HeaderNav {...props} />],
-  ['MobileTabBar', (props) => <MobileTabBar {...props} />],
 ])('%s scroll indicators', (_name, renderNav) => {
   it('shows nothing when every tab fits', () => {
     stubMetrics({ scrollWidth: 400, clientWidth: 400 });
