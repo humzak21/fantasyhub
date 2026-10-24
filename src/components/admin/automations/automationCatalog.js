@@ -501,6 +501,20 @@ export const PASSIVE_AUTOMATIONS = [
       'deployment: re-run the workflow by hand. To undo a bad release, roll back to the previous deployment in Pages.'
   },
   {
+    id: 'preview-site',
+    name: 'PR previews (preview-site.yml)',
+    where: 'GitHub Actions · every pull request, uploaded to Cloudflare Pages as a preview',
+    fires: 'When a PR is opened or pushed to; or by hand with a PR number',
+    does:
+      'Builds the PR and deploys it to pr-<number>.ogjits.pages.dev, then posts the link as one comment on the ' +
+      'PR, updated on every push. It is the human QA step: open it on a phone before merging. It uses the live ' +
+      'database (the app shows a banner saying so), and the PR\'s migrations and edge functions are not included. ' +
+      'Never reaches ogjits.com.',
+    verify:
+      `${workflowUrl('preview-site.yml')} for the run, then the link in the PR's preview comment. No comment: ` +
+      'check the run; without the Cloudflare secrets, or from a fork, it skips.'
+  },
+  {
     id: 'ci',
     name: 'CI (ci.yml)',
     where: 'GitHub Actions · every push and pull request',

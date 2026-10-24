@@ -120,6 +120,27 @@ export const QuestionBubble = ({ children }) => (
   <p className="ml-auto w-fit max-w-[85%] rounded-xl border border-primary/40 bg-primary/10 px-3 py-2 text-sm text-foreground">{children}</p>
 );
 
+/**
+ * og jits is working on an answer: iMessage's typing bubble. Three dots pulse
+ * in turn, and two small circles off its lower-left corner make the tail.
+ */
+export const TypingIndicator = () => (
+  <div role="status" aria-label="og jits is typing" className="relative ml-1.5 w-fit">
+    <span aria-hidden="true" className="absolute -bottom-0.5 -left-0.5 h-3 w-3 rounded-full border border-border bg-card" />
+    <span aria-hidden="true" className="absolute -bottom-2 -left-2 h-1.5 w-1.5 rounded-full border border-border bg-card" />
+    <div className={cn('relative flex items-center gap-1.5 rounded-2xl border border-border bg-card px-4 py-3.5', LIT)}>
+      {[0, 200, 400].map((delay) => (
+        <span
+          key={delay}
+          aria-hidden="true"
+          className="typing-dot h-2 w-2 rounded-full bg-muted-foreground"
+          style={{ '--dot-delay': `${delay}ms` }}
+        />
+      ))}
+    </div>
+  </div>
+);
+
 /** The conversation: the topic picker when empty, then questions and answer cards. */
 export function ConversationBody({ messages, isPending, onAsk, scrollRef, className, pickerColumns, intro = true }) {
   const innerRef = useRef(null);
@@ -132,13 +153,7 @@ export function ConversationBody({ messages, isPending, onAsk, scrollRef, classN
     <div ref={ref} className={cn('space-y-3', className)} aria-live="polite">
       {messages.length === 0 && !isPending && <TopicPicker onAsk={onAsk} columns={pickerColumns} intro={intro} />}
       {messages.map((m) => (m.role === 'user' ? <QuestionBubble key={m.id}>{m.content}</QuestionBubble> : <AnswerCard key={m.id} message={m} />))}
-      {isPending && (
-        <div aria-label="Looking it up" className={cn('space-y-2 rounded-xl border border-border bg-card p-3.5', LIT)}>
-          <div className="h-4 w-4/5 animate-pulse rounded bg-muted" />
-          <div className="h-3.5 w-full animate-pulse rounded bg-muted/70" />
-          <div className="h-3.5 w-2/3 animate-pulse rounded bg-muted/70" />
-        </div>
-      )}
+      {isPending && <TypingIndicator />}
     </div>
   );
 }

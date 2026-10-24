@@ -377,6 +377,41 @@ button the live bundle did not have.
   remove the domain and service there, and delete the `Dockerfile`,
   `railway.json`, `npm start` and the `serve` dependency in a follow-up.
 
+### Every PR gets a preview to try on a phone
+
+`.github/workflows/preview-site.yml` builds each pull request on every push
+and uploads it to Cloudflare Pages as a **preview**, at
+`https://pr-<number>.ogjits.pages.dev`. It posts the link as one comment on
+the PR (found by its `<!-- preview-site -->` marker and rewritten on each
+push), so the address is the same for the life of the PR. This is the human
+QA step before a merge: the iOS keyboard, Safari's toolbar and touch can only
+be judged on a real phone, and until this a change reached a phone only by
+merging.
+
+- **`--branch=pr-<number>` is what keeps it off ogjits.com.** Only a deploy
+  to the project's production branch, `main`, reaches the custom domain.
+  Pages marks previews noindex.
+- **It reads and writes the live database.** The build uses the production
+  `VITE_SUPABASE_*` secrets, so a pick'em or take made on a preview is real.
+  The build sets `VITE_PREVIEW_PR`, and `PreviewBanner`
+  (`src/components/layout/`, over `src/utils/previewBuild.js`) says so above
+  the app. Production leaves it unset and the banner renders nothing.
+- **What a preview cannot show:** the PR's migrations (they apply on merge,
+  see "Migrations deploy on merge") and its edge functions (deployed by
+  hand). A PR that needs its own schema to work will fail on the preview
+  where it reads it. A staging database is the fix if that starts to matter.
+- **Sign in with a password there.** A magic link returns only to the
+  redirect allowlist, which stays production-only (the 2026-09-04 audit).
+- **No notifications on a preview.** A push subscription belongs to an
+  origin, so `App.jsx` does not mount `NotificationsPrompt` when
+  `PREVIEW_PR` is set.
+- **It builds the PR's head, not the merge with `main`**: a conflicted
+  branch has no merge commit, and the preview should show what the author
+  pushed. One run per PR at a time; a newer push cancels the one in flight.
+- **Skipped without the Cloudflare secrets, and for a fork's PR** (GitHub
+  gives a fork no secrets). Dependabot's PRs get none either, so they skip.
+  *Run workflow* with a PR number redeploys one by hand.
+
 ### The crons are Supabase's clock, GitHub's runners
 
 Neither ESPN workflow has a `schedule:` trigger, and that is on purpose.
@@ -2779,6 +2814,24 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   the chat is a vaul drawer with no autofocus (the keyboard would cover the
   topics); from `md` a panel down the left side, closed by Escape, and from
   `lg` `LeagueChatOffset` moves the page over beside it.
+- **The drawer sits on the keyboard, and vaul's keyboard handling is off**
+  (`repositionInputs={false}`). iOS does not resize the page for the
+  keyboard. It shrinks the visual viewport and pans it up to show the field.
+  vaul lifted the drawer by the keyboard's height on top of that pan, so the
+  drawer went off the top of the screen, messages and all.
+  `useKeyboardFrame` (`src/hooks/use-keyboard-frame.js`) reads the visual
+  viewport's height and `offsetTop` instead, and sets the drawer's `bottom`
+  to what lies below the visible strip and its height to fit inside it. The
+  latest answer is scrolled into view when the keyboard comes up. The
+  arithmetic is the pure `keyboardFrame`, which is what is tested. A real
+  keyboard can only be checked on a phone. The messages and the composer
+  carry `data-vaul-no-drag`, so a swipe there (which is how a keyboard is put
+  away) scrolls or dismisses the keyboard and never drags the chat closed:
+  only the handle and header drag it, as with the Menu.
+- **While the model works, three dots type** (`TypingIndicator`,
+  `.typing-dot` in globals.css): iMessage's typing bubble, tail and all,
+  whose dots pulse in turn (brighten and swell in place, never move), on
+  `scale` so no transform is left behind. Reduced motion holds them still.
 - **The panel moves like the Menu.** vaul animates its drawers over 0.5s on
   `cubic-bezier(0.32, 0.72, 0, 1)`; `DRAWER_MOTION` is that clock, and the
   side panel slides in from the left and back out on it while the page's

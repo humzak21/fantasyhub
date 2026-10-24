@@ -1,0 +1,167 @@
+name: Preview site
+
+# Every pull request gets its own copy of the site, built from the PR and
+# uploaded to Cloudflare Pages as a preview: https://pr-<number>.ogjits.pages.dev.
+# It is the human QA step before a merge. Open the link on a phone and try the
+# change for real (the iOS keyboard, Safari's toolbar, touch), which no test
+# browser can reproduce.
+#
+# The link goes in one comment on the PR, updated on every push, so the
+# address never changes for the life of the PR.
+#
+# What a preview is and is not:
+#   - It is the PR's bundle against the LIVE Supabase project, the same
+#     VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY the production build uses. A
+#     pick'em, take or vote made on a preview is real. The app shows a banner
+#     saying so (VITE_PREVIEW_PR, src/components/layout/PreviewBanner.jsx).
+#   - A PR's migration is NOT applied: migrations deploy on merge only. A
+#     preview of a PR that needs its own schema will fail where it reads it.
+#   - Edge functions (league-chat) are the deployed ones, not the PR's.
+#   - Sign in with a password. A magic link returns only to addresses on
+#     Supabase's redirect allowlist, which is production on purpose.
+#   - Do not turn notifications on: a preview is another origin, and the app
+#     does not offer it there.
+#   - Pages marks preview deployments noindex, and ogjits.com is untouched:
+#     only a deploy to the production branch (main) reaches it.
+#
+# Secrets: the same four deploy-site.yml uses. Without the Cloudflare pair the
+# run warns and skips. A PR from a fork gets no secrets from GitHub, so it is
+# skipped too; every PR here comes from a branch of this repository.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR number to (re)deploy a preview for'
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  # One preview per PR; a newer push replaces the build in flight.
+  group: preview-site-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PAGES_PROJECT: ogjits
+      WRANGLER: npx --yes wrangler@4.145.0
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number || inputs.pr }}
+
+    steps:
+      - name: Check Cloudflare is set up
+        id: setup
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning title=No preview::CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are not set. See the comment at the top of deploy-site.yml."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$PR" in
+            ''|*[!0-9]*) echo "::error::'$PR' is not a PR number."; exit 1 ;;
+          esac
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+          # The PR's own head, as its author pushed it: a branch that conflicts
+          # with main has no merge commit to build.
+          echo "sha=$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          ref: ${{ steps.setup.outputs.sha }}
+
+      - uses: actions/setup-node@v7
+        if: steps.setup.outputs.ready == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+        if: steps.setup.outputs.ready == 'true'
+
+      - run: npm run build
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_PREVIEW_PR: ${{ env.PR }}
+
+      - run: npm run check-css-tokens
+        if: steps.setup.outputs.ready == 'true'
+
+      - name: Check the bundle is a single-page app
+        if: steps.setup.outputs.ready == 'true'
+        run: |
+          test -f dist/index.html
+          if [ -e dist/404.html ]; then
+            echo "::error::dist/404.html would turn off Pages' single-page fallback, and every route but / would 404."
+            exit 1
+          fi
+
+      # --branch is what makes this a preview: anything but main (the
+      # project's production branch) never reaches ogjits.com. Pages gives
+      # the branch a stable alias, pr-<number>.ogjits.pages.dev.
+      - name: Deploy the preview
+        id: deploy
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          SHA: ${{ steps.setup.outputs.sha }}
+        run: |
+          $WRANGLER pages deploy dist \
+            --project-name="$PAGES_PROJECT" \
+            --branch="pr-$PR" \
+            --commit-hash="$SHA" \
+            --commit-message="PR #$PR: $(git log -1 --format=%s "$SHA")" \
+            --commit-dirty=true | tee deploy.log
+          unique=$(grep -oE "https://[a-z0-9-]+\.$PAGES_PROJECT\.pages\.dev" deploy.log | head -1)
+          echo "alias=https://pr-$PR.$PAGES_PROJECT.pages.dev" >> "$GITHUB_OUTPUT"
+          echo "unique=$unique" >> "$GITHUB_OUTPUT"
+
+      # One comment per PR, found by its marker and rewritten on each push.
+      - name: Post the link on the PR
+        if: steps.setup.outputs.ready == 'true'
+        env:
+          ALIAS: ${{ steps.deploy.outputs.alias }}
+          UNIQUE: ${{ steps.deploy.outputs.unique }}
+          SHA: ${{ steps.setup.outputs.sha }}
+        run: |
+          marker='<!-- preview-site -->'
+          {
+            echo "$marker"
+            echo "### Preview: $ALIAS"
+            echo
+            echo "Built from \`${SHA::7}\`. Open it on your phone to test before merging; it updates on every push."
+            if [ -n "$UNIQUE" ]; then
+              echo "This exact build stays at $UNIQUE."
+            fi
+            echo
+            echo "- **The data is live.** It reads and writes the real league database, so anything you submit counts."
+            echo "- **Sign in with your password.** Login links only return to ogjits.com."
+            echo "- **Don't turn notifications on here.** The preview is a different address from the real site."
+            echo "- **Not included:** this PR's database migrations and edge functions. Those go live on merge."
+          } > body.md
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -1)
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@body.md > /dev/null
+          else
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file body.md
+          fi
+          {
+            echo '## Preview deployed'
+            echo
+            echo "PR #$PR at \`${SHA::7}\`: $ALIAS"
+          } >> "$GITHUB_STEP_SUMMARY"

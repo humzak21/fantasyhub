@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 let ask;
@@ -216,6 +216,54 @@ describe('LeagueChat', () => {
     expect(within(drawer).getByRole('group', { name: 'Topics' })).toBeInTheDocument();
     expect(within(drawer).getByLabelText('Your question')).not.toHaveFocus();
     expect(screen.queryByRole('complementary')).toBeNull();
+  });
+
+  it('shows three typing dots while an answer is being worked out', async () => {
+    ask = { isPending: true, mutate: vi.fn() };
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    const typing = within(panel()).getByRole('status', { name: 'og jits is typing' });
+    expect(typing.querySelectorAll('.typing-dot')).toHaveLength(3);
+  });
+
+  it('on a phone, a swipe on the messages or the field never drags the drawer closed', async () => {
+    window.innerWidth = 375;
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[1]);
+    const drawer = await screen.findByRole('dialog', { name: 'Ask og jits' });
+    // A swipe on the messages or the field (putting the keyboard away) never closes it.
+    expect(within(drawer).getByLabelText('Your question').closest('[data-vaul-no-drag]')).not.toBeNull();
+    expect(within(drawer).getByRole('group', { name: 'Topics' }).closest('[data-vaul-no-drag]')).not.toBeNull();
+  });
+
+  it('sits on the keyboard when it is up on a phone, rather than being pushed off the top', async () => {
+    window.innerWidth = 375;
+    const vv = Object.assign(new EventTarget(), { height: 667, offsetTop: 0, width: 375 });
+    const realVv = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: vv });
+    const realHeight = window.innerHeight;
+    window.innerHeight = 667;
+    try {
+      renderChat();
+      await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[1]);
+      const drawer = await screen.findByRole('dialog', { name: 'Ask og jits' });
+      expect(drawer.style.bottom).toBe('');
+
+      vv.height = 360;
+      vv.offsetTop = 200;
+      await act(async () => { vv.dispatchEvent(new Event('resize')); });
+      expect(drawer.style.bottom).toBe('107px');
+      expect(drawer.style.height).toBe('352px');
+
+      vv.height = 667;
+      vv.offsetTop = 0;
+      await act(async () => { vv.dispatchEvent(new Event('resize')); });
+      expect(drawer.style.bottom).toBe('');
+    } finally {
+      window.innerHeight = realHeight;
+      if (realVv) Object.defineProperty(window, 'visualViewport', realVv);
+      else delete window.visualViewport;
+    }
   });
 
   it('can be opened from anywhere with a question, which it asks', async () => {
