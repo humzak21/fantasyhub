@@ -2779,6 +2779,17 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   the chat is a vaul drawer with no autofocus (the keyboard would cover the
   topics); from `md` a panel down the left side, closed by Escape, and from
   `lg` `LeagueChatOffset` moves the page over beside it.
+- **The drawer sits on the keyboard, and vaul's keyboard handling is off**
+  (`repositionInputs={false}`). iOS does not resize the page for the
+  keyboard. It shrinks the visual viewport and pans it up to show the field.
+  vaul lifted the drawer by the keyboard's height on top of that pan, so the
+  drawer went off the top of the screen, messages and all.
+  `useKeyboardFrame` (`src/hooks/use-keyboard-frame.js`) reads the visual
+  viewport's height and `offsetTop` instead, and sets the drawer's `bottom`
+  to what lies below the visible strip and its height to fit inside it. The
+  latest answer is scrolled into view when the keyboard comes up. The
+  arithmetic is the pure `keyboardFrame`, which is what is tested. A real
+  keyboard can only be checked on a phone.
 - **The panel moves like the Menu.** vaul animates its drawers over 0.5s on
   `cubic-bezier(0.32, 0.72, 0, 1)`; `DRAWER_MOTION` is that clock, and the
   side panel slides in from the left and back out on it while the page's

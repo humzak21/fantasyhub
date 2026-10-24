@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Flame, MessagesSquare, RotateCcw, X } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
 import { useIsMobile } from '../../hooks/use-mobile';
+import { useKeyboardFrame } from '../../hooks/use-keyboard-frame';
 import { Drawer, DrawerBody, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { Switch } from '../ui/switch';
 import { useLeagueChat } from './LeagueChatContext.jsx';
@@ -88,6 +89,14 @@ const VoiceToggle = ({ chat, id }) => (
 const LeagueChat = () => {
   const chat = useLeagueChat();
   const isMobile = useIsMobile();
+  const scrollRef = useRef(null);
+  const keyboard = useKeyboardFrame(isMobile && chat.isOpen);
+
+  // The keyboard took the bottom of the drawer: keep the latest answer in view.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (keyboard && el) el.scrollTop = el.scrollHeight;
+  }, [keyboard]);
 
   // Escape closes the side panel; the drawer handles its own.
   useEffect(() => {
@@ -104,19 +113,39 @@ const LeagueChat = () => {
       messages={chat.messages}
       isPending={chat.isPending}
       onAsk={chat.send}
+      scrollRef={scrollRef}
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3"
     />
   );
+  // With the keyboard up there is no home indicator under the field to clear.
   const composer = (focusWhen) => (
-    <div className="border-t border-border bg-background px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
+    <div
+      className={cn(
+        'border-t border-border bg-background px-4 pt-3 md:pb-3',
+        keyboard ? 'pb-3' : 'pb-[calc(0.75rem+env(safe-area-inset-bottom))]'
+      )}
+    >
       <Composer onSend={chat.send} isPending={chat.isPending} focusWhen={focusWhen} />
     </div>
   );
 
   if (isMobile) {
+    // vaul's own keyboard handling (`repositionInputs`) moves the drawer up by
+    // the keyboard's height while iOS pans the page up as well, so the drawer
+    // went off the top of the screen. It is off, and the drawer sits on the
+    // keyboard itself, sized to the strip the keyboard leaves
+    // (`useKeyboardFrame`): header, latest answer and field all in view.
     return (
-      <Drawer open={chat.isOpen} onOpenChange={(open) => (open ? chat.open() : chat.close())} shouldScaleBackground={false}>
-        <DrawerContent className="h-[85dvh]">
+      <Drawer
+        open={chat.isOpen}
+        onOpenChange={(open) => (open ? chat.open() : chat.close())}
+        shouldScaleBackground={false}
+        repositionInputs={false}
+      >
+        <DrawerContent
+          className="h-[85dvh]"
+          style={keyboard ? { bottom: keyboard.bottom, height: keyboard.height, maxHeight: 'none' } : undefined}
+        >
           <DrawerHeader className="flex flex-row items-center gap-2 pb-2 text-left">
             <MessagesSquare className="h-4 w-4 text-primary" aria-hidden="true" />
             <DrawerTitle className="flex-1">Ask og jits</DrawerTitle>
