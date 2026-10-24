@@ -246,6 +246,16 @@ describe('the prompt and the provider', () => {
     expect(prompt).toContain('TABLE games');
   });
 
+  it('roasts without mercy, swearing allowed, and only about the fantasy football', () => {
+    const prompt = buildSystemPrompt(context());
+    expect(prompt).toContain('zero mercy');
+    expect(prompt).toContain('Swearing is fine.');
+    expect(prompt).toContain('The roast is about fantasy football and nothing else');
+    expect(prompt).toMatch(/Never anyone's looks, family, job, health or real life/);
+    // The truth rule is untouched by the voice.
+    expect(prompt).toContain('Every number and every person in your answer must appear in a query result.');
+  });
+
   it('tells the model how many rows there were when it shows only some', () => {
     const r = runQuery(snap.db, 'select * from games');
     expect(describeResult(1, { ...r, rows: r.rows, rowCount: 100 })).toContain('100 rows in total');

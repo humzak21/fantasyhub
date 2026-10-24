@@ -2704,7 +2704,16 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   replied `<|tool_call>call:thought {}<tool_call|>`, which held no number and
   no name, so the check passed it to a member. `parseReply` now reads it as
   `{ invalid: true }`, and the loop asks again for JSON; it counts as a draft.
-- **The voice is an analyst's, with a verdict.** The prompt asks for the
+- **The voice is a ruthless insider's, with a verdict** (since 2026-10-24,
+  the league's call): savage, unhinged, funny, swearing allowed — it mocks
+  collapses, choke jobs, empty trophy cases, bad trades, takes and pick'ems.
+  **The roast is about fantasy football and nothing else**: never anyone's
+  looks, family, job, health or real life, and nothing about race, religion,
+  gender or sexuality. That line is in the prompt and a test holds it. The
+  voice changes nothing about the truth rule: every insult still needs its
+  figure from a query, which is what makes it land. Gemma's own safety
+  tuning still softens the most vulgar asks; going past that is a different
+  model, which is a cost decision. The prompt asks for the
   verdict first and two or three facts from different angles after it, a
   pick on every opinion question (never just "based on X, Y has the most
   Z"), everyone ranked rather than `LIMIT 1` so a tie is said as a tie, a
