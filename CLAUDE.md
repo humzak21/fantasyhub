@@ -2750,15 +2750,38 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
 - **Members never read `chat_log`** (RLS on, no policies, no `anon` /
   `authenticated` grants; `supabase/tests/database/league_chat.test.sql`). The
   bucket has no storage policies, so only the service role reaches it.
-- **The UI is one tree** (`src/components/ask/`). `LeagueChatProvider` in the
-  shell holds the conversation, so it survives changing tabs, and is enabled
-  for approved members only. `LeagueChat` renders the bottom-left launcher at
-  the app root (above the phone tab bar below `lg`); on a phone the chat is a
-  bottom sheet, from `md` a panel down the left side, and from `lg`
-  `LeagueChatOffset` moves the page over beside it. Each answer has "Show the
-  data" (`QueryData`: the rows and the query). `useLeagueChat().open(question)`
-  opens it from anywhere, as the taunt sheet's "Ask og jits about this
-  rivalry" does.
+- **The UI is one tree** (`src/components/ask/`), drawn in the phone Menu's
+  own language: lit cards, a three-across tile grid, rows with an icon and a
+  chevron (`ChatParts.jsx`). `LeagueChatProvider` in the shell holds the
+  conversation, so it survives changing tabs, and is enabled for approved
+  members only; everything else renders nothing without it. Three ways in:
+  below `lg`, an **ask bar on top of the phone tab bar** (`AskBar`, passed as
+  `MobileTabBar`'s `dock`, so it lives inside the bar's own fixed element and
+  cannot overlap it) and **a card at the top of the Menu** (`MenuAskEntry`,
+  the `askEntry` render prop, which closes the Menu as the chat opens — both
+  vaul drawers over the one Radix stack, like Log out's confirmation); from
+  `lg`, **a search-style field in the header** (`AskHeaderField`). Below `md`
+  the chat is a vaul drawer with no autofocus (the keyboard would cover the
+  topics); from `md` a panel down the left side, closed by Escape, and from
+  `lg` `LeagueChatOffset` moves the page over beside it.
+- **The ask bar makes the tab bar taller, and `--tab-dock` says by how much.**
+  `LeagueChatOffset` sets it (`TAB_DOCK_HEIGHT`, 3.25rem) on the shell's root
+  when the chat exists. The main's bottom padding and anything sticky above
+  the tab bar (`PickEmsSubmitBar`'s `bottom-[calc(4rem+var(--tab-dock,0px))]`)
+  add it, so they clear the bar for a member and lose nothing for a visitor.
+  A new sticky-bottom element does the same.
+- **An empty chat opens on topics, not a text box.** Six tiles (Rivalries,
+  Records, Seasons, Pick'ems, Trades, Takes) each offer three questions as
+  rows; a row asks it. An answer is a card: the first sentence, the verdict,
+  set bold; the reasons muted under it; "Show the data" as the card's last
+  row with the week it is as of, opening `QueryData` (the rows and the
+  query). A `data` reply shows the table outright.
+- **The composer's card is its focus ring.** The unlayered `.dark
+  *:focus-visible` outline in globals.css beats any layered utility, so the
+  field switches it off inline and the card draws `focus-within`. The field is
+  16px below `md`, which keeps iOS from zooming in on focus.
+- `useLeagueChat().open(question)` opens it from anywhere, as the taunt
+  sheet's "Ask og jits about this rivalry" does.
 
 ### Password reset is a login, and the page makes it set a password
 

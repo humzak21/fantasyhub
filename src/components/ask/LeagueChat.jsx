@@ -1,22 +1,27 @@
 import { useEffect } from 'react';
-import { MessagesSquare } from 'lucide-react';
+import { ChevronRight, MessagesSquare, RotateCcw, Search, X } from 'lucide-react';
 
-import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../ui/sheet';
-import { useIsMobile } from '../../hooks/use-mobile';
 import { cn } from '../../lib/utils';
-import ChatConversation from './ChatConversation.jsx';
+import { useIsMobile } from '../../hooks/use-mobile';
+import { Drawer, DrawerBody, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { useLeagueChat } from './LeagueChatContext.jsx';
-import { AskDock, ChatDrawer, chatUiVariant } from './redesign/variants.jsx';
+import { Composer, ConversationBody, LIT } from './ChatParts.jsx';
 
 /**
  * Ask og jits, mounted once at the app root (JITS-42).
  *
- * The launcher sits in the bottom-left corner on every page: above the phone
- * tab bar below `lg`, in the corner itself above it. On a phone the chat opens
- * as a bottom sheet; from `md` up it is a panel down the left-hand side that
- * leaves the page usable, and from `lg` the page moves over to make room for
- * it (`CHAT_PANEL_WIDTH`, applied by the shell). Both render the one
- * `ChatConversation`, so there is no phone copy of the feature.
+ * It has three ways in and two containers, all for approved members only:
+ *
+ * - Below `lg`, an ask bar docked on top of the phone tab bar (`AskBar`,
+ *   rendered by `MobileTabBar` as its `dock`), and a card at the top of the
+ *   tab bar's Menu (`MenuAskEntry`).
+ * - From `lg`, a search-style field in the header (`AskHeaderField`).
+ *
+ * Below `md` the chat is a vaul drawer drawn like the Menu; from `md` it is a
+ * panel down the left-hand side that leaves the page usable, and from `lg`
+ * the page moves over to make room for it (`CHAT_PANEL_WIDTH`, applied by
+ * `LeagueChatOffset`). Both render the same `ChatParts`, so there is no phone
+ * copy of the feature.
  *
  * Rendered at the root, never inside the header: the header's backdrop-blur
  * makes it the containing block for `position: fixed` children.
@@ -24,25 +29,48 @@ import { AskDock, ChatDrawer, chatUiVariant } from './redesign/variants.jsx';
 
 export const CHAT_PANEL_WIDTH = 'lg:pl-[400px]';
 
-/** The shell's root: moves the page over for the open panel from `lg` up. */
+/**
+ * How much taller the phone tab bar is with the ask bar on it. The shell's
+ * bottom padding and anything sticky above the tab bar (`PickEmsSubmitBar`)
+ * add `var(--tab-dock, 0px)`, so they clear the bar whether or not it is there.
+ */
+export const TAB_DOCK_HEIGHT = '3.25rem';
+
+/**
+ * The shell's root: moves the page over for the open panel from `lg` up, and
+ * says how tall the ask bar makes the tab bar.
+ */
 export const LeagueChatOffset = ({ className, children }) => {
-  const { isOpen } = useLeagueChat();
-  return <div className={cn(className, isOpen && CHAT_PANEL_WIDTH)}>{children}</div>;
+  const { available, isOpen } = useLeagueChat();
+  return (
+    <div className={cn(className, isOpen && CHAT_PANEL_WIDTH)} style={available ? { '--tab-dock': TAB_DOCK_HEIGHT } : undefined}>
+      {children}
+    </div>
+  );
 };
 
+const HEADER_ICON =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors pointer-coarse:min-w-11 ' +
+  'text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+const ResetButton = ({ chat }) => (
+  <button
+    type="button"
+    onClick={chat.reset}
+    disabled={!chat.messages.length || chat.isPending}
+    aria-label="New conversation"
+    className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-muted-foreground hover:bg-accent/50 disabled:opacity-40"
+  >
+    <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> New
+  </button>
+);
+
+/** The chat: a Menu-style drawer below `md`, a panel down the left from `md`. */
 const LeagueChat = () => {
-  const variant = chatUiVariant();
-  if (variant === 'drawer') return <ChatDrawer />;
-  if (variant === 'bar') return <><AskDock /><ChatDrawer /></>;
-  if (variant === 'page') return null;
-  return <CurrentLeagueChat />;
-};
-
-const CurrentLeagueChat = () => {
   const chat = useLeagueChat();
   const isMobile = useIsMobile();
 
-  // Escape closes the side panel; the sheet handles its own.
+  // Escape closes the side panel; the drawer handles its own.
   useEffect(() => {
     if (!chat.isOpen || isMobile) return undefined;
     const onKey = (event) => { if (event.key === 'Escape') chat.close(); };
@@ -52,52 +80,140 @@ const CurrentLeagueChat = () => {
 
   if (!chat.available) return null;
 
-  const conversation = (Title) => (
-    <ChatConversation
-      Title={Title}
+  const body = (
+    <ConversationBody
       messages={chat.messages}
       isPending={chat.isPending}
-      onSend={chat.send}
-      onReset={chat.reset}
-      onClose={chat.close}
+      onAsk={chat.send}
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3"
     />
   );
+  const composer = (autoFocus) => (
+    <div className="border-t border-border bg-background px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
+      <Composer onSend={chat.send} isPending={chat.isPending} autoFocus={autoFocus} />
+    </div>
+  );
 
+  if (isMobile) {
+    return (
+      <Drawer open={chat.isOpen} onOpenChange={(open) => (open ? chat.open() : chat.close())} shouldScaleBackground={false}>
+        <DrawerContent className="h-[85dvh]">
+          <DrawerHeader className="flex flex-row items-center gap-2 pb-2 text-left">
+            <MessagesSquare className="h-4 w-4 text-primary" aria-hidden="true" />
+            <DrawerTitle className="flex-1">Ask og jits</DrawerTitle>
+            <DrawerDescription className="sr-only">Ask a question about the league&apos;s history.</DrawerDescription>
+            <ResetButton chat={chat} />
+          </DrawerHeader>
+          <DrawerBody className="flex min-h-0 flex-1 flex-col overflow-hidden p-0 pb-0">
+            {body}
+            {/* No autofocus: on a phone it would raise the keyboard over the topics. */}
+            {composer(false)}
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  if (!chat.isOpen) return null;
   return (
-    <>
-      {!chat.isOpen && (
-        <button
-          type="button"
-          onClick={() => chat.open()}
-          aria-label="Ask og jits"
-          title="Ask og jits"
-          className={cn(
-            'fixed left-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground',
-            'shadow-[0_4px_12px_rgb(0_0_0/0.5),inset_0_1px_0_rgb(255_255_255/0.12)] transition-transform hover:scale-105',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-            'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6 lg:left-6'
-          )}
-        >
-          <MessagesSquare className="h-5 w-5" aria-hidden="true" />
+    <aside
+      aria-label="Ask og jits"
+      className="fixed inset-y-0 left-0 z-[45] flex w-[400px] max-w-[calc(100vw-3rem)] flex-col border-r border-border bg-background shadow-[4px_0_16px_rgb(0_0_0/0.45)] lg:shadow-none"
+    >
+      <div className="flex items-center gap-2 px-4 pt-4 pb-3">
+        <MessagesSquare className="h-4 w-4 text-primary" aria-hidden="true" />
+        <h2 className="flex-1 text-base font-semibold text-foreground">Ask og jits</h2>
+        <ResetButton chat={chat} />
+        <button type="button" onClick={chat.close} aria-label="Close the chat" className={HEADER_ICON}>
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
-      )}
+      </div>
+      {body}
+      {composer(true)}
+    </aside>
+  );
+};
 
-      {isMobile ? (
-        <Sheet open={chat.isOpen} onOpenChange={(open) => (open ? chat.open() : chat.close())}>
-          <SheetContent side="bottom" hideClose className="h-[90dvh] max-h-[90dvh] gap-0 overflow-hidden p-0 sm:p-0">
-            <SheetDescription className="sr-only">Ask a question about the league&apos;s history.</SheetDescription>
-            {conversation(SheetTitle)}
-          </SheetContent>
-        </Sheet>
-      ) : chat.isOpen && (
-        <aside
-          aria-label="Ask og jits"
-          className="fixed inset-y-0 left-0 z-[45] w-[400px] max-w-[calc(100vw-3rem)] border-r border-border bg-background shadow-[4px_0_16px_rgb(0_0_0/0.45)] lg:shadow-none"
-        >
-          {conversation('h2')}
-        </aside>
+/**
+ * The ask bar docked on top of the phone tab bar. `MobileTabBar` renders it
+ * inside its own `fixed` element, so the two cannot overlap, and the tab bar
+ * is `lg:hidden`, so this is too.
+ */
+export const AskBar = () => {
+  const chat = useLeagueChat();
+  if (!chat.available) return null;
+  return (
+    <div className="mx-auto max-w-lg px-3 pt-2">
+      <button
+        type="button"
+        onClick={() => chat.open()}
+        aria-label="Ask og jits"
+        className={cn(
+          'flex h-10 w-full items-center gap-2.5 rounded-xl border border-border bg-background/60 px-3.5 text-sm text-muted-foreground',
+          'active:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          LIT
+        )}
+      >
+        <MessagesSquare className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+        <span className="flex-1 truncate text-left">Ask og jits about the league…</span>
+      </button>
+    </div>
+  );
+};
+
+/** From `lg`: a search-style field in the header that opens the side panel. */
+export const AskHeaderField = ({ className }) => {
+  const chat = useLeagueChat();
+  if (!chat.available) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => chat.open()}
+      aria-label="Ask og jits"
+      aria-expanded={chat.isOpen}
+      className={cn(
+        'h-9 w-40 items-center gap-2 rounded-lg border border-border bg-background/60 px-3 text-sm text-muted-foreground xl:w-52',
+        'hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        chat.isOpen && 'border-primary/40 text-foreground',
+        className
       )}
-    </>
+    >
+      <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span className="flex-1 truncate text-left">Ask og jits…</span>
+    </button>
+  );
+};
+
+/**
+ * The card at the top of the phone Menu, drawn like its profile card. The
+ * Menu closes as the chat opens: both are vaul drawers over the one Radix
+ * dialog stack, as the Menu's Log out confirmation is.
+ */
+export const MenuAskEntry = ({ onSelect }) => {
+  const chat = useLeagueChat();
+  if (!chat.available) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onSelect?.();
+        chat.open();
+      }}
+      className={cn(
+        'flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-card p-3 text-left active:bg-accent/60',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        LIT
+      )}
+    >
+      <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+        <MessagesSquare className="h-5 w-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-foreground">Ask og jits</span>
+        <span className="block truncate text-xs text-muted-foreground">Opinions on the league, with receipts</span>
+      </span>
+      <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+    </button>
   );
 };
 

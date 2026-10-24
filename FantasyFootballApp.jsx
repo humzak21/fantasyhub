@@ -41,9 +41,8 @@ import InlineWeekNavigator from './src/components/week-controls/InlineWeekNaviga
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
 import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
-import LeagueChat, { LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
-import { LeagueChatProvider, useLeagueChat } from './src/components/ask/LeagueChatContext.jsx';
-import { AskHeaderField, AskHeaderLink, AskPage, MenuAskEntry, chatUiVariant } from './src/components/ask/redesign/variants.jsx';
+import LeagueChat, { AskBar, AskHeaderField, LeagueChatOffset, MenuAskEntry } from './src/components/ask/LeagueChat.jsx';
+import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
 import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
@@ -305,8 +304,7 @@ const FantasyFootballApp = () => {
       // Every notification the viewer was sent. Reached by the bell in the
       // header, which is on screen at every width — not a nav tab, so it is
       // never one tap further away inside the phone tab bar's Menu.
-      { id: 'alerts', label: 'Alerts', icon: Bell, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false },
-      ...(chatUiVariant() === 'page' ? [{ id: 'ask', label: 'Ask og jits', icon: Bell, requiresSeason: false, requiresAuth: false, customAccess: isApproved, inNav: false, weekAware: false }] : [])
+      { id: 'alerts', label: 'Alerts', icon: Bell, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false }
     ];
   }, [isApproved, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults, isAuthenticated]);
 
@@ -518,10 +516,9 @@ const FantasyFootballApp = () => {
                   tabs. */}
               <div className="flex shrink-0 items-center gap-1">
                 {isApproved && <NewsletterLink className="hidden lg:flex" />}
-                {isApproved && chatUiVariant() === 'bar' && <AskHeaderField className="hidden lg:flex" />}
-                {isApproved && (chatUiVariant() === 'page' || chatUiVariant() === 'drawer') && (
-                  <AskHeaderLink variant={chatUiVariant()} active={activeTab === 'ask'} className={chatUiVariant() === 'drawer' ? 'hidden lg:flex' : undefined} />
-                )}
+                {/* Ask og jits, from lg. Below lg it is the ask bar on the
+                    tab bar and a card in its Menu. */}
+                <AskHeaderField className="hidden lg:flex" />
                 {isAuthenticated && (
                   <AlertsLink active={activeTab === 'alerts'} badgeCount={unreadAlerts} />
                 )}
@@ -544,11 +541,12 @@ const FantasyFootballApp = () => {
         {/* Main content.
             The bottom padding clears the phone tab bar: it is `fixed`, so it
             does not occupy layout space, and without this the last row of
-            every page sits under it. `pb-safe` handles the home indicator
-            below that. */}
+            every page sits under it. `--tab-dock` is the ask bar on top of
+            it, set by `LeagueChatOffset` when the chat exists. `pb-safe`
+            handles the home indicator below that. */}
         <PageContainer
           as="main"
-          className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-10"
+          className="py-6 pb-[calc(5rem+var(--tab-dock,0px)+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5.5rem+var(--tab-dock,0px)+env(safe-area-inset-bottom))] lg:py-10 lg:pb-10"
         >
           {/* Signed in but not yet approved by the admin: says so, once, at the
               top of every page. Renders nothing for everyone else. */}
@@ -754,7 +752,6 @@ const FantasyFootballApp = () => {
               </ErrorBoundary>
             )}
 
-            {activeTab === 'ask' && <AskPage />}
             </Suspense>
           </div>
         </PageContainer>
@@ -775,11 +772,13 @@ const FantasyFootballApp = () => {
             settingsBadgeLabel,
             onSignOut: signOut
           }}
-          askEntry={isApproved ? (closeMenu) => <MenuAskSlot closeMenu={closeMenu} /> : null}
+          dock={isApproved ? <AskBar /> : null}
+          askEntry={isApproved ? (closeMenu) => <MenuAskEntry onSelect={closeMenu} /> : null}
         />
 
-        {/* Ask og jits: the bottom-left launcher and the chat it opens, for
-            approved members. At the root for the same reason as the tab bar. */}
+        {/* Ask og jits: the drawer or side panel the ask bar, the Menu card
+            and the header field open, for approved members. At the root for
+            the same reason as the tab bar. */}
         <LeagueChat />
 
         {/* Standings Drawer */}
@@ -825,13 +824,5 @@ const FantasyFootballApp = () => {
   );
 };
 
-// PROTOTYPE: the Menu's entry to the chat, per variant.
-function MenuAskSlot({ closeMenu }) {
-  const chat = useLeagueChat();
-  const variant = chatUiVariant();
-  if (variant === 'page') return <MenuAskEntry to="/ask" onNavigate={closeMenu} />;
-  if (variant === 'drawer') return <MenuAskEntry onSelect={() => { closeMenu(); setTimeout(() => chat.open(), 250); }} />;
-  return null;
-}
 
 export default FantasyFootballApp;

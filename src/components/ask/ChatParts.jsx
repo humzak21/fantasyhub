@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeftRight, ArrowUp, CalendarDays, ChevronDown, ChevronRight, Flame, ListChecks, Swords, Trophy } from 'lucide-react';
 
-import { cn } from '../../../lib/utils';
-import QueryData from '../QueryData.jsx';
+import { cn } from '../../lib/utils';
+import QueryData from './QueryData.jsx';
 
 /**
  * The chat's pieces in the Menu drawer's own language (`TabBarMenu`): lit
- * cards, a three-across tile grid, and rows with an icon and a chevron. Every
- * container (drawer, page, dock) renders these, so the three layouts differ
- * only in where the chat lives.
+ * cards, a three-across tile grid, and rows with an icon and a chevron. The
+ * phone's drawer and the desktop's side panel both render these, so the two
+ * differ only in their container.
  */
 
 export const LIT = 'shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]';
@@ -145,25 +145,39 @@ export function ConversationBody({ messages, isPending, onAsk, scrollRef, classN
 
 /** The box to type in: a lit card holding the field and a round send button. */
 export function Composer({ onSend, isPending, autoFocus = false, className, placeholder = 'Ask about the league…' }) {
+  const inputRef = useRef(null);
   const [draft, setDraft] = useState('');
   const submit = () => {
     const text = draft.trim();
     if (!text || isPending) return;
     onSend(text);
     setDraft('');
+    inputRef.current?.focus();
   };
   return (
     <form
-      className={cn('flex items-center gap-2 rounded-xl border border-border bg-card p-1.5 pl-3 focus-within:border-primary/50', LIT, className)}
+      className={cn(
+        'flex items-center gap-2 rounded-xl border border-border bg-card p-1.5 pl-3 transition-colors',
+        'focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20',
+        LIT,
+        className
+      )}
       onSubmit={(e) => { e.preventDefault(); submit(); }}
     >
+      {/* The card is the focus ring (focus-within above). The field's own
+          outline comes from the unlayered `.dark *:focus-visible` rule in
+          globals.css, which no layered utility can override, so it is
+          switched off inline: an outline drawn inside the card, around
+          only the text, was the second ring. */}
       <input
+        ref={inputRef}
         value={draft}
         maxLength={300}
         autoFocus={autoFocus}
         placeholder={placeholder}
         aria-label="Your question"
-        className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0"
+        style={{ outline: 'none' }}
+        className="min-w-0 flex-1 bg-transparent text-base text-foreground placeholder:text-muted-foreground md:text-sm"
         onChange={(e) => setDraft(e.target.value)}
       />
       <button

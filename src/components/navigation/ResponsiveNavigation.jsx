@@ -274,8 +274,13 @@ const DesktopNav = ({ tabs, activeTab }) => {
  * @param {object} [account] - { user, showNewsletter, settingsBadgeCount,
  *   settingsBadgeLabel, onSignOut }; the menu's account half. Omit it for a
  *   signed-out viewer, whose Login stays in the header.
+ * @param {ReactNode} [dock] - a strip on top of the tabs, inside the same
+ *   fixed element (the league chat's ask bar). Whoever passes one also adds
+ *   its height to the page's bottom padding (`--tab-dock`).
+ * @param {Function} [askEntry] - `(closeMenu) => node`, rendered at the top of
+ *   the Menu under the profile card.
  */
-export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, account = {}, askEntry = null }) => {
+export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, account = {}, dock = null, askEntry = null }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const visibleTabs = tabs.filter(shouldShowTab);
   const barTabs = visibleTabs
@@ -305,6 +310,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, acco
           'pb-[env(safe-area-inset-bottom)]'
         )}
       >
+        {dock}
         <div className="mx-auto flex max-w-lg items-stretch gap-0.5 px-2">
           {barTabs.map((tab) => {
             const isActive = activeTab === tab.id;

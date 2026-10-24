@@ -1,10 +1,12 @@
 /**
- * Ask og jits, the chat: a launcher for approved members only, a conversation
- * that carries its earlier turns into each question, and every answer's data
- * one tap away (open, when the chat could not word an answer it could check).
+ * Ask og jits, the chat: three ways in (the header field, the ask bar on the
+ * phone tab bar, the Menu's card) for approved members only, topics that
+ * offer questions, answers that set the verdict above its reasons with the
+ * data one tap away, and a conversation that carries its earlier turns into
+ * each question.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -12,10 +14,10 @@ let ask;
 vi.mock('../../../../hooks/queries/index.js', () => ({ useAskLeague: () => ask }));
 
 const { LeagueChatProvider, useLeagueChat, historyOf } = await import('../LeagueChatContext.jsx');
-const { default: LeagueChat } = await import('../LeagueChat.jsx');
+const { default: LeagueChat, AskBar, AskHeaderField, MenuAskEntry, LeagueChatOffset } = await import('../LeagueChat.jsx');
 
 const RECORD = {
-  sql: "select wins, losses from x",
+  sql: 'select wins, losses from x',
   ok: true,
   columns: ['wins', 'losses'],
   rows: [[5, 3]],
@@ -40,56 +42,95 @@ const OpenWith = ({ question }) => {
   return <button type="button" onClick={() => chat.open(question)}>open with question</button>;
 };
 
-const renderChat = ({ enabled = true, extra = null } = {}) => render(
+const renderChat = ({ enabled = true, extra = null, onMenuSelect = () => {} } = {}) => render(
   <LeagueChatProvider enabled={enabled}>
-    {extra}
+    <LeagueChatOffset>
+      <AskHeaderField />
+      <AskBar />
+      <MenuAskEntry onSelect={onMenuSelect} />
+      {extra}
+    </LeagueChatOffset>
     <LeagueChat />
   </LeagueChatProvider>
 );
 
+const panel = () => screen.getByRole('complementary', { name: 'Ask og jits' });
+
+const realWidth = window.innerWidth;
 beforeEach(() => {
   ask = askWith([]);
+  window.innerWidth = 1280;
+  // vaul reads the drawer's computed `transform`, which jsdom does not compute.
+  const real = window.getComputedStyle.bind(window);
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+    const style = real(el, pseudo);
+    if (style.transform) return style;
+    return new Proxy(style, { get: (t, p) => (p === 'transform' ? 'none' : Reflect.get(t, p, t)) });
+  });
+});
+afterEach(() => {
+  window.innerWidth = realWidth;
+  vi.restoreAllMocks();
 });
 
 describe('LeagueChat', () => {
-  it('offers the launcher to approved members only', () => {
-    const { unmount } = renderChat({ enabled: false });
-    expect(screen.queryByRole('button', { name: 'Ask og jits' })).toBeNull();
+  it('exists for approved members only', () => {
+    const { container, unmount } = renderChat({ enabled: false });
+    expect(screen.queryByRole('button', { name: /Ask og jits/ })).toBeNull();
+    expect(container.firstChild.style.getPropertyValue('--tab-dock')).toBe('');
     unmount();
-    renderChat();
-    expect(screen.getByRole('button', { name: 'Ask og jits' })).toBeInTheDocument();
+    const view = renderChat();
+    // The header field, the ask bar and the Menu card.
+    expect(screen.getAllByRole('button', { name: /Ask og jits/ })).toHaveLength(3);
+    // The ask bar makes the tab bar taller; the page pads for it.
+    expect(view.container.firstChild.style.getPropertyValue('--tab-dock')).toBe('3.25rem');
   });
 
-  it('opens as a side panel with suggestions, and a suggestion asks it', async () => {
-    ask = askWith([{ kind: 'answer', text: "You're 5-3 against Humza.", queries: [RECORD], asOf: '2026 week 6' }]);
+  it('opens on the topics; a topic offers its questions, and a question asks it', async () => {
+    ask = askWith([{
+      kind: 'answer',
+      text: 'Rohit is the most successful manager. One title and five playoff trips.',
+      queries: [RECORD],
+      asOf: '2026 week 6'
+    }]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
-    const panel = screen.getByRole('complementary', { name: 'Ask og jits' });
-    await userEvent.click(within(panel).getByRole('button', { name: "What's my record against my opponent?" }));
-    expect(ask.mutate).toHaveBeenCalledWith({ question: "What's my record against my opponent?", history: [] }, expect.any(Object));
-    expect(within(panel).getByText("You're 5-3 against Humza.")).toBeInTheDocument();
-    expect(within(panel).getByText('As of 2026 week 6.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Ask og jits' })).toBeNull();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    const topics = within(panel()).getByRole('group', { name: 'Topics' });
+    expect(within(topics).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['Rivalries', 'Records', 'Seasons', "Pick'ems", 'Trades', 'Takes']);
+
+    await userEvent.click(within(topics).getByRole('button', { name: 'Records' }));
+    expect(within(topics).getByRole('button', { name: 'Records' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(within(panel()).getByRole('button', { name: "Who's been the most successful manager?" }));
+
+    expect(ask.mutate).toHaveBeenCalledWith({ question: "Who's been the most successful manager?", history: [] }, expect.any(Object));
+    // The verdict, then its reasons.
+    expect(within(panel()).getByText('Rohit is the most successful manager.')).toHaveClass('font-semibold');
+    expect(within(panel()).getByText('One title and five playoff trips.')).toBeInTheDocument();
+    expect(within(panel()).queryByRole('group', { name: 'Topics' })).toBeNull();
   });
 
-  it('keeps the data behind "Show the data" for an answer', async () => {
-    ask = askWith([{ kind: 'answer', text: "You're 5-3.", queries: [RECORD], asOf: null }]);
+  it('keeps the data one tap away for an answer, with the week it is as of', async () => {
+    ask = askWith([{ kind: 'answer', text: "You're 5-3.", queries: [RECORD], asOf: '2026 week 6' }]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
     await userEvent.type(screen.getByLabelText('Your question'), 'my record?{Enter}');
-    const details = screen.getByText('Show the data').closest('details');
-    expect(details.open).toBe(false);
-    expect(within(details).getByRole('columnheader', { name: 'wins' })).toBeInTheDocument();
-    expect(within(details).getByRole('cell', { name: '5' })).toBeInTheDocument();
+    const toggle = within(panel()).getByRole('button', { name: /Show the data/ });
+    expect(toggle).toHaveTextContent('As of 2026 week 6');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(panel()).queryByRole('table')).toBeNull();
+    await userEvent.click(toggle);
+    expect(within(panel()).getByRole('columnheader', { name: 'wins' })).toBeInTheDocument();
+    expect(within(panel()).getByRole('cell', { name: '5' })).toBeInTheDocument();
   });
 
   it('shows the data outright when the chat could not word a checked answer', async () => {
     ask = askWith([{ kind: 'data', text: "Here's what the league's data says:", queries: [RECORD], asOf: null }]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
     await userEvent.type(screen.getByLabelText('Your question'), 'my record?{Enter}');
-    expect(screen.queryByText('Show the data')).toBeNull();
-    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(within(panel()).queryByRole('button', { name: /Show the data/ })).toBeNull();
+    expect(within(panel()).getByRole('table')).toBeInTheDocument();
   });
 
   it('sends the earlier turns with a follow-up, and says when a question failed', async () => {
@@ -98,8 +139,9 @@ describe('LeagueChat', () => {
       new Error("That's 30 questions today. Ask again tomorrow.")
     ]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
     const box = screen.getByLabelText('Your question');
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeDisabled();
     await userEvent.type(box, 'my record vs Humza?{Enter}');
     await userEvent.type(box, 'and in the playoffs?{Enter}');
     expect(ask.mutate.mock.calls[1][0]).toEqual({
@@ -112,23 +154,50 @@ describe('LeagueChat', () => {
     expect(screen.getByRole('alert')).toHaveTextContent("That's 30 questions today.");
   });
 
-  it('starts over, and closes', async () => {
+  it('starts over, and closes with the button or Escape', async () => {
     ask = askWith([{ kind: 'none', text: "I couldn't find that.", queries: [], asOf: null }]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    expect(screen.getByRole('button', { name: 'New conversation' })).toBeDisabled();
     await userEvent.type(screen.getByLabelText('Your question'), 'best QB?{Enter}');
     await userEvent.click(screen.getByRole('button', { name: 'New conversation' }));
     expect(screen.queryByText("I couldn't find that.")).toBeNull();
+    expect(within(panel()).getByRole('group', { name: 'Topics' })).toBeInTheDocument();
+
     await userEvent.click(screen.getByRole('button', { name: 'Close the chat' }));
     expect(screen.queryByRole('complementary')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Ask og jits' })).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary')).toBeNull();
+  });
+
+  it('opens from the ask bar and from the Menu card, which closes the Menu', async () => {
+    const onMenuSelect = vi.fn();
+    renderChat({ onMenuSelect });
+    const [, bar, card] = screen.getAllByRole('button', { name: /Ask og jits/ });
+    await userEvent.click(bar);
+    expect(panel()).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Close the chat' }));
+    await userEvent.click(card);
+    expect(onMenuSelect).toHaveBeenCalledTimes(1);
+    expect(panel()).toBeInTheDocument();
+  });
+
+  it('is a drawer on a phone, without raising the keyboard', async () => {
+    window.innerWidth = 375;
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[1]);
+    const drawer = await screen.findByRole('dialog', { name: 'Ask og jits' });
+    expect(within(drawer).getByRole('group', { name: 'Topics' })).toBeInTheDocument();
+    expect(within(drawer).getByLabelText('Your question')).not.toHaveFocus();
+    expect(screen.queryByRole('complementary')).toBeNull();
   });
 
   it('can be opened from anywhere with a question, which it asks', async () => {
     ask = askWith([{ kind: 'answer', text: "You're 5-3.", queries: [RECORD], asOf: null }]);
     renderChat({ extra: <OpenWith question="What's my record against Humza?" /> });
     await userEvent.click(screen.getByRole('button', { name: 'open with question' }));
-    expect(screen.getByRole('complementary')).toHaveTextContent("What's my record against Humza?");
+    expect(panel()).toHaveTextContent("What's my record against Humza?");
     expect(ask.mutate).toHaveBeenCalledTimes(1);
   });
 });
