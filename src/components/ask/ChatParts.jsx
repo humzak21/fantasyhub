@@ -144,8 +144,15 @@ export function ConversationBody({ messages, isPending, onAsk, scrollRef, classN
 }
 
 /** The box to type in: a lit card holding the field and a round send button. */
-export function Composer({ onSend, isPending, autoFocus = false, className, placeholder = 'Ask about the league…' }) {
+/**
+ * `focusWhen` focuses the field each time it turns true: the side panel stays
+ * mounted while closed so it can slide, so opening it is not a mount.
+ */
+export function Composer({ onSend, isPending, focusWhen = false, className, placeholder = 'Ask about the league…' }) {
   const inputRef = useRef(null);
+  useEffect(() => {
+    if (focusWhen) inputRef.current?.focus({ preventScroll: true });
+  }, [focusWhen]);
   const [draft, setDraft] = useState('');
   const submit = () => {
     const text = draft.trim();
@@ -173,7 +180,6 @@ export function Composer({ onSend, isPending, autoFocus = false, className, plac
         ref={inputRef}
         value={draft}
         maxLength={300}
-        autoFocus={autoFocus}
         placeholder={placeholder}
         aria-label="Your question"
         style={{ outline: 'none' }}

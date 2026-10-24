@@ -29,6 +29,14 @@ import { Composer, ConversationBody, LIT } from './ChatParts.jsx';
 export const CHAT_PANEL_WIDTH = 'lg:pl-[400px]';
 
 /**
+ * The phone Menu's motion, borrowed for the side panel: vaul moves its drawers
+ * over 0.5s on cubic-bezier(0.32, 0.72, 0, 1), so the panel slides in from the
+ * left, and the page eases over beside it, on the same clock. Reduced motion
+ * is honoured by the global rule in globals.css.
+ */
+export const DRAWER_MOTION = 'duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]';
+
+/**
  * How much taller the phone tab bar is with the ask bar on it. The shell's
  * bottom padding and anything sticky above the tab bar (`PickEmsSubmitBar`)
  * add `var(--tab-dock, 0px)`, so they clear the bar whether or not it is there.
@@ -42,7 +50,10 @@ export const TAB_DOCK_HEIGHT = '3.25rem';
 export const LeagueChatOffset = ({ className, children }) => {
   const { available, isOpen } = useLeagueChat();
   return (
-    <div className={cn(className, isOpen && CHAT_PANEL_WIDTH)} style={available ? { '--tab-dock': TAB_DOCK_HEIGHT } : undefined}>
+    <div
+      className={cn(className, available && cn('transition-[padding]', DRAWER_MOTION), isOpen && CHAT_PANEL_WIDTH)}
+      style={available ? { '--tab-dock': TAB_DOCK_HEIGHT } : undefined}
+    >
       {children}
     </div>
   );
@@ -101,9 +112,9 @@ const LeagueChat = () => {
       className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3"
     />
   );
-  const composer = (autoFocus) => (
+  const composer = (focusWhen) => (
     <div className="border-t border-border bg-background px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
-      <Composer onSend={chat.send} isPending={chat.isPending} autoFocus={autoFocus} />
+      <Composer onSend={chat.send} isPending={chat.isPending} focusWhen={focusWhen} />
     </div>
   );
 
@@ -119,7 +130,7 @@ const LeagueChat = () => {
           </DrawerHeader>
           <DrawerBody className="flex min-h-0 flex-1 flex-col overflow-hidden p-0 pb-0">
             {body}
-            {/* No autofocus: on a phone it would raise the keyboard over the topics. */}
+            {/* No focus on open: on a phone it would raise the keyboard over the topics. */}
             {composer(false)}
           </DrawerBody>
         </DrawerContent>
@@ -127,11 +138,23 @@ const LeagueChat = () => {
     );
   }
 
-  if (!chat.isOpen) return null;
+  // Mounted while closed, off-screen to the left, so it can slide both ways.
+  // `visibility` flips at the end of the slide out (a discrete transition),
+  // and `inert` keeps a closed panel out of the tab order and the a11y tree.
+  const open = chat.isOpen;
   return (
     <aside
       aria-label="Ask og jits"
-      className="fixed inset-y-0 left-0 z-[45] flex w-[400px] max-w-[calc(100vw-3rem)] flex-col border-r border-border bg-background shadow-[4px_0_16px_rgb(0_0_0/0.45)] lg:shadow-none"
+      aria-hidden={open ? undefined : true}
+      {...(open ? {} : { inert: '' })}
+      data-state={open ? 'open' : 'closed'}
+      className={cn(
+        'fixed inset-y-0 left-0 z-[45] flex w-[400px] max-w-[calc(100vw-3rem)] flex-col border-r border-border bg-background',
+        'shadow-[4px_0_16px_rgb(0_0_0/0.45)] lg:shadow-none',
+        'transition-[translate,visibility]',
+        DRAWER_MOTION,
+        open ? 'visible translate-x-0' : 'invisible -translate-x-full'
+      )}
     >
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <MessagesSquare className="h-4 w-4 text-primary" aria-hidden="true" />
@@ -142,7 +165,7 @@ const LeagueChat = () => {
         </button>
       </div>
       {body}
-      {composer(true)}
+      {composer(open)}
     </aside>
   );
 };

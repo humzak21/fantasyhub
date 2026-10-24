@@ -2764,6 +2764,13 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   the chat is a vaul drawer with no autofocus (the keyboard would cover the
   topics); from `md` a panel down the left side, closed by Escape, and from
   `lg` `LeagueChatOffset` moves the page over beside it.
+- **The panel moves like the Menu.** vaul animates its drawers over 0.5s on
+  `cubic-bezier(0.32, 0.72, 0, 1)`; `DRAWER_MOTION` is that clock, and the
+  side panel slides in from the left and back out on it while the page's
+  padding eases over beside it. So the panel stays mounted when closed:
+  off-screen, `invisible` once the slide ends (a discrete `visibility`
+  transition), `inert` and `aria-hidden`. Opening is therefore not a mount,
+  which is why `Composer` takes `focusWhen` rather than `autoFocus`.
 - **The ask bar makes the tab bar taller, and `--tab-dock` says by how much.**
   `LeagueChatOffset` sets it (`TAB_DOCK_HEIGHT`, 3.25rem) on the shell's root
   when the chat exists. The main's bottom padding and anything sticky above

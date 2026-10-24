@@ -173,6 +173,24 @@ describe('LeagueChat', () => {
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
+  it('slides: the closed panel stays mounted, off-screen and inert, and opening focuses the field', async () => {
+    const { container } = renderChat();
+    const aside = container.ownerDocument.querySelector('aside');
+    expect(aside).toHaveAttribute('data-state', 'closed');
+    expect(aside).toHaveAttribute('aria-hidden', 'true');
+    expect(aside).toHaveAttribute('inert');
+    expect(aside).toHaveClass('-translate-x-full', 'invisible', 'duration-500');
+    expect(screen.queryByRole('complementary')).toBeNull();
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    expect(aside).toHaveAttribute('data-state', 'open');
+    expect(aside).not.toHaveAttribute('inert');
+    expect(aside).toHaveClass('translate-x-0', 'visible');
+    expect(within(aside).getByLabelText('Your question')).toHaveFocus();
+    // The page eases over on the same clock.
+    expect(container.firstChild).toHaveClass('lg:pl-[400px]', 'transition-[padding]', 'duration-500');
+  });
+
   it('opens from the ask bar too', async () => {
     renderChat();
     const [, bar] = screen.getAllByRole('button', { name: /Ask og jits/ });
