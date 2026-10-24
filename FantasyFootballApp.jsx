@@ -41,7 +41,7 @@ import InlineWeekNavigator from './src/components/week-controls/InlineWeekNaviga
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
 import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
-import LeagueChat, { AskBar, AskHeaderField, LeagueChatOffset, MenuAskEntry } from './src/components/ask/LeagueChat.jsx';
+import LeagueChat, { AskBar, AskHeaderField, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
 import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
@@ -517,7 +517,7 @@ const FantasyFootballApp = () => {
               <div className="flex shrink-0 items-center gap-1">
                 {isApproved && <NewsletterLink className="hidden lg:flex" />}
                 {/* Ask og jits, from lg. Below lg it is the ask bar on the
-                    tab bar and a card in its Menu. */}
+                    tab bar. */}
                 <AskHeaderField className="hidden lg:flex" />
                 {isAuthenticated && (
                   <AlertsLink active={activeTab === 'alerts'} badgeCount={unreadAlerts} />
@@ -773,12 +773,11 @@ const FantasyFootballApp = () => {
             onSignOut: signOut
           }}
           dock={isApproved ? <AskBar /> : null}
-          askEntry={isApproved ? (closeMenu) => <MenuAskEntry onSelect={closeMenu} /> : null}
         />
 
-        {/* Ask og jits: the drawer or side panel the ask bar, the Menu card
-            and the header field open, for approved members. At the root for
-            the same reason as the tab bar. */}
+        {/* Ask og jits: the drawer or side panel the ask bar and the header
+            field open, for approved members. At the root for the same reason
+            as the tab bar. */}
         <LeagueChat />
 
         {/* Standings Drawer */}

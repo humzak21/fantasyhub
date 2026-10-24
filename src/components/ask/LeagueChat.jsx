@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ChevronRight, MessagesSquare, RotateCcw, Search, X } from 'lucide-react';
+import { MessagesSquare, RotateCcw, X } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
 import { useIsMobile } from '../../hooks/use-mobile';
@@ -10,12 +10,11 @@ import { Composer, ConversationBody, LIT } from './ChatParts.jsx';
 /**
  * Ask og jits, mounted once at the app root (JITS-42).
  *
- * It has three ways in and two containers, all for approved members only:
- *
- * - Below `lg`, an ask bar docked on top of the phone tab bar (`AskBar`,
- *   rendered by `MobileTabBar` as its `dock`), and a card at the top of the
- *   tab bar's Menu (`MenuAskEntry`).
- * - From `lg`, a search-style field in the header (`AskHeaderField`).
+ * It has two ways in, both for approved members only: below `lg`, an ask bar
+ * docked on top of the phone tab bar (`AskBar`, rendered by `MobileTabBar` as
+ * its `dock`); from `lg`, a search-style field in the header
+ * (`AskHeaderField`). Both lead with `ChatBadge`, the launcher's round orange
+ * chat icon, so the chat looks the same wherever it is opened from.
  *
  * Below `md` the chat is a vaul drawer drawn like the Menu; from `md` it is a
  * panel down the left-hand side that leaves the page usable, and from `lg`
@@ -52,6 +51,20 @@ export const LeagueChatOffset = ({ className, children }) => {
 const HEADER_ICON =
   'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors pointer-coarse:min-w-11 ' +
   'text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+/** The chat's mark: the round orange launcher's icon, at the size of a field's. */
+export const ChatBadge = ({ className }) => (
+  <span
+    aria-hidden="true"
+    className={cn(
+      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground',
+      'shadow-[0_2px_6px_rgb(0_0_0/0.45),inset_0_1px_0_rgb(255_255_255/0.12)]',
+      className
+    )}
+  >
+    <MessagesSquare className="h-3.5 w-3.5" />
+  </span>
+);
 
 const ResetButton = ({ chat }) => (
   <button
@@ -149,12 +162,12 @@ export const AskBar = () => {
         onClick={() => chat.open()}
         aria-label="Ask og jits"
         className={cn(
-          'flex h-10 w-full items-center gap-2.5 rounded-xl border border-border bg-background/60 px-3.5 text-sm text-muted-foreground',
+          'flex h-10 w-full items-center gap-2.5 rounded-xl border border-border bg-background/60 pl-1.5 pr-3.5 text-sm text-muted-foreground',
           'active:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           LIT
         )}
       >
-        <MessagesSquare className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+        <ChatBadge />
         <span className="flex-1 truncate text-left">Ask og jits about the league…</span>
       </button>
     </div>
@@ -172,49 +185,17 @@ export const AskHeaderField = ({ className }) => {
       aria-label="Ask og jits"
       aria-expanded={chat.isOpen}
       className={cn(
-        'h-9 w-40 items-center gap-2 rounded-lg border border-border bg-background/60 px-3 text-sm text-muted-foreground xl:w-52',
+        'h-9 w-40 items-center gap-2 rounded-lg border border-border bg-background/60 pl-1 pr-3 text-sm text-muted-foreground xl:w-52',
         'hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         chat.isOpen && 'border-primary/40 text-foreground',
         className
       )}
     >
-      <Search className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <ChatBadge />
       <span className="flex-1 truncate text-left">Ask og jits…</span>
     </button>
   );
 };
 
-/**
- * The card at the top of the phone Menu, drawn like its profile card. The
- * Menu closes as the chat opens: both are vaul drawers over the one Radix
- * dialog stack, as the Menu's Log out confirmation is.
- */
-export const MenuAskEntry = ({ onSelect }) => {
-  const chat = useLeagueChat();
-  if (!chat.available) return null;
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        onSelect?.();
-        chat.open();
-      }}
-      className={cn(
-        'flex w-full items-center gap-3 rounded-xl border border-primary/30 bg-card p-3 text-left active:bg-accent/60',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        LIT
-      )}
-    >
-      <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-        <MessagesSquare className="h-5 w-5" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-semibold text-foreground">Ask og jits</span>
-        <span className="block truncate text-xs text-muted-foreground">Opinions on the league, with receipts</span>
-      </span>
-      <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-    </button>
-  );
-};
 
 export default LeagueChat;

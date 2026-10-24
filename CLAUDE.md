@@ -2754,13 +2754,13 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   own language: lit cards, a three-across tile grid, rows with an icon and a
   chevron (`ChatParts.jsx`). `LeagueChatProvider` in the shell holds the
   conversation, so it survives changing tabs, and is enabled for approved
-  members only; everything else renders nothing without it. Three ways in:
+  members only; everything else renders nothing without it. Two ways in:
   below `lg`, an **ask bar on top of the phone tab bar** (`AskBar`, passed as
   `MobileTabBar`'s `dock`, so it lives inside the bar's own fixed element and
-  cannot overlap it) and **a card at the top of the Menu** (`MenuAskEntry`,
-  the `askEntry` render prop, which closes the Menu as the chat opens — both
-  vaul drawers over the one Radix stack, like Log out's confirmation); from
-  `lg`, **a search-style field in the header** (`AskHeaderField`). Below `md`
+  cannot overlap it); from `lg`, **a search-style field in the header**
+  (`AskHeaderField`). Both lead with `ChatBadge`, the old round launcher's
+  orange chat icon, so the chat is recognisable wherever it is opened. There
+  is no Menu entry and no floating button. Below `md`
   the chat is a vaul drawer with no autofocus (the keyboard would cover the
   topics); from `md` a panel down the left side, closed by Escape, and from
   `lg` `LeagueChatOffset` moves the page over beside it.

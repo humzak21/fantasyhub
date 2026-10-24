@@ -1,6 +1,7 @@
 /**
- * Ask og jits, the chat: three ways in (the header field, the ask bar on the
- * phone tab bar, the Menu's card) for approved members only, topics that
+ * Ask og jits, the chat: two ways in (the header field and the ask bar on the
+ * phone tab bar, both wearing the launcher's chat icon) for approved members
+ * only, topics that
  * offer questions, answers that set the verdict above its reasons with the
  * data one tap away, and a conversation that carries its earlier turns into
  * each question.
@@ -14,7 +15,7 @@ let ask;
 vi.mock('../../../../hooks/queries/index.js', () => ({ useAskLeague: () => ask }));
 
 const { LeagueChatProvider, useLeagueChat, historyOf } = await import('../LeagueChatContext.jsx');
-const { default: LeagueChat, AskBar, AskHeaderField, MenuAskEntry, LeagueChatOffset } = await import('../LeagueChat.jsx');
+const { default: LeagueChat, AskBar, AskHeaderField, LeagueChatOffset } = await import('../LeagueChat.jsx');
 
 const RECORD = {
   sql: 'select wins, losses from x',
@@ -42,12 +43,11 @@ const OpenWith = ({ question }) => {
   return <button type="button" onClick={() => chat.open(question)}>open with question</button>;
 };
 
-const renderChat = ({ enabled = true, extra = null, onMenuSelect = () => {} } = {}) => render(
+const renderChat = ({ enabled = true, extra = null } = {}) => render(
   <LeagueChatProvider enabled={enabled}>
     <LeagueChatOffset>
       <AskHeaderField />
       <AskBar />
-      <MenuAskEntry onSelect={onMenuSelect} />
       {extra}
     </LeagueChatOffset>
     <LeagueChat />
@@ -80,8 +80,10 @@ describe('LeagueChat', () => {
     expect(container.firstChild.style.getPropertyValue('--tab-dock')).toBe('');
     unmount();
     const view = renderChat();
-    // The header field, the ask bar and the Menu card.
-    expect(screen.getAllByRole('button', { name: /Ask og jits/ })).toHaveLength(3);
+    // The header field and the ask bar, each led by the launcher's chat icon.
+    const entries = screen.getAllByRole('button', { name: /Ask og jits/ });
+    expect(entries).toHaveLength(2);
+    for (const entry of entries) expect(entry.querySelector('.rounded-full.bg-primary svg.lucide-messages-square')).not.toBeNull();
     // The ask bar makes the tab bar taller; the page pads for it.
     expect(view.container.firstChild.style.getPropertyValue('--tab-dock')).toBe('3.25rem');
   });
@@ -171,15 +173,10 @@ describe('LeagueChat', () => {
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
-  it('opens from the ask bar and from the Menu card, which closes the Menu', async () => {
-    const onMenuSelect = vi.fn();
-    renderChat({ onMenuSelect });
-    const [, bar, card] = screen.getAllByRole('button', { name: /Ask og jits/ });
+  it('opens from the ask bar too', async () => {
+    renderChat();
+    const [, bar] = screen.getAllByRole('button', { name: /Ask og jits/ });
     await userEvent.click(bar);
-    expect(panel()).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Close the chat' }));
-    await userEvent.click(card);
-    expect(onMenuSelect).toHaveBeenCalledTimes(1);
     expect(panel()).toBeInTheDocument();
   });
 

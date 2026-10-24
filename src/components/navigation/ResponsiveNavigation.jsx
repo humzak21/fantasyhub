@@ -277,10 +277,8 @@ const DesktopNav = ({ tabs, activeTab }) => {
  * @param {ReactNode} [dock] - a strip on top of the tabs, inside the same
  *   fixed element (the league chat's ask bar). Whoever passes one also adds
  *   its height to the page's bottom padding (`--tab-dock`).
- * @param {Function} [askEntry] - `(closeMenu) => node`, rendered at the top of
- *   the Menu under the profile card.
  */
-export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, account = {}, dock = null, askEntry = null }) => {
+export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, account = {}, dock = null }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const visibleTabs = tabs.filter(shouldShowTab);
   const barTabs = visibleTabs
@@ -370,7 +368,6 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, acco
         settingsBadgeCount={settingsCount}
         settingsBadgeLabel={settingsBadgeLabel}
         onSignOut={onSignOut}
-        askEntry={askEntry}
       />
     </>
   );

@@ -86,9 +86,6 @@ const ROW_IDLE = 'text-foreground hover:bg-accent/50 active:bg-accent/60';
  * @param {number} settingsBadgeCount - the admin's pending approvals
  * @param {string} [settingsBadgeLabel]
  * @param {Function} [onSignOut]
- * @param {Function} [askEntry] - `(close) => node`: the league chat's card,
- *   under the profile card. It gets `close` because opening the chat closes
- *   the menu.
  */
 export function TabBarMenu({
   open,
@@ -100,7 +97,6 @@ export function TabBarMenu({
   settingsBadgeCount = 0,
   settingsBadgeLabel,
   onSignOut,
-  askEntry = null,
 }) {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const close = () => onOpenChange(false);
@@ -148,8 +144,6 @@ export function TabBarMenu({
                 </span>
               </div>
             )}
-
-            {askEntry?.(close)}
 
             {tabs.length > 0 && (
               <nav aria-label="More" className="grid grid-cols-3 gap-2">
