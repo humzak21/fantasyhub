@@ -30,15 +30,45 @@ const NUMBER_WORDS = {
 };
 
 /**
- * The system prompt: the schema, who is asking, and the rules.
- *
- * @param {{ viewerName?: string|null, opponentName?: string|null, about?: Record<string,string|null>, members?: string[] }} context
+ * The two voices the chat window's switch chooses between. Both give a
+ * verdict and back it with figures; only the tone differs. Either way the
+ * roast stays on fantasy football, and the truth rule is the same.
  */
-export function buildSystemPrompt({ viewerName = null, opponentName = null, about = {}, members = [] } = {}) {
+const FOOTBALL_ONLY = 'The roast is about fantasy football and nothing else: records, scores, decisions, trades, takes and pick\'ems. Never anyone\'s looks, family, job, health or real life, and nothing about race, religion, gender or sexuality.';
+
+export const VOICES = {
+  normal: {
+    persona: [
+      'You are the league\'s analyst: you know its history cold, you have opinions, and you say them. Sharp and a little trash-talky is good; cruel is not. No swearing.',
+      FOOTBALL_ONLY
+    ],
+    example: [
+      '- An opinion is shown only if it cites at least two figures from your results. The shape (made-up people and figures):',
+      '  "Sam is the best manager this league has had, and it is not close. Sam has 2 titles and 6 playoff trips in 7 seasons, more than anyone, with a 61.2% win rate on top. Jo scores more, 118.4 a game, but has turned that into 1 title. Rings beat points."'
+    ]
+  },
+  unhinged: {
+    persona: [
+      'You are the league\'s most ruthless insider, roasting it in the group chat: you know its history cold, you have opinions, and you say them with zero mercy. Be savage, unhinged and funny. Mock collapses, choke jobs, empty trophy cases, lopsided trades, bad takes and worse pick\'ems; gloat for whoever is winning. Swearing is fine.',
+      FOOTBALL_ONLY
+    ],
+    example: [
+      '- An opinion is shown only if it cites at least two figures from your results. Every insult lands harder with a real number behind it. The shape (made-up people and figures):',
+      '  "Sam is the best manager this league has had, and it is not fucking close. 2 titles and 6 playoff trips in 7 seasons, with a 61.2% win rate on top. Jo puts up 118.4 a game and has 1 ring to show for it, which is a hell of a lot of points to choke away. Rings beat points."'
+    ]
+  }
+};
+
+/**
+ * The system prompt: the voice, the schema, who is asking, and the rules.
+ *
+ * @param {{ viewerName?: string|null, opponentName?: string|null, about?: Record<string,string|null>, members?: string[], unhinged?: boolean }} context
+ */
+export function buildSystemPrompt({ viewerName = null, opponentName = null, about = {}, members = [], unhinged = false } = {}) {
+  const voice = unhinged ? VOICES.unhinged : VOICES.normal;
   const lines = [
     'You answer questions about "og jits", a fantasy football league, for its members, by querying a SQLite database of the league\'s history.',
-    'You are the league\'s most ruthless insider, roasting it in the group chat: you know its history cold, you have opinions, and you say them with zero mercy. Be savage, unhinged and funny. Mock collapses, choke jobs, empty trophy cases, lopsided trades, bad takes and worse pick\'ems; gloat for whoever is winning. Swearing is fine.',
-    'The roast is about fantasy football and nothing else: records, scores, decisions, trades, takes and pick\'ems. Never anyone\'s looks, family, job, health or real life, and nothing about race, religion, gender or sexuality.',
+    ...voice.persona,
     '',
     'Reply with ONE JSON object and nothing else:',
     '  {"sql": "SELECT ..."}   to run a query (SQLite, read-only); you will be shown the result',
@@ -64,8 +94,7 @@ export function buildSystemPrompt({ viewerName = null, opponentName = null, abou
     '- For "best", "worst" or "most successful", start from a career summary and add what the question needs:',
     "  SELECT owner, COUNT(*) AS seasons, SUM(playoff_finish = 'champion') AS titles, SUM(playoff_finish = '2nd') AS finals_lost, SUM(made_playoffs) AS playoff_trips, SUM(wins) AS wins, SUM(losses) AS losses, ROUND(100.0 * SUM(wins) / SUM(wins + losses + ties), 1) AS win_pct, ROUND(SUM(points_for) / SUM(wins + losses + ties), 1) AS ppg FROM teams GROUP BY owner ORDER BY titles DESC, win_pct DESC",
     '- Answer in two to five sentences. Refer to people by first name and do not mention SQL, tables or queries.',
-    '- An opinion is shown only if it cites at least two figures from your results. Every insult lands harder with a real number behind it. The shape (made-up people and figures):',
-    '  "Sam is the best manager this league has had, and it is not fucking close. 2 titles and 6 playoff trips in 7 seasons, with a 61.2% win rate on top. Jo puts up 118.4 a game and has 1 ring to show for it, which is a hell of a lot of points to choke away. Rings beat points."',
+    ...voice.example,
     viewerName
       ? `- The person asking is ${viewerName}: "I", "me" and "my" mean ${viewerName}; call them "you".`
       : '- The person asking has no team in the league.',
@@ -276,7 +305,7 @@ const forMember = (sql, result) => ({
  * @param {Array<{ role: 'user'|'assistant', content: string }>} [input.history] earlier turns, oldest first
  * @param {(messages: object[]) => Promise<string>} input.model
  * @param {(sql: string) => object} input.runSql `runQuery` bound to the open snapshot
- * @param {{ viewerName?: string|null, opponentName?: string|null, about?: object, members?: string[] }} [input.context]
+ * @param {{ viewerName?: string|null, opponentName?: string|null, about?: object, members?: string[], unhinged?: boolean }} [input.context]
  * @returns {Promise<{ kind: 'answer'|'data'|'none', text: string, queries: object[], attempts: number, modelCalls: number, problems: string[] }>}
  */
 export async function answerQuestion({ question, history = [], model, runSql, context = {} }) {

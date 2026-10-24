@@ -2704,16 +2704,23 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   replied `<|tool_call>call:thought {}<tool_call|>`, which held no number and
   no name, so the check passed it to a member. `parseReply` now reads it as
   `{ invalid: true }`, and the loop asks again for JSON; it counts as a draft.
-- **The voice is a ruthless insider's, with a verdict** (since 2026-10-24,
-  the league's call): savage, unhinged, funny, swearing allowed — it mocks
-  collapses, choke jobs, empty trophy cases, bad trades, takes and pick'ems.
-  **The roast is about fantasy football and nothing else**: never anyone's
-  looks, family, job, health or real life, and nothing about race, religion,
-  gender or sexuality. That line is in the prompt and a test holds it. The
-  voice changes nothing about the truth rule: every insult still needs its
-  figure from a query, which is what makes it land. Gemma's own safety
-  tuning still softens the most vulgar asks; going past that is a different
-  model, which is a cost decision. The prompt asks for the
+- **Two voices, and the member picks with a switch in the chat window**
+  (`VoiceToggle`, "Unhinged", in both the drawer's and the panel's header).
+  Normal is the analyst: sharp, a little trash-talky, no swearing. Unhinged is
+  the ruthless insider: savage and funny, swearing allowed. `VOICES` in
+  `leagueAgent.js` holds both personas and their example answers;
+  `buildSystemPrompt({ unhinged })` picks one. Each question carries the voice
+  it was asked in (`askLeague`'s `unhinged`, read by the function as
+  `body.unhinged === true`), so flipping mid-conversation changes the next
+  answer and not the earlier ones. The choice is a preference in this
+  browser's storage (`UNHINGED_KEY`), like `confirmPreference.js`; it starts
+  Normal. **Either way the roast is about fantasy football and nothing
+  else**: never anyone's looks, family, job, health or real life, and nothing
+  about race, religion, gender or sexuality. That line is in both personas
+  and a test holds it. The voice changes nothing about the truth rule: every
+  insult still needs its figure from a query. Gemma's own safety tuning still
+  softens the most vulgar asks; going past that is a different model, which
+  is a cost decision. The prompt asks for the
   verdict first and two or three facts from different angles after it, a
   pick on every opinion question (never just "based on X, Y has the most
   Z"), everyone ranked rather than `LIMIT 1` so a tie is said as a tie, a

@@ -107,12 +107,13 @@ export async function saveLeagueSnapshot(ctx, { snapshot, wasm }) {
 /**
  * Ask the league chat. `history` is the conversation so far, oldest first, as
  * `{ role: 'user'|'assistant', content }`; the function keeps the last few.
+ * `unhinged` is the chat window's voice switch.
  *
  * @returns {Promise<{ kind: 'answer'|'data'|'none', text: string,
  *   queries: Array<{ sql: string, columns: string[], rows: any[][], rowCount: number }>, asOf: string|null }>}
  */
-export async function askLeague(ctx, question, { history = [] } = {}) {
-  const { data, error } = await ctx.client.functions.invoke('league-chat', { body: { question, history } });
+export async function askLeague(ctx, question, { history = [], unhinged = false } = {}) {
+  const { data, error } = await ctx.client.functions.invoke('league-chat', { body: { question, history, unhinged: Boolean(unhinged) } });
   if (error) {
     // A non-2xx carries the function's own message in its body.
     let message = error.message;

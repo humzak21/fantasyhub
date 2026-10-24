@@ -246,14 +246,30 @@ describe('the prompt and the provider', () => {
     expect(prompt).toContain('TABLE games');
   });
 
-  it('roasts without mercy, swearing allowed, and only about the fantasy football', () => {
-    const prompt = buildSystemPrompt(context());
-    expect(prompt).toContain('zero mercy');
-    expect(prompt).toContain('Swearing is fine.');
-    expect(prompt).toContain('The roast is about fantasy football and nothing else');
-    expect(prompt).toMatch(/Never anyone's looks, family, job, health or real life/);
-    // The truth rule is untouched by the voice.
-    expect(prompt).toContain('Every number and every person in your answer must appear in a query result.');
+  it('speaks in the normal voice unless the window asks for unhinged, and keeps both on the football', () => {
+    const normal = buildSystemPrompt(context());
+    expect(normal).toContain('Sharp and a little trash-talky is good; cruel is not. No swearing.');
+    expect(normal).not.toContain('zero mercy');
+    expect(normal).not.toContain('fucking');
+
+    const unhinged = buildSystemPrompt({ ...context(), unhinged: true });
+    expect(unhinged).toContain('zero mercy');
+    expect(unhinged).toContain('Swearing is fine.');
+    expect(unhinged).not.toContain('No swearing.');
+
+    for (const prompt of [normal, unhinged]) {
+      expect(prompt).toContain('The roast is about fantasy football and nothing else');
+      expect(prompt).toMatch(/Never anyone's looks, family, job, health or real life/);
+      // The truth rule is untouched by the voice.
+      expect(prompt).toContain('Every number and every person in your answer must appear in a query result.');
+    }
+  });
+
+  it('carries the voice through answerQuestion to the model', async () => {
+    const seen = [];
+    const model = async (messages) => { seen.push(messages[0].content); return JSON.stringify({ answer: 'x' }); };
+    await answerQuestion({ question: 'q', model, runSql: () => ({ ok: false, error: 'n/a' }), context: { ...context(), unhinged: true } });
+    expect(seen[0]).toContain('Swearing is fine.');
   });
 
   it('tells the model how many rows there were when it shows only some', () => {

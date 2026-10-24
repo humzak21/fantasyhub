@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import { MessagesSquare, RotateCcw, X } from 'lucide-react';
+import { Flame, MessagesSquare, RotateCcw, X } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
 import { useIsMobile } from '../../hooks/use-mobile';
 import { Drawer, DrawerBody, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '../ui/drawer';
+import { Switch } from '../ui/switch';
 import { useLeagueChat } from './LeagueChatContext.jsx';
 import { Composer, ConversationBody } from './ChatParts.jsx';
 
@@ -63,6 +64,26 @@ const ResetButton = ({ chat }) => (
   </button>
 );
 
+/**
+ * The voice switch: Normal or Unhinged. It applies from the next question on,
+ * so the earlier answers keep the voice they were asked in.
+ */
+const VoiceToggle = ({ chat, id }) => (
+  <label
+    htmlFor={id}
+    title={chat.unhinged ? 'Unhinged: savage, and it swears' : 'Normal: sharp, no swearing'}
+    className={cn(
+      'flex h-8 cursor-pointer select-none items-center gap-1.5 rounded-lg pl-2 pr-1 text-xs font-medium transition-colors',
+      chat.unhinged ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+    )}
+  >
+    <Flame className="h-3.5 w-3.5" aria-hidden="true" />
+    Unhinged
+    <Switch id={id} checked={chat.unhinged} onCheckedChange={chat.setUnhinged} aria-describedby={`${id}-hint`} />
+    <span id={`${id}-hint`} className="sr-only">Savage answers with swearing, from your next question</span>
+  </label>
+);
+
 /** The chat: a Menu-style drawer below `md`, a panel down the left from `md`. */
 const LeagueChat = () => {
   const chat = useLeagueChat();
@@ -100,6 +121,7 @@ const LeagueChat = () => {
             <MessagesSquare className="h-4 w-4 text-primary" aria-hidden="true" />
             <DrawerTitle className="flex-1">Ask og jits</DrawerTitle>
             <DrawerDescription className="sr-only">Ask a question about the league&apos;s history.</DrawerDescription>
+            <VoiceToggle chat={chat} id="chat-voice-drawer" />
             <ResetButton chat={chat} />
           </DrawerHeader>
           <DrawerBody className="flex min-h-0 flex-1 flex-col overflow-hidden p-0 pb-0">
@@ -133,6 +155,7 @@ const LeagueChat = () => {
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <MessagesSquare className="h-4 w-4 text-primary" aria-hidden="true" />
         <h2 className="flex-1 text-base font-semibold text-foreground">Ask og jits</h2>
+        <VoiceToggle chat={chat} id="chat-voice-panel" />
         <ResetButton chat={chat} />
         <button type="button" onClick={chat.close} aria-label="Close the chat" className={HEADER_ICON}>
           <X className="h-4 w-4" aria-hidden="true" />

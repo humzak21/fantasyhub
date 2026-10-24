@@ -8,6 +8,10 @@ import { useAskLeague } from '../../../hooks/queries/index.js';
  * anywhere opens it, optionally with a question to ask (a taunt's "Ask og jits
  * about this rivalry").
  *
+ * `unhinged` is the voice the window's switch chose; each question carries the
+ * voice it was asked in, so flipping it mid-conversation changes the next
+ * answer, not the earlier ones.
+ *
  * Outside the provider — a signed-out or unapproved viewer, or a test that
  * does not mount it — `useLeagueChat()` returns `available: false` and no-ops,
  * so a caller never has to check whether the chat exists before offering it.
@@ -20,11 +24,26 @@ const UNAVAILABLE = Object.freeze({
   isOpen: false,
   messages: [],
   isPending: false,
+  unhinged: false,
+  setUnhinged: () => {},
   open: () => {},
   close: () => {},
   send: () => {},
   reset: () => {}
 });
+
+/**
+ * The voice switch is a preference, not a rule — like `confirmPreference.js`
+ * — so it may live in this browser's storage. Losing it only means the chat
+ * opens in the normal voice again.
+ */
+export const UNHINGED_KEY = 'ogjits:chat-unhinged';
+const readUnhinged = () => {
+  try { return localStorage.getItem(UNHINGED_KEY) === '1'; } catch { return false; }
+};
+const writeUnhinged = (on) => {
+  try { if (on) localStorage.setItem(UNHINGED_KEY, '1'); else localStorage.removeItem(UNHINGED_KEY); } catch { /* a preference */ }
+};
 
 let nextId = 0;
 const id = () => `m${(nextId += 1)}`;
@@ -39,16 +58,24 @@ export const historyOf = (messages) =>
 export function LeagueChatProvider({ enabled = true, children }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [unhinged, setUnhingedState] = useState(readUnhinged);
   const ask = useAskLeague();
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const unhingedRef = useRef(unhinged);
+  unhingedRef.current = unhinged;
+
+  const setUnhinged = useCallback((on) => {
+    setUnhingedState(Boolean(on));
+    writeUnhinged(Boolean(on));
+  }, []);
 
   const send = useCallback((question) => {
     const text = String(question ?? '').trim();
     if (!text || ask.isPending) return;
     const history = historyOf(messagesRef.current);
     setMessages((prev) => [...prev, { id: id(), role: 'user', content: text }]);
-    ask.mutate({ question: text, history }, {
+    ask.mutate({ question: text, history, unhinged: unhingedRef.current }, {
       onSuccess: (reply) => setMessages((prev) => [...prev, {
         id: id(),
         role: 'assistant',
@@ -79,8 +106,10 @@ export function LeagueChatProvider({ enabled = true, children }) {
     open,
     close: () => setIsOpen(false),
     send,
-    reset: () => setMessages([])
-  }), [isOpen, messages, ask.isPending, open, send]);
+    reset: () => setMessages([]),
+    unhinged,
+    setUnhinged
+  }), [isOpen, messages, ask.isPending, open, send, unhinged, setUnhinged]);
 
   return <LeagueChatContext.Provider value={enabled ? value : UNAVAILABLE}>{children}</LeagueChatContext.Provider>;
 }

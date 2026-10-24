@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 let ask;
 vi.mock('../../../../hooks/queries/index.js', () => ({ useAskLeague: () => ask }));
 
-const { LeagueChatProvider, useLeagueChat, historyOf } = await import('../LeagueChatContext.jsx');
+const { LeagueChatProvider, useLeagueChat, historyOf, UNHINGED_KEY } = await import('../LeagueChatContext.jsx');
 const { default: LeagueChat, AskHeaderButton, ChatLauncher, LeagueChatOffset } = await import('../LeagueChat.jsx');
 
 const RECORD = {
@@ -57,6 +57,7 @@ const panel = () => screen.getByRole('complementary', { name: 'Ask og jits' });
 
 const realWidth = window.innerWidth;
 beforeEach(() => {
+  localStorage.clear();
   ask = askWith([]);
   window.innerWidth = 1280;
   // vaul reads the drawer's computed `transform`, which jsdom does not compute.
@@ -107,7 +108,7 @@ describe('LeagueChat', () => {
     expect(within(topics).getByRole('button', { name: 'Records' })).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(within(panel()).getByRole('button', { name: "Who's been the most successful manager?" }));
 
-    expect(ask.mutate).toHaveBeenCalledWith({ question: "Who's been the most successful manager?", history: [] }, expect.any(Object));
+    expect(ask.mutate).toHaveBeenCalledWith({ question: "Who's been the most successful manager?", history: [], unhinged: false }, expect.any(Object));
     // The verdict, then its reasons.
     expect(within(panel()).getByText('Rohit is the most successful manager.')).toHaveClass('font-semibold');
     expect(within(panel()).getByText('One title and five playoff trips.')).toBeInTheDocument();
@@ -150,6 +151,7 @@ describe('LeagueChat', () => {
     await userEvent.type(box, 'and in the playoffs?{Enter}');
     expect(ask.mutate.mock.calls[1][0]).toEqual({
       question: 'and in the playoffs?',
+      unhinged: false,
       history: [
         { role: 'user', content: 'my record vs Humza?' },
         { role: 'assistant', content: "You're 5-3 against Humza." }
@@ -222,6 +224,44 @@ describe('LeagueChat', () => {
     await userEvent.click(screen.getByRole('button', { name: 'open with question' }));
     expect(panel()).toHaveTextContent("What's my record against Humza?");
     expect(ask.mutate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the voice switch', () => {
+  it('starts normal, and the next question carries unhinged once it is switched on', async () => {
+    ask = askWith([
+      { kind: 'answer', text: 'Sharp.', queries: [RECORD], asOf: null },
+      { kind: 'answer', text: 'Savage.', queries: [RECORD], asOf: null }
+    ]);
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    const toggle = within(panel()).getByRole('switch', { name: /Unhinged/ });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    await userEvent.type(screen.getByLabelText('Your question'), 'first?{Enter}');
+    expect(ask.mutate.mock.calls[0][0]).toMatchObject({ question: 'first?', unhinged: false });
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await userEvent.type(screen.getByLabelText('Your question'), 'second?{Enter}');
+    expect(ask.mutate.mock.calls[1][0]).toMatchObject({ question: 'second?', unhinged: true });
+    // Earlier answers keep the voice they were asked in.
+    expect(within(panel()).getByText('Sharp.')).toBeInTheDocument();
+  });
+
+  it('remembers the choice in this browser, and opens unhinged next time', async () => {
+    const { unmount } = renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(within(panel()).getByRole('switch', { name: /Unhinged/ }));
+    expect(localStorage.getItem(UNHINGED_KEY)).toBe('1');
+    unmount();
+
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    const toggle = within(panel()).getByRole('switch', { name: /Unhinged/ });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(toggle);
+    expect(localStorage.getItem(UNHINGED_KEY)).toBeNull();
   });
 });
 
