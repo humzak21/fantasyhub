@@ -2447,7 +2447,12 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   `LLM_API_KEY` and `LLM_MODEL` from its secrets. Unset, the chat replies that
   it is not switched on (`kind: 'off'`): an open question has no answer
   without a model. Choosing a provider is a cost decision, so ask before
-  setting one.
+  setting one. **Models that think before answering (Gemma 4, Qwen 3) are
+  told not to** (`modelRequestOptions`, `chat_template_kwargs.enable_thinking:
+  false`): the thinking is billed as output and ate Gemma 4's whole token
+  budget on its first health check, leaving an empty reply. `LLM_THINKING=on`
+  turns it back on. Every question's prompt and completion tokens are logged
+  in `chat_log`, which is what a model comparison's cost is read from.
 - **`supabase/functions/league-chat`** checks the session with
   `auth.getUser` (hence `verify_jwt = false`), lets in approved members and
   admins only (the `is_approved_member()` rule), enforces `CHAT_DAILY_LIMIT`

@@ -39,13 +39,15 @@ CREATE TABLE IF NOT EXISTS "public"."chat_log" (
     "model_calls" integer DEFAULT 0 NOT NULL,
     "problems" "text"[] DEFAULT '{}'::"text"[] NOT NULL,
     "model" "text",
+    "prompt_tokens" integer,
+    "completion_tokens" integer,
     "latency_ms" integer,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "chat_log_kind_check" CHECK ("kind" IN ('answer', 'data', 'none', 'off', 'error'))
 );
 
 COMMENT ON TABLE "public"."chat_log" IS
-  'Every league chat question: what was asked, the queries the model ran (SQL, row count, error), what kind of reply went back (a checked answer, the query results, nothing found, chat switched off, an error), how many drafts it took and why any failed the check. Also counts the daily cap.';
+  'Every league chat question: what was asked, the queries the model ran (SQL, row count, error), what kind of reply went back (a checked answer, the query results, nothing found, chat switched off, an error), how many drafts it took and why any failed the check, and the model tokens it used (what it cost). Also counts the daily cap.';
 
 CREATE INDEX IF NOT EXISTS "chat_log_user_created_idx" ON "public"."chat_log" ("user_id", "created_at" DESC);
 

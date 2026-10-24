@@ -17,6 +17,7 @@ import {
   buildSystemPrompt,
   describeResult,
   openAiCompatibleModel,
+  modelRequestOptions,
   MAX_QUERIES
 } from '../leagueAgent.js';
 
@@ -184,5 +185,21 @@ describe('the prompt and the provider', () => {
     expect(url).toBe('https://example.test/v1/chat/completions');
     expect(JSON.parse(init.body)).toMatchObject({ model: 'm', temperature: 0 });
     expect(init.headers.Authorization).toBe('Bearer k');
+  });
+
+  it('sends a model\'s extra options and reports what each reply cost', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }], usage: { prompt_tokens: 120, completion_tokens: 3 } }) }));
+    const onUsage = vi.fn();
+    const model = openAiCompatibleModel({ baseUrl: 'https://x.test/v1', apiKey: 'k', model: 'm', fetchImpl, extraBody: { chat_template_kwargs: { enable_thinking: false } }, onUsage });
+    await model([{ role: 'user', content: 'q' }]);
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).chat_template_kwargs).toEqual({ enable_thinking: false });
+    expect(onUsage).toHaveBeenCalledWith({ promptTokens: 120, completionTokens: 3, finishReason: 'stop' });
+  });
+
+  it('turns thinking off for the models that think unless asked', () => {
+    expect(modelRequestOptions('@cf/google/gemma-4-26b-a4b-it')).toEqual({ chat_template_kwargs: { enable_thinking: false } });
+    expect(modelRequestOptions('@cf/qwen/qwen3-30b-a3b-fp8')).toEqual({ chat_template_kwargs: { enable_thinking: false } });
+    expect(modelRequestOptions('@cf/google/gemma-4-26b-a4b-it', { thinking: true })).toEqual({});
+    expect(modelRequestOptions('@cf/meta/llama-3.3-70b-instruct-fp8-fast')).toEqual({});
   });
 });

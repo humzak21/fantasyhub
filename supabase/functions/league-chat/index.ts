@@ -26,7 +26,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 import initSqlJs from 'npm:sql.js@1.14.2';
 
-import { answerQuestion, openAiCompatibleModel } from '../../../services/leagueAgent.js';
+import { answerQuestion, modelRequestOptions, openAiCompatibleModel } from '../../../services/leagueAgent.js';
 import { runQuery } from '../../../services/leagueSnapshot.js';
 import { ownerKey } from '../../../utils/ownerAliases.js';
 
@@ -45,13 +45,18 @@ const MAX_QUESTION = 300;
 const SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 const BUCKET = 'league-chat';
 
+// The model, if one is configured. `connect` makes a client for one request,
+// so each question's token counts are its own. LLM_THINKING=on lets a model
+// that thinks before answering do so (see modelRequestOptions).
 const llm = Deno.env.get('LLM_BASE_URL') && Deno.env.get('LLM_API_KEY') && Deno.env.get('LLM_MODEL')
   ? {
     name: Deno.env.get('LLM_MODEL')!,
-    call: openAiCompatibleModel({
+    connect: (options: { maxTokens?: number; onUsage?: (u: any) => void } = {}) => openAiCompatibleModel({
       baseUrl: Deno.env.get('LLM_BASE_URL')!,
       apiKey: Deno.env.get('LLM_API_KEY')!,
-      model: Deno.env.get('LLM_MODEL')!
+      model: Deno.env.get('LLM_MODEL')!,
+      extraBody: modelRequestOptions(Deno.env.get('LLM_MODEL'), { thinking: Deno.env.get('LLM_THINKING') === 'on' }),
+      ...options
     })
   }
   : null;
@@ -100,14 +105,10 @@ async function pingModel() {
   const started = Date.now();
   let result: Record<string, unknown>;
   try {
-    const ping = openAiCompatibleModel({
-      baseUrl: Deno.env.get('LLM_BASE_URL')!,
-      apiKey: Deno.env.get('LLM_API_KEY')!,
-      model: llm.name,
-      maxTokens: 10
-    });
+    let usage: Record<string, unknown> = {};
+    const ping = llm.connect({ maxTokens: 20, onUsage: (u) => { usage = u; } });
     const reply = await ping([{ role: 'user', content: 'Reply with the single word: ok' }]);
-    result = { ok: reply.trim().length > 0, reply: reply.trim().slice(0, 40), latencyMs: Date.now() - started };
+    result = { ok: reply.trim().length > 0, reply: reply.trim().slice(0, 40), latencyMs: Date.now() - started, ...usage };
   } catch (e) {
     result = { ok: false, error: String((e as Error)?.message ?? e).slice(0, 300), latencyMs: Date.now() - started };
   }
@@ -196,6 +197,13 @@ Deno.serve(async (req) => {
   }
 
   const started = Date.now();
+  const tokens = { prompt_tokens: 0, completion_tokens: 0 };
+  const model = llm.connect({
+    onUsage: (u) => {
+      tokens.prompt_tokens += u.promptTokens;
+      tokens.completion_tokens += u.completionTokens;
+    }
+  });
   try {
     const db = await openSnapshot(supabase);
     const about: Record<string, string | null> = {};
@@ -213,7 +221,7 @@ Deno.serve(async (req) => {
     const result = await answerQuestion({
       question,
       history,
-      model: llm.call,
+      model,
       runSql: (sql: string) => runQuery(db, sql),
       context: { viewerName, opponentName, about, members }
     });
@@ -225,6 +233,7 @@ Deno.serve(async (req) => {
       attempts: result.attempts,
       model_calls: result.modelCalls,
       problems: result.problems,
+      ...tokens,
       latency_ms: Date.now() - started
     });
 
@@ -237,6 +246,7 @@ Deno.serve(async (req) => {
     await log({
       kind: 'error',
       problems: [String((e as Error)?.message ?? e).slice(0, 300)],
+      ...tokens,
       latency_ms: Date.now() - started
     });
     return json({ error: 'Something went wrong answering that. Try again in a minute.' }, 500);

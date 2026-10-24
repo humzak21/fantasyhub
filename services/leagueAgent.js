@@ -260,23 +260,44 @@ export async function answerQuestion({ question, history = [], model, runSql, co
 }
 
 /**
+ * Request options a model needs that the OpenAI shape does not say.
+ *
+ * Gemma 4 and Qwen 3 think before answering unless told not to. The thinking
+ * is billed as output — the dear half of the price — and a small token budget
+ * is spent on it before a word of the answer: Gemma 4's first health check
+ * came back empty for exactly that reason. Writing a query and a sentence from
+ * results needs no deliberation the check does not already supply, so it is
+ * off unless `thinking` asks for it.
+ */
+export function modelRequestOptions(model, { thinking = false } = {}) {
+  const thinks = /gemma-4|qwen3/i.test(String(model ?? ''));
+  return thinks && !thinking ? { chat_template_kwargs: { enable_thinking: false } } : {};
+}
+
+/**
  * A model behind any OpenAI-compatible chat endpoint (Cloudflare Workers AI,
  * Groq, a local server). Temperature 0: the same question should get the same
- * queries.
+ * queries. `onUsage` hears each reply's token counts and why it stopped, which
+ * is how the chat log measures what a question costs.
  */
-export function openAiCompatibleModel({ baseUrl, apiKey, model, fetchImpl = fetch, maxTokens = 600 }) {
+export function openAiCompatibleModel({ baseUrl, apiKey, model, fetchImpl = fetch, maxTokens = 600, extraBody = {}, onUsage = null }) {
   const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
   return async (messages) => {
     const response = await fetchImpl(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages, temperature: 0, max_tokens: maxTokens })
+      body: JSON.stringify({ ...extraBody, model, messages, temperature: 0, max_tokens: maxTokens })
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       throw new Error(`model request failed (${response.status}): ${body.slice(0, 200)}`);
     }
     const data = await response.json();
+    onUsage?.({
+      promptTokens: Number(data?.usage?.prompt_tokens ?? 0),
+      completionTokens: Number(data?.usage?.completion_tokens ?? 0),
+      finishReason: data?.choices?.[0]?.finish_reason ?? null
+    });
     return String(data?.choices?.[0]?.message?.content ?? '');
   };
 }
