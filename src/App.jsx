@@ -7,6 +7,8 @@ import NotificationsPrompt from './components/auth/NotificationsPrompt.jsx'
 import { useAuth } from './contexts/AuthContext.jsx'
 import { RESET_PASSWORD_PATH } from './utils/passwordReset.js'
 import ErrorBoundary from '../utils/errorBoundary.jsx'
+import PreviewBanner from './components/layout/PreviewBanner.jsx'
+import { PREVIEW_PR } from './utils/previewBuild.js'
 
 function App() {
   const { loading, passwordRecoveryPending } = useAuth()
@@ -67,7 +69,10 @@ function App() {
         name, so it never stacks on the prompt above, and skips /settings,
         where the Notifications card is the same control.
       */}
-      {pathname !== '/settings' && <NotificationsPrompt />}
+      {pathname !== '/settings' && !PREVIEW_PR && <NotificationsPrompt />}
+      {/* A pull request's preview build says so, and that its data is live.
+          The offer above stays away there: a preview is another origin. */}
+      <PreviewBanner />
 
       <Routes>
         {/* The reset link's landing page. Static, so it outranks /:tab. */}

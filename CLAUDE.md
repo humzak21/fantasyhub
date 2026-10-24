@@ -377,6 +377,41 @@ button the live bundle did not have.
   remove the domain and service there, and delete the `Dockerfile`,
   `railway.json`, `npm start` and the `serve` dependency in a follow-up.
 
+### Every PR gets a preview to try on a phone
+
+`.github/workflows/preview-site.yml` builds each pull request on every push
+and uploads it to Cloudflare Pages as a **preview**, at
+`https://pr-<number>.ogjits.pages.dev`. It posts the link as one comment on
+the PR (found by its `<!-- preview-site -->` marker and rewritten on each
+push), so the address is the same for the life of the PR. This is the human
+QA step before a merge: the iOS keyboard, Safari's toolbar and touch can only
+be judged on a real phone, and until this a change reached a phone only by
+merging.
+
+- **`--branch=pr-<number>` is what keeps it off ogjits.com.** Only a deploy
+  to the project's production branch, `main`, reaches the custom domain.
+  Pages marks previews noindex.
+- **It reads and writes the live database.** The build uses the production
+  `VITE_SUPABASE_*` secrets, so a pick'em or take made on a preview is real.
+  The build sets `VITE_PREVIEW_PR`, and `PreviewBanner`
+  (`src/components/layout/`, over `src/utils/previewBuild.js`) says so above
+  the app. Production leaves it unset and the banner renders nothing.
+- **What a preview cannot show:** the PR's migrations (they apply on merge,
+  see "Migrations deploy on merge") and its edge functions (deployed by
+  hand). A PR that needs its own schema to work will fail on the preview
+  where it reads it. A staging database is the fix if that starts to matter.
+- **Sign in with a password there.** A magic link returns only to the
+  redirect allowlist, which stays production-only (the 2026-09-04 audit).
+- **No notifications on a preview.** A push subscription belongs to an
+  origin, so `App.jsx` does not mount `NotificationsPrompt` when
+  `PREVIEW_PR` is set.
+- **It builds the PR's head, not the merge with `main`**: a conflicted
+  branch has no merge commit, and the preview should show what the author
+  pushed. One run per PR at a time; a newer push cancels the one in flight.
+- **Skipped without the Cloudflare secrets, and for a fork's PR** (GitHub
+  gives a fork no secrets). Dependabot's PRs get none either, so they skip.
+  *Run workflow* with a PR number redeploys one by hand.
+
 ### The crons are Supabase's clock, GitHub's runners
 
 Neither ESPN workflow has a `schedule:` trigger, and that is on purpose.
