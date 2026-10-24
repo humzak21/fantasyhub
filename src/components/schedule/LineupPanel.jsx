@@ -1,8 +1,10 @@
 import { OpponentChip } from '../ui/opponent-chip';
+import { PlayerMark } from '../ui/player-avatar';
 import { PlayerPoints } from '../ui/player-points';
 import { getPositionColor } from '../../utils/positionColors';
 import { cn } from '../../lib/utils';
 import { useLineupsForWeek, useNflOpponentMap } from '../../../hooks/queries/index.js';
+import { teamOf } from '../../../utils/playerImages.js';
 
 /** The slots this league starts, in lineup order. Matches OPTIMAL_LINEUP_TEMPLATE. */
 const STARTER_SLOTS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
@@ -138,8 +140,9 @@ const TeamLineup = ({ teamName, rows, opponents }) => {
       </div>
     );
 
+  // A container, so each row's image follows this column's width (`PlayerMark`).
   return (
-    <div className="space-y-3">
+    <div className="@container space-y-3">
       {teamName && <h4 className="truncate text-sm font-semibold">{teamName}</h4>}
       {group('Starters', starters, 'text-foreground')}
       {group('Bench', bench, 'text-foreground')}
@@ -163,6 +166,12 @@ const PlayerRow = ({ row, opponent, muted }) => {
       >
         {position}
       </span>
+      <PlayerMark
+        name={playerName}
+        espnPlayerId={row.espnPlayerId}
+        position={position}
+        team={teamOf({ proTeamId: row.proTeamId, teamAbbreviation: row.player?.teamAbbreviation })}
+      />
       <span className="min-w-0 flex-1 truncate">{playerName}</span>
       {isInjured && (
         <span

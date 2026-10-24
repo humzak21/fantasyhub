@@ -1,5 +1,10 @@
+import { useMemo } from 'react';
+
 import { ScrollHint } from '../ui/scroll-hint';
+import { PlayerAvatar } from '../ui/player-avatar';
 import { cn } from '../../lib/utils';
+import { usePlayersByName } from '../../../hooks/queries/index.js';
+import { uniqueByName } from '../../../utils/playerImages.js';
 
 /**
  * What an answer came from: each query the chat ran and the rows it returned,
@@ -19,8 +24,30 @@ const cell = (value) => {
 // A column is numbers when every value in it is; its header lines up with them.
 const isNumeric = (query, c) => query.rows.some((row) => row[c] != null) && query.rows.every((row) => row[c] == null || typeof row[c] === 'number');
 
+// A column of player names, as the snapshot spells it (`lineups.player`, …).
+const isPlayerColumn = (col) => /^player(_name)?$/i.test(col);
+
+/**
+ * The names a player column shows, looked up for their headshots (JITS-47).
+ * Only a name exactly one player has gets a face; anything else stays text.
+ */
+function usePlayerFaces(queries) {
+  const names = useMemo(() => {
+    const found = new Set();
+    for (const query of queries) {
+      const c = query.columns?.findIndex(isPlayerColumn) ?? -1;
+      if (c < 0) continue;
+      for (const row of query.rows.slice(0, ROWS_SHOWN)) if (typeof row[c] === 'string') found.add(row[c]);
+    }
+    return [...found];
+  }, [queries]);
+  const { data } = usePlayersByName(names);
+  return useMemo(() => uniqueByName(data), [data]);
+}
+
 const QueryData = ({ queries = [] }) => {
   const shown = queries.filter((q) => q.ok !== false);
+  const faces = usePlayerFaces(shown);
   if (!shown.length) return <p className="text-xs text-muted-foreground">No data came back.</p>;
   return (
     <div className="space-y-3">
@@ -43,11 +70,19 @@ const QueryData = ({ queries = [] }) => {
                 <tbody>
                   {query.rows.slice(0, ROWS_SHOWN).map((row, r) => (
                     <tr key={r} className="border-b border-border/50 last:border-0">
-                      {row.map((value, c) => (
-                        <td key={c} className={typeof value === 'number' ? 'tabular px-2 py-1 text-right' : 'px-2 py-1'}>
-                          {cell(value)}
-                        </td>
-                      ))}
+                      {row.map((value, c) => {
+                        const face = isPlayerColumn(query.columns[c]) ? faces.get(value) : null;
+                        return (
+                          <td key={c} className={typeof value === 'number' ? 'tabular px-2 py-1 text-right' : 'px-2 py-1'}>
+                            {face ? (
+                              <span className="flex items-center gap-1.5">
+                                <PlayerAvatar name={value} espnPlayerId={face.espnPlayerId} position={face.position} size={18} />
+                                {cell(value)}
+                              </span>
+                            ) : cell(value)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

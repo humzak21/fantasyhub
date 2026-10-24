@@ -20,7 +20,7 @@ import {
   getUngradedMatchedPicks,
   applyParlayGrades
 } from '../parlay.js';
-import { searchPlayers } from '../players.js';
+import { getPlayersByNames, searchPlayers } from '../players.js';
 import {
   listLeagueMembers,
   getParlayCommissioners,
@@ -380,5 +380,27 @@ describe('applyParlayGrades', () => {
 
     await expect(applyParlayGrades(ctx, [])).resolves.toEqual({ updated: 0, errors: [] });
     expect(ctx.client.callsFor('td_parlay_picks')).toEqual([]);
+  });
+});
+
+describe('getPlayersByNames', () => {
+  it('asks for nothing without names', async () => {
+    const ctx = makeCtx({});
+    expect(await getPlayersByNames(ctx, [])).toEqual([]);
+    expect(await getPlayersByNames(ctx, [null, ' '])).toEqual([]);
+    expect(ctx.client.calls).toHaveLength(0);
+  });
+
+  it('looks names up exactly, once each, and returns every match camelCased', async () => {
+    const ctx = makeCtx({
+      'players.select': () => [
+        { espn_player_id: 3918298, name: 'Josh Allen', position: 'QB', team_abbreviation: 'BUF', pro_team_id: 2 },
+        { espn_player_id: 3127313, name: 'Josh Allen', position: 'LB', team_abbreviation: 'JAX', pro_team_id: 30 }
+      ]
+    });
+    const rows = await getPlayersByNames(ctx, ['Josh Allen', 'Josh Allen']);
+    const [call] = ctx.client.callsFor('players', 'select');
+    expect(call.filters['in:name']).toEqual(['Josh Allen']);
+    expect(rows.map((row) => row.espnPlayerId)).toEqual([3918298, 3127313]);
   });
 });

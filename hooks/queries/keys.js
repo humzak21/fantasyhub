@@ -67,7 +67,9 @@ export const qk = {
      * holds one entry per query the user actually paused on rather than one
      * per keystroke.
      */
-    search: (query) => ['players', 'search', query]
+    search: (query) => ['players', 'search', query],
+    /** Exact names, sorted, for the chat's data tables (`usePlayersByName`). */
+    byNames: (names) => ['players', 'byNames', names]
   },
 
   /**

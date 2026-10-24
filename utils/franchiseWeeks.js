@@ -22,6 +22,7 @@
  */
 
 import { getScoredTouchdownCount } from '../services/db/espnMapping.js';
+import { teamOf } from './playerImages.js';
 import { POWER_RANKING_COMPONENT_META } from '../types/index.js';
 import { getWeekLabel } from './weekLabelUtils.js';
 
@@ -405,6 +406,7 @@ function componentsOf(snapshot) {
 function lineupRow(row, ranks) {
   return {
     playerId: row.playerId,
+    espnPlayerId: row.espnPlayerId ?? null,
     name: row.name,
     position: row.position,
     slot: row.slot,
@@ -412,7 +414,9 @@ function lineupRow(row, ranks) {
     actualPoints: isNumber(row.actualPoints) ? row.actualPoints : null,
     touchdowns: row.statBreakdown ? getScoredTouchdownCount(row.statBreakdown) : null,
     proTeamId: row.proTeamId,
-    proTeam: row.proTeam,
+    // The team he was on that week (the row's own id), not wherever
+    // `players.team_abbreviation` says he is now.
+    proTeam: teamOf(row),
     rank: ranks?.get(row.playerId) ?? null
   };
 }

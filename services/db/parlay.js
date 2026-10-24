@@ -46,6 +46,7 @@ const PICK_WITH_PLAYER = `
   submitted_at,
   player:players (
     id,
+    espn_player_id,
     name,
     position,
     team_abbreviation,

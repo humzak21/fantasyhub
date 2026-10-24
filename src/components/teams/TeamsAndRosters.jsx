@@ -25,6 +25,8 @@ import { toast } from 'sonner';
 import PageHeader from '../layout/PageHeader';
 import { EmptyState } from '../ui/empty-state';
 import { OpponentChip } from '../ui/opponent-chip';
+import { PlayerMark } from '../ui/player-avatar';
+import { teamOf } from '../../../utils/playerImages.js';
 import { PlayerPoints } from '../ui/player-points';
 import { TeamIdentity } from '../ui/team-identity';
 import { IndependentColumns } from '../ui/independent-columns';
@@ -256,6 +258,12 @@ const TeamsAndRosters = ({
           >
             {position}
           </span>
+          <PlayerMark
+            name={playerName}
+            espnPlayerId={player.player?.espnPlayerId}
+            position={position}
+            team={teamOf({ proTeamId: player.player?.proTeamId, teamAbbreviation: player.player?.teamAbbreviation })}
+          />
           <span className="min-w-0 flex-1 truncate">{playerName}</span>
           {slot === 'IR' && (
             <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-destructive">
@@ -287,8 +295,9 @@ const TeamsAndRosters = ({
     // No inner scroller. With the card sized to its content there is nothing
     // to scroll against, and a nested scroll region inside the page's own
     // scroll is what made these cards awkward to read on a phone.
+    // A container, so each row's image follows the card's width (`PlayerMark`).
     return (
-      <div className="mt-3">
+      <div className="@container mt-3">
         <div className="space-y-3">
           {/* Starting Lineup Grid */}
           {starters.length > 0 && (
