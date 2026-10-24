@@ -218,6 +218,24 @@ describe('LeagueChat', () => {
     expect(screen.queryByRole('complementary')).toBeNull();
   });
 
+  it('shows three typing dots while an answer is being worked out', async () => {
+    ask = { isPending: true, mutate: vi.fn() };
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    const typing = within(panel()).getByRole('status', { name: 'og jits is typing' });
+    expect(typing.querySelectorAll('.typing-dot')).toHaveLength(3);
+  });
+
+  it('on a phone, a swipe on the messages or the field never drags the drawer closed', async () => {
+    window.innerWidth = 375;
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[1]);
+    const drawer = await screen.findByRole('dialog', { name: 'Ask og jits' });
+    // A swipe on the messages or the field (putting the keyboard away) never closes it.
+    expect(within(drawer).getByLabelText('Your question').closest('[data-vaul-no-drag]')).not.toBeNull();
+    expect(within(drawer).getByRole('group', { name: 'Topics' }).closest('[data-vaul-no-drag]')).not.toBeNull();
+  });
+
   it('sits on the keyboard when it is up on a phone, rather than being pushed off the top', async () => {
     window.innerWidth = 375;
     const vv = Object.assign(new EventTarget(), { height: 667, offsetTop: 0, width: 375 });

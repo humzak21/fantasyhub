@@ -615,6 +615,21 @@
     }
   }
 
+  /* Ask og jits is typing: three dots rising in turn while the model works.
+   * `translate`, like `.home-reveal`, so no transform is left on anything.
+   * Reduced motion holds them still, still reading as "typing". */
+  .typing-dot {
+    animation: typing-dot 1.2s ease-in-out infinite;
+    animation-delay: var(--dot-delay, 0ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .typing-dot {
+      animation: none;
+      opacity: 0.7;
+    }
+  }
+
   /* The signed-in viewer's own row, in a table or as a card.
    *
    * Split by element because the two layouts need different mechanics: a
@@ -1335,6 +1350,17 @@
     background: white !important;
     color: black !important;
     box-shadow: none !important;
+  }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% {
+    opacity: 0.35;
+    translate: 0 0;
+  }
+  30% {
+    opacity: 1;
+    translate: 0 -4px;
   }
 }
 

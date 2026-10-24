@@ -148,12 +148,15 @@ const LeagueChat = () => {
         >
           <DrawerHeader className="flex flex-row items-center gap-2 pb-2 text-left">
             <MessagesSquare className="h-4 w-4 text-primary" aria-hidden="true" />
-            <DrawerTitle className="flex-1">Ask og jits</DrawerTitle>
+            <DrawerTitle className="flex-1 whitespace-nowrap">Ask og jits</DrawerTitle>
             <DrawerDescription className="sr-only">Ask a question about the league&apos;s history.</DrawerDescription>
             <VoiceToggle chat={chat} id="chat-voice-drawer" />
             <ResetButton chat={chat} />
           </DrawerHeader>
-          <DrawerBody className="flex min-h-0 flex-1 flex-col overflow-hidden p-0 pb-0">
+          {/* Only the handle and header drag the drawer, as the Menu is put
+              away. A swipe on the messages or the field, which is how a
+              keyboard gets put away, never closes the chat. */}
+          <DrawerBody data-vaul-no-drag="" className="flex min-h-0 flex-1 flex-col overflow-hidden p-0 pb-0">
             {body}
             {/* No focus on open: on a phone it would raise the keyboard over the topics. */}
             {composer(false)}

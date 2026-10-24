@@ -2789,7 +2789,14 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   to what lies below the visible strip and its height to fit inside it. The
   latest answer is scrolled into view when the keyboard comes up. The
   arithmetic is the pure `keyboardFrame`, which is what is tested. A real
-  keyboard can only be checked on a phone.
+  keyboard can only be checked on a phone. The messages and the composer
+  carry `data-vaul-no-drag`, so a swipe there (which is how a keyboard is put
+  away) scrolls or dismisses the keyboard and never drags the chat closed:
+  only the handle and header drag it, as with the Menu.
+- **While the model works, three dots type** (`TypingIndicator`,
+  `.typing-dot` in globals.css): a message bubble whose dots rise in turn,
+  on `translate` so no transform is left behind. Reduced motion holds them
+  still.
 - **The panel moves like the Menu.** vaul animates its drawers over 0.5s on
   `cubic-bezier(0.32, 0.72, 0, 1)`; `DRAWER_MOTION` is that clock, and the
   side panel slides in from the left and back out on it while the page's
