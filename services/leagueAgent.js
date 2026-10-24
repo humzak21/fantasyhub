@@ -275,6 +275,21 @@ export function modelRequestOptions(model, { thinking = false } = {}) {
 }
 
 /**
+ * What a failed model call is, said in words chosen here and never taken from
+ * the error. The health check answers anyone who can reach its URL, and an
+ * error's text is the provider's response body, so a public reply names the
+ * kind of failure and the function's logs keep the rest.
+ */
+export function describeModelFailure(error) {
+  const status = error?.status;
+  if (status === 401 || status === 403) return 'the model endpoint refused the API key';
+  if (status === 404) return 'the model endpoint has no such model or account';
+  if (status === 429) return 'the model endpoint is rate-limiting or out of allowance';
+  if (typeof status === 'number') return 'the model endpoint returned an error';
+  return 'the model endpoint could not be reached';
+}
+
+/**
  * A model behind any OpenAI-compatible chat endpoint (Cloudflare Workers AI,
  * Groq, a local server). Temperature 0: the same question should get the same
  * queries. `onUsage` hears each reply's token counts and why it stopped, which
@@ -290,7 +305,9 @@ export function openAiCompatibleModel({ baseUrl, apiKey, model, fetchImpl = fetc
     });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
-      throw new Error(`model request failed (${response.status}): ${body.slice(0, 200)}`);
+      const error = new Error(`model request failed (${response.status}): ${body.slice(0, 200)}`);
+      error.status = response.status;
+      throw error;
     }
     const data = await response.json();
     onUsage?.({

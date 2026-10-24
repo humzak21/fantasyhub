@@ -2709,7 +2709,10 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   check**: which settings it can see (present or not, never values), whether
   the snapshot is in the bucket, and one tiny model call, remembered for ten
   minutes so the endpoint cannot spend the model's allowance. It is how to
-  check the secrets after setting them.
+  check the secrets after setting them. Anyone can call it, so a failure is
+  said in fixed words (`describeModelFailure`, keyed on the HTTP status) and
+  the error's text, which is the provider's response body, goes to the
+  function's logs only.
 - **Members never read `chat_log`** (RLS on, no policies, no `anon` /
   `authenticated` grants; `supabase/tests/database/league_chat.test.sql`). The
   bucket has no storage policies, so only the service role reaches it.

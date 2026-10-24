@@ -18,6 +18,7 @@ import {
   describeResult,
   openAiCompatibleModel,
   modelRequestOptions,
+  describeModelFailure,
   MAX_QUERIES
 } from '../leagueAgent.js';
 
@@ -194,6 +195,18 @@ describe('the prompt and the provider', () => {
     await model([{ role: 'user', content: 'q' }]);
     expect(JSON.parse(fetchImpl.mock.calls[0][1].body).chat_template_kwargs).toEqual({ enable_thinking: false });
     expect(onUsage).toHaveBeenCalledWith({ promptTokens: 120, completionTokens: 3, finishReason: 'stop' });
+  });
+
+  it('describes a failed call by its status, never by what the provider sent back', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 401, text: async () => '{"errors":[{"message":"Authentication error","account":"c1602b"}]}' }));
+    const model = openAiCompatibleModel({ baseUrl: 'https://x.test/v1', apiKey: 'k', model: 'm', fetchImpl });
+    const error = await model([{ role: 'user', content: 'q' }]).catch((e) => e);
+    expect(error.status).toBe(401);
+    expect(describeModelFailure(error)).toBe('the model endpoint refused the API key');
+    expect(describeModelFailure(error)).not.toMatch(/Authentication|c1602b/);
+    expect(describeModelFailure(Object.assign(new Error('x'), { status: 429 }))).toMatch(/rate-limiting/);
+    expect(describeModelFailure(Object.assign(new Error('x'), { status: 500 }))).toBe('the model endpoint returned an error');
+    expect(describeModelFailure(new TypeError('fetch failed: getaddrinfo ENOTFOUND api.internal'))).toBe('the model endpoint could not be reached');
   });
 
   it('turns thinking off for the models that think unless asked', () => {

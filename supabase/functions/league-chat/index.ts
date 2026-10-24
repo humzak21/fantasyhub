@@ -26,7 +26,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 import initSqlJs from 'npm:sql.js@1.14.2';
 
-import { answerQuestion, modelRequestOptions, openAiCompatibleModel } from '../../../services/leagueAgent.js';
+import { answerQuestion, describeModelFailure, modelRequestOptions, openAiCompatibleModel } from '../../../services/leagueAgent.js';
 import { runQuery } from '../../../services/leagueSnapshot.js';
 import { ownerKey } from '../../../utils/ownerAliases.js';
 
@@ -95,7 +95,9 @@ const one = (db: any, sql: string, params: unknown[] = []) => {
 // not, never their values — whether the snapshot is in the bucket, and one
 // tiny model call, so a mistyped secret shows up before a member asks anything.
 // The model call is remembered per warm instance for HEALTH_TTL_MS, so the
-// endpoint cannot be used to spend the model's daily allowance.
+// endpoint cannot be used to spend the model's daily allowance. Anyone can
+// call it, so a failure is described in fixed words and its text goes to the
+// function's logs, not the reply.
 const HEALTH_TTL_MS = 10 * 60 * 1000;
 let lastPing: { at: number; result: Record<string, unknown> } | null = null;
 
@@ -110,7 +112,8 @@ async function pingModel() {
     const reply = await ping([{ role: 'user', content: 'Reply with the single word: ok' }]);
     result = { ok: reply.trim().length > 0, reply: reply.trim().slice(0, 40), latencyMs: Date.now() - started, ...usage };
   } catch (e) {
-    result = { ok: false, error: String((e as Error)?.message ?? e).slice(0, 300), latencyMs: Date.now() - started };
+    console.error('league-chat health: model call failed:', e);
+    result = { ok: false, error: describeModelFailure(e), latencyMs: Date.now() - started };
   }
   lastPing = { at: Date.now(), result };
   return result;
@@ -125,8 +128,9 @@ async function health() {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data, error } = await supabase.storage.from(BUCKET).list('', { limit: 10 });
     const names = (data ?? []).map((f: any) => f.name);
+    if (error) console.error('league-chat health: could not list the bucket:', error);
     snapshot = error
-      ? { ok: false, error: error.message }
+      ? { ok: false, error: 'the league-chat bucket could not be listed' }
       : { ok: names.includes('league.sqlite') && names.includes('sql-wasm.wasm'), files: names };
   }
   const model = await pingModel();
