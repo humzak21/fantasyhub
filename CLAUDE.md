@@ -2713,6 +2713,15 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   owner) as the starting point for "best / worst / most successful". The
   first live answers named one of six one-title owners as "most successful"
   off a `LIMIT 1`.
+- **An opinion carries its reasoning, and the check enforces it.**
+  `isOpinionQuestion` recognises a judgement ("in your opinion", "most
+  successful", "overrated", "better than", "why", "explain") and "best" or
+  "worst" said of a team or manager, but not of a score or a performance,
+  which are facts. Its answer must cite at least two figures from the
+  results in at least two sentences, or it goes back as a failed draft. The
+  live "Sai has the worst record, 25 wins and 44 losses" fails that. The one
+  exception is a turn whose queries found no rows, where there is nothing to
+  cite and saying so is the answer.
 - **The model is configuration, not code.** `openAiCompatibleModel` talks to
   any OpenAI-compatible endpoint; `league-chat` reads `LLM_BASE_URL`,
   `LLM_API_KEY` and `LLM_MODEL` from its secrets. Unset, the chat replies that

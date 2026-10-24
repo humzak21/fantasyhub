@@ -63,6 +63,8 @@ export function buildSystemPrompt({ viewerName = null, opponentName = null, abou
     '- For "best", "worst" or "most successful", start from a career summary and add what the question needs:',
     "  SELECT owner, COUNT(*) AS seasons, SUM(playoff_finish = 'champion') AS titles, SUM(playoff_finish = '2nd') AS finals_lost, SUM(made_playoffs) AS playoff_trips, SUM(wins) AS wins, SUM(losses) AS losses, ROUND(100.0 * SUM(wins) / SUM(wins + losses + ties), 1) AS win_pct, ROUND(SUM(points_for) / SUM(wins + losses + ties), 1) AS ppg FROM teams GROUP BY owner ORDER BY titles DESC, win_pct DESC",
     '- Answer in two to five sentences. Refer to people by first name and do not mention SQL, tables or queries.',
+    '- An opinion is shown only if it cites at least two figures from your results. The shape (made-up people and figures):',
+    '  "Sam is the best manager this league has had, and it is not close. Sam has 2 titles and 6 playoff trips in 7 seasons, more than anyone, with a 61.2% win rate on top. Jo scores more, 118.4 a game, but has turned that into 1 title. Rings beat points."',
     viewerName
       ? `- The person asking is ${viewerName}: "I", "me" and "my" mean ${viewerName}; call them "you".`
       : '- The person asking has no team in the league.',
@@ -178,6 +180,26 @@ export function memberNames(members = []) {
   return names;
 }
 
+/**
+ * Whether a question asks for a judgement, or for the reasons behind one, as
+ * opposed to a fact. Its answer then has to carry its reasoning: see
+ * `verifyAnswer`'s `opinion`.
+ */
+// "Best" alone is not a judgement: the best score or the best starting
+// performance is a fact with one answer. It is one about a team or a person.
+const OPINION = [
+  /\b(opinion|do you think|goat|overrated|underrated|deserved?|luckiest|unluckiest|clutch|choke[sd]?|fraud|dominant|carr(?:y|ies|ied)|most successful|least successful)\b/i,
+  /\b(better|worse)\s+(than|manager|team|owner|drafter|trader)\b/i,
+  /\b(best|worst|greatest)\s+(?:\w+\s+)?(team|teams|manager|managers|owner|owners|franchise|franchises|member|drafter|trader)\b/i,
+  /\b(best|worst|greatest)\s+in\s+(?:the\s+)?(league|history)\b/i,
+  /\b(best|worst|greatest)\s*\?/i,
+  /\b(why|reasons?|reasoning|explain|justify|back (?:that|it) up)\b/i
+];
+export const isOpinionQuestion = (question) => OPINION.some((re) => re.test(String(question ?? '')));
+
+/** A sentence is three words or more ending in . ! or ?; "61.2%" is not two. */
+const sentencesIn = (text) => String(text).split(/[.!?]+(?:\s|$)/).filter((s) => s.trim().split(/\s+/).length >= 3).length;
+
 const mentions = (text, name) => new RegExp(`(^|[^a-z])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}('s)?([^a-z]|$)`, 'i').test(text);
 
 /**
@@ -185,7 +207,7 @@ const mentions = (text, name) => new RegExp(`(^|[^a-z])${name.replace(/[.*+?^${}
  *
  * @returns {{ ok: boolean, problems: string[] }}
  */
-export function verifyAnswer(answer, { results = [], question = '', members = [], viewerName = null, opponentName = null, context = [] }) {
+export function verifyAnswer(answer, { results = [], question = '', members = [], viewerName = null, opponentName = null, context = [], opinion = false }) {
   const problems = [];
   const text = String(answer ?? '');
   const allowed = allowedNumbers({ results, question });
@@ -216,6 +238,17 @@ export function verifyAnswer(answer, { results = [], question = '', members = []
   for (const [name, who] of memberNames(members)) {
     if (!mentions(text, name) || who.some(accounted)) continue;
     problems.push(who.length === 1 ? `${who[0]} is not in any query result` : `"${name}" could be ${who.join(' or ')}, and neither is in any query result`);
+  }
+
+  // An opinion carries its reasoning: a verdict and at least two figures the
+  // queries returned, in at least two sentences. A one-line lookup ("Sai has
+  // the worst record, 25-44") is a fact, not an opinion. Only when no query
+  // found a row is there nothing to cite, and saying so is the answer.
+  if (opinion && results.some((r) => r.ok && r.rowCount > 0)) {
+    const evidence = new Set(stated.filter((n) => allowed.has(n.value) || allowed.has(Math.round(n.value * 100) / 100)).map((n) => n.value));
+    if (evidence.size < 2 || sentencesIn(text) < 2) {
+      problems.push('an opinion needs a verdict and the reasoning behind it: at least two figures from the results, in at least two sentences');
+    }
   }
 
   // An answer with no query behind it is from memory, whatever it says.
@@ -283,7 +316,7 @@ export async function answerQuestion({ question, history = [], model, runSql, co
       continue;
     }
     const answer = reply.answer ?? '';
-    const check = verifyAnswer(answer, { results, question, members: context.members, viewerName: context.viewerName, opponentName: context.opponentName, context: numbersInContext });
+    const check = verifyAnswer(answer, { results, question, members: context.members, viewerName: context.viewerName, opponentName: context.opponentName, context: numbersInContext, opinion: isOpinionQuestion(question) });
     problems = check.problems;
     if (check.ok && answer) return { kind: 'answer', text: answer, queries, attempts, modelCalls, problems: [] };
     if (attempts >= 2) break;
