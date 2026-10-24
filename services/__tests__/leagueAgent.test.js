@@ -96,6 +96,13 @@ describe('answerQuestion', () => {
     expect(result.problems[0]).toBe('no query was run');
   });
 
+  it('sends back control syntax and asks for JSON, and never shows it', async () => {
+    const model = scripted({ sql: RECORD_SQL }, '<|tool_call>call:thought {\n}<tool_call|>', { answer: "You're 2-1 against Ben." });
+    const result = await ask("What's my record against Ben?", model);
+    expect(model.sent[2].at(-1).content).toContain('Reply with ONE JSON object');
+    expect(result).toMatchObject({ kind: 'answer', text: "You're 2-1 against Ben.", attempts: 2 });
+  });
+
   it('lets an answer say when the league began, which the prompt states', async () => {
     const model = scripted({ sql: "select max(points_for) from games" }, { answer: 'The record is 150.66, the most since 2024.' });
     expect(await ask('Highest score ever?', model)).toMatchObject({ kind: 'answer' });
@@ -153,6 +160,26 @@ describe('verifyAnswer', () => {
     expect(check('Cara scored 130.04, more than Ben ever has.').problems).toEqual(['Ben Cole is not in any query result']);
     expect(check('You lost to Cara.').ok).toBe(true);
   });
+
+  it("passes a name two members share when either is in the results, and names both when neither is", () => {
+    // "Anand" is one member's first name and another's last.
+    const members = ['Anand Kanumuru', 'Pranesh Anand', 'Cara Diaz'];
+    const results = [runQuery(snap.db, "select 'Anand Kanumuru' as member, 'Josh Allen' as player")];
+    const verify = (answer) => verifyAnswer(answer, { results, question: "this week's parlay?", members });
+    expect(verify('Anand took Josh Allen.').ok).toBe(true);
+    expect(verify('Pranesh took Josh Allen.').problems).toEqual(['Pranesh Anand is not in any query result']);
+    const empty = verifyAnswer('Anand took Josh Allen.', { results: [runQuery(snap.db, "select 'Josh Allen' as player")], question: 'who?', members });
+    expect(empty.problems).toEqual(['"anand" could be Anand Kanumuru or Pranesh Anand, and neither is in any query result']);
+  });
+
+  it('reads "no one" and "one of" as prose, not a count', () => {
+    expect(check('Cara scored 130.04, and no one has topped it since. One of the best weeks of 2024.').ok).toBe(true);
+    expect(check('Cara won one game.').problems).toEqual(['one is not in any query result']);
+  });
+
+  it('refuses an answer with no query behind it, even one with no number or name', () => {
+    expect(verifyAnswer('Some managers are just built different.', { results: [], question: 'why?', members: MEMBERS }).problems).toEqual(['no query was run']);
+  });
 });
 
 describe('parseReply', () => {
@@ -161,6 +188,12 @@ describe('parseReply', () => {
     expect(parseReply('Sure!\n```json\n{"answer": "Hi."}\n```')).toEqual({ answer: 'Hi.' });
     expect(parseReply('SELECT * FROM games')).toEqual({ sql: 'SELECT * FROM games' });
     expect(parseReply('Just words.')).toEqual({ answer: 'Just words.' });
+  });
+
+  it("reads a model's own control syntax as invalid, never as an answer", () => {
+    expect(parseReply('<|tool_call>call:thought {\n}<tool_call|>')).toEqual({ invalid: true });
+    expect(parseReply('{"answer": "<|tool_call>call:thought {}<tool_call|>"}')).toEqual({ invalid: true });
+    expect(parseReply('<|im_start|>assistant')).toEqual({ invalid: true });
   });
 });
 

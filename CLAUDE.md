@@ -2694,9 +2694,25 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   answer itself states is allowed. The season and week from the prompt count
   only when said as a week or a year, never as a bare figure where a result
   belongs. Every member named must be in a result, be the asker, their
-  opponent this week, or be named in the question. A failed draft goes back
-  once with the problems named; a second failure shows the member the query
-  results instead (`kind: 'data'`). An answer with no query behind it fails.
+  opponent this week, or be named in the question; a name members share
+  ("Anand" is one's first name and another's last) passes when any of them
+  does, which is the false refusal it used to make. "no one" and "one of" are
+  prose, not a count. A failed draft goes back once with the problems named;
+  a second failure shows the member the query results instead (`kind:
+  'data'`). An answer with no query behind it fails, whatever it says.
+- **A model's control syntax is never an answer.** On 2026-10-24 Gemma 4
+  replied `<|tool_call>call:thought {}<tool_call|>`, which held no number and
+  no name, so the check passed it to a member. `parseReply` now reads it as
+  `{ invalid: true }`, and the loop asks again for JSON; it counts as a draft.
+- **The voice is an analyst's, with a verdict.** The prompt asks for the
+  verdict first and two or three facts from different angles after it, a
+  pick on every opinion question (never just "based on X, Y has the most
+  Z"), everyone ranked rather than `LIMIT 1` so a tie is said as a tie, a
+  fresh query when asked to explain, and two to five sentences. It carries a
+  career-summary query (titles, finals lost, playoff trips, win %, PPG per
+  owner) as the starting point for "best / worst / most successful". The
+  first live answers named one of six one-title owners as "most successful"
+  off a `LIMIT 1`.
 - **The model is configuration, not code.** `openAiCompatibleModel` talks to
   any OpenAI-compatible endpoint; `league-chat` reads `LLM_BASE_URL`,
   `LLM_API_KEY` and `LLM_MODEL` from its secrets. Unset, the chat replies that
