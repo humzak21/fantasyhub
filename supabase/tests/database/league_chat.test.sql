@@ -1,4 +1,4 @@
--- League chat: what `20261023120000_league_chat.sql` makes true.
+-- League chat: what `20261024120000_league_chat.sql` makes true.
 --
 --   * the question log is the service role's alone: neither a member nor a
 --     visitor reads it through PostgREST, not even their own questions;
