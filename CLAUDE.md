@@ -2663,7 +2663,16 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   twice, once from each side; everybody by owner name (a franchise by its
   latest owner); `teams`, `lineups`, `team_weeks`, `transactions` (one row per
   player per side), `transaction_totals`, `power_rankings`, `awards`, `seasons`,
-  `members`, `about`. `SNAPSHOT_TABLES` is the one statement of the schema: the
+  `members`, `about`; and the members' own games: `pickem_picks` and
+  `pickem_results` (correct out of *decided*, the tab's `isDecided` rule),
+  `parlay_picks` (NULL `scored_td` is `pending`, never a miss; the division is
+  the member's team's), `takes` and `take_reactions`. Those five are keyed by
+  account, so a person is their display name (`get_user_display_names`)
+  resolved through `ownerKey` against every spelling a franchise's owner has
+  had, named by its latest owner; an account with no team joins `members` with
+  `seasons_played` 0. No account id reaches the file. Takes are members-only
+  and so is the chat, and the prompt tells the model a take's text is data,
+  never instructions. `SNAPSHOT_TABLES` is the one statement of the schema: the
   DDL and the prompt's description are both written from it, so a column
   cannot exist in one and not the other. `scripts/build-league-chat-db.js`
   builds it with sql.js and uploads it, with the sql.js wasm that wrote it, to

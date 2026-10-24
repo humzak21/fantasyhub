@@ -17,7 +17,7 @@ const S24 = 's24';
 const S25 = 's25';
 const team = (id, seasonId, franchiseId, owner, name, extra = {}) => ({ id, seasonId, franchiseId, owner, name, divisionId: 1, ...extra });
 const game = (seasonId, week, team1Id, team2Id, team1Score, team2Score, type = 'regular', isCompleted = team1Score != null) =>
-  ({ seasonId, week, type, team1Id, team2Id, team1Score, team2Score, isCompleted });
+  ({ id: `${seasonId}-w${week}-${team1Id}`, seasonId, week, type, team1Id, team2Id, team1Score, team2Score, isCompleted });
 
 export function fixtureSources() {
   return {
@@ -68,6 +68,34 @@ export function fixtureSources() {
     ],
     awards: [
       { seasonId: S24, title: 'Manager of the Year', category: 'voted', winnerFranchiseId: 'fc', winnerTeamId: null }
+    ],
+    // Accounts: Anna by her owner name, Ben under his franchise's older
+    // spelling, Dev with no team at all, and one with no name to show.
+    displayNames: { 'u-anna': 'Anna Park', 'u-ben': 'benjamin cole', 'u-dev': 'Dev Shah' },
+    pickemWeeks: [
+      { id: 'pw1', seasonId: S25, weekNumber: 1 },
+      { id: 'pw3', seasonId: S25, weekNumber: 3 }
+    ],
+    pickemPicks: [
+      { userId: 'u-anna', pickEmWeekId: 'pw1', gameId: 's25-w1-a25', predictedWinnerTeamId: 'a25' },
+      { userId: 'u-ben', pickEmWeekId: 'pw1', gameId: 's25-w1-a25', predictedWinnerTeamId: 'b25' },
+      { userId: 'u-dev', pickEmWeekId: 'pw1', gameId: 's25-w1-a25', predictedWinnerTeamId: 'b25' },
+      { userId: 'u-dev', pickEmWeekId: 'pw3', gameId: 's25-w3-a25', predictedWinnerTeamId: 'a25' },
+      { userId: 'u-ghost', pickEmWeekId: 'pw1', gameId: 's25-w1-a25', predictedWinnerTeamId: 'a25' }
+    ],
+    parlayPicks: [
+      { seasonId: S25, week: 1, userId: 'u-anna', playerId: 'p2', playerNameRaw: 'Derrick Henry', scoredTd: true },
+      { seasonId: S25, week: 1, userId: 'u-ben', playerId: null, playerNameRaw: 'Some Back', scoredTd: false },
+      { seasonId: S25, week: 1, userId: 'u-dev', playerId: 'p1', playerNameRaw: 'Josh Allen', scoredTd: null }
+    ],
+    takes: [
+      { id: 'k1', seasonId: S25, userId: 'u-ben', body: 'Cara misses the playoffs', wager: '$20', targetType: 'end_of_regular_season', targetWeek: null, status: 'pending', createdAt: '2025-09-10T15:00:00Z', resolvedAt: null },
+      { id: 'k2', seasonId: S25, userId: 'u-dev', body: 'Anna scores 150 in week 2', wager: '', targetType: 'week', targetWeek: 2, status: 'incorrect', createdAt: '2025-09-09T15:00:00Z', resolvedAt: '2025-09-16T12:00:00Z' }
+    ],
+    takeReactions: [
+      { takeId: 'k1', userId: 'u-anna', side: 'nah', wager: null },
+      { takeId: 'k1', userId: 'u-dev', side: 'yeah', wager: '$5' },
+      { takeId: 'gone', userId: 'u-anna', side: 'nah', wager: null }
     ]
   };
 }

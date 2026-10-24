@@ -31,7 +31,7 @@ describe('buildSnapshotTables', () => {
 
   it('names a franchise by its latest owner in every season', () => {
     expect(q("select distinct owner from games where season = 2024 order by owner")).toEqual([['Anna Park'], ['Ben Cole'], ['Cara Diaz']]);
-    expect(q("select owner from members order by owner")).toEqual([['Anna Park'], ['Ben Cole'], ['Cara Diaz']]);
+    expect(q("select owner from members where seasons_played > 0 order by owner")).toEqual([['Anna Park'], ['Ben Cole'], ['Cara Diaz']]);
   });
 
   it('types postseason games by phase and round', () => {
@@ -67,6 +67,46 @@ describe('buildSnapshotTables', () => {
     expect(q("select owner, rank, power_rating from power_rankings")).toEqual([['Ben Cole', 1, 61.23]]);
     expect(q("select award, winner, category from awards")).toEqual([['Manager of the Year', 'Cara Diaz', 'voted']]);
     expect(Object.fromEntries(q("select key, value from about where key != 'built_at'"))).toEqual({ first_season: '2024', current_season: '2025', current_week: '3', last_scored_week: '2' });
+  });
+
+  it("names an account by its franchise's owner, through any spelling, and keeps a teamless member", () => {
+    expect(q("select distinct member from pickem_picks order by member")).toEqual([['Anna Park'], ['Ben Cole'], ['Dev Shah']]);
+    expect(q("select owner, first_season, seasons_played from members where owner = 'Dev Shah'")).toEqual([['Dev Shah', null, 0]]);
+    expect(q("select count(*) from members")).toEqual([[4]]);
+  });
+
+  it("scores pick'ems against the games played, never the picks entered", () => {
+    expect(q("select member, week, picked, over, result from pickem_picks order by member, week")).toEqual([
+      ['Anna Park', 1, 'Anna Park', 'Ben Cole', 'incorrect'],
+      ['Ben Cole', 1, 'Ben Cole', 'Anna Park', 'correct'],
+      ['Dev Shah', 1, 'Ben Cole', 'Anna Park', 'correct'],
+      ['Dev Shah', 3, 'Anna Park', 'Ben Cole', 'pending']
+    ]);
+    expect(q("select member, week, picks, decided, correct, perfect from pickem_results where member = 'Dev Shah' order by week")).toEqual([
+      ['Dev Shah', 1, 1, 1, 1, 1],
+      ['Dev Shah', 3, 1, 0, 0, 0]
+    ]);
+  });
+
+  it('grades the parlay as stored, with NULL as pending and the division from the team', () => {
+    expect(q("select member, division, player, result from parlay_picks order by member")).toEqual([
+      ['Anna Park', 'East', 'Derrick Henry', 'hit'],
+      ['Ben Cole', 'East', 'Some Back', 'miss'],
+      ['Dev Shah', null, 'Josh Allen', 'pending']
+    ]);
+  });
+
+  it('carries takes and the sides members took, with no account ids', () => {
+    expect(q("select author, take, stake, deadline, status, posted, graded from takes order by posted")).toEqual([
+      ['Dev Shah', 'Anna scores 150 in week 2', null, 'week 2', 'incorrect', '2025-09-09', '2025-09-16'],
+      ['Ben Cole', 'Cara misses the playoffs', '$20', 'end of the regular season', 'pending', '2025-09-10', null]
+    ]);
+    expect(q("select member, side, stake from take_reactions order by member")).toEqual([
+      ['Anna Park', 'hell nah', null],
+      ['Dev Shah', 'hell yeah', '$5']
+    ]);
+    const everyCell = SNAPSHOT_TABLES.flatMap((t) => snap.db.exec(`select * from ${t.name}`)[0]?.values.flat() ?? []);
+    expect(everyCell.filter((v) => typeof v === 'string' && v.startsWith('u-'))).toEqual([]);
   });
 });
 

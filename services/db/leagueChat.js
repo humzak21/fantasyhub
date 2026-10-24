@@ -32,7 +32,8 @@ const all = (ctx, table, columns, order, label) =>
 export async function getLeagueSnapshotSources(ctx, { now = new Date() } = {}) {
   const [
     seasons, active, teams, divisions, games, playerWeeks, players,
-    teamWeeks, transactionEvents, transactionTotals, rankings, awards
+    teamWeeks, transactionEvents, transactionTotals, rankings, awards,
+    pickemWeeks, pickemPicks, parlayPicks, takes, takeReactions
   ] = await Promise.all([
     ctx.client.from('seasons').select('id, year, is_completed, regular_season_weeks, playoff_weeks')
       .then((r) => unwrap(r, 'Get seasons for the league chat') ?? []),
@@ -48,8 +49,23 @@ export async function getLeagueSnapshotSources(ctx, { now = new Date() } = {}) {
     all(ctx, 'transactions', 'id, season_id, franchise_id, owner_name, waiver_claims, free_agent_adds, drops, trades, faab_spent', ['id'], 'transaction totals'),
     all(ctx, 'power_rankings_history', 'id, season_id, week_number, team_id, rank, power_rating', ['id'], 'power rankings'),
     ctx.client.from('awards').select('season_id, title, category, winner_franchise_id, winner_team_id')
-      .then((r) => unwrap(r, 'Get awards for the league chat') ?? [])
+      .then((r) => unwrap(r, 'Get awards for the league chat') ?? []),
+    all(ctx, 'pick_em_weeks', 'id, season_id, week_number', ['id'], "pick'em weeks"),
+    all(ctx, 'pick_em_submissions', 'id, user_id, pick_em_week_id, game_id, predicted_winner_team_id', ['id'], "pick'em picks"),
+    all(ctx, 'td_parlay_picks', 'id, season_id, week, user_id, player_id, player_name_raw, scored_td', ['id'], 'parlay picks'),
+    // Takes are members-only, and so is the chat: the service role reads them
+    // past RLS, and the snapshot is served to approved members alone.
+    all(ctx, 'takes', 'id, season_id, user_id, body, wager, target_type, target_week, status, created_at, resolved_at', ['id'], 'takes'),
+    all(ctx, 'take_participants', 'id, take_id, user_id, side, wager', ['id'], 'take reactions')
   ]);
+
+  // Every account that made a pick or took a side, by the name the site shows.
+  const userIds = [...new Set([...pickemPicks, ...parlayPicks, ...takes, ...takeReactions].map((r) => r.user_id).filter(Boolean))];
+  const displayNames = {};
+  if (userIds.length) {
+    const rows = unwrap(await ctx.client.rpc('get_user_display_names', { user_ids: userIds }), 'Get display names for the league chat') ?? [];
+    for (const row of rows) if (row?.id && row.display_name) displayNames[row.id] = row.display_name;
+  }
 
   const camel = (rows) => (rows ?? []).map(fromDbShape);
   return {
@@ -65,7 +81,13 @@ export async function getLeagueSnapshotSources(ctx, { now = new Date() } = {}) {
     transactionEvents: camel(transactionEvents),
     transactionTotals: camel(transactionTotals),
     rankings: camel(rankings),
-    awards: camel(awards)
+    awards: camel(awards),
+    pickemWeeks: camel(pickemWeeks),
+    pickemPicks: camel(pickemPicks),
+    parlayPicks: camel(parlayPicks),
+    takes: camel(takes),
+    takeReactions: camel(takeReactions),
+    displayNames
   };
 }
 
