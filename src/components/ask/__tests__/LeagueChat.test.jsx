@@ -1,7 +1,6 @@
 /**
- * Ask og jits, the chat: two ways in (the header field and the ask bar on the
- * phone tab bar, both wearing the launcher's chat icon) for approved members
- * only, topics that
+ * Ask og jits, the chat: one icon (the round launcher below lg, the same
+ * button in the header from lg) for approved members only, topics that
  * offer questions, answers that set the verdict above its reasons with the
  * data one tap away, and a conversation that carries its earlier turns into
  * each question.
@@ -15,7 +14,7 @@ let ask;
 vi.mock('../../../../hooks/queries/index.js', () => ({ useAskLeague: () => ask }));
 
 const { LeagueChatProvider, useLeagueChat, historyOf } = await import('../LeagueChatContext.jsx');
-const { default: LeagueChat, AskBar, AskHeaderField, LeagueChatOffset } = await import('../LeagueChat.jsx');
+const { default: LeagueChat, AskHeaderButton, ChatLauncher, LeagueChatOffset } = await import('../LeagueChat.jsx');
 
 const RECORD = {
   sql: 'select wins, losses from x',
@@ -46,8 +45,8 @@ const OpenWith = ({ question }) => {
 const renderChat = ({ enabled = true, extra = null } = {}) => render(
   <LeagueChatProvider enabled={enabled}>
     <LeagueChatOffset>
-      <AskHeaderField />
-      <AskBar />
+      <AskHeaderButton />
+      <ChatLauncher />
       {extra}
     </LeagueChatOffset>
     <LeagueChat />
@@ -77,15 +76,18 @@ describe('LeagueChat', () => {
   it('exists for approved members only', () => {
     const { container, unmount } = renderChat({ enabled: false });
     expect(screen.queryByRole('button', { name: /Ask og jits/ })).toBeNull();
-    expect(container.firstChild.style.getPropertyValue('--tab-dock')).toBe('');
     unmount();
-    const view = renderChat();
-    // The header field and the ask bar, each led by the launcher's chat icon.
+    renderChat();
+    // The header button and the launcher: the round orange chat icon, and no
+    // text box anywhere until the chat is open.
     const entries = screen.getAllByRole('button', { name: /Ask og jits/ });
     expect(entries).toHaveLength(2);
-    for (const entry of entries) expect(entry.querySelector('.rounded-full.bg-primary svg.lucide-messages-square')).not.toBeNull();
-    // The ask bar makes the tab bar taller; the page pads for it.
-    expect(view.container.firstChild.style.getPropertyValue('--tab-dock')).toBe('3.25rem');
+    for (const entry of entries) {
+      expect(entry).toHaveClass('rounded-full', 'bg-primary');
+      expect(entry.querySelector('svg.lucide-messages-square')).not.toBeNull();
+      expect(entry).toHaveAttribute('aria-expanded', 'false');
+    }
+    expect(screen.queryByRole('textbox')).toBeNull();
   });
 
   it('opens on the topics; a topic offers its questions, and a question asks it', async () => {
@@ -191,11 +193,17 @@ describe('LeagueChat', () => {
     expect(container.firstChild).toHaveClass('lg:pl-[400px]', 'transition-[padding]', 'duration-500');
   });
 
-  it('opens from the ask bar too', async () => {
+  it('opens from the launcher too, and the header button toggles it with a ring while open', async () => {
     renderChat();
-    const [, bar] = screen.getAllByRole('button', { name: /Ask og jits/ });
-    await userEvent.click(bar);
+    const [header, launcher] = screen.getAllByRole('button', { name: /Ask og jits/ });
+    await userEvent.click(launcher);
     expect(panel()).toBeInTheDocument();
+    expect(launcher).toHaveAttribute('aria-expanded', 'true');
+    expect(header).toHaveAccessibleName('Close Ask og jits');
+    expect(header).toHaveClass('ring-2');
+    await userEvent.click(header);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(header).not.toHaveClass('ring-2');
   });
 
   it('is a drawer on a phone, without raising the keyboard', async () => {

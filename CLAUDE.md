@@ -2754,13 +2754,12 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   own language: lit cards, a three-across tile grid, rows with an icon and a
   chevron (`ChatParts.jsx`). `LeagueChatProvider` in the shell holds the
   conversation, so it survives changing tabs, and is enabled for approved
-  members only; everything else renders nothing without it. Two ways in:
-  below `lg`, an **ask bar on top of the phone tab bar** (`AskBar`, passed as
-  `MobileTabBar`'s `dock`, so it lives inside the bar's own fixed element and
-  cannot overlap it); from `lg`, **a search-style field in the header**
-  (`AskHeaderField`). Both lead with `ChatBadge`, the old round launcher's
-  orange chat icon, so the chat is recognisable wherever it is opened. There
-  is no Menu entry and no floating button. Below `md`
+  members only; everything else renders nothing without it. **One icon
+  opens it, and there is no text box until it is open:** the round orange
+  chat button, floating bottom-left above the phone tab bar below `lg`
+  (`ChatLauncher`, at the root like the tab bar) and header-sized beside the
+  bell from `lg` (`AskHeaderButton`, which toggles the panel and wears a ring
+  while it is open, the way Menu is lit while its drawer is up). Below `md`
   the chat is a vaul drawer with no autofocus (the keyboard would cover the
   topics); from `md` a panel down the left side, closed by Escape, and from
   `lg` `LeagueChatOffset` moves the page over beside it.
@@ -2768,15 +2767,10 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   `cubic-bezier(0.32, 0.72, 0, 1)`; `DRAWER_MOTION` is that clock, and the
   side panel slides in from the left and back out on it while the page's
   padding eases over beside it. So the panel stays mounted when closed:
-  off-screen, `invisible` once the slide ends (a discrete `visibility`
-  transition), `inert` and `aria-hidden`. Opening is therefore not a mount,
+  off-screen, `invisible` once the slide out ends (a discrete `visibility`
+  transition, on the way out only: an element invisible for even the first
+  frame of the slide in refuses focus), `inert` and `aria-hidden`. Opening is therefore not a mount,
   which is why `Composer` takes `focusWhen` rather than `autoFocus`.
-- **The ask bar makes the tab bar taller, and `--tab-dock` says by how much.**
-  `LeagueChatOffset` sets it (`TAB_DOCK_HEIGHT`, 3.25rem) on the shell's root
-  when the chat exists. The main's bottom padding and anything sticky above
-  the tab bar (`PickEmsSubmitBar`'s `bottom-[calc(4rem+var(--tab-dock,0px))]`)
-  add it, so they clear the bar for a member and lose nothing for a visitor.
-  A new sticky-bottom element does the same.
 - **An empty chat opens on topics, not a text box.** Six tiles (Rivalries,
   Records, Seasons, Pick'ems, Trades, Takes) each offer three questions as
   rows; a row asks it. An answer is a card: the first sentence, the verdict,

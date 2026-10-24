@@ -5,16 +5,15 @@ import { cn } from '../../lib/utils';
 import { useIsMobile } from '../../hooks/use-mobile';
 import { Drawer, DrawerBody, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { useLeagueChat } from './LeagueChatContext.jsx';
-import { Composer, ConversationBody, LIT } from './ChatParts.jsx';
+import { Composer, ConversationBody } from './ChatParts.jsx';
 
 /**
  * Ask og jits, mounted once at the app root (JITS-42).
  *
- * It has two ways in, both for approved members only: below `lg`, an ask bar
- * docked on top of the phone tab bar (`AskBar`, rendered by `MobileTabBar` as
- * its `dock`); from `lg`, a search-style field in the header
- * (`AskHeaderField`). Both lead with `ChatBadge`, the launcher's round orange
- * chat icon, so the chat looks the same wherever it is opened from.
+ * It is opened by one icon, the round orange chat button, for approved
+ * members only: floating above the phone tab bar below `lg` (`ChatLauncher`),
+ * and in the header from `lg` (`AskHeaderButton`). There is no text box to
+ * type into until the chat is open.
  *
  * Below `md` the chat is a vaul drawer drawn like the Menu; from `md` it is a
  * panel down the left-hand side that leaves the page usable, and from `lg`
@@ -36,23 +35,12 @@ export const CHAT_PANEL_WIDTH = 'lg:pl-[400px]';
  */
 export const DRAWER_MOTION = 'duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]';
 
-/**
- * How much taller the phone tab bar is with the ask bar on it. The shell's
- * bottom padding and anything sticky above the tab bar (`PickEmsSubmitBar`)
- * add `var(--tab-dock, 0px)`, so they clear the bar whether or not it is there.
- */
-export const TAB_DOCK_HEIGHT = '3.25rem';
-
-/**
- * The shell's root: moves the page over for the open panel from `lg` up, and
- * says how tall the ask bar makes the tab bar.
- */
+/** The shell's root: moves the page over for the open panel from `lg` up. */
 export const LeagueChatOffset = ({ className, children }) => {
   const { available, isOpen } = useLeagueChat();
   return (
     <div
       className={cn(className, available && cn('transition-[padding]', DRAWER_MOTION), isOpen && CHAT_PANEL_WIDTH)}
-      style={available ? { '--tab-dock': TAB_DOCK_HEIGHT } : undefined}
     >
       {children}
     </div>
@@ -62,20 +50,6 @@ export const LeagueChatOffset = ({ className, children }) => {
 const HEADER_ICON =
   'flex h-9 w-9 shrink-0 items-center justify-center rounded-md transition-colors pointer-coarse:min-w-11 ' +
   'text-muted-foreground hover:bg-accent/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
-
-/** The chat's mark: the round orange launcher's icon, at the size of a field's. */
-export const ChatBadge = ({ className }) => (
-  <span
-    aria-hidden="true"
-    className={cn(
-      'flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground',
-      'shadow-[0_2px_6px_rgb(0_0_0/0.45),inset_0_1px_0_rgb(255_255_255/0.12)]',
-      className
-    )}
-  >
-    <MessagesSquare className="h-3.5 w-3.5" />
-  </span>
-);
 
 const ResetButton = ({ chat }) => (
   <button
@@ -139,8 +113,7 @@ const LeagueChat = () => {
   }
 
   // Mounted while closed, off-screen to the left, so it can slide both ways.
-  // `visibility` flips at the end of the slide out (a discrete transition),
-  // and `inert` keeps a closed panel out of the tab order and the a11y tree.
+  // `inert` keeps a closed panel out of the tab order and the a11y tree.
   const open = chat.isOpen;
   return (
     <aside
@@ -151,9 +124,10 @@ const LeagueChat = () => {
       className={cn(
         'fixed inset-y-0 left-0 z-[45] flex w-[400px] max-w-[calc(100vw-3rem)] flex-col border-r border-border bg-background',
         'shadow-[4px_0_16px_rgb(0_0_0/0.45)] lg:shadow-none',
-        'transition-[translate,visibility]',
         DRAWER_MOTION,
-        open ? 'visible translate-x-0' : 'invisible -translate-x-full'
+        // Visible at once on the way in (an invisible element cannot take the
+        // field's focus), invisible only once the slide out has finished.
+        open ? 'visible translate-x-0 transition-[translate]' : 'invisible -translate-x-full transition-[translate,visibility]'
       )}
     >
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
@@ -170,35 +144,19 @@ const LeagueChat = () => {
   );
 };
 
-/**
- * The ask bar docked on top of the phone tab bar. `MobileTabBar` renders it
- * inside its own `fixed` element, so the two cannot overlap, and the tab bar
- * is `lg:hidden`, so this is too.
- */
-export const AskBar = () => {
-  const chat = useLeagueChat();
-  if (!chat.available) return null;
-  return (
-    <div className="mx-auto max-w-lg px-3 pt-2">
-      <button
-        type="button"
-        onClick={() => chat.open()}
-        aria-label="Ask og jits"
-        className={cn(
-          'flex h-10 w-full items-center gap-2.5 rounded-xl border border-border bg-background/60 pl-1.5 pr-3.5 text-sm text-muted-foreground',
-          'active:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          LIT
-        )}
-      >
-        <ChatBadge />
-        <span className="flex-1 truncate text-left">Ask og jits about the league…</span>
-      </button>
-    </div>
-  );
-};
+/** The launcher's face: the round orange button with the chat icon. */
+const LAUNCHER =
+  'flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground ' +
+  'shadow-[0_4px_12px_rgb(0_0_0/0.5),inset_0_1px_0_rgb(255_255_255/0.12)] ' +
+  'transition-[scale,box-shadow] duration-200 hover:scale-105 active:scale-95 ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
-/** From `lg`: a search-style field in the header that opens the side panel. */
-export const AskHeaderField = ({ className }) => {
+/**
+ * Below `lg`: the round launcher, floating in the bottom-left corner above the
+ * tab bar. It opens the drawer, which rises over it exactly as the Menu does.
+ * Rendered at the root, never inside the header (see above).
+ */
+export const ChatLauncher = () => {
   const chat = useLeagueChat();
   if (!chat.available) return null;
   return (
@@ -206,19 +164,41 @@ export const AskHeaderField = ({ className }) => {
       type="button"
       onClick={() => chat.open()}
       aria-label="Ask og jits"
+      aria-haspopup="dialog"
       aria-expanded={chat.isOpen}
-      className={cn(
-        'h-9 w-40 items-center gap-2 rounded-lg border border-border bg-background/60 pl-1 pr-3 text-sm text-muted-foreground xl:w-52',
-        'hover:bg-accent/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        chat.isOpen && 'border-primary/40 text-foreground',
-        className
-      )}
+      title="Ask og jits"
+      className={cn(LAUNCHER, 'fixed left-4 z-40 h-12 w-12 lg:hidden', 'bottom-[calc(4.75rem+env(safe-area-inset-bottom))]')}
     >
-      <ChatBadge />
-      <span className="flex-1 truncate text-left">Ask og jits…</span>
+      <MessagesSquare className="h-5 w-5" aria-hidden="true" />
     </button>
   );
 };
 
+/**
+ * From `lg`: the same button, header-sized, beside the bell. It toggles the
+ * side panel, and while the panel is open it wears a ring, the way the Menu
+ * button is lit while its drawer is up.
+ */
+export const AskHeaderButton = ({ className }) => {
+  const chat = useLeagueChat();
+  if (!chat.available) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => (chat.isOpen ? chat.close() : chat.open())}
+      aria-label={chat.isOpen ? 'Close Ask og jits' : 'Ask og jits'}
+      aria-expanded={chat.isOpen}
+      title="Ask og jits"
+      className={cn(
+        LAUNCHER,
+        'h-9 w-9',
+        chat.isOpen && 'ring-2 ring-primary/50 ring-offset-2 ring-offset-card',
+        className
+      )}
+    >
+      <MessagesSquare className="h-[18px] w-[18px]" aria-hidden="true" />
+    </button>
+  );
+};
 
 export default LeagueChat;

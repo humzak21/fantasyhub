@@ -41,7 +41,7 @@ import InlineWeekNavigator from './src/components/week-controls/InlineWeekNaviga
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
 import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
-import LeagueChat, { AskBar, AskHeaderField, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
+import LeagueChat, { AskHeaderButton, ChatLauncher, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
 import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
@@ -516,9 +516,9 @@ const FantasyFootballApp = () => {
                   tabs. */}
               <div className="flex shrink-0 items-center gap-1">
                 {isApproved && <NewsletterLink className="hidden lg:flex" />}
-                {/* Ask og jits, from lg. Below lg it is the ask bar on the
-                    tab bar. */}
-                <AskHeaderField className="hidden lg:flex" />
+                {/* Ask og jits, from lg. Below lg it is the round launcher
+                    above the tab bar. */}
+                <AskHeaderButton className="hidden lg:flex" />
                 {isAuthenticated && (
                   <AlertsLink active={activeTab === 'alerts'} badgeCount={unreadAlerts} />
                 )}
@@ -541,12 +541,11 @@ const FantasyFootballApp = () => {
         {/* Main content.
             The bottom padding clears the phone tab bar: it is `fixed`, so it
             does not occupy layout space, and without this the last row of
-            every page sits under it. `--tab-dock` is the ask bar on top of
-            it, set by `LeagueChatOffset` when the chat exists. `pb-safe`
-            handles the home indicator below that. */}
+            every page sits under it. `pb-safe` handles the home indicator
+            below that. */}
         <PageContainer
           as="main"
-          className="py-6 pb-[calc(5rem+var(--tab-dock,0px)+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5.5rem+var(--tab-dock,0px)+env(safe-area-inset-bottom))] lg:py-10 lg:pb-10"
+          className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-10"
         >
           {/* Signed in but not yet approved by the admin: says so, once, at the
               top of every page. Renders nothing for everyone else. */}
@@ -772,12 +771,12 @@ const FantasyFootballApp = () => {
             settingsBadgeLabel,
             onSignOut: signOut
           }}
-          dock={isApproved ? <AskBar /> : null}
         />
 
-        {/* Ask og jits: the drawer or side panel the ask bar and the header
-            field open, for approved members. At the root for the same reason
-            as the tab bar. */}
+        {/* Ask og jits: the round launcher below lg, and the drawer or side
+            panel it and the header button open, for approved members. At the
+            root for the same reason as the tab bar. */}
+        <ChatLauncher />
         <LeagueChat />
 
         {/* Standings Drawer */}

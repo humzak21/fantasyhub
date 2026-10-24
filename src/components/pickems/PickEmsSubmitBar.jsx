@@ -15,9 +15,8 @@ import { cn } from '../../lib/utils';
  *
  * It sticks to the bottom of the viewport instead. Picking is the thing this
  * page is for, and the count and the button are the state of that task, so
- * they should not scroll away from it. `bottom-16` clears the phone tab bar,
- * plus `--tab-dock` for the league chat's ask bar on top of it; from lg up
- * there is no tab bar to clear.
+ * they should not scroll away from it. `bottom-16` clears the phone tab bar;
+ * from lg up there is no tab bar to clear.
  */
 export function PickEmsSubmitBar({
   totalPicks,
@@ -42,7 +41,7 @@ export function PickEmsSubmitBar({
   return (
     <div
       className={cn(
-        'sticky bottom-[calc(4rem+var(--tab-dock,0px))] z-30 -mx-4 border-t bg-card/95 px-4 py-3 backdrop-blur',
+        'sticky bottom-16 z-30 -mx-4 border-t bg-card/95 px-4 py-3 backdrop-blur',
         'sm:-mx-6 sm:px-6 lg:bottom-0 lg:mx-0 lg:rounded-lg lg:border',
         className
       )}
