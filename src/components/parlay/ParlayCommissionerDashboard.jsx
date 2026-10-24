@@ -20,6 +20,9 @@ import { getDb } from '../../../services/db/index.js';
 import { groupPicksByDivision } from '../../utils/parlayDivisions';
 import { parlayHitRate } from './hitRate.js';
 import { getPositionColor } from '../../utils/positionColors';
+import { NflTeamLogo } from '../ui/nfl-team-logo';
+import { PlayerAvatar } from '../ui/player-avatar';
+import { teamOf } from '../../../utils/playerImages.js';
 
 /**
  * The TD parlay board: everyone's picks, by week and across the season.
@@ -324,7 +327,15 @@ const DivisionColumn = ({ className, title, picks, emptyText }) => (
         {picks.map((pick) => (
           <li key={pick.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm">
             <span className="min-w-0 flex-1 truncate font-medium">{pick.displayName}</span>
-            <span className="truncate">{pick.playerNameRaw}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <PlayerAvatar
+                name={pick.playerNameRaw}
+                espnPlayerId={pick.player?.espnPlayerId}
+                position={pick.player?.position}
+                size={20}
+              />
+              <span className="truncate">{pick.playerNameRaw}</span>
+            </span>
             {pick.player?.position && (
               <span
                 className={cn(
@@ -336,7 +347,10 @@ const DivisionColumn = ({ className, title, picks, emptyText }) => (
               </span>
             )}
             {pick.player?.teamAbbreviation && (
-              <span className="text-xs text-muted-foreground">{pick.player.teamAbbreviation}</span>
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <NflTeamLogo team={teamOf(pick.player)} size={14} />
+                {pick.player.teamAbbreviation}
+              </span>
             )}
             {/* A free-text pick is flagged because it is the one the
                 commissioner has to look up by hand — no player row means no

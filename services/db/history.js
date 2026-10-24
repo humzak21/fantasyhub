@@ -836,7 +836,7 @@ export async function getSeasonWeekSource(ctx, seasonId) {
       selectAll(() => client
         .from('player_week_stats')
         .select(`
-          id, week, team_id, player_id, position, roster_slot, started,
+          id, week, team_id, player_id, espn_player_id, position, roster_slot, started,
           actual_points, pro_team_id, stat_breakdown,
           player:players ( name, team_abbreviation )
         `)
@@ -899,6 +899,7 @@ export async function getSeasonWeekSource(ctx, seasonId) {
         week: row.week,
         teamId: row.team_id,
         playerId: row.player_id,
+        espnPlayerId: row.espn_player_id ?? null,
         name: row.player?.name ?? null,
         position: row.position,
         slot: row.roster_slot,

@@ -4,6 +4,8 @@ import { Badge } from '../../../ui/badge';
 import { SectionHeading } from '../../../ui/section-heading';
 import { OpponentChip } from '../../../ui/opponent-chip';
 import { PlayerPoints } from '../../../ui/player-points';
+import { NflTeamLogo } from '../../../ui/nfl-team-logo';
+import { PlayerAvatar } from '../../../ui/player-avatar';
 import { cn } from '../../../../lib/utils';
 import { getPositionColor } from '../../../../utils/positionColors';
 import { nflTeamColor } from '../../../../../utils/nflTeamColors.js';
@@ -218,11 +220,13 @@ const Total = ({ label, value }) => (
 /**
  * One column template for the header, the starters and the bench, so every
  * row lines up whether or not it has a TD or a rank. Team and opponent drop
- * below `sm`, where the name needs the room.
+ * below `sm`, where the name needs the room: there the team survives as a
+ * 14px logo beside the name, and from `sm` the name gets the headshot while
+ * the Team column carries the logo and the abbreviation (JITS-47).
  */
 const LINEUP_GRID =
   'grid grid-cols-[2.75rem_minmax(0,1fr)_1.75rem_3.25rem_3rem] items-center gap-x-2 ' +
-  'sm:grid-cols-[2.75rem_minmax(0,1fr)_2.5rem_3.5rem_1.75rem_3.25rem_3rem] sm:gap-x-3';
+  'sm:grid-cols-[2.75rem_minmax(0,1fr)_3.25rem_3.5rem_1.75rem_3.25rem_3rem] sm:gap-x-3';
 
 // Literal class names: a class built at runtime generates no CSS.
 const RANK_HEAT = [
@@ -269,11 +273,23 @@ function PlayerRow({ row, opponent, onPlayer, bench = false }) {
         >
           {bench ? row.slot === 'IR' ? 'IR' : 'BE' : row.slot}
         </span>
-        <span className={cn('min-w-0 truncate', !bench && 'font-medium text-foreground')}>{row.name ?? 'Unknown player'}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <NflTeamLogo team={row.proTeam} size={14} className="sm:hidden" />
+          <PlayerAvatar
+            name={row.name}
+            espnPlayerId={row.espnPlayerId}
+            position={row.position}
+            team={row.proTeam}
+            size={24}
+            className="hidden sm:inline-flex"
+          />
+          <span className={cn('min-w-0 truncate', !bench && 'font-medium text-foreground')}>{row.name ?? 'Unknown player'}</span>
+        </span>
         <span
-          className={cn('hidden text-xs font-semibold sm:block', !teamColor && 'text-muted-foreground', bench && 'opacity-70')}
+          className={cn('hidden items-center gap-1 text-xs font-semibold sm:flex', !teamColor && 'text-muted-foreground', bench && 'opacity-70')}
           style={teamColor ? { color: teamColor } : undefined}
         >
+          {row.proTeam && <NflTeamLogo team={row.proTeam} size={14} />}
           {row.proTeam ?? ''}
         </span>
         <span className="hidden justify-end sm:flex">
@@ -391,6 +407,8 @@ const MovePlayer = ({ icon: Icon, tone, player }) => (
   <li className="flex items-center gap-1.5 text-muted-foreground">
     {Icon ? <Icon className={cn('h-3.5 w-3.5 shrink-0', tone)} aria-hidden="true" /> : <span className="w-3.5" />}
     <span className="sr-only">{Icon === Plus ? 'Added' : Icon === Minus ? 'Dropped' : 'Moved'}</span>
+    {/* No team badge: the only team on file is where he is now, not then. */}
+    <PlayerAvatar name={player.name} espnPlayerId={player.espnPlayerId} position={player.position} size={18} className="self-center" />
     <span className="truncate text-foreground">{player.name ?? `Player ${player.espnPlayerId}`}</span>
     {player.position && <span className="text-xs">{player.position}</span>}
   </li>

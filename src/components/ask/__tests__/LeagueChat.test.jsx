@@ -11,7 +11,7 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 let ask;
-vi.mock('../../../../hooks/queries/index.js', () => ({ useAskLeague: () => ask }));
+vi.mock('../../../../hooks/queries/index.js', () => ({ useAskLeague: () => ask, usePlayersByName: () => ({ data: undefined }) }));
 
 const { LeagueChatProvider, useLeagueChat, historyOf, UNHINGED_KEY } = await import('../LeagueChatContext.jsx');
 const { default: LeagueChat, AskHeaderButton, ChatLauncher, LeagueChatOffset } = await import('../LeagueChat.jsx');

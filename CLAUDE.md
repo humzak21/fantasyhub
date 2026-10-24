@@ -1996,6 +1996,56 @@ skips. A quarterback who threw four grades **false**.
   render true/false/ungraded, and an auto-versus-manual provenance marker would
   need a column nobody asked for.
 
+### Players show their faces where they fit
+
+Wherever the site lists a player it draws his ESPN headshot and his NFL
+team's logo, when the row has room for them (JITS-47). There are two
+components and one rule file. `ui/player-avatar.jsx` is the face in a
+circle, `ui/nfl-team-logo.jsx` the logo, and `utils/playerImages.js` (pure,
+tested) the URLs, the team spellings and the fallbacks.
+
+- **Hotlinked from ESPN's CDN through its resize endpoint** (`combiner`):
+  96px square headshots (~10 KB, where the full file is ~250 KB) and 64px
+  logos, one size each so every surface shares the cache. They are not
+  mirrored into `public/`: headshots cover every player ever rostered here,
+  and the logos are trademarks the repo has no reason to carry. A sample of
+  80 rostered ids, 2014 draftees included, all resolved. There is no CSP to
+  update.
+- **A missing image is never a broken image.** No ESPN id (a free-text
+  parlay pick) or a CDN 404 falls back to the player's initials on the muted
+  circle. An unknown team or a failed logo leaves the logo's box empty. A
+  D/ST shows its team's logo, taking the team from its own ESPN id
+  (-16000 minus the proTeamId) when the row carries none (`defenseTeam`).
+- **Nothing shifts when an image loads.** Every image has a fixed width and
+  height and is `loading="lazy"`. The avatar stays plain muted until its
+  image arrives, because ESPN's headshots are transparent and initials left
+  underneath would show through.
+- **The team is the row's own.** `teamOf` prefers the row's `proTeamId`
+  (the team he was on that week) over `players.team_abbreviation` (where he
+  is now), so `getSeasonWeekSource` now reads `espn_player_id`, and a week's
+  lineup shows that week's team. A trade or a week's moves has no team of
+  its own on file, so those faces carry no team badge. Showing the current
+  team there would be wrong for a 2021 trade.
+- **Fits or it's omitted, by the list's own width.** `PlayerMark` is the
+  image for the dense lineup rows (Schedule's lineup panel, the Teams cards,
+  the pick'ems research panel). It uses container queries on the list (each
+  list is `@container`), because the Schedule card's desktop columns are
+  narrower than a phone. Under 19rem it draws nothing, from 19rem the 14px
+  logo, from 20rem the headshot with a team badge. The thresholds come from
+  measuring the live pages, and the docblock lists the widths. Roomier
+  surfaces place the components directly:
+  - the history week grid: a logo beside the name below `sm` (the grid's own
+    breakpoint), and from `sm` a headshot plus the logo in the Team column;
+  - the player sheet's 52px header;
+  - the parlay picker, current pick, board and TD Parlay tab;
+  - record-book trade lines and the week's moves.
+- **The chat's data tables** have names but no ids, so `QueryData` looks up a
+  `player` column's names (`players.getPlayersByNames`, `usePlayersByName`,
+  `qk.players.byNames`). It draws a face only for a name exactly one player
+  has (`uniqueByName`): two Josh Allens get none, never the wrong one.
+- **Decorative to a screen reader.** The name is always beside the image.
+  `NflTeamLogo label` names the team where the logo stands in for it.
+
 ### No analytics subsystem
 The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,
 `server.js`, `useAnalyticsData`) was **deleted on 2026-08-06**, along with the
@@ -2276,6 +2326,9 @@ each replaced four or five hand-rolled variants:
   entry**, and callers give the column a fixed-width wrapper rather than asking
   for a placeholder — see the bye-versus-unknown rule under "The NFL schedule
   is team-perspective".
+- `ui/player-avatar.jsx` + `ui/nfl-team-logo.jsx` — a player's headshot and an
+  NFL team's logo, and `PlayerMark`, the image a dense player row can afford.
+  See "Players show their faces where they fit".
 - `ui/player-points.jsx` — a player's points for a week, or a team's total. An
   actual is bare; a projection is **labelled "proj"**, not merely dimmed,
   because a guess and a result are different claims and a shade cannot carry
