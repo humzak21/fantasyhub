@@ -2794,9 +2794,9 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   away) scrolls or dismisses the keyboard and never drags the chat closed:
   only the handle and header drag it, as with the Menu.
 - **While the model works, three dots type** (`TypingIndicator`,
-  `.typing-dot` in globals.css): a message bubble whose dots rise in turn,
-  on `translate` so no transform is left behind. Reduced motion holds them
-  still.
+  `.typing-dot` in globals.css): iMessage's typing bubble, tail and all,
+  whose dots pulse in turn (brighten and swell in place, never move), on
+  `scale` so no transform is left behind. Reduced motion holds them still.
 - **The panel moves like the Menu.** vaul animates its drawers over 0.5s on
   `cubic-bezier(0.32, 0.72, 0, 1)`; `DRAWER_MOTION` is that clock, and the
   side panel slides in from the left and back out on it while the page's
