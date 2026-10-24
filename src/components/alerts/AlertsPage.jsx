@@ -16,6 +16,7 @@ import {
 } from '../../../hooks/queries/index.js';
 import { tauntIdFromUrl, tauntState } from '../../utils/taunts.js';
 import TauntSheet from './TauntSheet.jsx';
+import { useLeagueChat } from '../ask/LeagueChatContext.jsx';
 
 /**
  * Alerts (`/alerts`): every push notification this member was sent, newest
@@ -69,6 +70,7 @@ const AlertsPage = () => {
   const { data: taunts = [], isLoading: tauntsLoading } = useMyTaunts();
   const sendTaunt = useSendTaunt();
   const tauntsById = useMemo(() => new Map(taunts.map((taunt) => [taunt.id, taunt])), [taunts]);
+  const chat = useLeagueChat();
 
   // Arriving from the push is reading it.
   useEffect(() => {
@@ -195,6 +197,10 @@ const AlertsPage = () => {
           onSend={(id) => sendTaunt.mutateAsync(id)}
           isSending={sendTaunt.isPending}
           onClose={closeTaunt}
+          onAskAbout={chat.available ? (opponent) => {
+            closeTaunt();
+            chat.open(`What's my record against ${opponent}?`);
+          } : null}
         />
       )}
     </div>

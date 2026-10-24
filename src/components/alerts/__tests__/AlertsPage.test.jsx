@@ -3,7 +3,8 @@
  * gone once tapped. What is pinned: unread alerts say so, tapping one marks
  * it read and goes where the push would have, "Mark all read" clears the
  * rest, and an alert can be deleted. A matchup fact that can still be used
- * offers a Taunt, opened from the alert or straight from the push's link.
+ * offers a Taunt, opened from the alert or straight from the push's link, and
+ * the taunt can hand its rivalry to the league chat.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -17,8 +18,10 @@ const remove = { mutate: vi.fn(), isPending: false };
 const sendTaunt = { mutateAsync: vi.fn(), isPending: false };
 let inbox;
 let taunts;
+let chat;
 
 vi.mock('react-router-dom', async (actual) => ({ ...(await actual()), useNavigate: () => navigate }));
+vi.mock('../../ask/LeagueChatContext.jsx', () => ({ useLeagueChat: () => chat }));
 vi.mock('../../../../hooks/queries/index.js', async () => {
   const { countUnread } = await import('../../../../hooks/queries/useNotificationInbox.js');
   return {
@@ -49,6 +52,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   inbox = { data: [], isLoading: false, error: null };
   taunts = { data: [], isLoading: false };
+  chat = { available: false, open: vi.fn() };
 });
 
 const offer = (over = {}) => ({
@@ -157,6 +161,23 @@ describe('AlertsPage', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Taunt Arya' }).at(-1));
     expect(sendTaunt.mutateAsync).toHaveBeenCalledWith('t1');
     expect(await screen.findByText('Taunt sent. Arya will get it in a minute.')).toBeInTheDocument();
+  });
+
+  it('offers no chat link without the league chat', async () => {
+    inbox.data = [factAlert];
+    taunts.data = [offer()];
+    render(<AlertsPage />, { path: '/alerts?taunt=t1' });
+    await screen.findByRole('dialog');
+    expect(screen.queryByRole('button', { name: 'Ask og jits about this rivalry' })).toBeNull();
+  });
+
+  it('asks the league chat about the rivalry from the taunt', async () => {
+    chat = { available: true, open: vi.fn() };
+    inbox.data = [factAlert];
+    taunts.data = [offer()];
+    render(<AlertsPage />, { path: '/alerts?taunt=t1' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Ask og jits about this rivalry' }));
+    expect(chat.open).toHaveBeenCalledWith("What's my record against Arya?");
   });
 
   it("sends at once from the notification's Taunt button", async () => {

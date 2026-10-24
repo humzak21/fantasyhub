@@ -22,6 +22,7 @@ import * as divisions from './divisions.js';
 import * as espnMapping from './espnMapping.js';
 import * as games from './games.js';
 import * as history from './history.js';
+import * as leagueChat from './leagueChat.js';
 import * as nflSchedule from './nflSchedule.js';
 import * as nflTeamRatings from './nflTeamRatings.js';
 import * as notifications from './notifications.js';
@@ -42,7 +43,7 @@ import * as transactions from './transactions.js';
 import * as users from './users.js';
 
 export {
-  awards, divisions, espnMapping, games, history, nflSchedule, nflTeamRatings, notifications, parlay,
+  awards, divisions, espnMapping, games, history, leagueChat, nflSchedule, nflTeamRatings, notifications, parlay,
   players, playerWeekStats, pickems, playoffs, rankings, rosters, schedule, seasons, syncRuns, takes,
   teams, transactionEvents, transactions, users
 };
@@ -55,7 +56,7 @@ export { createLogger } from './logger.js';
 
 /** Modules whose functions take a context; `espnMapping` is pure and does not. */
 const CTX_MODULES = {
-  awards, divisions, games, history, nflSchedule, nflTeamRatings, notifications, parlay, players,
+  awards, divisions, games, history, leagueChat, nflSchedule, nflTeamRatings, notifications, parlay, players,
   playerWeekStats, pickems, playoffs, rankings, rosters, schedule, seasons, syncRuns, takes,
   teams, transactionEvents, transactions, users
 };

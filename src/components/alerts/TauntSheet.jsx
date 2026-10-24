@@ -18,7 +18,7 @@ import { describeTauntResult, tauntState } from '../../utils/taunts.js';
  * it, and the same fact written to the opponent — because the second is what
  * the opponent will read, under the member's name.
  */
-const TauntSheet = ({ taunt, isLoading, autoSend = false, onSend, isSending, onClose }) => {
+const TauntSheet = ({ taunt, isLoading, autoSend = false, onSend, isSending, onClose, onAskAbout = null }) => {
   const [result, setResult] = useState(null);
   const sentOnce = useRef(false);
   const state = tauntState(taunt);
@@ -79,6 +79,16 @@ const TauntSheet = ({ taunt, isLoading, autoSend = false, onSend, isSending, onC
                 <p className="text-sm font-semibold text-foreground">{taunt.taunt}</p>
               </div>
             </>
+          )}
+
+          {taunt && onAskAbout && (
+            <button
+              type="button"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => onAskAbout(opponent)}
+            >
+              Ask og jits about this rivalry
+            </button>
           )}
 
           {message && (
