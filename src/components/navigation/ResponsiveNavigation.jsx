@@ -275,7 +275,7 @@ const DesktopNav = ({ tabs, activeTab }) => {
  *   settingsBadgeLabel, onSignOut }; the menu's account half. Omit it for a
  *   signed-out viewer, whose Login stays in the header.
  */
-export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, account = {} }) => {
+export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, account = {}, askEntry = null }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const visibleTabs = tabs.filter(shouldShowTab);
   const barTabs = visibleTabs
@@ -364,6 +364,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, acco
         settingsBadgeCount={settingsCount}
         settingsBadgeLabel={settingsBadgeLabel}
         onSignOut={onSignOut}
+        askEntry={askEntry}
       />
     </>
   );

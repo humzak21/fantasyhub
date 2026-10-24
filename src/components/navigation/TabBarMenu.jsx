@@ -97,6 +97,7 @@ export function TabBarMenu({
   settingsBadgeCount = 0,
   settingsBadgeLabel,
   onSignOut,
+  askEntry = null,
 }) {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const close = () => onOpenChange(false);
@@ -144,6 +145,8 @@ export function TabBarMenu({
                 </span>
               </div>
             )}
+
+            {askEntry?.(close)}
 
             {tabs.length > 0 && (
               <nav aria-label="More" className="grid grid-cols-3 gap-2">

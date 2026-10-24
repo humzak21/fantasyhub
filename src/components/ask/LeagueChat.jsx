@@ -6,6 +6,7 @@ import { useIsMobile } from '../../hooks/use-mobile';
 import { cn } from '../../lib/utils';
 import ChatConversation from './ChatConversation.jsx';
 import { useLeagueChat } from './LeagueChatContext.jsx';
+import { AskDock, ChatDrawer, chatUiVariant } from './redesign/variants.jsx';
 
 /**
  * Ask og jits, mounted once at the app root (JITS-42).
@@ -30,6 +31,14 @@ export const LeagueChatOffset = ({ className, children }) => {
 };
 
 const LeagueChat = () => {
+  const variant = chatUiVariant();
+  if (variant === 'drawer') return <ChatDrawer />;
+  if (variant === 'bar') return <><AskDock /><ChatDrawer /></>;
+  if (variant === 'page') return null;
+  return <CurrentLeagueChat />;
+};
+
+const CurrentLeagueChat = () => {
   const chat = useLeagueChat();
   const isMobile = useIsMobile();
 
