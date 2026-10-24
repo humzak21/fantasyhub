@@ -67,6 +67,27 @@ export function useMemberApprovals({ enabled = true } = {}) {
 }
 
 /**
+ * How many members may submit pick'ems — the "of N" on the home page.
+ *
+ * Executable by any signed-in account, so it is disabled only signed out.
+ * Under `qk.approvals`, so the admin's own decisions move it at once; every
+ * other member's copy catches up on its next refetch.
+ */
+export function useApprovedMemberCount({ enabled = true } = {}) {
+  const { isAuthenticated } = useAuth();
+
+  return useQuery({
+    queryKey: qk.approvals.count(),
+    queryFn: () => db().users.countApprovedMembers(),
+    enabled: enabled && Boolean(isAuthenticated),
+    staleTime: 5 * 60_000,
+    // A missing function (the migration not yet applied) is not going to
+    // appear on the third try, and the counters already read without it.
+    retry: 1
+  });
+}
+
+/**
  * Invalidate everything a decision touches: the queue, the member list the
  * roles picker draws from, and the viewer domain — the admin's own entry is
  * unaffected, but the pattern matches `useSetParlayCommissioners` and costs

@@ -597,6 +597,24 @@
     padding-top: 0;
   }
 
+  /* The home page's cards arrive once: up 8px and in, staggered by
+   * `--reveal-delay` (40ms a card, set inline by HomePage).
+   *
+   * `translate`, not `transform`, and `backwards` fill, not `both`: once the
+   * animation ends no property is left set on the card, so it never stays the
+   * containing block for a `position: fixed` descendant — the rule that keeps
+   * transforms off the app root. Nothing loops; reduced motion skips it. */
+  .home-reveal {
+    animation: home-reveal 380ms cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .home-reveal {
+      animation: none;
+    }
+  }
+
   /* The signed-in viewer's own row, in a table or as a card.
    *
    * Split by element because the two layouts need different mechanics: a
@@ -1317,5 +1335,12 @@
     background: white !important;
     color: black !important;
     box-shadow: none !important;
+  }
+}
+
+@keyframes home-reveal {
+  from {
+    opacity: 0;
+    translate: 0 8px;
   }
 }

@@ -4,8 +4,13 @@ import { Button } from '../src/components/ui/button';
 import { Card, CardContent } from '../src/components/ui/card';
 
 /**
- * Error Boundary Component for Desktop
- * Catches JavaScript errors anywhere in the child component tree and displays a fallback UI
+ * Catches JavaScript errors anywhere in the child tree and renders a fallback.
+ *
+ * With no `fallback` it renders the full-screen "Something went wrong" card,
+ * which is right for the shell and for a whole tab. A region that should fail
+ * on its own — one home-page widget among several — passes
+ * `fallback={({ error, resetError }) => node}` instead, so one boundary class
+ * serves both and there is no second, slightly different one to drift.
  */
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -18,8 +23,10 @@ class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
-    // Update state so the next render will show the fallback UI
-    return { hasError: true };
+    // The error goes into state here, not only in componentDidCatch: that runs
+    // after the fallback has rendered, so a `fallback` render prop would see
+    // `error: null` on its first paint.
+    return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
@@ -50,6 +57,10 @@ class ErrorBoundary extends React.Component {
   };
 
   render() {
+    if (this.state.hasError && typeof this.props.fallback === 'function') {
+      return this.props.fallback({ error: this.state.error, resetError: this.handleReset });
+    }
+
     if (this.state.hasError) {
       // Render fallback UI
       // The wrapper used to be `bg-gradient-to-br from-slate-50 to-slate-100`

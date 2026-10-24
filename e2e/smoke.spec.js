@@ -4,15 +4,16 @@ import { test, expect } from '@playwright/test'
  * Every tab is a route now, so every tab is reachable from here.
  *
  * `/history`, `/takes`, `/pickems`, `/playoffs` and `/awards` are access-gated
- * and redirect a signed-out viewer to `/rankings`; that is correct behaviour,
+ * and redirect a signed-out viewer to `/home`; that is correct behaviour,
  * not a failure, so the assertions below are about layout and about the page
  * not being broken — never about which URL you ended up on. The members-only
  * gate itself is asserted separately, below.
  */
 const ROUTES = [
   '/',
+  '/home',
   '/rankings',
-  '/statistics',
+  '/rankings?view=statistics',
   '/schedule',
   '/teams',
   '/pickems',
@@ -93,18 +94,62 @@ test.describe('smoke', () => {
 
   test('an unknown tab falls back to the default one', async ({ page }) => {
     await page.goto('/not-a-real-tab', { waitUntil: 'domcontentloaded' })
-    await expect(page).toHaveURL(/\/rankings$/)
+    await expect(page).toHaveURL(/\/home$/)
+  })
+
+  // The front door for a visitor is a directory: a card per tab they may
+  // open, derived from the nav's own access rule, and nothing members-only.
+  test('a signed-out viewer gets the directory at /home', async ({ page }) => {
+    await page.goto('/home', { waitUntil: 'domcontentloaded' })
+
+    const sections = page.getByRole('navigation', { name: 'Sections' })
+    await expect(sections).toBeVisible()
+    for (const name of ['Statistics', 'Schedule', 'Teams']) {
+      await expect(sections.getByRole('link', { name: new RegExp(`^${name}`) })).toBeVisible()
+    }
+    for (const name of ["Pick'ems", 'Playoffs', 'Awards', 'Takes', 'History']) {
+      await expect(sections.getByRole('link', { name: new RegExp(`^${name}`) })).toHaveCount(0)
+    }
+  })
+
+  // Home is present tense, so the week control is not on it — and it is
+  // still on the tabs that are about a week.
+  test('the week control is absent on home and present on rankings', async ({ page }) => {
+    await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
+    const standings = page.getByRole('button', { name: /open standings/i })
+    const hasSeason = await standings
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .then(() => true)
+      .catch(() => false)
+    test.skip(!hasSeason, 'no active season in this environment')
+
+    await expect(page.getByLabel('Week navigation control')).toBeVisible()
+
+    await page.getByRole('link', { name: 'og jits home' }).click()
+    await expect(page).toHaveURL(/\/home$/)
+    await expect(page.getByRole('button', { name: /open standings/i })).toBeVisible()
+    await expect(page.getByLabel('Week navigation control')).toHaveCount(0)
   })
 
   // Pick'ems, Playoffs, Awards and Takes are for approved members, and so is
   // the newsletter link. A signed-out viewer sees none of them, in the header
-  // or the phone tab bar, and a deep link lands on the default tab.
+  // the phone tab bar or its Menu, and a deep link lands on the default tab.
   test('members-only destinations are hidden from a signed-out viewer', async ({ page }) => {
     await page.goto('/pickems', { waitUntil: 'domcontentloaded' })
-    await expect(page).toHaveURL(/\/rankings$/)
+    await expect(page).toHaveURL(/\/home$/)
 
     // The nav has rendered before its absences mean anything.
-    await expect(page.getByRole('link', { name: 'Schedule', exact: true }).first()).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: 'Statistics', exact: true }).filter({ visible: true }).first()
+    ).toBeVisible()
+
+    // Below lg most tabs live in the Menu, which renders nothing until it is
+    // opened — so open it, or the absences below would be true of every tab.
+    const menu = page.getByRole('button', { name: /^Menu/ })
+    if (await menu.isVisible()) {
+      await menu.click()
+      await expect(page.getByRole('link', { name: 'Schedule', exact: true })).toBeVisible()
+    }
 
     for (const name of ["Pick'ems", 'Playoffs', 'Awards', 'Takes']) {
       await expect(page.getByRole('link', { name, exact: true })).toHaveCount(0)
@@ -123,26 +168,37 @@ test.describe('smoke', () => {
 test.describe('phone navigation', () => {
   test.skip(({ viewport }) => (viewport?.width ?? 0) >= 1024, 'the tab bar is below lg only')
 
-  test('every destination is reachable from the tab bar', async ({ page }) => {
-    await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
+  test('every destination is reachable from the tab bar or its Menu', async ({ page }) => {
+    await page.goto('/home', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('#root')).not.toBeEmpty()
 
     const bar = page.getByRole('navigation', { name: 'Main' }).last()
     await expect(bar).toBeVisible()
 
-    // Every tab carries a visible label. The tier this replaces delivered them
-    // through the `title` attribute, which does not exist on touch at all.
+    // Five slots at most, and none of them past the edge: the bar does not
+    // scroll any more. Signed out, Pick'ems and History are not there.
     await expect(bar.getByRole('link', { name: 'Statistics' })).toBeVisible()
-
-    // The bar scrolls rather than hiding destinations behind a "More" sheet,
-    // so a link may start out beyond the fold; Playwright scrolls it into the
-    // scroller before clicking.
-    await bar.getByRole('link', { name: 'Statistics' }).click()
-    await expect(page).toHaveURL(/\/statistics$/)
+    const menu = bar.getByRole('button', { name: /^Menu/ })
+    await expect(menu).toBeVisible()
+    const { scrollWidth, clientWidth } = await bar.evaluate((el) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }))
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1)
 
     // It is a real link, so it has an href — cmd-click and "open in new tab"
     // work, which they did not when these were buttons calling navigate().
-    await expect(bar.getByRole('link', { name: 'Schedule' })).toHaveAttribute('href', '/schedule')
+    await bar.getByRole('link', { name: 'Statistics' }).click()
+    await expect(page).toHaveURL(/\/rankings$/)
+
+    // The rest are in the Menu, which slides up and closes as one is chosen.
+    await menu.click()
+    const more = page.getByRole('navigation', { name: 'More' })
+    await expect(more).toBeVisible()
+    await expect(more.getByRole('link', { name: 'Schedule' })).toHaveAttribute('href', '/schedule')
+    await more.getByRole('link', { name: 'Schedule' }).click()
+    await expect(page).toHaveURL(/\/schedule$/)
+    await expect(more).toHaveCount(0)
   })
 
   test('the tab bar does not cover the end of the page', async ({ page }) => {

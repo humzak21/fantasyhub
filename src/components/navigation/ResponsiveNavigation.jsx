@@ -1,15 +1,17 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Bell, ChevronLeft, ChevronRight, Newspaper, Settings } from 'lucide-react';
+import { Bell, ChevronLeft, ChevronRight, Menu, Newspaper, Settings } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
+import { TabBarMenu } from './TabBarMenu.jsx';
+import { NEWSLETTER_URL } from './navConstants.js';
 
 /**
  * Navigation, in two forms.
  *
- * Below lg: a bottom tab bar that scrolls horizontally and holds *every*
- * destination, each with a visible label under its icon. At lg and up:
- * labelled items in the header.
+ * Below lg: a bottom tab bar of five slots — four tabs and a Menu button
+ * that slides up the rest — each with a visible label under its icon. At lg
+ * and up: labelled items in the header.
  *
  * The boundary is lg, not md, and the reason is arithmetic. At 768px the
  * header already carries the logo, the season, the week navigator and the
@@ -23,7 +25,11 @@ import { useScrollEdges } from '../../hooks/use-scroll-edges';
  *   - A hamburger in the top-right corner opening a drawer. Every navigation
  *     cost two taps, and it put the site's entire map at the far end of the
  *     screen from the thumb while a secondary control (the standings button)
- *     occupied the reachable corner.
+ *     occupied the reachable corner. The Menu that holds the rest now is the
+ *     bar's last slot, under the thumb, and the four tabs beside it are one
+ *     tap each.
+ *   - A tab bar that held every destination and scrolled sideways. The tabs
+ *     past its edge went undiscovered however it was signposted.
  *   - An icon-only tier that covered 640px to 1535px — most laptops and every
  *     tablet — with the label delivered by the `title` attribute. `title` has
  *     a one-second delay on a desktop and does not exist at all on touch,
@@ -60,8 +66,8 @@ export const HeaderNav = ({ tabs, activeTab, shouldShowTab = () => true }) => {
 /**
  * The chevron at the edge of a nav that has more behind it.
  *
- * Both navs hide their scrollbar — deliberately, a 15px grey trough across the
- * bottom of the phone tab bar is worse than the problem — and a scroller with
+ * The header nav hides its scrollbar — deliberately, a 15px grey trough under
+ * the tabs is worse than the problem — and a scroller with
  * no scrollbar is indistinguishable from content that has simply ended. So the
  * last visible tab reads as the last tab, and the tabs past it are not
  * discovered at all. This is the marker that says otherwise: a chevron chip
@@ -238,8 +244,22 @@ const DesktopNav = ({ tabs, activeTab }) => {
 };
 
 /**
- * The phone tab bar. Scrolls, holds every destination, and lives where the
- * thumb already is.
+ * The phone tab bar: five slots, no scrolling. Below lg.
+ *
+ * Four tabs — the ones whose definition carries a `tabBarSlot`, in slot order
+ * (Home, Statistics, Pick'ems, History) — and a Menu button that slides up
+ * `TabBarMenu` with every other tab and the account. A tab the viewer may not
+ * open leaves its slot empty rather than pulling one up from the menu, so a
+ * tab is always in the same place for whoever can see it.
+ *
+ * It used to hold every destination in a strip that scrolled sideways, with
+ * chevrons to say so. Ten tabs at 72px each is two and a half screens of
+ * strip, and the tabs past the edge — Takes, Playoffs, Awards — were found by
+ * the members who went looking and by nobody else.
+ *
+ * The Menu button is lit when the open tab lives in the menu, so "where am I"
+ * always has an answer in the bar, and it carries the menu's badges summed:
+ * unread takes and, for the admin, pending approvals.
  *
  * **Render this at the app root, never inside the header.** The header carries
  * `backdrop-blur`, and `backdrop-filter` — like `transform` — makes an element
@@ -248,121 +268,150 @@ const DesktopNav = ({ tabs, activeTab }) => {
  * at the top of the screen. That is the same failure CLAUDE.md records for
  * `transform` on the app root, arriving through a different property.
  *
- * Note also the absence of `justify-center` on the scroller: centring an
- * overflowing flex line puts its start at a negative scroll offset that cannot
- * be reached, which is how round 1 of the playoff bracket became unviewable.
- * CI greps for that pair.
+ * @param {Array} tabs - the nav tabs; `tabBarSlot` puts one in the bar
+ * @param {string} activeTab
+ * @param {Function} shouldShowTab
+ * @param {object} [account] - { user, showNewsletter, settingsBadgeCount,
+ *   settingsBadgeLabel, onSignOut }; the menu's account half. Omit it for a
+ *   signed-out viewer, whose Login stays in the header.
  */
-export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true }) => {
+export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, account = {} }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
   const visibleTabs = tabs.filter(shouldShowTab);
-  const scrollerRef = useRef(null);
-  const activeRef = useRef(null);
-  const edges = useScrollEdges(scrollerRef, visibleTabs.length);
+  const barTabs = visibleTabs
+    .filter((tab) => tab.tabBarSlot != null)
+    .sort((a, b) => a.tabBarSlot - b.tabBarSlot);
+  const menuTabs = visibleTabs.filter((tab) => tab.tabBarSlot == null);
 
-  // Bring the active tab into view on mount and whenever it changes — with
-  // eight or more destinations the current one is often off-screen after a
-  // reload. Scrolling the container directly rather than `scrollIntoView()`,
-  // which also scrolls ancestors vertically and would jump the page.
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    const active = activeRef.current;
-    if (!scroller || !active) return;
-
-    const target = active.offsetLeft - (scroller.clientWidth - active.offsetWidth) / 2;
-    const left = Math.max(0, Math.min(target, scroller.scrollWidth - scroller.clientWidth));
-    scroller.scrollTo({ left, behavior: 'smooth' });
-  }, [activeTab]);
-
-  if (visibleTabs.length === 0) return null;
+  const { user = null, showNewsletter = false, settingsBadgeCount = 0, settingsBadgeLabel, onSignOut } = account;
+  const settingsCount = user ? Number(settingsBadgeCount) || 0 : 0;
+  const menuCount =
+    menuTabs.reduce((sum, tab) => sum + (Number(tab.badgeCount) || 0), 0) + settingsCount;
+  const menuDot = menuTabs.some((tab) => tab.showNotification);
+  const menuActive =
+    menuOpen ||
+    activeTab === 'settings' ||
+    menuTabs.some((tab) => tab.id === activeTab);
+  const menuName =
+    menuCount > 0 ? `Menu, ${menuCount} new` : menuDot ? 'Menu, needs your attention' : 'Menu';
 
   return (
-    <nav
-      aria-label="Main"
-      className={cn(
-        'fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur lg:hidden',
-        // Sits above the home indicator rather than under it.
-        'pb-[env(safe-area-inset-bottom)]'
-      )}
-    >
-      {/* Wrapped so the chevrons have something to position against that does
-          not scroll with the tabs. The bar itself cannot be that element: it
-          is the `fixed` one, and `inset-y-0` on a chevron inside it would
-          include the safe-area padding. */}
-      <div className="relative">
-        <div
-          ref={scrollerRef}
-          className="flex snap-x snap-mandatory items-stretch gap-0.5 overflow-x-auto overscroll-x-contain px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {visibleTabs.map((tab) => {
-            const Icon = tab.icon;
+    <>
+      <nav
+        aria-label="Main"
+        className={cn(
+          'fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur lg:hidden',
+          // Sits above the home indicator rather than under it.
+          'pb-[env(safe-area-inset-bottom)]'
+        )}
+      >
+        <div className="mx-auto flex max-w-lg items-stretch gap-0.5 px-2">
+          {barTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <NavLink
                 key={tab.id}
                 to={`/${tab.id}`}
-                ref={isActive ? activeRef : undefined}
                 aria-disabled={tab.isDisabled || undefined}
                 onClick={(e) => tab.isDisabled && e.preventDefault()}
                 className={cn(
-                  'relative flex min-h-14 w-[4.5rem] shrink-0 snap-center flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  BAR_ITEM,
                   isActive ? 'text-primary' : 'text-muted-foreground active:bg-accent/50',
                   tab.isDisabled && 'pointer-events-none opacity-50'
                 )}
               >
-                <span className="relative">
-                  <Icon className="h-5 w-5" aria-hidden="true" />
-                  {Number(tab.badgeCount) > 0 ? (
-                    <NavCountBadge
-                      count={Number(tab.badgeCount)}
-                      className="absolute -right-2.5 -top-1.5"
-                    />
-                  ) : (
-                    tab.showNotification && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-card"
-                      />
-                    )
-                  )}
-                </span>
-                {/* Drawn: the short label. Announced: the full one. The visible
-                    text is hidden from assistive tech rather than added to it,
-                    or the accessible name would read "Stats Statistics". */}
-                <span
-                  aria-hidden="true"
-                  className="w-full truncate text-center text-[10px] font-medium leading-tight"
-                >
-                  {tab.shortLabel || tab.label}
-                </span>
-                <span className="sr-only">{tabAccessibleName(tab)}</span>
-                {/* The active marker is a bar at the top edge of the tab rather
-                    than a filled pill: at 72px wide a fill leaves no room for
-                    the label to breathe. */}
-                {isActive && (
-                  <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary" aria-hidden="true" />
-                )}
+                <BarItemFace
+                  icon={tab.icon}
+                  label={tab.shortLabel || tab.label}
+                  accessibleName={tabAccessibleName(tab)}
+                  count={Number(tab.badgeCount) || 0}
+                  dot={tab.showNotification}
+                  active={isActive}
+                />
               </NavLink>
             );
           })}
-        </div>
 
-        <NavScrollChevron side="start" show={edges.start} scrollerRef={scrollerRef} />
-        <NavScrollChevron side="end" show={edges.end} scrollerRef={scrollerRef} />
-      </div>
-    </nav>
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(true)}
+            className={cn(
+              BAR_ITEM,
+              menuActive ? 'text-primary' : 'text-muted-foreground active:bg-accent/50'
+            )}
+          >
+            <BarItemFace
+              icon={Menu}
+              label="Menu"
+              accessibleName={menuName}
+              count={menuCount}
+              dot={menuDot}
+              active={menuActive}
+            />
+          </button>
+        </div>
+      </nav>
+
+      <TabBarMenu
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        tabs={menuTabs}
+        activeTab={activeTab}
+        user={user}
+        showNewsletter={showNewsletter}
+        settingsBadgeCount={settingsCount}
+        settingsBadgeLabel={settingsBadgeLabel}
+        onSignOut={onSignOut}
+      />
+    </>
   );
 };
 
+const BAR_ITEM =
+  'relative flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 py-1.5 transition-colors ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+/** One slot's icon, badge, label and active bar — shared by the tabs and Menu. */
+const BarItemFace = ({ icon: Icon, label, accessibleName, count, dot, active }) => (
+  <>
+    <span className="relative">
+      <Icon className="h-5 w-5" aria-hidden="true" />
+      {count > 0 ? (
+        <NavCountBadge count={count} className="absolute -right-2.5 -top-1.5" />
+      ) : (
+        dot && (
+          <span
+            aria-hidden="true"
+            className="absolute -right-1.5 -top-0.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-card"
+          />
+        )
+      )}
+    </span>
+    {/* Drawn: the label. Announced: the accessible name, which carries the
+        badge's meaning. The visible text is hidden from assistive tech rather
+        than added to it, or the name would read twice. */}
+    <span aria-hidden="true" className="w-full truncate text-center text-[10px] font-medium leading-tight">
+      {label}
+    </span>
+    <span className="sr-only">{accessibleName}</span>
+    {/* The active marker is a bar at the top edge of the slot rather than a
+        filled pill, which leaves the label room to breathe. */}
+    {active && <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary" aria-hidden="true" />}
+  </>
+);
+
 /**
- * The cog beside the account control. A `NavLink` to `/settings`, at every
- * width, rendered by the shell next to `LoginDropdown` for a signed-in viewer.
+ * The cog beside the account control. A `NavLink` to `/settings`, rendered by
+ * the shell next to `LoginDropdown` for a signed-in viewer from lg; below lg
+ * Settings is a row in the phone tab bar's Menu (`TabBarMenu`).
  *
  * Settings used to be an item inside the avatar's dropdown — two clicks, and
  * invisible until the first — and landed on a page outside the shell, with
  * its own header and a Back button, so getting *out* was a third. It is a
  * tab now (`FantasyFootballApp` renders it like any other), and this is its
- * one entry point: not in the tab list, because it is a utility rather than
+ * entry point on a wide screen: not in the tab list, because it is a utility rather than
  * a destination, but always on screen, in the corner where the account
  * already lives. Same active treatment as the header nav so the two agree
  * about what "you are here" looks like.
@@ -429,9 +478,10 @@ export const SettingsLink = ({ active = false, badgeCount = 0, badgeLabel, class
 
 /**
  * Alerts: every notification the viewer was sent, one tap from anywhere.
- * A bell beside the cog rather than a tab, because the header is on screen at
- * every width while the phone tab bar scrolls — a tab at its far end is the
- * Takes problem again. `badgeCount` is the viewer's unread alerts.
+ * A bell in the header rather than a tab, because the header is on screen at
+ * every width — the one account control that stays there below lg, where the
+ * rest moved into the phone tab bar's Menu. `badgeCount` is the viewer's
+ * unread alerts.
  */
 export const AlertsLink = ({ active = false, badgeCount = 0, className }) => {
   const count = Number(badgeCount) || 0;
@@ -455,13 +505,13 @@ export const AlertsLink = ({ active = false, badgeCount = 0, className }) => {
   );
 };
 
-export const NEWSLETTER_URL = 'https://ogjits.substack.com/';
+export { NEWSLETTER_URL };
 
 /**
  * The league newsletter, on Substack. It sits beside the cog in the same
  * icon-button face, but it leaves the app, so it is a plain anchor opening a
- * new tab and never has an active state. Public, like the league itself —
- * shown signed out too.
+ * new tab and never has an active state. The shell shows it to approved
+ * members, from lg; below lg it is a row in the phone tab bar's Menu.
  */
 export const NewsletterLink = ({ className }) => (
   <a

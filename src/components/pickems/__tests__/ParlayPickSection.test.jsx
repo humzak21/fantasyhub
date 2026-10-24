@@ -101,6 +101,9 @@ const UPCOMING = { status: 'upcoming', message: 'Not open yet', timeInfo: 'Opens
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Unsubmitted choices are kept as a per-week draft in localStorage
+  // (pickDraft.js); one test's typing must not be the next test's form.
+  localStorage.clear();
   parlay.getMyParlayPick.mockResolvedValue(null);
   parlay.getParlayPicksForWeek.mockResolvedValue([]);
   players.searchPlayers.mockResolvedValue([]);

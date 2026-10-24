@@ -20,163 +20,109 @@ import PreviousWeekWinners from './PreviousWeekWinners';
 // the page. It used to be its own lazy route on the app shell; moving it here
 // must not undo that.
 const ParlayCommissionerDashboard = lazy(() => import('../parlay/ParlayCommissionerDashboard.jsx'));
-import { getDb } from '../../../services/db/index.js';
+import {
+  useAllPicks,
+  useAllSeasonPicks,
+  usePickEmGameData,
+  usePickEmMutations,
+  usePickEmStandings,
+  usePickEmStatus,
+  usePickEmWeek,
+  useUserPicks,
+  useWeeklyPickEmScores
+} from '../../../hooks/queries/index.js';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 
+/** Shared empty defaults: a fresh `[]` per render is a new identity, and the
+ *  form re-seeds itself whenever `userPicks` changes identity. */
+const NONE = [];
+
+/**
+ * The Pick'ems tab.
+ *
+ * Every read is a `usePickEms` hook, keyed in `keys.js`. It used to load with
+ * raw `getDb()` calls into eleven `useState`s, which meant nothing else in the
+ * app could see what it had fetched and nothing it did could reach anyone
+ * else's cache: a submission from the home page's widget was invisible here
+ * until a reload, and a submission here left the nav's "you owe picks" dot
+ * up, because that dot reads the shared `userPicks` entry this never touched.
+ * Now the tab, the widget and the dot read the same entries, and
+ * `usePickEmMutations` invalidates the ones a write changes.
+ */
 const PickEmsManager = ({
   season,
   currentWeek,
   loading = false,
   isAuthenticated = false,
   initializing = false,
-  preloadedData = null,
-  preloadingInProgress = false,
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const [activeTab, setActiveTab] = useState('picks');
-  const [pickEmWeek, setPickEmWeek] = useState(null);
-  const [games, setGames] = useState([]);
-  const [userPicks, setUserPicks] = useState([]);
-  const [allPicks, setAllPicks] = useState([]);
-  const [seasonPicks, setSeasonPicks] = useState([]);
-  const [weeklyScores, setWeeklyScores] = useState([]);
-  const [seasonStandings, setSeasonStandings] = useState([]);
-  const [pickEmStatus, setPickEmStatus] = useState(null);
-  const [previousWeekStatus, setPreviousWeekStatus] = useState(null);
-  const [dataLoading, setDataLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
-  // Load pick'em data for current week
-  const loadPickEmData = useCallback(async () => {
-    if (!season || !currentWeek) return;
+  const seasonId = season?.id ?? null;
 
-    setDataLoading(true);
-    setError(null);
+  const weekQuery = usePickEmWeek(seasonId, currentWeek);
+  const gamesQuery = usePickEmGameData(seasonId, currentWeek);
+  const statusQuery = usePickEmStatus(seasonId);
 
-    try {
-      // Load pick'em week data
-      const [pickEmWeekData, gamesData, statusData] = await Promise.all([
-        getDb().pickems.getPickEmWeek(season.id, currentWeek),
-        getDb().pickems.getPickEmGameData(season.id, currentWeek),
-        getDb().pickems.getPickEmStatus(season.id)
-      ]);
+  const pickEmWeek = weekQuery.data ?? null;
+  const games = gamesQuery.data ?? NONE;
+  const pickEmStatus = statusQuery.data?.find((s) => s.weekNumber === currentWeek) ?? null;
+  const previousWeekStatus = statusQuery.data?.find((s) => s.weekNumber === currentWeek - 1) ?? null;
+  const resultsAvailable = Boolean(pickEmStatus?.resultsAvailable);
+  const hasWeek = Boolean(pickEmWeek);
 
-      setPickEmWeek(pickEmWeekData);
-      setGames(gamesData || []);
+  // The viewer's own picks only when there is a viewer: an anonymous visitor
+  // issues no query rather than one that answers [].
+  const userPicksQuery = useUserPicks(pickEmWeek?.id, { enabled: Boolean(user) });
+  const standingsQuery = usePickEmStandings(seasonId, { enabled: hasWeek });
+  const seasonPicksQuery = useAllSeasonPicks(seasonId, { enabled: hasWeek });
+  const allPicksQuery = useAllPicks(pickEmWeek?.id, { enabled: resultsAvailable });
+  const scoresQuery = useWeeklyPickEmScores(pickEmWeek?.id, { enabled: resultsAvailable });
 
-      // Find status for current week
-      const currentWeekStatus = statusData?.find(s => s.weekNumber === currentWeek);
-      setPickEmStatus(currentWeekStatus);
-      setPreviousWeekStatus(statusData?.find(s => s.weekNumber === currentWeek - 1) || null);
+  const { submitPicks, createWeek } = usePickEmMutations(seasonId);
 
-      // Load user picks if pick'em week exists
-      if (pickEmWeekData) {
-        const userPicksData = await getDb().pickems.getUserPicksForWeek(pickEmWeekData.id);
-        setUserPicks(userPicksData || []);
+  // What the page waits on before drawing anything: the week, its games and
+  // the window — and the viewer's picks, so the form does not paint empty and
+  // then fill. A disabled query reads as pending forever, so each wait is
+  // guarded by the condition that enables it.
+  const dataLoading = Boolean(
+    seasonId &&
+      (weekQuery.isPending ||
+        gamesQuery.isPending ||
+        statusQuery.isPending ||
+        (hasWeek && user && userPicksQuery.isPending))
+  );
 
-        // Always load season standings and season picks
-        const [seasonStandingsData, seasonPicksData] = await Promise.all([
-          getDb().pickems.getSeasonPickEmStandings(season.id),
-          getDb().pickems.getAllSeasonPicks(season.id)
-        ]);
-
-        setSeasonStandings(seasonStandingsData || []);
-        setSeasonPicks(seasonPicksData || []);
-
-        // Load results data if available
-        if (currentWeekStatus?.resultsAvailable) {
-          const [allPicksData, weeklyScoresData] = await Promise.all([
-            getDb().pickems.getAllPicksForWeek(pickEmWeekData.id),
-            getDb().pickems.getWeeklyPickEmScores(pickEmWeekData.id)
-          ]);
-
-          setAllPicks(allPicksData || []);
-          setWeeklyScores(weeklyScoresData || []);
-        } else {
-          setAllPicks([]);
-          setWeeklyScores([]);
-        }
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to load pick\'em data');
-    } finally {
-      setDataLoading(false);
-    }
-  }, [season,currentWeek]);
-
-  // Use preloaded data when available
-  useEffect(() => {
-    if (preloadedData) {
-      setPickEmWeek(preloadedData.pickEmWeek);
-      setGames(preloadedData.games || []);
-      setPickEmStatus(preloadedData.status?.find(s => s.weekNumber === currentWeek) || null);
-      setPreviousWeekStatus(preloadedData.status?.find(s => s.weekNumber === currentWeek - 1) || null);
-      setUserPicks(preloadedData.userPicks || []);
-      setSeasonStandings(preloadedData.standings || []);
-      setSeasonPicks(preloadedData.allSeasonPicks || []);
-      setAllPicks(preloadedData.allPicks || []);
-      setWeeklyScores(preloadedData.scores || []);
-      setDataLoading(false);
-    }
-  }, [preloadedData, currentWeek]);
-
-  // Load data when dependencies change (fallback if preloaded data not available)
-  useEffect(() => {
-    // Only load data if we don't have preloaded data
-    if (!preloadedData && !preloadingInProgress) {
-      loadPickEmData();
-    }
-  }, [preloadedData, preloadingInProgress, loadPickEmData]);
+  const queryError = [weekQuery, gamesQuery, statusQuery, userPicksQuery].find((q) => q.error)?.error;
+  const error = actionError ?? (queryError ? queryError.message || "Failed to load pick'em data" : null);
 
   // Switch to results tab when results become available and user is on picks tab
   useEffect(() => {
-    if (pickEmStatus?.resultsAvailable && activeTab === 'picks') {
+    if (resultsAvailable && activeTab === 'picks') {
       setActiveTab('results');
     }
-  }, [pickEmStatus?.resultsAvailable, activeTab]);
+  }, [resultsAvailable, activeTab]);
 
-  // Handle pick submission
-  const handleSubmitPicks = useCallback(async (pickEmWeekId, picks) => {
-    try {
-      await getDb().pickems.submitPickEmPicks(pickEmWeekId, picks);
-      // Reload user picks after submission
-      const userPicksData = await getDb().pickems.getUserPicksForWeek(pickEmWeekId);
-      setUserPicks(userPicksData || []);
-    } catch (err) {
-      throw new Error(err.message || 'Failed to submit picks');
-    }
-  }, []);
+  // The form awaits this and reports a refusal itself; the mutation's
+  // `onSuccess` refreshes `userPicks` and the season's pick'em entries, which
+  // is what the nav dot and the home page read too.
+  const handleSubmitPicks = useCallback(
+    (pickEmWeekId, picks) => submitPicks.mutateAsync({ pickEmWeekId, picks }),
+    [submitPicks]
+  );
 
   // Handle creating pick'em week (admin only)
   const handleCreatePickEmWeek = useCallback(async () => {
     if (!isAdmin || !season) return;
-
-    setDataLoading(true);
+    setActionError(null);
     try {
-      await getDb().pickems.createPickEmWeek(season.id, currentWeek);
-      await loadPickEmData(); // Reload data
+      await createWeek.mutateAsync({ week: currentWeek });
     } catch (err) {
-      setError(err.message || 'Failed to create pick\'em week');
-    } finally {
-      setDataLoading(false);
+      setActionError(err.message || "Failed to create pick'em week");
     }
-  }, [isAdmin, season, currentWeek,loadPickEmData]);
-
-  // Handle calculating results (admin only)
-  const handleCalculateResults = useCallback(async () => {
-    if (!isAdmin || !pickEmWeek) return;
-
-    setDataLoading(true);
-    try {
-      await getDb().pickems.calculatePickEmResults(pickEmWeek.id);
-      await loadPickEmData(); // Reload data to show results
-      setActiveTab('results'); // Switch to results tab
-    } catch (err) {
-      setError(err.message || 'Failed to calculate results');
-    } finally {
-      setDataLoading(false);
-    }
-  }, [isAdmin, pickEmWeek,loadPickEmData]);
+  }, [isAdmin, season, currentWeek, createWeek]);
 
   const getStatusBadge = () => {
     if (!pickEmStatus) return null;
@@ -248,7 +194,7 @@ const PickEmsManager = ({
               {isAdmin && !pickEmWeek && (
                 <Button
                   onClick={handleCreatePickEmWeek}
-                  disabled={dataLoading}
+                  disabled={createWeek.isPending}
                   size="sm"
                   variant="outline"
                 >
@@ -335,7 +281,7 @@ const PickEmsManager = ({
               currentWeek={currentWeek}
               pickEmWeek={pickEmWeek}
               games={games}
-              userPicks={userPicks}
+              userPicks={userPicksQuery.data ?? NONE}
               onSubmitPicks={handleSubmitPicks}
               loading={dataLoading}
               canSubmit={pickEmStatus?.canSubmit || false}
@@ -357,10 +303,10 @@ const PickEmsManager = ({
               currentWeek={currentWeek}
               pickEmWeek={pickEmWeek}
               games={games}
-              weeklyScores={weeklyScores}
-              allPicks={allPicks}
-              loading={dataLoading}
-              resultsAvailable={pickEmStatus?.resultsAvailable || false}
+              weeklyScores={scoresQuery.data ?? NONE}
+              allPicks={allPicksQuery.data ?? NONE}
+              loading={resultsAvailable && (scoresQuery.isPending || allPicksQuery.isPending)}
+              resultsAvailable={resultsAvailable}
               user={user}
               isAdmin={isAdmin}
               teamOwnerNames={teamOwnerNames}
@@ -371,10 +317,10 @@ const PickEmsManager = ({
             <PickEmsSeasonStandings
               season={season}
               currentWeek={currentWeek}
-              seasonStandings={seasonStandings}
-              seasonPicks={seasonPicks}
-              loading={dataLoading}
-              resultsAvailable={pickEmStatus?.resultsAvailable || false}
+              seasonStandings={standingsQuery.data ?? NONE}
+              seasonPicks={seasonPicksQuery.data ?? NONE}
+              loading={standingsQuery.isPending || seasonPicksQuery.isPending}
+              resultsAvailable={resultsAvailable}
               user={user}
               isAdmin={isAdmin}
               teamOwnerNames={teamOwnerNames}

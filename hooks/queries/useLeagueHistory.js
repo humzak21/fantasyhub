@@ -19,6 +19,7 @@ import { buildRecordBook } from '../../utils/recordBook/index.js';
 import { buildRecordTrends } from '../../utils/recordTrend.js';
 import { buildSeasonIndex } from '../../utils/franchiseWeeks.js';
 import { buildComparisonFacts } from '../../utils/statComparison/index.js';
+import { buildHomeRecordBooks } from '../../utils/home/records.js';
 import { qk } from './keys.js';
 
 const db = () => getDb();
@@ -149,6 +150,25 @@ export function useStatComparison({ enabled = true } = {}) {
     queryKey: qk.history.recordBook(),
     queryFn: () => db().history.getRecordBookSource(),
     select: buildComparisonFacts,
+    enabled,
+    ...STABLE
+  });
+}
+
+/**
+ * The record book for the home page's carousel: the book as it stands and the
+ * book as it stood before the latest scored week, from one source.
+ *
+ * The record book's own query again — same key, same fetch — so the carousel,
+ * Records and Compare stats share one read. The second book is what "new this
+ * week" is a diff against; building it in `select` means it runs once per
+ * fetch, not once per render.
+ */
+export function useHomeRecordBooks({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: qk.history.recordBook(),
+    queryFn: () => db().history.getRecordBookSource(),
+    select: buildHomeRecordBooks,
     enabled,
     ...STABLE
   });

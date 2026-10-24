@@ -24,7 +24,12 @@ import { NumberText } from '../ui/number-text';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
 
-const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
+/**
+ * `embedded` drops the page header: the panel is the Statistics face of the
+ * Statistics tab (`RankingsHeader`), which titles the page itself — the same
+ * arrangement as `ParlayCommissionerDashboard` inside Pick'ems.
+ */
+const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, embedded = false }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
   // State management for chart filtering
   const [selectedTeams, setSelectedTeams] = useState([]);
@@ -77,11 +82,13 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
   if (!rankings || !Array.isArray(rankings) || rankings.length === 0 || !season) {
     return (
       <>
-        <PageHeader
-          icon={BarChart3}
-          title="League Analytics"
-          description="Scoring, defence and luck across the season."
-        />
+        {!embedded && (
+          <PageHeader
+            icon={BarChart3}
+            title="League Analytics"
+            description="Scoring, defence and luck across the season."
+          />
+        )}
         <Card>
           <EmptyState
             icon={BarChart3}
@@ -212,11 +219,13 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null }) => {
 
   return (
     <div>
-      <PageHeader
-        icon={BarChart3}
-        title="League Analytics"
-        description={`Scoring, defence and luck through week ${currentWeek}.`}
-      />
+      {!embedded && (
+        <PageHeader
+          icon={BarChart3}
+          title="League Analytics"
+          description={`Scoring, defence and luck through week ${currentWeek}.`}
+        />
+      )}
 
       <div className="space-y-10">
         <Section icon={BarChart3} title="League overview">

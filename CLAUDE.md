@@ -101,7 +101,7 @@ clock, GitHub's runners".
   user-agent sniffing that used to pick between two whole applications. Every
   component is responsive. See "Mobile is not a separate app" below.
 - **Layout**: `src/components/layout/PageContainer.jsx` is the page gutter.
-- **Tabs are routes** (`/rankings`, `/statistics`, …), not `useState`.
+- **Tabs are routes** (`/rankings`, `/schedule`, …), not `useState`.
 - **Viewer identity**: `user`, `isAdmin` and `teamOwnerNames` come from
   `useViewer()` (`src/contexts/ViewerContext.jsx`), not from props.
 
@@ -713,7 +713,7 @@ lands on the click.
 - `canHellYeah`, `canStakeHellYeah` and `canWithdrawHellYeah` in
   `milestones.js` are the mirror; `supabase/tests/database/take_hell_yeah.test.sql`
   is what makes it true. Every Hell Yeah routes through `requestHellYeah` in
-  `TakesManager`, for the reason every Hell Nah routes through `requestFade`.
+  `useTakeActions`, for the reason every Hell Nah routes through `requestFade`.
 
 **A Hell Yeah stake is an offer, and each Hell Nah takes it on or not**
 (`20261010120000_take_stake_responses.sql`). Until 2026-10-10 a backer's stake
@@ -767,9 +767,12 @@ app that commits the viewer to paying somebody, and now the only one with a
 deadline on changing their mind, so `HellNahDialog` restates the price and the
 deadline over the take's own wording at the moment of the click — a sentence on
 a card is read when the card is new, and the button is pressed weeks later.
-Both call sites route through `requestFade` in `TakesManager`: a dialog per
+Every call site routes through `requestFade` in
+`takes/useTakeActions.js`, which `TakesManager` and the home page's takes
+card both call, each mounting `TakeActionDialogs` once: a dialog per
 component would be a second answer to "has this member opted out", and the
-board renders a dozen cards beside the one sheet. The checkbox
+board renders a dozen cards beside the one sheet. A component that owns its
+own dialog is still the bug. The checkbox
 (`confirmPreference.js`) is a **preference, not a rule** — it suppresses the
 explanation and nothing else, which is why it may live in `localStorage`, and
 why it is keyed per user within a browser.
@@ -967,8 +970,8 @@ any policy in the file, so no existing member ever saw a refusal.
 - **Pick'ems, Playoffs and Awards are members-only tabs, and so is the
   newsletter link** (since 2026-09-15). `customAccess: isApproved` on the first
   two; `isApproved && awardsAccessible` on Awards, so the release rules still
-  apply to members; and `isApproved` around `NewsletterLink` (an item in the
-  avatar's menu below `sm`). Signed-out and
+  apply to members; and `isApproved` around `NewsletterLink` (a row in the
+  phone tab bar's Menu below `lg`). Signed-out and
   unapproved viewers see none of them, and a deep link redirects to the default
   tab once approval has loaded (the guard above). **This is a shell gate
   only:** unlike Takes, the tables behind these tabs are still public-read at
@@ -990,16 +993,209 @@ any policy in the file, so no existing member ever saw a refusal.
   the admin's own id. Note that temp tables created before `set local role`
   need a `GRANT` to `authenticated` or the probe fails on its own scaffolding.
 
-### Settings is a tab, reached by the cog
+### Home is the front door
+
+`/` resolves to `/home` (`DEFAULT_TAB = 'home'` in `FantasyFootballApp`),
+and so does an unknown or forbidden tab — a page that explains itself to
+whoever arrives, where the rankings table did not. The plan it follows, in
+four PRs, is JITS-45: the page; pick'ems; records, takes and recent form;
+then the design pass.
+
+- **Two shapes, chosen by the nav's own flags.** A signed-out viewer or an
+  account awaiting approval gets `HomeDirectory`: a card per tab
+  `shouldShowTab` allows, built from the shell's `navTabs` — never a
+  hand-written list, so a tab's access rule and its card cannot disagree.
+  An approved member gets the dashboard. `HomePage` waits on `isAuthLoading`
+  and `isApprovalLoading` before choosing, for the reason the route guard
+  does.
+- **Present tense only.** Home reads `useActualWeek()`, never the viewed
+  week, and passes `actualWeek: null` until the season config has a start
+  date. The tab carries `weekAware: false`, and the shell renders
+  `InlineWeekNavigator` only when `activeTabDef?.weekAware !== false` — a
+  flag on the definition, not an `activeTab === 'home'` literal. Links into
+  a week-aware tab call `ctx.openTab()`, which resets the viewed week to the
+  actual week first.
+- **Widgets are registered, not placed.** `src/components/home/homeWidgets.js`
+  is the ordered list (`id`, `title`, `column`, `Component`, `when(ctx)`);
+  `HomePage` maps it into the grid. Below `lg` the columns are
+  `display: contents` and the list order is the reading order. A widget
+  receives `{ ctx }` only and calls its own hooks against keys the tabs
+  already use, so opening a tab from Home is a cache hit.
+- **Every widget renders inside `HomeWidget`**, which owns the card, the
+  header and chevron, the skeleton, the empty state and the query-error card
+  with Retry. `HomePage` also wraps each one in an `ErrorBoundary` with a
+  `fallback`, so a render crash takes one card, never the page.
+- **One pure function behind each widget, and the tests live there:**
+  `utils/viewerTeam.js` (whose team — owner name through
+  `normalizeOwnerName`, never `teams.user_id`), `utils/home/matchup.js`
+  (season phase, the week's game, a bye, the series sentence),
+  `utils/home/streak.js` (a standings row's streak, from the games when the
+  RPC's is blank).
+- **The hero shares the Schedule tab's lineup.** `LineupPanel` was lifted
+  out of `ScheduleManager` into `schedule/LineupPanel.jsx`; both import it.
+- **The brand is a link to `/home`** — the only way back from Settings and
+  Alerts, which have no tab.
+- **The rankings and standings are tables wider than their cards, on
+  purpose** (`home/ScrollTable.jsx`). The columns a reader wants first fill
+  the card by default; the rest are a swipe or a scrollbar to the right.
+  Only the rank is `sticky` (the team scrolls with its figures), and so is
+  the header. The default view is
+  exact at any card width because the viewport is an `@container` and the
+  team column is `max(<twelve letters>, 100cqw - <the other default
+  columns>)`. The table's width is that plus every other column; the sums are
+  spelt out beside each table, and **changing a column's width means changing
+  the sum**. A name never loses its first twelve letters, so in a narrow card
+  the last default column moves off to the right instead.
+  - Sticky cells inherit the row's background, so row tints are **opaque**:
+    `color-mix(...)` over `--card` (`home/tableTones.js`), never `bg-x/15`.
+    A translucent tint lets the scrolled columns show through a sticky
+    cell. The viewer's rail is an inset shadow on the first cell, as
+    `ff-viewer-row` draws it.
+  - The rankings show every team about five rows tall, and scroll
+    themselves on load so the viewer's row is centred: once per mount, in a
+    layout effect. "Playoff%" is the odds column's name.
+  - The scroller's chevron sits above the sticky header (`z-10`); without it
+    the header cells paint over it.
+  - Not `ui/scroll-hint.jsx`, which captions content that happens to
+    overflow. Here every table overflows by design, and a caption under each
+    would be noise.
+
+**Pick'ems and the parlay can be made and submitted from Home**
+(`widgets/PickemsParlayWidget.jsx`), through the tab's own pieces, so the two
+surfaces cannot drift:
+
+- **Two tiles and one panel.** Each tile answers one question ("are my picks
+  in?", "who is my scorer?") with one headline and one line under it, and
+  carries the league's answer to the same question as a meter at its foot.
+  Tapping a tile opens the single panel under both: the matchups with the
+  submit bar, or the player picker (`ParlayMyPick` with `initialEditing`,
+  which folds the panel on save through `onDone`). Never a box for every
+  fact. A tile is a `<button>`, so nothing inside it may be a `div`, and
+  that includes `Skeleton`.
+
+- **One form state, `pickems/usePickEmForm.js`.** The selection, the edit
+  state, submit and cancel, for `PickEmsSubmission` and the widget alike. A
+  refusal from `submit_pick_em_picks` comes back as `error`; it used to be an
+  unhandled rejection the page never showed. The picks count only the games
+  still to pick, so a pick on a finished game no longer keeps the form from
+  ever reading complete.
+- **Unsubmitted choices are a draft** (`pickems/pickDraft.js`):
+  `localStorage`, `pickems:draft:<userId>:<pickEmWeekId>`, a convenience like
+  `confirmPreference.js` and never a rule. Precedence when a form mounts is
+  the draft, then what was submitted, then nothing — per game
+  (`initialSelections`). A draft that changes a submitted pick reopens the
+  form for editing. Submitting clears the draft's picks, and so does
+  cancelling an edit. A write sweeps the member's other weeks. Every storage
+  call is wrapped. Tests that render a form clear `localStorage` in
+  `beforeEach`, or one test's typing becomes the next one's form.
+- **Shared components, not copies:** `PickEmGameRow` (with `compact` and
+  `showResult`), `PlayerPicker` (`idPrefix`, `onChange`), `ParlayCurrentPick`,
+  `ParlayMyPick`, `PickEmsSubmitBar` (a `className` to re-fit it in a card).
+- **`PickEmsManager` reads through the `usePickEms` hooks** — it used to load
+  with raw `getDb()` calls into `useState`, so a submission anywhere else was
+  invisible to it, and its own submissions never cleared the nav's "you owe
+  picks" dot, which reads the shared `userPicks` entry.
+- **"9 of 14 picked · 7 of 14 parlays in"**: the denominator is
+  `public.count_approved_members()`
+  (`20261023120000_count_approved_members.sql`), approved `member_approvals`
+  rows plus admins — the `is_approved_member()` fold, so exactly who may
+  submit — as one integer, executable by `authenticated` only. Read through
+  `users.countApprovedMembers` and `useApprovedMemberCount`
+  (`qk.approvals.count()`, under the prefix the approval mutations already
+  invalidate). Until it answers the line reads "9 picked", never "of —" and
+  never the team count, which is a different set. `utils/home/pickems.js` is
+  the arithmetic; `supabase/tests/database/count_approved_members.test.sql`
+  holds the rule.
+
+**Records, takes and the last three weeks** complete the dashboard:
+
+- **The records carousel** (`widgets/RecordsCarousel.jsx`) is
+  `utils/home/records.js` over the record book. *New this week* compares two
+  books by row identity (`rowIdentity`: a streak keyed on where it began):
+  the book now, and the book built from the same source without the latest
+  scored week (`withoutWeek`). Records built on season transaction counts are
+  left out of that slot, because a count cannot be rolled back a week.
+  *Record of the day* is a #1 picked by an FNV hash of the local date over
+  the sorted #1s, the same for everyone and stored nowhere. *Yours* is the
+  viewer's best top-five place. `useHomeRecordBooks` is the record book's
+  own query key with its own `select` (`buildHomeRecordBooks`), so Records,
+  Compare stats and Home share one fetch. It waits on `useNearViewport`.
+  Rows are named through `records/describeRow.js` and
+  `records/recordIdentity.js`, both lifted out of the Records tab, so a row
+  reads the same in both places.
+- **`/history?tab=records&record=<id>`** (`records/recordLink.js`) opens the
+  Records tab on that record's scope, rings the card, expands it and scrolls
+  it into view once. A card links only when `ctx.canOpenTab('history')`:
+  History is the admin's and the team owners'.
+- **The takes card** (`widgets/TakesWidget.jsx`) shows
+  `takes/homeTakes.js::selectHomeTakes`: the two newest, plus every take
+  graded in the last 72 hours, graded first. It renders the board's own
+  `TakeCard` with `compact` (one component, two densities). It **never writes
+  the seen mark**: two cards are not the board, and marking them read would
+  clear a badge for takes the member has not seen.
+- **Last 3 weeks** (`widgets/RecentForm.jsx`) is
+  `utils/home/recentForm.js` over a *light* `buildSeasonIndex` (season,
+  teams, games, rank snapshots) through the franchise profile's `seasonArc`,
+  never the heavy `useSeasonWeeks` source. Its chart is a lazy chunk
+  (`RecentFormChart.jsx`), so recharts stays out of the landing bundle.
+  Hidden until the viewer's team has a scored game.
+
+**How it looks, and the rules that keep it that way:**
+
+- **The matchup is one scoreboard band.** From `md`, each side is one row,
+  identity at the outer edge and score toward the middle, so the card has no
+  dead centre. On a phone the identity sits over the score. Behind it is
+  `FieldBackdrop`: each side washed in its franchise colour
+  (`color-mix` over `getTeamColor(team).value`, inline, never a runtime
+  class name), with faint yard lines and a midfield. That is the page's one
+  decorative element. `ShareBar` is each side's share of the combined
+  points, a tug of war and not a probability. Everything else the
+  scoreline has to say is one line from `utils/home/matchup.js::matchupStatus`
+  ("Projected · You trail by 12.6"; a final reads to the hundredth).
+- **Head to head is two columns from `lg`:** the series (the record set
+  large, the split by phase, the streak, two notable games) and the last
+  meetings, one per row with the **year leading**, since that is what a
+  reader scans. "Full head-to-head" is
+  `history/headtohead/headToHeadLink.js::headToHeadPath`:
+  `/history?tab=headtohead&franchise1=<id>&franchise2=<id>`. These are
+  **franchise ids, never names**: an opaque uuid in a shared URL says nothing
+  about who is in the league. `LeagueHistoryManager` opens the pairing only
+  when both ids are franchises it knows.
+- **The desktop columns end level.** Which column a widget sits in was
+  chosen by measuring: Standings in the wide column, with its divisions side
+  by side, then Last 3 weeks; Records in the narrow one, as a one-card
+  carousel. Even so, card
+  heights move with the data, so the column wrappers stretch
+  (`lg:self-stretch`) and the last card in each grows to the column's end.
+  Never `items-stretch` on the outer grid: below `lg` the columns are
+  `display: contents` and every card is a grid item, which would stretch
+  cards across rows on a tablet.
+- **Cards size by their own width, not the viewport** (`@container`, `@md`,
+  `@xl`, `@3xl`) wherever one widget can be a whole phone, half a tablet or
+  a third of a desktop: the rankings slice, the record carousel, the
+  standings.
+- **Motion reveals, once.** Cards rise 8px and fade in, staggered 40ms
+  (`.home-reveal` in `globals.css`, `--reveal-delay` set inline by
+  `HomePage`). The animation uses `translate` with `backwards` fill, so no
+  property is left on the card afterwards: a lingering transform would make
+  every card the containing block for a `position: fixed` child. Scores and
+  record figures count up over 600ms on first arrival (`useCountUp`,
+  `src/hooks/use-count-up.js`), then follow refetches without animating.
+  Both honour `prefers-reduced-motion`. Nothing loops except the parlay's
+  existing live dot.
+
+### Settings is a tab, reached by the cog (or the Menu)
 
 `/settings` is a tab in `FantasyFootballApp`'s `mainTabs` like every other —
 same route table, same route guard, rendered inside the shell's `main` with
 the header, week control and phone tab bar still in place. What makes it
 different is `inNav: false`: it appears in neither the header list nor the
-phone tab bar, and its one entry point is `SettingsLink`
+phone tab bar. From `lg` its entry point is `SettingsLink`
 (`src/components/navigation/ResponsiveNavigation.jsx`), the cog the shell
-renders beside `LoginDropdown` for a signed-in viewer at every width. Access
-is `customAccess: isAuthenticated` — approved or not, Profile is theirs.
+renders beside `LoginDropdown` for a signed-in viewer; below `lg` it is the
+Settings row in the tab bar's Menu (see "The phone tab bar is five slots").
+Access is `customAccess: isAuthenticated` — approved or not, Profile is
+theirs.
 
 Before 2026-09-10 it was a static `/settings` route in `App.jsx` to a page
 mounted *outside* the shell, with its own header row and a Back button that
@@ -1009,6 +1205,19 @@ history; the nav and week control vanished while you were on it. Do not put
 it back in the dropdown, and do not give it a header of its own —
 `UserSettingsPage` uses `PageHeader` like every tab. `App.jsx` still skips
 `DisplayNamePrompt` on that path, because the page already offers the field.
+
+### Statistics is one tab with the rankings
+
+Since 2026-10-23 there is no `statistics` tab. The rankings tab (id
+`rankings`, so every link and bookmark still lands) is labelled **Statistics**
+in both navs and has three faces, in `?view=` (`power-rankings/rankingsViews.js`):
+the power rankings table (the default, no param), `analysis` and
+`statistics` (`StatisticsPanel` with `embedded`, which drops its own
+`PageHeader`). `RankingsHeader` titles all three and draws Analysis and
+Statistics as toggles beside each other: pressing the lit one goes back to the
+table. The view is in the URL so the phone's back button walks through it, and
+`/statistics` is a static redirect in `App.jsx` to
+`/rankings?view=statistics`.
 
 ### The automation dashboard watches; it cannot run anything
 
@@ -1304,7 +1513,8 @@ meeting.
 
 ### The stat comparison is the record book's facts, re-cut
 
-The Statistics tab ends with **Compare stats**
+The Statistics view of the Statistics tab (`/rankings?view=statistics`, see
+"Statistics is one tab with the rankings") ends with **Compare stats**
 (`src/components/statistics/compare/StatComparison.jsx`), below the season's
 charts and in place even before the season's first game — it is league
 history, not this season. It offers around fifty
@@ -1317,7 +1527,7 @@ from the selection. Rules that are load-bearing:
   (`buildComparisonFacts`). Opening either surface after the other fetches
   nothing. The card also passes `enabled` only once it is near the viewport
   (`src/hooks/use-near-viewport.js`), because it sits below the
-  Statistics tab's fold. A hidden page never gets an `IntersectionObserver` callback,
+  Statistics view's fold. A hidden page never gets an `IntersectionObserver` callback,
   so a background preview tab shows the skeleton; that is expected.
 - **One definition.** `utils/statComparison/facts.js` builds on the record
   book's exported `buildSides` + `markWeeks`, so a blowout, a phase, an
@@ -1477,6 +1687,8 @@ nav (`inNav: false`), so it has no notification dot of its own and Approvals is
 a panel two clicks inside it — a member who signed up was invisible until the
 admin went looking. `SettingsLink`'s `badgeCount` comes from the shell, off the
 same `useMemberApprovals` query the panel reads, disabled for everyone else.
+Below `lg` the same count is on the Menu's Settings row and summed into the
+Menu button's badge.
 The badge is `aria-hidden`, so the reason lives in the link's accessible name.
 
 ### The TD parlay is one row per member per week
@@ -1484,9 +1696,11 @@ The badge is `aria-hidden`, so the reason lives in the link's accessible name.
 Each member names one NFL player they think scores a touchdown. It lives at the
 foot of the pick'ems form (`src/components/pickems/ParlayPickSection.jsx`) and
 has **no deadline of its own**: `pick_em_weeks` supplies the window, the row's
-existence supplies the activation, and PickEmsSubmission passes its own
-`getPickEmStatus()` result down rather than letting the section recompute one.
-No pick'em week, no parlay — the section renders `null`.
+existence supplies the activation, and the window is
+`pickems/pickEmWindow.js::pickEmWindowState` — one definition, computed by
+the form (or the home widget) and passed down rather than recomputed.
+No pick'em week, no parlay — the section renders `null`. The viewer's own
+pick, picker and draft are `ParlayMyPick`, which the home page renders too.
 
 Three rules are the database's, not the UI's, and that is what makes them true:
 
@@ -1781,8 +1995,7 @@ desktop behaviour at the same time. `sm:` remains fine for cosmetic shifts:
 padding, wrapping, a grid gaining a column.
 
 **Navigation is a bottom tab bar below `lg`, labelled header items above it.**
-Every destination is in the bar; it scrolls horizontally and scrolls the active
-tab into view. There is no icon-only tier at any width — the one that covered
+There is no icon-only tier at any width — the one that covered
 640-1535px delivered labels through the `title` attribute, which is delayed on
 a desktop and does not exist on touch. **Render `MobileTabBar` at the app root,
 never inside the header:** the header has `backdrop-blur`, and `backdrop-filter`
@@ -1790,10 +2003,35 @@ never inside the header:** the header has `backdrop-blur`, and `backdrop-filter`
 descendants, which pins the bar directly under the header. Pages must keep the
 bottom padding that clears it.
 
-**Both navs hide their scrollbar, so both say when they are scrolled.** A
+**The phone tab bar is five slots and never scrolls** (since 2026-10-23):
+the tabs whose definition carries `tabBarSlot` — Home, Statistics, Pick'ems,
+History, in slot order — and **Menu**, a vaul drawer (`navigation/TabBarMenu.jsx`)
+that slides up with every other tab the viewer may open, then the account:
+the profile card (Profile has no page yet and says "Soon"), Settings with the
+pending-approval count, the newsletter (approved members) and **Log out, which
+asks first** in an `AlertDialog`. It used to hold every destination in a strip
+that scrolled sideways, and the tabs past the edge went unfound however it was
+signposted.
+
+- **A slot is the tab's, not the next one's.** A tab the viewer may not open
+  leaves its slot empty — a visitor sees Home, Statistics and Menu — rather
+  than one being pulled up from the menu, so a tab is always where it was.
+- **Below `lg` the header keeps the bell and nothing else of the account.**
+  The cog, the newsletter icon and the avatar are `lg`-only; a signed-out
+  viewer's Login stays in the header at every width and is never in the menu.
+- **Menu speaks for what is inside it.** It is lit when the open tab lives in
+  the menu (or Settings), and its badge is the sum of the menu tabs' counts and
+  the pending approvals; a tab's dot becomes a dot on Menu.
+- **The confirmation opens as the drawer closes.** vaul dedupes to our
+  `@radix-ui/react-dialog`, so the two share Radix's layer stack and the body's
+  pointer-events lock is counted across them. A second copy of the package
+  would make the order matter, and Cancel could leave the page unclickable.
+- `navigation/__tests__/MobileTabBar.test.jsx` holds all of this.
+
+**The header nav hides its scrollbar, so it says when it is scrolled.** A
 scroller with no scrollbar is indistinguishable from content that ends, and the
-last visible tab reads as the last tab — which is how a phone user never finds
-Takes. `NavScrollChevron` is a chevron chip over a short fade at whichever edge
+last visible tab reads as the last tab — which is how a phone user never found
+Takes in the old scrolling tab bar. `NavScrollChevron` is a chevron chip over a short fade at whichever edge
 still has tabs behind it, driven by `useScrollEdges`
 (`src/hooks/use-scroll-edges.js`): measured from `scrollWidth`/`scrollLeft`,
 never assumed, so nothing renders when the tabs fit and each side disappears as
@@ -1987,9 +2225,16 @@ each replaced four or five hand-rolled variants:
 - `ui/team-identity.jsx` — a team's chip, name, owner, record.
 - `ui/rank-badge.jsx`, `ui/streak-chip.jsx`, `ui/stat-card.jsx`,
   `ui/empty-state.jsx`.
-- `ui/skeleton.jsx` — `SkeletonTable` / `SkeletonCards`. **Loading is a
-  skeleton, never `return null`** (which renders a blank tab) and never a bare
-  spinner.
+- `ui/skeleton.jsx` — `Skeleton` (one bar), `SkeletonTable`, `SkeletonCards`.
+  **Loading is a skeleton, never `return null`** (which renders a blank tab)
+  and never a bare spinner. This was documented here for months before the
+  file existed (it arrived with the home page, 2026-10); a route-level
+  fallback is still `RouteLoading`, because a chunk load does not know the
+  shape of what is coming.
+- `utils/errorBoundary.jsx` takes an optional `fallback={({ error,
+  resetError }) => node}`. Without it the boundary renders the full-screen
+  card; with it, a region fails on its own. One boundary class — never a
+  second `WidgetErrorBoundary`.
 - `utils/positionColors.js` — lineup-slot chips, shared by Schedule and Teams.
 - `ui/opponent-chip.jsx` — a player's NFL opponent ("vs BUF" / "@ KC" / "BYE"),
   over `utils/nflOpponent.js`. **It renders nothing when the calendar has no
@@ -2350,15 +2595,16 @@ custom test said so.
   `mark_notifications_read(p_ids)` (SECURITY INVOKER) stamps it with the
   database's clock — the ids given, or every unread one with NULL.
 - **`/alerts` is a tab with `inNav: false`, reached by `AlertsLink`**, the
-  bell in the header beside `SettingsLink`, for every signed-in viewer at
-  every width. Not a nav tab: the phone tab bar scrolls, and a tab at its far
-  end is how Takes went unfound. The bell's badge is the unread count, from
+  bell in the header, for every signed-in viewer at every width — the one
+  account control that stays in the header below `lg`. Not a nav tab: it would
+  be a tap further away inside the phone tab bar's Menu. The bell's badge is the unread count, from
   the same cache entry the page reads (`qk.viewer.inbox`,
   `useNotificationInbox`), and marking read updates that entry before the
   round trip, so the row's dot and the bell's number drop together.
-- **Below `sm` the newsletter moved into the avatar's menu** to make room:
-  five header icon buttons at 375px put the newsletter on top of the
-  standings button (measured with a touch viewport, where each is 44px).
+- **Below `lg` the newsletter, the cog and the avatar are in the phone tab
+  bar's Menu**: five header icon buttons at 375px put the newsletter on top
+  of the standings button (measured with a touch viewport, where each is
+  44px), which is what first moved the newsletter into the avatar's menu.
 - **Only sends from 2026-10-14 on are kept**; nothing before the table existed
   was recorded. `getMyInbox` reads the newest `INBOX_LIMIT` (100).
 - `supabase/tests/database/notification_inbox.test.sql` holds the rules.

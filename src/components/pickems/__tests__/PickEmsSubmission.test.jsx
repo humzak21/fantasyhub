@@ -90,6 +90,9 @@ const renderPage = (pickEmWeek) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Unsubmitted choices are kept as a per-week draft in localStorage
+  // (pickDraft.js); one test's typing must not be the next test's form.
+  localStorage.clear();
   pickems.getAllPicksForWeek.mockResolvedValue([
     { userId: 'u1', gameId: 'g1', pickedTeamId: 't1', predictedWinnerTeamId: 't1' },
     { userId: 'u2', gameId: 'g1', pickedTeamId: 't2', predictedWinnerTeamId: 't2' }

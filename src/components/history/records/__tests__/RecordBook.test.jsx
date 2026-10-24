@@ -127,6 +127,19 @@ beforeEach(() => {
 });
 
 describe('RecordBook', () => {
+  // `/history?tab=records&record=<id>` — the home page's record cards.
+  it('opens a linked record: its scope, its card marked and scrolled to', async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView');
+    renderWithProviders(<RecordBook franchises={FRANCHISES} focusRecordId="game-high-score" />);
+
+    const card = await screen.findByRole('region', { name: 'Highest score' });
+    expect(screen.getByRole('tab', { name: 'Single Season' })).toHaveAttribute('aria-selected', 'true');
+    expect(card).toHaveClass('ring-2');
+    expect(screen.getByRole('region', { name: 'Lowest score' })).not.toHaveClass('ring-2');
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    scrollIntoView.mockRestore();
+  });
+
   it('opens on the all-time records, grouped by subject, with ties sharing a place', async () => {
     renderWithProviders(<RecordBook franchises={FRANCHISES} />);
 

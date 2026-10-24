@@ -17,11 +17,12 @@ import App from '../App.jsx';
 // The shell pulls the whole data layer in. None of that is under test here —
 // only routing — so the tabs are stubbed down to a marker each.
 vi.mock('../../FantasyFootballApp.jsx', async () => {
-  const { useParams } = await vi.importActual('react-router-dom');
+  const { useParams, useLocation } = await vi.importActual('react-router-dom');
   return {
     default: function ShellStub() {
       const { tab } = useParams();
-      return <div data-testid="shell">tab:{tab || 'rankings'}</div>;
+      const { search } = useLocation();
+      return <div data-testid="shell">tab:{tab || 'home'}{search}</div>;
     },
   };
 });
@@ -53,10 +54,10 @@ describe('tab routing', () => {
 
   it('renders the default tab at /', async () => {
     render(<App />, { initialEntries: ['/'] });
-    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:rankings'));
+    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:home'));
   });
 
-  it.each(['statistics', 'schedule', 'teams', 'history', 'pickems', 'playoffs', 'awards'])(
+  it.each(['home', 'rankings', 'schedule', 'teams', 'history', 'pickems', 'playoffs', 'awards'])(
     'renders /%s as that tab',
     async (tab) => {
       render(<App />, { initialEntries: [`/${tab}`] });
@@ -83,8 +84,17 @@ describe('tab routing', () => {
     expect(screen.queryByTestId('shell')).not.toBeInTheDocument();
   });
 
+  // Statistics is a view of the rankings tab since 2026-10-23, so an old
+  // link or bookmark lands on that view rather than bouncing home.
+  it('redirects /statistics to the statistics view of the rankings tab', async () => {
+    render(<App />, { initialEntries: ['/statistics'] });
+    await waitFor(() =>
+      expect(screen.getByTestId('shell')).toHaveTextContent('tab:rankings?view=statistics')
+    );
+  });
+
   it('redirects the legacy /overview and /fantasy paths to the shell', async () => {
     render(<App />, { initialEntries: ['/overview'] });
-    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:rankings'));
+    await waitFor(() => expect(screen.getByTestId('shell')).toHaveTextContent('tab:home'));
   });
 });

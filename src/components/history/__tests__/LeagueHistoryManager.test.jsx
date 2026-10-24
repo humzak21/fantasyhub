@@ -18,7 +18,9 @@ const history = {
   getChampionships: vi.fn(),
   getSeasonDetail: vi.fn(),
   // The overview's stat comparison reads the record book's source.
-  getRecordBookSource: vi.fn()
+  getRecordBookSource: vi.fn(),
+  getMatchupHistory: vi.fn(),
+  getHeadToHeadMatrix: vi.fn()
 };
 
 // Only `getDb` is stubbed: the query layer imports `DbErrorKind` from the same
@@ -77,6 +79,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   history.getSeasonDetail.mockResolvedValue({ teams: [], awards: [] });
   history.getRecordBookSource.mockResolvedValue({ seasons: [], teams: [], games: [], transactions: [], lineups: [] });
+  history.getMatchupHistory.mockResolvedValue([]);
+  history.getHeadToHeadMatrix.mockResolvedValue([]);
 });
 
 describe('LeagueHistoryManager', () => {
@@ -113,5 +117,36 @@ describe('LeagueHistoryManager', () => {
     renderWithProviders(<LeagueHistoryManager />);
 
     expect(await screen.findByText(/permission denied for view/)).toBeInTheDocument();
+  });
+
+  // The home page's "Full head-to-head": `headtohead/headToHeadLink.js`.
+  describe('a head-to-head link', () => {
+    const ARYA = { ...FRANCHISE, id: 'f-arya', franchise_id: 'f-arya', owner_name: 'Arya Shah', display_name: 'Arya Shah' };
+
+    beforeEach(() => {
+      history.getSeasonsTimeline.mockResolvedValue([SEASON]);
+      history.getFranchisesWithCareerStats.mockResolvedValue([FRANCHISE, ARYA]);
+      history.getChampionships.mockResolvedValue([]);
+    });
+
+    it('opens the pairing it names, by franchise id', async () => {
+      renderWithProviders(<LeagueHistoryManager />, {
+        initialEntries: ['/history?tab=headtohead&franchise1=f-eshan&franchise2=f-arya']
+      });
+
+      expect(await screen.findByRole('button', { name: /back to matrix/i })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: /head-to-head/i })).toHaveAttribute('aria-selected', 'true');
+      expect(history.getMatchupHistory).toHaveBeenCalledWith('f-eshan', 'f-arya');
+    });
+
+    it('opens nothing for an id that is not a franchise', async () => {
+      renderWithProviders(<LeagueHistoryManager />, {
+        initialEntries: ['/history?tab=headtohead&franchise1=f-eshan&franchise2=f-nobody']
+      });
+
+      expect(await screen.findByRole('tab', { name: /head-to-head/i })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.queryByRole('button', { name: /back to matrix/i })).not.toBeInTheDocument();
+      expect(history.getMatchupHistory).not.toHaveBeenCalled();
+    });
   });
 });
