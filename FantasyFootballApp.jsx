@@ -41,7 +41,7 @@ import InlineWeekNavigator from './src/components/week-controls/InlineWeekNaviga
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
 import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
-import LeagueChat, { LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
+import LeagueChat, { AskHeaderButton, ChatLauncher, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
 import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
@@ -516,6 +516,9 @@ const FantasyFootballApp = () => {
                   tabs. */}
               <div className="flex shrink-0 items-center gap-1">
                 {isApproved && <NewsletterLink className="hidden lg:flex" />}
+                {/* Ask og jits, from lg. Below lg it is the round launcher
+                    above the tab bar. */}
+                <AskHeaderButton className="hidden lg:flex" />
                 {isAuthenticated && (
                   <AlertsLink active={activeTab === 'alerts'} badgeCount={unreadAlerts} />
                 )}
@@ -747,6 +750,7 @@ const FantasyFootballApp = () => {
                 <AlertsPage />
               </ErrorBoundary>
             )}
+
             </Suspense>
           </div>
         </PageContainer>
@@ -769,8 +773,10 @@ const FantasyFootballApp = () => {
           }}
         />
 
-        {/* Ask og jits: the bottom-left launcher and the chat it opens, for
-            approved members. At the root for the same reason as the tab bar. */}
+        {/* Ask og jits: the round launcher below lg, and the drawer or side
+            panel it and the header button open, for approved members. At the
+            root for the same reason as the tab bar. */}
+        <ChatLauncher />
         <LeagueChat />
 
         {/* Standings Drawer */}
@@ -815,5 +821,6 @@ const FantasyFootballApp = () => {
     </ErrorBoundary>
   );
 };
+
 
 export default FantasyFootballApp;

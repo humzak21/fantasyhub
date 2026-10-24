@@ -2694,9 +2694,50 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   answer itself states is allowed. The season and week from the prompt count
   only when said as a week or a year, never as a bare figure where a result
   belongs. Every member named must be in a result, be the asker, their
-  opponent this week, or be named in the question. A failed draft goes back
-  once with the problems named; a second failure shows the member the query
-  results instead (`kind: 'data'`). An answer with no query behind it fails.
+  opponent this week, or be named in the question; a name members share
+  ("Anand" is one's first name and another's last) passes when any of them
+  does, which is the false refusal it used to make. "no one" and "one of" are
+  prose, not a count. A failed draft goes back once with the problems named;
+  a second failure shows the member the query results instead (`kind:
+  'data'`). An answer with no query behind it fails, whatever it says.
+- **A model's control syntax is never an answer.** On 2026-10-24 Gemma 4
+  replied `<|tool_call>call:thought {}<tool_call|>`, which held no number and
+  no name, so the check passed it to a member. `parseReply` now reads it as
+  `{ invalid: true }`, and the loop asks again for JSON; it counts as a draft.
+- **Two voices, and the member picks with a switch in the chat window**
+  (`VoiceToggle`, "Unhinged", in both the drawer's and the panel's header).
+  Normal is the analyst: sharp, a little trash-talky, no swearing. Unhinged is
+  the ruthless insider: savage and funny, swearing allowed. `VOICES` in
+  `leagueAgent.js` holds both personas and their example answers;
+  `buildSystemPrompt({ unhinged })` picks one. Each question carries the voice
+  it was asked in (`askLeague`'s `unhinged`, read by the function as
+  `body.unhinged === true`), so flipping mid-conversation changes the next
+  answer and not the earlier ones. The choice is a preference in this
+  browser's storage (`UNHINGED_KEY`), like `confirmPreference.js`; it starts
+  Normal. **Either way the roast is about fantasy football and nothing
+  else**: never anyone's looks, family, job, health or real life, and nothing
+  about race, religion, gender or sexuality. That line is in both personas
+  and a test holds it. The voice changes nothing about the truth rule: every
+  insult still needs its figure from a query. Gemma's own safety tuning still
+  softens the most vulgar asks; going past that is a different model, which
+  is a cost decision. The prompt asks for the
+  verdict first and two or three facts from different angles after it, a
+  pick on every opinion question (never just "based on X, Y has the most
+  Z"), everyone ranked rather than `LIMIT 1` so a tie is said as a tie, a
+  fresh query when asked to explain, and two to five sentences. It carries a
+  career-summary query (titles, finals lost, playoff trips, win %, PPG per
+  owner) as the starting point for "best / worst / most successful". The
+  first live answers named one of six one-title owners as "most successful"
+  off a `LIMIT 1`.
+- **An opinion carries its reasoning, and the check enforces it.**
+  `isOpinionQuestion` recognises a judgement ("in your opinion", "most
+  successful", "overrated", "better than", "why", "explain") and "best" or
+  "worst" said of a team or manager, but not of a score or a performance,
+  which are facts. Its answer must cite at least two figures from the
+  results in at least two sentences, or it goes back as a failed draft. The
+  live "Sai has the worst record, 25 wins and 44 losses" fails that. The one
+  exception is a turn whose queries found no rows, where there is nothing to
+  cite and saying so is the answer.
 - **The model is configuration, not code.** `openAiCompatibleModel` talks to
   any OpenAI-compatible endpoint; `league-chat` reads `LLM_BASE_URL`,
   `LLM_API_KEY` and `LLM_MODEL` from its secrets. Unset, the chat replies that
@@ -2725,15 +2766,39 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
 - **Members never read `chat_log`** (RLS on, no policies, no `anon` /
   `authenticated` grants; `supabase/tests/database/league_chat.test.sql`). The
   bucket has no storage policies, so only the service role reaches it.
-- **The UI is one tree** (`src/components/ask/`). `LeagueChatProvider` in the
-  shell holds the conversation, so it survives changing tabs, and is enabled
-  for approved members only. `LeagueChat` renders the bottom-left launcher at
-  the app root (above the phone tab bar below `lg`); on a phone the chat is a
-  bottom sheet, from `md` a panel down the left side, and from `lg`
-  `LeagueChatOffset` moves the page over beside it. Each answer has "Show the
-  data" (`QueryData`: the rows and the query). `useLeagueChat().open(question)`
-  opens it from anywhere, as the taunt sheet's "Ask og jits about this
-  rivalry" does.
+- **The UI is one tree** (`src/components/ask/`), drawn in the phone Menu's
+  own language: lit cards, a three-across tile grid, rows with an icon and a
+  chevron (`ChatParts.jsx`). `LeagueChatProvider` in the shell holds the
+  conversation, so it survives changing tabs, and is enabled for approved
+  members only; everything else renders nothing without it. **One icon
+  opens it, and there is no text box until it is open:** the round orange
+  chat button, floating bottom-left above the phone tab bar below `lg`
+  (`ChatLauncher`, at the root like the tab bar) and header-sized beside the
+  bell from `lg` (`AskHeaderButton`, which toggles the panel and wears a ring
+  while it is open, the way Menu is lit while its drawer is up). Below `md`
+  the chat is a vaul drawer with no autofocus (the keyboard would cover the
+  topics); from `md` a panel down the left side, closed by Escape, and from
+  `lg` `LeagueChatOffset` moves the page over beside it.
+- **The panel moves like the Menu.** vaul animates its drawers over 0.5s on
+  `cubic-bezier(0.32, 0.72, 0, 1)`; `DRAWER_MOTION` is that clock, and the
+  side panel slides in from the left and back out on it while the page's
+  padding eases over beside it. So the panel stays mounted when closed:
+  off-screen, `invisible` once the slide out ends (a discrete `visibility`
+  transition, on the way out only: an element invisible for even the first
+  frame of the slide in refuses focus), `inert` and `aria-hidden`. Opening is therefore not a mount,
+  which is why `Composer` takes `focusWhen` rather than `autoFocus`.
+- **An empty chat opens on topics, not a text box.** Six tiles (Rivalries,
+  Records, Seasons, Pick'ems, Trades, Takes) each offer three questions as
+  rows; a row asks it. An answer is a card: the first sentence, the verdict,
+  set bold; the reasons muted under it; "Show the data" as the card's last
+  row with the week it is as of, opening `QueryData` (the rows and the
+  query). A `data` reply shows the table outright.
+- **The composer's card is its focus ring.** The unlayered `.dark
+  *:focus-visible` outline in globals.css beats any layered utility, so the
+  field switches it off inline and the card draws `focus-within`. The field is
+  16px below `md`, which keeps iOS from zooming in on focus.
+- `useLeagueChat().open(question)` opens it from anywhere, as the taunt
+  sheet's "Ask og jits about this rivalry" does.
 
 ### Password reset is a login, and the page makes it set a password
 

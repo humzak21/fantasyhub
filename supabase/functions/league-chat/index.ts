@@ -171,10 +171,13 @@ Deno.serve(async (req) => {
 
   let question = '';
   let history: Array<{ role: string; content: string }> = [];
+  let unhinged = false;
   try {
     const body = await req.json();
     question = String(body?.question ?? '').trim().slice(0, MAX_QUESTION);
     history = cleanHistory(body?.history);
+    // The chat window's voice switch; anything but `true` is the normal voice.
+    unhinged = body?.unhinged === true;
   } catch {
     return json({ error: 'Expected a JSON body with a question.' }, 400);
   }
@@ -227,7 +230,7 @@ Deno.serve(async (req) => {
       history,
       model,
       runSql: (sql: string) => runQuery(db, sql),
-      context: { viewerName, opponentName, about, members }
+      context: { viewerName, opponentName, about, members, unhinged }
     });
 
     await log({

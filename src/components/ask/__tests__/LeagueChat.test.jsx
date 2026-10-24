@@ -1,21 +1,23 @@
 /**
- * Ask og jits, the chat: a launcher for approved members only, a conversation
- * that carries its earlier turns into each question, and every answer's data
- * one tap away (open, when the chat could not word an answer it could check).
+ * Ask og jits, the chat: one icon (the round launcher below lg, the same
+ * button in the header from lg) for approved members only, topics that
+ * offer questions, answers that set the verdict above its reasons with the
+ * data one tap away, and a conversation that carries its earlier turns into
+ * each question.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 let ask;
 vi.mock('../../../../hooks/queries/index.js', () => ({ useAskLeague: () => ask }));
 
-const { LeagueChatProvider, useLeagueChat, historyOf } = await import('../LeagueChatContext.jsx');
-const { default: LeagueChat } = await import('../LeagueChat.jsx');
+const { LeagueChatProvider, useLeagueChat, historyOf, UNHINGED_KEY } = await import('../LeagueChatContext.jsx');
+const { default: LeagueChat, AskHeaderButton, ChatLauncher, LeagueChatOffset } = await import('../LeagueChat.jsx');
 
 const RECORD = {
-  sql: "select wins, losses from x",
+  sql: 'select wins, losses from x',
   ok: true,
   columns: ['wins', 'losses'],
   rows: [[5, 3]],
@@ -42,54 +44,98 @@ const OpenWith = ({ question }) => {
 
 const renderChat = ({ enabled = true, extra = null } = {}) => render(
   <LeagueChatProvider enabled={enabled}>
-    {extra}
+    <LeagueChatOffset>
+      <AskHeaderButton />
+      <ChatLauncher />
+      {extra}
+    </LeagueChatOffset>
     <LeagueChat />
   </LeagueChatProvider>
 );
 
+const panel = () => screen.getByRole('complementary', { name: 'Ask og jits' });
+
+const realWidth = window.innerWidth;
 beforeEach(() => {
+  localStorage.clear();
   ask = askWith([]);
+  window.innerWidth = 1280;
+  // vaul reads the drawer's computed `transform`, which jsdom does not compute.
+  const real = window.getComputedStyle.bind(window);
+  vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+    const style = real(el, pseudo);
+    if (style.transform) return style;
+    return new Proxy(style, { get: (t, p) => (p === 'transform' ? 'none' : Reflect.get(t, p, t)) });
+  });
+});
+afterEach(() => {
+  window.innerWidth = realWidth;
+  vi.restoreAllMocks();
 });
 
 describe('LeagueChat', () => {
-  it('offers the launcher to approved members only', () => {
-    const { unmount } = renderChat({ enabled: false });
-    expect(screen.queryByRole('button', { name: 'Ask og jits' })).toBeNull();
+  it('exists for approved members only', () => {
+    const { container, unmount } = renderChat({ enabled: false });
+    expect(screen.queryByRole('button', { name: /Ask og jits/ })).toBeNull();
     unmount();
     renderChat();
-    expect(screen.getByRole('button', { name: 'Ask og jits' })).toBeInTheDocument();
+    // The header button and the launcher: the round orange chat icon, and no
+    // text box anywhere until the chat is open.
+    const entries = screen.getAllByRole('button', { name: /Ask og jits/ });
+    expect(entries).toHaveLength(2);
+    for (const entry of entries) {
+      expect(entry).toHaveClass('rounded-full', 'bg-primary');
+      expect(entry.querySelector('svg.lucide-messages-square')).not.toBeNull();
+      expect(entry).toHaveAttribute('aria-expanded', 'false');
+    }
+    expect(screen.queryByRole('textbox')).toBeNull();
   });
 
-  it('opens as a side panel with suggestions, and a suggestion asks it', async () => {
-    ask = askWith([{ kind: 'answer', text: "You're 5-3 against Humza.", queries: [RECORD], asOf: '2026 week 6' }]);
+  it('opens on the topics; a topic offers its questions, and a question asks it', async () => {
+    ask = askWith([{
+      kind: 'answer',
+      text: 'Rohit is the most successful manager. One title and five playoff trips.',
+      queries: [RECORD],
+      asOf: '2026 week 6'
+    }]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
-    const panel = screen.getByRole('complementary', { name: 'Ask og jits' });
-    await userEvent.click(within(panel).getByRole('button', { name: "What's my record against my opponent?" }));
-    expect(ask.mutate).toHaveBeenCalledWith({ question: "What's my record against my opponent?", history: [] }, expect.any(Object));
-    expect(within(panel).getByText("You're 5-3 against Humza.")).toBeInTheDocument();
-    expect(within(panel).getByText('As of 2026 week 6.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Ask og jits' })).toBeNull();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    const topics = within(panel()).getByRole('group', { name: 'Topics' });
+    expect(within(topics).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['Rivalries', 'Records', 'Seasons', "Pick'ems", 'Trades', 'Takes']);
+
+    await userEvent.click(within(topics).getByRole('button', { name: 'Records' }));
+    expect(within(topics).getByRole('button', { name: 'Records' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(within(panel()).getByRole('button', { name: "Who's been the most successful manager?" }));
+
+    expect(ask.mutate).toHaveBeenCalledWith({ question: "Who's been the most successful manager?", history: [], unhinged: false }, expect.any(Object));
+    // The verdict, then its reasons.
+    expect(within(panel()).getByText('Rohit is the most successful manager.')).toHaveClass('font-semibold');
+    expect(within(panel()).getByText('One title and five playoff trips.')).toBeInTheDocument();
+    expect(within(panel()).queryByRole('group', { name: 'Topics' })).toBeNull();
   });
 
-  it('keeps the data behind "Show the data" for an answer', async () => {
-    ask = askWith([{ kind: 'answer', text: "You're 5-3.", queries: [RECORD], asOf: null }]);
+  it('keeps the data one tap away for an answer, with the week it is as of', async () => {
+    ask = askWith([{ kind: 'answer', text: "You're 5-3.", queries: [RECORD], asOf: '2026 week 6' }]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
     await userEvent.type(screen.getByLabelText('Your question'), 'my record?{Enter}');
-    const details = screen.getByText('Show the data').closest('details');
-    expect(details.open).toBe(false);
-    expect(within(details).getByRole('columnheader', { name: 'wins' })).toBeInTheDocument();
-    expect(within(details).getByRole('cell', { name: '5' })).toBeInTheDocument();
+    const toggle = within(panel()).getByRole('button', { name: /Show the data/ });
+    expect(toggle).toHaveTextContent('As of 2026 week 6');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(within(panel()).queryByRole('table')).toBeNull();
+    await userEvent.click(toggle);
+    expect(within(panel()).getByRole('columnheader', { name: 'wins' })).toBeInTheDocument();
+    expect(within(panel()).getByRole('cell', { name: '5' })).toBeInTheDocument();
   });
 
   it('shows the data outright when the chat could not word a checked answer', async () => {
     ask = askWith([{ kind: 'data', text: "Here's what the league's data says:", queries: [RECORD], asOf: null }]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
     await userEvent.type(screen.getByLabelText('Your question'), 'my record?{Enter}');
-    expect(screen.queryByText('Show the data')).toBeNull();
-    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(within(panel()).queryByRole('button', { name: /Show the data/ })).toBeNull();
+    expect(within(panel()).getByRole('table')).toBeInTheDocument();
   });
 
   it('sends the earlier turns with a follow-up, and says when a question failed', async () => {
@@ -98,12 +144,14 @@ describe('LeagueChat', () => {
       new Error("That's 30 questions today. Ask again tomorrow.")
     ]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
     const box = screen.getByLabelText('Your question');
+    expect(screen.getByRole('button', { name: 'Ask' })).toBeDisabled();
     await userEvent.type(box, 'my record vs Humza?{Enter}');
     await userEvent.type(box, 'and in the playoffs?{Enter}');
     expect(ask.mutate.mock.calls[1][0]).toEqual({
       question: 'and in the playoffs?',
+      unhinged: false,
       history: [
         { role: 'user', content: 'my record vs Humza?' },
         { role: 'assistant', content: "You're 5-3 against Humza." }
@@ -112,24 +160,108 @@ describe('LeagueChat', () => {
     expect(screen.getByRole('alert')).toHaveTextContent("That's 30 questions today.");
   });
 
-  it('starts over, and closes', async () => {
+  it('starts over, and closes with the button or Escape', async () => {
     ask = askWith([{ kind: 'none', text: "I couldn't find that.", queries: [], asOf: null }]);
     renderChat();
-    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    expect(screen.getByRole('button', { name: 'New conversation' })).toBeDisabled();
     await userEvent.type(screen.getByLabelText('Your question'), 'best QB?{Enter}');
     await userEvent.click(screen.getByRole('button', { name: 'New conversation' }));
     expect(screen.queryByText("I couldn't find that.")).toBeNull();
+    expect(within(panel()).getByRole('group', { name: 'Topics' })).toBeInTheDocument();
+
     await userEvent.click(screen.getByRole('button', { name: 'Close the chat' }));
     expect(screen.queryByRole('complementary')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Ask og jits' })).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('complementary')).toBeNull();
+  });
+
+  it('slides: the closed panel stays mounted, off-screen and inert, and opening focuses the field', async () => {
+    const { container } = renderChat();
+    const aside = container.ownerDocument.querySelector('aside');
+    expect(aside).toHaveAttribute('data-state', 'closed');
+    expect(aside).toHaveAttribute('aria-hidden', 'true');
+    expect(aside).toHaveAttribute('inert');
+    expect(aside).toHaveClass('-translate-x-full', 'invisible', 'duration-500');
+    expect(screen.queryByRole('complementary')).toBeNull();
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    expect(aside).toHaveAttribute('data-state', 'open');
+    expect(aside).not.toHaveAttribute('inert');
+    expect(aside).toHaveClass('translate-x-0', 'visible');
+    expect(within(aside).getByLabelText('Your question')).toHaveFocus();
+    // The page eases over on the same clock.
+    expect(container.firstChild).toHaveClass('lg:pl-[400px]', 'transition-[padding]', 'duration-500');
+  });
+
+  it('opens from the launcher too, and the header button toggles it with a ring while open', async () => {
+    renderChat();
+    const [header, launcher] = screen.getAllByRole('button', { name: /Ask og jits/ });
+    await userEvent.click(launcher);
+    expect(panel()).toBeInTheDocument();
+    expect(launcher).toHaveAttribute('aria-expanded', 'true');
+    expect(header).toHaveAccessibleName('Close Ask og jits');
+    expect(header).toHaveClass('ring-2');
+    await userEvent.click(header);
+    expect(screen.queryByRole('complementary')).toBeNull();
+    expect(header).not.toHaveClass('ring-2');
+  });
+
+  it('is a drawer on a phone, without raising the keyboard', async () => {
+    window.innerWidth = 375;
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[1]);
+    const drawer = await screen.findByRole('dialog', { name: 'Ask og jits' });
+    expect(within(drawer).getByRole('group', { name: 'Topics' })).toBeInTheDocument();
+    expect(within(drawer).getByLabelText('Your question')).not.toHaveFocus();
+    expect(screen.queryByRole('complementary')).toBeNull();
   });
 
   it('can be opened from anywhere with a question, which it asks', async () => {
     ask = askWith([{ kind: 'answer', text: "You're 5-3.", queries: [RECORD], asOf: null }]);
     renderChat({ extra: <OpenWith question="What's my record against Humza?" /> });
     await userEvent.click(screen.getByRole('button', { name: 'open with question' }));
-    expect(screen.getByRole('complementary')).toHaveTextContent("What's my record against Humza?");
+    expect(panel()).toHaveTextContent("What's my record against Humza?");
     expect(ask.mutate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the voice switch', () => {
+  it('starts normal, and the next question carries unhinged once it is switched on', async () => {
+    ask = askWith([
+      { kind: 'answer', text: 'Sharp.', queries: [RECORD], asOf: null },
+      { kind: 'answer', text: 'Savage.', queries: [RECORD], asOf: null }
+    ]);
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    const toggle = within(panel()).getByRole('switch', { name: /Unhinged/ });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    await userEvent.type(screen.getByLabelText('Your question'), 'first?{Enter}');
+    expect(ask.mutate.mock.calls[0][0]).toMatchObject({ question: 'first?', unhinged: false });
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await userEvent.type(screen.getByLabelText('Your question'), 'second?{Enter}');
+    expect(ask.mutate.mock.calls[1][0]).toMatchObject({ question: 'second?', unhinged: true });
+    // Earlier answers keep the voice they were asked in.
+    expect(within(panel()).getByText('Sharp.')).toBeInTheDocument();
+  });
+
+  it('remembers the choice in this browser, and opens unhinged next time', async () => {
+    const { unmount } = renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(within(panel()).getByRole('switch', { name: /Unhinged/ }));
+    expect(localStorage.getItem(UNHINGED_KEY)).toBe('1');
+    unmount();
+
+    renderChat();
+    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    const toggle = within(panel()).getByRole('switch', { name: /Unhinged/ });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(toggle);
+    expect(localStorage.getItem(UNHINGED_KEY)).toBeNull();
   });
 });
 

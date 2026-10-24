@@ -14,6 +14,7 @@ import {
   answerQuestion,
   verifyAnswer,
   parseReply,
+  isOpinionQuestion,
   buildSystemPrompt,
   describeResult,
   openAiCompatibleModel,
@@ -47,6 +48,7 @@ const ask = (question, model, extra = {}) =>
   answerQuestion({ question, model, runSql: (sql) => runQuery(snap.db, sql), context: context(), ...extra });
 
 const RECORD_SQL = "select sum(result='W') as wins, sum(result='L') as losses from games where owner = 'Anna Park' and opponent = 'Ben Cole' and result is not null";
+const CAREER_SQL = "select owner, sum(playoff_finish = 'champion') as titles, sum(wins) as wins, sum(losses) as losses from teams group by owner order by titles desc, wins desc";
 
 describe('answerQuestion', () => {
   it('runs the query, shows the model the result, and returns a checked answer with its data', async () => {
@@ -94,6 +96,37 @@ describe('answerQuestion', () => {
     const result = await ask('Who won 2024?', model);
     expect(result.kind).toBe('none');
     expect(result.problems[0]).toBe('no query was run');
+  });
+
+  it('sends a one-line lookup back when the question asked for an opinion, and keeps the reasoned verdict', async () => {
+    const model = scripted(
+      { sql: CAREER_SQL },
+      { answer: 'Anna has 1 title.' },
+      { answer: "Anna is the best in this league, and the ring settles it. Anna has 1 title to Ben's 0, even though Ben's 2-1 record edges Anna's 2-2." }
+    );
+    const result = await ask('Who is the best manager in your opinion?', model);
+    expect(model.sent[2].at(-1).content).toContain('an opinion needs a verdict and the reasoning behind it');
+    expect(result).toMatchObject({ kind: 'answer', attempts: 2 });
+    expect(result.text).toMatch(/^Anna is the best/);
+  });
+
+  it('knows a judgement, or a request for the reasons behind one, from a fact', () => {
+    for (const q of ["who's been the worst team of all time in your opinion?", 'Who is the most successful manager?', 'but i need reasoning', 'Why is Ben overrated?', 'Is Anna better than Cara?']) {
+      expect(isOpinionQuestion(q)).toBe(true);
+    }
+    for (const q of ['Who is the best manager?', "Who's the best?", 'Who was the worst drafter in 2023?']) {
+      expect(isOpinionQuestion(q)).toBe(true);
+    }
+    for (const q of ["What's my record against Ben?", 'Who won 2024?', "What's the parlay this week?", 'Highest score ever?', 'Who had the best starting performance this season?', "What's the best score ever?"]) {
+      expect(isOpinionQuestion(q)).toBe(false);
+    }
+  });
+
+  it('sends back control syntax and asks for JSON, and never shows it', async () => {
+    const model = scripted({ sql: RECORD_SQL }, '<|tool_call>call:thought {\n}<tool_call|>', { answer: "You're 2-1 against Ben." });
+    const result = await ask("What's my record against Ben?", model);
+    expect(model.sent[2].at(-1).content).toContain('Reply with ONE JSON object');
+    expect(result).toMatchObject({ kind: 'answer', text: "You're 2-1 against Ben.", attempts: 2 });
   });
 
   it('lets an answer say when the league began, which the prompt states', async () => {
@@ -153,6 +186,40 @@ describe('verifyAnswer', () => {
     expect(check('Cara scored 130.04, more than Ben ever has.').problems).toEqual(['Ben Cole is not in any query result']);
     expect(check('You lost to Cara.').ok).toBe(true);
   });
+
+  it("passes a name two members share when either is in the results, and names both when neither is", () => {
+    // "Anand" is one member's first name and another's last.
+    const members = ['Anand Kanumuru', 'Pranesh Anand', 'Cara Diaz'];
+    const results = [runQuery(snap.db, "select 'Anand Kanumuru' as member, 'Josh Allen' as player")];
+    const verify = (answer) => verifyAnswer(answer, { results, question: "this week's parlay?", members });
+    expect(verify('Anand took Josh Allen.').ok).toBe(true);
+    expect(verify('Pranesh took Josh Allen.').problems).toEqual(['Pranesh Anand is not in any query result']);
+    const empty = verifyAnswer('Anand took Josh Allen.', { results: [runQuery(snap.db, "select 'Josh Allen' as player")], question: 'who?', members });
+    expect(empty.problems).toEqual(['"anand" could be Anand Kanumuru or Pranesh Anand, and neither is in any query result']);
+  });
+
+  it('reads "no one" and "one of" as prose, not a count', () => {
+    expect(check('Cara scored 130.04, and no one has topped it since. One of the best weeks of 2024.').ok).toBe(true);
+    expect(check('Cara won one game.').problems).toEqual(['one is not in any query result']);
+  });
+
+  it('takes an opinion only with its reasoning: two figures from the results, in two sentences', () => {
+    const results = [runQuery(snap.db, CAREER_SQL)];
+    const verify = (answer) => verifyAnswer(answer, { results, question: 'Who is the best manager?', members: MEMBERS, opinion: true });
+    const NEEDS = 'an opinion needs a verdict and the reasoning behind it: at least two figures from the results, in at least two sentences';
+    expect(verify("Anna is the best in this league, and the ring settles it. Anna has 1 title to Ben's 0, even though Ben's 2-1 record edges Anna's 2-2.").ok).toBe(true);
+    expect(verify('Anna has 1 title.').problems).toEqual([NEEDS]);
+    expect(verify('Anna is the best: 1 title and a 2-2 record.').problems).toEqual([NEEDS]);
+    expect(verify('Anna is the best. Nobody else has won it all, and that matters most.').problems).toEqual([NEEDS]);
+    // A fact needs no reasoning, and an opinion with nothing found can only say so.
+    expect(verifyAnswer('Anna has 1 title.', { results, question: 'How many titles does Anna have?', members: MEMBERS }).ok).toBe(true);
+    const none = [runQuery(snap.db, "select owner from teams where owner = 'Nobody'")];
+    expect(verifyAnswer("There's nothing in the league's data to judge that by.", { results: none, question: 'Who has the best trash talk?', members: MEMBERS, opinion: true }).ok).toBe(true);
+  });
+
+  it('refuses an answer with no query behind it, even one with no number or name', () => {
+    expect(verifyAnswer('Some managers are just built different.', { results: [], question: 'why?', members: MEMBERS }).problems).toEqual(['no query was run']);
+  });
 });
 
 describe('parseReply', () => {
@@ -161,6 +228,12 @@ describe('parseReply', () => {
     expect(parseReply('Sure!\n```json\n{"answer": "Hi."}\n```')).toEqual({ answer: 'Hi.' });
     expect(parseReply('SELECT * FROM games')).toEqual({ sql: 'SELECT * FROM games' });
     expect(parseReply('Just words.')).toEqual({ answer: 'Just words.' });
+  });
+
+  it("reads a model's own control syntax as invalid, never as an answer", () => {
+    expect(parseReply('<|tool_call>call:thought {\n}<tool_call|>')).toEqual({ invalid: true });
+    expect(parseReply('{"answer": "<|tool_call>call:thought {}<tool_call|>"}')).toEqual({ invalid: true });
+    expect(parseReply('<|im_start|>assistant')).toEqual({ invalid: true });
   });
 });
 
@@ -171,6 +244,32 @@ describe('the prompt and the provider', () => {
     expect(prompt).toContain("Anna Park's opponent this week is Ben Cole.");
     expect(prompt).toContain('Week in progress: 3.');
     expect(prompt).toContain('TABLE games');
+  });
+
+  it('speaks in the normal voice unless the window asks for unhinged, and keeps both on the football', () => {
+    const normal = buildSystemPrompt(context());
+    expect(normal).toContain('Sharp and a little trash-talky is good; cruel is not. No swearing.');
+    expect(normal).not.toContain('zero mercy');
+    expect(normal).not.toContain('fucking');
+
+    const unhinged = buildSystemPrompt({ ...context(), unhinged: true });
+    expect(unhinged).toContain('zero mercy');
+    expect(unhinged).toContain('Swearing is fine.');
+    expect(unhinged).not.toContain('No swearing.');
+
+    for (const prompt of [normal, unhinged]) {
+      expect(prompt).toContain('The roast is about fantasy football and nothing else');
+      expect(prompt).toMatch(/Never anyone's looks, family, job, health or real life/);
+      // The truth rule is untouched by the voice.
+      expect(prompt).toContain('Every number and every person in your answer must appear in a query result.');
+    }
+  });
+
+  it('carries the voice through answerQuestion to the model', async () => {
+    const seen = [];
+    const model = async (messages) => { seen.push(messages[0].content); return JSON.stringify({ answer: 'x' }); };
+    await answerQuestion({ question: 'q', model, runSql: () => ({ ok: false, error: 'n/a' }), context: { ...context(), unhinged: true } });
+    expect(seen[0]).toContain('Swearing is fine.');
   });
 
   it('tells the model how many rows there were when it shows only some', () => {
