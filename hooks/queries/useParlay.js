@@ -105,6 +105,21 @@ export function usePlayerSearch(query, { limit = 10, enabled = true } = {}) {
 }
 
 /**
+ * Players by exact name: the league chat's data tables name players without
+ * an id, and a headshot needs one (JITS-47). The names are sorted into the key
+ * so the same table asks once however its rows are ordered.
+ */
+export function usePlayersByName(names, { enabled = true } = {}) {
+  const sorted = [...new Set((names ?? []).filter(Boolean))].sort();
+  return useQuery({
+    queryKey: qk.players.byNames(sorted),
+    queryFn: () => db().players.getPlayersByNames(sorted),
+    enabled: enabled && sorted.length > 0,
+    staleTime: 60 * 60_000
+  });
+}
+
+/**
  * Is this viewer the parlay commissioner?
  *
  * A query rather than a field on the session, because the answer lives in the

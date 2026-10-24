@@ -3,6 +3,9 @@ import { Lock, Pencil } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { OpponentChip } from '../ui/opponent-chip';
+import { NflTeamLogo } from '../ui/nfl-team-logo';
+import { PlayerAvatar } from '../ui/player-avatar';
+import { teamOf } from '../../../utils/playerImages.js';
 import { cn } from '../../lib/utils';
 import { getPositionColor } from '../../utils/positionColors';
 import { ParlayPickStatus } from './LiveTdIndicator.jsx';
@@ -22,6 +25,15 @@ export const ParlayCurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade, 
           : 'border-border bg-muted/30'
     )}
   >
+    {/* A free-text pick has no ESPN id, so it gets initials; never a broken image. */}
+    <PlayerAvatar
+      name={pick.playerNameRaw}
+      espnPlayerId={pick.player?.espnPlayerId}
+      position={pick.player?.position}
+      team={teamOf(pick.player ?? {})}
+      showTeam
+      size={40}
+    />
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
         <span className="truncate font-semibold">{pick.playerNameRaw}</span>
@@ -36,7 +48,10 @@ export const ParlayCurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade, 
           </span>
         )}
         {pick.player?.teamAbbreviation && (
-          <span className="text-xs text-muted-foreground">{pick.player.teamAbbreviation}</span>
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <NflTeamLogo team={teamOf(pick.player)} size={14} />
+            {pick.player.teamAbbreviation}
+          </span>
         )}
         <OpponentChip entry={opponent} warnOnBye />
         {!pick.playerId && (

@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { ChartContainer, useMobileAxis } from '../../../ui/chart';
 import { OpponentChip } from '../../../ui/opponent-chip';
 import { PlayerPoints } from '../../../ui/player-points';
+import { PlayerAvatar } from '../../../ui/player-avatar';
 import { cn } from '../../../../lib/utils';
 import { getPositionColor } from '../../../../utils/positionColors';
 import { EMPTY, formatPoints } from '../../../../utils/format';
@@ -46,18 +47,28 @@ const PlayerSheet = ({ player, week, index, viewer, open, onOpenChange }) => {
       <SheetContent side="right" className="w-full sm:max-w-lg">
         {player && (
           <div className="space-y-5">
-            <SheetHeader>
-              <div className="flex items-center gap-2">
-                {position && (
-                  <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]', getPositionColor(position))}>
-                    {position}
-                  </span>
-                )}
-                <SheetTitle className="font-display text-2xl leading-none">{player.name ?? 'Unknown player'}</SheetTitle>
+            <SheetHeader className="flex-row items-center gap-3 space-y-0">
+              <PlayerAvatar
+                name={player.name}
+                espnPlayerId={player.espnPlayerId}
+                position={position}
+                team={player.proTeam}
+                showTeam
+                size={52}
+              />
+              <div className="min-w-0 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  {position && (
+                    <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]', getPositionColor(position))}>
+                      {position}
+                    </span>
+                  )}
+                  <SheetTitle className="font-display text-2xl leading-none">{player.name ?? 'Unknown player'}</SheetTitle>
+                </div>
+                <SheetDescription>
+                  {[player.proTeam, `${index?.season.year} · ${weekLabel}`].filter(Boolean).join(' · ')}
+                </SheetDescription>
               </div>
-              <SheetDescription>
-                {[player.proTeam, `${index?.season.year} · ${weekLabel}`].filter(Boolean).join(' · ')}
-              </SheetDescription>
             </SheetHeader>
 
             <div className="grid grid-cols-4 gap-2 text-center">

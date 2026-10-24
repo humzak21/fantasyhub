@@ -4,6 +4,8 @@ import { ChevronDown, Search } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { OpponentChip } from '../ui/opponent-chip';
+import { PlayerMark } from '../ui/player-avatar';
+import { teamOf } from '../../../utils/playerImages.js';
 import { PlayerPoints } from '../ui/player-points';
 import RouteLoading from '../layout/RouteLoading';
 import { cn } from '../../lib/utils';
@@ -314,7 +316,7 @@ const RosterGroup = ({ label, rows, opponents, bench = false, tone = 'text-foreg
  * theirs is their position, and the row is dimmed.
  */
 const PlayerList = ({ rows, opponents = {}, bench = false }) => (
-  <ul className="space-y-1">
+  <ul className="@container space-y-1">
     {rows.map((row) => (
       <li key={row.id} className={cn('flex items-center gap-2 text-sm', bench && 'text-muted-foreground')}>
         <span
@@ -325,6 +327,12 @@ const PlayerList = ({ rows, opponents = {}, bench = false }) => (
         >
           {(bench ? positionOf(row) : row.rosterSlot) ?? '—'}
         </span>
+        <PlayerMark
+          name={row.player?.name}
+          espnPlayerId={row.espnPlayerId}
+          position={positionOf(row)}
+          team={teamOf({ proTeamId: row.proTeamId, teamAbbreviation: row.player?.teamAbbreviation })}
+        />
         <span className="min-w-0 flex-1 truncate">{row.player?.name ?? '—'}</span>
         {/* A starter on a bye is the single most useful thing this panel can
             say, so it is the one variant that gets colour. An unknown opponent

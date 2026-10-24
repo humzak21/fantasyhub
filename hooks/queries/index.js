@@ -77,6 +77,7 @@ export {
   useSeasonParlayPicks,
   useSubmitParlayPick,
   usePlayerSearch,
+  usePlayersByName,
   useIsParlayCommissioner,
   useLeagueMembers,
   useParlayCommissioners,

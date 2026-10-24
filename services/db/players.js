@@ -221,3 +221,30 @@ export async function searchPlayers(ctx, query, { limit = 10 } = {}) {
     throwDbError(error, 'Search players');
   }
 }
+
+/**
+ * Players by exact name, for the league chat's data tables (JITS-47): the
+ * snapshot names a player but carries no id, so a headshot needs the name
+ * looked up. Exact match only; the names in the snapshot are `players.name`.
+ * Every row with a name is returned, so the caller can see when two players
+ * share one and decline to guess (`uniqueByName` in `utils/playerImages.js`).
+ */
+export async function getPlayersByNames(ctx, names) {
+  const wanted = [...new Set((names ?? []).filter((name) => typeof name === 'string' && name.trim()))];
+  if (wanted.length === 0) return [];
+
+  try {
+    const rows = [];
+    for (let start = 0; start < wanted.length; start += 100) {
+      const { data, error } = await ctx.client
+        .from('players')
+        .select('espn_player_id, name, position, team_abbreviation, pro_team_id')
+        .in('name', wanted.slice(start, start + 100));
+      if (error) throw error;
+      rows.push(...(data || []));
+    }
+    return formatFromDatabase(rows);
+  } catch (error) {
+    throwDbError(error, 'Get players by name');
+  }
+}

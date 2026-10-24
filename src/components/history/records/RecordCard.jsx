@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { RankBadge } from '../../ui/rank-badge';
 import { TeamAvatar } from '../../ui/team-identity';
+import { PlayerAvatar } from '../../ui/player-avatar';
 import { cn, formatDate } from '../../../lib/utils';
 import { formatOrdinal } from '../../../utils/format';
 import { isRecentRecord, rankRows, recordRows, tradesForRow } from '../../../../utils/recordBook/index.js';
@@ -28,8 +29,10 @@ function tradeWhen(trade) {
 }
 
 function PlayerLine({ player }) {
+  // No team badge: the only team on file is where he plays now, not at the trade.
   return (
-    <li className="flex min-w-0 items-baseline gap-1.5 text-xs">
+    <li className="flex min-w-0 items-center gap-1.5 text-xs">
+      <PlayerAvatar name={player.name} espnPlayerId={player.espnPlayerId} position={player.position} size={18} />
       <span className="truncate text-foreground">{playerName(player)}</span>
       {player.position && (
         <span className="shrink-0 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">

@@ -4,6 +4,9 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { OpponentChip } from '../ui/opponent-chip';
+import { NflTeamLogo } from '../ui/nfl-team-logo';
+import { PlayerAvatar } from '../ui/player-avatar';
+import { teamOf } from '../../../utils/playerImages.js';
 import { cn } from '../../lib/utils';
 import { useDebouncedValue } from '../../hooks/use-debounced-value.js';
 import { usePlayerSearch } from '../../../hooks/queries/index.js';
@@ -146,6 +149,13 @@ export const PlayerPicker = ({
                     index === activeIndex ? 'bg-accent' : 'hover:bg-accent/50'
                   )}
                 >
+                  <PlayerAvatar
+                    name={player.name}
+                    espnPlayerId={player.espnPlayerId}
+                    position={player.position}
+                    team={teamOf(player)}
+                    size={24}
+                  />
                   <span className="min-w-0 flex-1 truncate">{player.name}</span>
                   {player.position && (
                     <span
@@ -157,7 +167,8 @@ export const PlayerPicker = ({
                       {player.position}
                     </span>
                   )}
-                  <span className="w-10 shrink-0 text-right text-xs text-muted-foreground">
+                  <span className="flex w-12 shrink-0 items-center justify-end gap-1 text-xs text-muted-foreground">
+                    <NflTeamLogo team={teamOf(player)} size={14} />
                     {player.teamAbbreviation ?? ''}
                   </span>
                   <OpponentChip entry={opponents[player.proTeamId]} className="w-14" />
