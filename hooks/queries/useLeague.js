@@ -321,6 +321,12 @@ export function useLeagueMutations(seasonId) {
     onSuccess: invalidators.seasons
   });
 
+  /** A season's team count, the "of N" on the home page. Takes `{ seasonId, leagueSize }`. */
+  const setLeagueSize = useMutation({
+    mutationFn: ({ seasonId: id, leagueSize }) => db().seasons.setLeagueSize(id, leagueSize),
+    onSuccess: invalidators.seasons
+  });
+
   const addTeam = useMutation({
     mutationFn: ({ name, owner = '' }) => db().teams.addTeamToSeason(seasonId, name, owner),
     onSuccess: () => invalidators.teams(seasonId)
@@ -403,6 +409,7 @@ export function useLeagueMutations(seasonId) {
     setActiveSeason,
     finalizeSeason,
     deleteSeason,
+    setLeagueSize,
     addTeam,
     updateTeam,
     removeTeam,

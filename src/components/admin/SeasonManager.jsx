@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Edit3, Trash2, Play, Calendar, Users, Trophy, Settings, Download, Upload, AlertTriangle, Flag } from 'lucide-react';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import {
   Dialog,
   DialogBody,
@@ -52,6 +53,65 @@ const emptyForm = (year) => ({
   startDate: ''
 });
 
+/**
+ * A season's team count, editable in place. It is what the home page's
+ * pick'ems counters read as "of N" — set by the admin rather than counted,
+ * because the accounts include test logins and the team rows can be
+ * mid-setup. Save appears only once the number has changed.
+ */
+const LeagueSizeField = ({ season, onSave }) => {
+  const [value, setValue] = useState(String(season.leagueSize ?? ''));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const size = Number(value);
+  const valid = Number.isInteger(size) && size >= 4 && size <= 20;
+  const dirty = value !== String(season.leagueSize ?? '');
+
+  const save = async (event) => {
+    event.preventDefault();
+    if (!valid || !dirty) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(season.id, size);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputId = `league-size-${season.id}`;
+
+  return (
+    <form onSubmit={save} className="flex flex-wrap items-center gap-2">
+      <Users size={16} />
+      <span>{season.teams.length}/</span>
+      <label htmlFor={inputId} className="sr-only">
+        League size for {season.year}
+      </label>
+      <Input
+        id={inputId}
+        type="number"
+        min="4"
+        max="20"
+        inputMode="numeric"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="h-8 w-16 px-2 tabular"
+        aria-invalid={!valid}
+      />
+      <span>Teams</span>
+      {dirty && (
+        <Button type="submit" size="sm" disabled={!valid || saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      )}
+      {error && <p className="w-full text-xs text-destructive">{error}</p>}
+    </form>
+  );
+};
+
 const SeasonManager = ({
   seasons = [],
   activeSeason,
@@ -59,6 +119,7 @@ const SeasonManager = ({
   onSetActiveSeason,
   onDeleteSeason,
   onFinalizeSeason,
+  onSetLeagueSize,
   onExportSeason,
   onImportSeason,
   loading = false,
@@ -493,10 +554,14 @@ const SeasonManager = ({
                         <Calendar size={16} />
                         <span>Year: {season.year}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Users size={16} />
-                        <span>{season.teams.length}/{season.leagueSize} Teams</span>
-                      </div>
+                      {isAuthenticated && onSetLeagueSize ? (
+                        <LeagueSizeField key={season.leagueSize} season={season} onSave={onSetLeagueSize} />
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Users size={16} />
+                          <span>{season.teams.length}/{season.leagueSize} Teams</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <Trophy size={16} />
                         <span>{season.regularSeasonWeeks}+{season.playoffWeeks} Weeks</span>

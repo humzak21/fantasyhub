@@ -1,6 +1,6 @@
 /**
- * The home page's pick'ems widget. Pinned: the counters read "of N" once the
- * approved-member count arrives and never before it; the picks under the
+ * The home page's pick'ems widget. Pinned: the counters read "of N" from the
+ * season's league size, and never "of —" without one; the picks under the
  * disclosure start from a draft made anywhere (the tab, a reload); and a
  * submission from here goes through the tab's own mutation and clears the
  * draft. The parlay half is `ParlayMyPick`, tested with the tab.
@@ -34,7 +34,6 @@ vi.mock('../../../../hooks/queries/index.js', () => ({
   useUserPicks: () => q.userPicks,
   useAllPicks: () => q.allPicks,
   useParlayWeekPicks: () => q.parlayPicks,
-  useApprovedMemberCount: () => q.count,
   useParlayLive: () => ({ data: undefined }),
   useMyParlayPick: () => q.myParlay,
   useNflOpponentMap: () => ({ data: {} }),
@@ -62,7 +61,7 @@ const ok = (data) => ({ data, isPending: false, isError: false, refetch: vi.fn()
 const render = () =>
   rtlRender(
     <MemoryRouter>
-      <PickemsParlayWidget ctx={{ seasonId: 's', season: { year: 2026 }, actualWeek: 7, openTab: vi.fn() }} />
+      <PickemsParlayWidget ctx={{ seasonId: 's', season: q.season, actualWeek: 7, openTab: vi.fn() }} />
     </MemoryRouter>
   );
 
@@ -75,21 +74,27 @@ beforeEach(() => {
     userPicks: ok([]),
     allPicks: ok(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((userId) => ({ userId, gameId: 'g1' }))),
     parlayPicks: ok(Array.from({ length: 7 }, (_, i) => ({ id: `p${i}`, userId: `m${i}` }))),
-    count: { data: 14 },
+    season: { year: 2026, leagueSize: 14 },
     myParlay: { data: null, isLoading: false }
   };
 });
 
 describe('PickemsParlayWidget', () => {
-  it('pairs each tile with the league\'s turnout, "of 14" once the count is in', () => {
+  it('pairs each tile with the league\'s turnout, "of" the season\'s league size', () => {
     render();
     expect(screen.getByText('9 of 14 picked')).toBeInTheDocument();
     expect(screen.getByText('7 of 14 parlays in')).toBeInTheDocument();
     expect(screen.getByText(/closes in 1d 4h/i)).toBeInTheDocument();
   });
 
-  it('reads "9 picked" before the count arrives, never "of —"', () => {
-    q.count = { data: undefined };
+  it('follows the league size the admin set, not a count of accounts', () => {
+    q.season = { year: 2026, leagueSize: 12 };
+    render();
+    expect(screen.getByText('9 of 12 picked')).toBeInTheDocument();
+  });
+
+  it('reads "9 picked" without a league size, never "of —"', () => {
+    q.season = { year: 2026 };
     render();
     expect(screen.getByText('9 picked')).toBeInTheDocument();
     expect(screen.getByText('7 parlays in')).toBeInTheDocument();

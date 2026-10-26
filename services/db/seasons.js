@@ -460,6 +460,40 @@ export async function getActiveSeason(ctx) {
   }
 }
 
+/**
+ * How many teams the league has this season — `seasons.league_size`.
+ *
+ * The home page's pick'ems counters read it as their "of N". It is set here
+ * rather than counted, because neither count is the league: accounts include
+ * test and spare logins, and a season's team rows can be mid-setup. The
+ * column's own check (`>= 4`) is the database's floor; this one only stops a
+ * non-integer reaching it.
+ */
+export async function setLeagueSize(ctx, seasonId, leagueSize) {
+  const size = Number(leagueSize);
+  if (!Number.isInteger(size) || size < 4) {
+    throw new Error('League size must be a whole number of at least 4');
+  }
+
+  try {
+    const { data, error } = await ctx.client
+      .from('seasons')
+      .update({ league_size: size })
+      .eq('id', seasonId)
+      .select('id, league_size')
+      .single();
+
+    if (error) throw error;
+
+    ctx.seasonsCache.delete(seasonId);
+    log.info(`season ${seasonId} league size set to ${data.league_size}`);
+
+    return formatFromDatabase(data);
+  } catch (error) {
+    throwDbError(error, 'Set league size');
+  }
+}
+
 export async function deleteSeason(ctx, seasonId) {
 
   try {

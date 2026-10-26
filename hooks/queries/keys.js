@@ -184,14 +184,11 @@ export const qk = {
    * `viewer`: "who is waiting" is an admin read, "am I approved" is the
    * viewer's own answer under `viewer.approved`. Deciding a request
    * invalidates both, plus `roles` — the member list is drawn from the same
-   * accounts. `count` is the number of approved members — "of N" on the
-   * home page's pick'ems counters — and sits under the same prefix, so the
-   * decision that changes it invalidates it.
+   * accounts.
    */
   approvals: {
     all: ['approvals'],
-    list: () => ['approvals', 'list'],
-    count: () => ['approvals', 'count']
+    list: () => ['approvals', 'list']
   },
 
   /**
