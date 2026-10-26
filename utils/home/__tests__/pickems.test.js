@@ -4,11 +4,11 @@ import { pickemCounters, viewerWeekResult } from '../pickems.js';
 const picksBy = (...users) => users.flatMap((u) => [{ userId: u, gameId: 'g1' }, { userId: u, gameId: 'g2' }]);
 
 describe('pickemCounters', () => {
-  it('reads "9 of 14" once the member count is in', () => {
+  it('reads "9 of 14" once the league size is known', () => {
     const counters = pickemCounters({
       allPicks: picksBy('a', 'b', 'c'),
       parlayPicks: [{ userId: 'a' }, { userId: 'b' }],
-      memberCount: 14
+      leagueSize: 14
     });
     expect(counters).toMatchObject({ picked: 3, parlays: 2, of: 14 });
     expect(counters.text).toBe('3 of 14 picked · 2 of 14 parlays in');
@@ -18,7 +18,7 @@ describe('pickemCounters', () => {
     expect(pickemCounters({ allPicks: picksBy('a'), parlayPicks: [{ userId: 'a' }] }).text).toBe(
       '1 picked · 1 parlay in'
     );
-    expect(pickemCounters({ allPicks: [], parlayPicks: [], memberCount: 0 }).text).toBe(
+    expect(pickemCounters({ allPicks: [], parlayPicks: [], leagueSize: 0 }).text).toBe(
       '0 picked · 0 parlays in'
     );
   });

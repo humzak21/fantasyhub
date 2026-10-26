@@ -14,7 +14,6 @@ import { getPositionColor } from '../../../utils/positionColors';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import {
   useAllPicks,
-  useApprovedMemberCount,
   useMyParlayPick,
   useNflOpponentMap,
   useNow,
@@ -82,7 +81,6 @@ export default function PickemsParlayWidget({ ctx }) {
   // it needs no wait for the window to close the way the split does.
   const allPicksQuery = useAllPicks(pickEmWeekId, { enabled: state.status !== 'upcoming' });
   const parlayPicksQuery = useParlayWeekPicks(pickEmWeekId);
-  const countQuery = useApprovedMemberCount();
   const { data: myParlay, isLoading: myParlayLoading } = useMyParlayPick(pickEmWeekId);
   const { data: opponents = {} } = useNflOpponentMap(nflSeasonYear, actualWeek);
   const { data: liveData } = useParlayLive(pickEmWeekId, {
@@ -112,9 +110,9 @@ export default function PickemsParlayWidget({ ctx }) {
       pickemCounters({
         allPicks: allPicksQuery.data ?? NONE,
         parlayPicks: parlayPicksQuery.data ?? NONE,
-        memberCount: countQuery.data ?? null
+        leagueSize: season?.leagueSize ?? null
       }),
-    [allPicksQuery.data, parlayPicksQuery.data, countQuery.data]
+    [allPicksQuery.data, parlayPicksQuery.data, season?.leagueSize]
   );
   const result = useMemo(
     () => viewerWeekResult(scoresQuery.data ?? NONE, user?.id ?? null),

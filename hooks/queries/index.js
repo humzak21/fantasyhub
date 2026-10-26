@@ -92,7 +92,6 @@ export { useMyTaunts, useSendTaunt } from './useTaunts.js';
 
 export {
   countPendingApprovals,
-  useApprovedMemberCount,
   useIsApprovedMember,
   useMemberApprovals,
   useSetMemberApproval,

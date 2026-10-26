@@ -78,6 +78,9 @@ export const UserSettingsPage = () => {
 
   const handleDeleteSeason = (seasonId) => seasonMutations.deleteSeason.mutateAsync(seasonId)
 
+  const handleSetLeagueSize = (seasonId, leagueSize) =>
+    seasonMutations.setLeagueSize.mutateAsync({ seasonId, leagueSize })
+
   const handleExportSeason = (seasonId) => getDb().seasons.exportSeasonData(seasonId)
 
   // Season import was never implemented — the old hook's `importSeason` threw
@@ -470,6 +473,7 @@ export const UserSettingsPage = () => {
                 onSetActiveSeason={handleSetActiveSeason}
                 onDeleteSeason={handleDeleteSeason}
                 onFinalizeSeason={handleFinalizeSeason}
+                onSetLeagueSize={handleSetLeagueSize}
                 onExportSeason={handleExportSeason}
                 onImportSeason={handleImportSeason}
                 loading={dataLoading}

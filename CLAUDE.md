@@ -1130,17 +1130,15 @@ surfaces cannot drift:
   with raw `getDb()` calls into `useState`, so a submission anywhere else was
   invisible to it, and its own submissions never cleared the nav's "you owe
   picks" dot, which reads the shared `userPicks` entry.
-- **"9 of 14 picked · 7 of 14 parlays in"**: the denominator is
-  `public.count_approved_members()`
-  (`20261023120000_count_approved_members.sql`), approved `member_approvals`
-  rows plus admins — the `is_approved_member()` fold, so exactly who may
-  submit — as one integer, executable by `authenticated` only. Read through
-  `users.countApprovedMembers` and `useApprovedMemberCount`
-  (`qk.approvals.count()`, under the prefix the approval mutations already
-  invalidate). Until it answers the line reads "9 picked", never "of —" and
-  never the team count, which is a different set. `utils/home/pickems.js` is
-  the arithmetic; `supabase/tests/database/count_approved_members.test.sql`
-  holds the rule.
+- **"9 of 14 picked · 7 of 14 parlays in"**: the denominator is the
+  season's `league_size`, which the admin sets on each season card in
+  **Settings → Seasons** (`seasons.setLeagueSize`, through
+  `useLeagueMutations().setLeagueSize`). Since 2026-10-26; before that it was
+  `count_approved_members()`, which counted every approved account — test and
+  spare logins included — and read "of 15" in a fourteen-team league. That
+  function and its pgTAP test are still in the database, unused by the app.
+  Without a league size the line reads "9 picked", never "of —".
+  `utils/home/pickems.js` is the arithmetic.
 
 **Records, takes and the last three weeks** complete the dashboard:
 

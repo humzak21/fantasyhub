@@ -11,18 +11,18 @@ import { weekWinners } from '../../src/components/pickems/weekWinners.js';
  * "9 of 14 picked · 7 of 14 parlays in".
  *
  * Picked is distinct members with a `pick_em_submissions` row this week; in is
- * the week's `td_parlay_picks` rows (one per member). The denominator is
- * `count_approved_members()` — exactly who may submit — and until it arrives
- * (or if it fails) the line says "9 picked", never "9 of —" and never a
- * denominator borrowed from the team count, which is a different set.
+ * the week's `td_parlay_picks` rows (one per member). The denominator is the
+ * season's `league_size`, which the admin sets in Settings → Seasons — not a
+ * count of accounts, which includes test and spare logins. Until the season
+ * has loaded the line says "9 picked", never "9 of —".
  *
- * @param {{ allPicks?: object[], parlayPicks?: object[], memberCount?: number|null }} input
+ * @param {{ allPicks?: object[], parlayPicks?: object[], leagueSize?: number|null }} input
  * @returns {{ picked: number, parlays: number, of: number|null, text: string }}
  */
-export function pickemCounters({ allPicks = [], parlayPicks = [], memberCount = null } = {}) {
+export function pickemCounters({ allPicks = [], parlayPicks = [], leagueSize = null } = {}) {
   const picked = new Set(allPicks.map((pick) => pick.userId).filter(Boolean)).size;
   const parlays = new Set(parlayPicks.map((pick) => pick.userId ?? pick.id).filter(Boolean)).size;
-  const of = Number.isFinite(memberCount) && memberCount > 0 ? memberCount : null;
+  const of = Number.isFinite(leagueSize) && leagueSize > 0 ? leagueSize : null;
 
   const text = of
     ? `${picked} of ${of} picked · ${parlays} of ${of} parlays in`
