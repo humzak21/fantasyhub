@@ -71,7 +71,7 @@ import {
 
 const HOUR_S = 60 * 60;
 
-function configureVapid(env = process.env) {
+export function configureVapid(env = process.env) {
   const { VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT } = env;
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     throw new Error('VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must be set');
@@ -143,7 +143,7 @@ export function inboxRows(plan, recipients = plan.recipients) {
  * and a failure here must not cost the next plan its send. Returns the number
  * kept, or the error's message.
  */
-async function keepInInbox(db, plan, recipients = plan.recipients) {
+export async function keepInInbox(db, plan, recipients = plan.recipients) {
   const rows = inboxRows(plan, recipients);
   if (!rows.length) return 0;
   try {

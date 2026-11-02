@@ -1,25 +1,59 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Crosshair, Check, Loader2, AlertCircle, Search } from 'lucide-react';
+import { Crosshair, Check, Gavel, Loader2, AlertCircle, Search, ShieldHalf } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
+import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { cn } from '../../lib/utils';
-import {
-  useLeagueMembers,
-  useParlayCommissioners,
-  useSetParlayCommissioners
-} from '../../../hooks/queries/index.js';
+import { useLeagueMembers, useRoleHolders, useSetRoleHolders } from '../../../hooks/queries/index.js';
+import { COMMISSIONER, PARLAY_COMMISSIONER, VICE_COMMISSIONER } from '../../../services/db/users.js';
+
+const AUTOSUB_ROLE_NOTE = 'With nobody in either commissioner role, autosub alerts go to the admins.';
+
+/** The roles an admin grants here, in tab order. */
+const ROLES = [
+  {
+    id: COMMISSIONER,
+    tab: 'Commissioner',
+    title: 'Commissioner',
+    icon: Gavel,
+    description:
+      'Told when a member\u2019s autosub fires, by push and in Alerts, so they can make the change on ' +
+      'ESPN when it needs a person. The role changes nothing else.',
+    emptyNote: AUTOSUB_ROLE_NOTE
+  },
+  {
+    id: VICE_COMMISSIONER,
+    tab: 'Vice commissioner',
+    title: 'Vice commissioner',
+    icon: ShieldHalf,
+    description:
+      'Told about every autosub alongside the commissioner, so one of them can act if the other is ' +
+      'away. The role changes nothing else.',
+    emptyNote: AUTOSUB_ROLE_NOTE
+  },
+  {
+    id: PARLAY_COMMISSIONER,
+    tab: 'Parlay',
+    title: 'Parlay commissioners',
+    icon: Crosshair,
+    description:
+      'Commissioners see every member\u2019s TD parlay pick, in every week, and get the TD Parlay tab. ' +
+      'They cannot change picks or anything else \u2014 the role is read-only.',
+    emptyNote: 'With nobody selected, only you can open the TD Parlay tab.'
+  }
+];
 
 /**
- * Who holds the parlay commissioner role.
+ * Who holds one role.
  *
- * The role exists because admin (`is_admin()`, a `league_admins` row) is every
- * power at once, and the TD parlay needs people who can *read* everyone's
- * picks without gaining the league's write paths. It is not a one-time decision — it changes hands, and more than
- * one person can hold it — so it belongs on a settings page rather than in a
+ * Roles exist because admin (`is_admin()`, a `league_admins` row) is every
+ * power at once, and these jobs need a person without the league's write
+ * paths. They are not one-time decisions — they change hands, and more than one
+ * person can hold each — so they belong on a settings page rather than in a
  * migration with a uuid typed by hand.
  *
  * Nothing here is the enforcement. `league_roles` is admin-write by RLS and
@@ -31,11 +65,11 @@ import {
  * mean an admin clearing the list passes through a state where nobody holds the
  * role, and every mis-click is a live grant.
  */
-const LeagueRolesManager = () => {
+const RoleCard = ({ role }) => {
   const { data: members = [], isLoading: membersLoading, error: membersError } =
     useLeagueMembers();
-  const { data: commissioners = [], isLoading: rolesLoading } = useParlayCommissioners();
-  const save = useSetParlayCommissioners();
+  const { data: holders = [], isLoading: rolesLoading } = useRoleHolders(role.id);
+  const save = useSetRoleHolders(role.id);
 
   const [selected, setSelected] = useState(null);
   const [query, setQuery] = useState('');
@@ -46,8 +80,8 @@ const LeagueRolesManager = () => {
   // array, which is indistinguishable from "the admin cleared the list" and
   // would let a Save land before the current grants had arrived.
   const heldKey = useMemo(
-    () => commissioners.map((row) => row.userId).sort().join(','),
-    [commissioners]
+    () => holders.map((row) => row.userId).sort().join(','),
+    [holders]
   );
 
   useEffect(() => {
@@ -89,19 +123,16 @@ const LeagueRolesManager = () => {
   };
 
   const loading = membersLoading || rolesLoading || selected === null;
+  const Icon = role.icon;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Crosshair className="h-5 w-5" />
-          Parlay commissioners
+          <Icon className="h-5 w-5" />
+          {role.title}
         </CardTitle>
-        <CardDescription>
-          Commissioners see every member&rsquo;s TD parlay pick, in every week, and get
-          the TD Parlay tab. They cannot change picks or anything else &mdash; the role is
-          read-only.
-        </CardDescription>
+        <CardDescription>{role.description}</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -204,9 +235,7 @@ const LeagueRolesManager = () => {
               </Button>
 
               <Badge variant={current.length > 0 ? 'info' : 'secondary'}>
-                {current.length === 0
-                  ? 'Nobody selected'
-                  : `${current.length} commissioner${current.length === 1 ? '' : 's'}`}
+                {current.length === 0 ? 'Nobody selected' : `${current.length} selected`}
               </Badge>
 
               {saved && !dirty && (
@@ -215,14 +244,34 @@ const LeagueRolesManager = () => {
             </div>
 
             {current.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                With nobody selected, only you can open the TD Parlay tab.
-              </p>
+              <p className="text-xs text-muted-foreground">{role.emptyNote}</p>
             )}
           </>
         )}
       </CardContent>
     </Card>
+  );
+};
+
+/** Every role, one at a time: each list is the whole league, so three would be a long page. */
+const LeagueRolesManager = () => {
+  const [roleId, setRoleId] = useState(ROLES[0].id);
+  const role = ROLES.find((candidate) => candidate.id === roleId);
+
+  return (
+    <div className="space-y-4">
+      <Tabs value={roleId} onValueChange={setRoleId}>
+        <TabsList>
+          {ROLES.map((candidate) => (
+            <TabsTrigger key={candidate.id} value={candidate.id}>
+              {candidate.tab}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+      {/* Keyed, so an unsaved selection cannot follow the admin to another role. */}
+      <RoleCard key={role.id} role={role} />
+    </div>
   );
 };
 

@@ -29,6 +29,7 @@
     "build-league-chat-db": "node scripts/build-league-chat-db.js",
     "sync-nfl-ratings": "node scripts/sync-nfl-ratings.js",
     "sync-week": "node scripts/sync-week.js",
+    "autosub-watch": "node scripts/autosub-watch.js",
     "backfill-transactions": "node scripts/backfill-transactions.js",
     "backfill-player-week-stats": "node scripts/backfill-player-week-stats.js",
     "backfill-power-rankings": "node scripts/backfill-power-rankings.js",
