@@ -331,7 +331,9 @@ describe('ParlayPickSection · division columns', () => {
 
     await screen.findByText('Justin Jefferson');
 
-    expect(column('The Kennel')).toHaveTextContent(/nobody in this division has picked yet/i);
+    expect(column('The Kennel')).toHaveTextContent(/rohit ramki/i);
+    expect(column('The Kennel')).toHaveTextContent(/no pick yet/i);
+    expect(column('The Kennel')).toHaveTextContent(/0 of 1/);
   });
 
   it('keeps a pick whose name matches no owner out of both divisions', async () => {

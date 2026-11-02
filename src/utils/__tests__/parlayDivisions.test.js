@@ -54,6 +54,16 @@ describe('groupPicksByDivision', () => {
     expect(groups[1].picks).toEqual([]);
   });
 
+  it('lists the teams in each division still to pick, by owner', () => {
+    const { groups } = groupPicksByDivision([pick('a', ' humza KHALIL ')], {
+      teams: [...TEAMS, { id: 't3', owner: 'Aaron Wadhwa', divisionId: 'd2' }],
+      divisions: DIVISIONS
+    });
+
+    expect(groups[0].waiting).toEqual([]);
+    expect(groups[1].waiting.map((team) => team.owner)).toEqual(['Aaron Wadhwa', 'Arya Shah']);
+  });
+
   it('sets aside a name that matches no owner rather than guessing', () => {
     const { groups, unassigned } = groupPicksByDivision([pick('a', 'Somebody Else')], {
       teams: TEAMS,

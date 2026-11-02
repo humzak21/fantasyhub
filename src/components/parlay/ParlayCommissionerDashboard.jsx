@@ -17,6 +17,7 @@ import {
   useSeasonTeams
 } from '../../../hooks/queries/index.js';
 import { getDb } from '../../../services/db/index.js';
+import { normalizeOwnerName } from '../../utils/displayNameUtils';
 import { groupPicksByDivision } from '../../utils/parlayDivisions';
 import { parlayHitRate } from './hitRate.js';
 import { getPositionColor } from '../../utils/positionColors';
@@ -212,6 +213,7 @@ const ParlayCommissionerDashboard = ({ season, embedded = false }) => {
             weeks={weekNumbers}
             picks={picks}
             nameFor={nameFor}
+            teams={teams}
           />
         </>
       )}
@@ -291,6 +293,7 @@ const WeekBoard = ({ week, groups, unassigned, total }) => {
               key={group.division?.id ?? index}
               title={group.division?.name || `Division ${index + 1}`}
               picks={group.picks}
+              waiting={group.waiting}
               emptyText="Nobody in this division has entered yet."
             />
           ))}
@@ -310,17 +313,19 @@ const WeekBoard = ({ week, groups, unassigned, total }) => {
 };
 
 /** One division's parlay: its name, and every pick entered against it. */
-const DivisionColumn = ({ className, title, picks, emptyText }) => (
+const DivisionColumn = ({ className, title, picks, waiting = NO_ROWS, emptyText }) => (
   <section
     aria-label={title}
     className={cn('rounded-lg border border-border bg-muted/20 p-3', className)}
   >
     <div className="mb-1 flex items-baseline justify-between gap-2">
       <h4 className="truncate text-sm font-semibold text-foreground">{title}</h4>
-      <span className="shrink-0 text-xs tabular text-muted-foreground">{picks.length}</span>
+      <span className="shrink-0 text-xs tabular text-muted-foreground">
+        {waiting.length > 0 ? `${picks.length} of ${picks.length + waiting.length}` : picks.length}
+      </span>
     </div>
 
-    {picks.length === 0 ? (
+    {picks.length + waiting.length === 0 ? (
       <p className="py-2 text-sm text-muted-foreground">{emptyText}</p>
     ) : (
       <ul className="divide-y divide-border">
@@ -373,6 +378,12 @@ const DivisionColumn = ({ className, title, picks, emptyText }) => (
             </span>
           </li>
         ))}
+        {waiting.map((team) => (
+          <li key={team.id} className="flex items-center gap-2 py-2 text-sm opacity-50">
+            <span className="min-w-0 flex-1 truncate font-medium">{team.owner}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">No pick</span>
+          </li>
+        ))}
       </ul>
     )}
   </section>
@@ -386,17 +397,24 @@ const DivisionColumn = ({ className, title, picks, emptyText }) => (
  * scrolls in its own container with the member column pinned; the reader loses
  * their row the moment the name leaves the viewport.
  */
-const SeasonGrid = ({ weeks, picks, nameFor }) => {
-  const byUser = useMemo(() => {
-    const map = new Map();
+const SeasonGrid = ({ weeks, picks, nameFor, teams }) => {
+  // One row per member with a pick, then one for every team without any, so a
+  // member who has never entered is on the grid rather than missing from it.
+  const rows = useMemo(() => {
+    const byUser = new Map();
     for (const pick of picks) {
-      if (!map.has(pick.userId)) map.set(pick.userId, {});
-      map.get(pick.userId)[pick.week] = pick;
+      if (!byUser.has(pick.userId)) byUser.set(pick.userId, {});
+      byUser.get(pick.userId)[pick.week] = pick;
     }
-    return [...map.entries()].sort((a, b) => nameFor(a[0]).localeCompare(nameFor(b[0])));
-  }, [picks, nameFor]);
+    const entered = [...byUser].map(([userId, weekMap]) => ({ key: userId, name: nameFor(userId), weekMap }));
+    const names = new Set(entered.map((row) => normalizeOwnerName(row.name)));
+    const absent = teams
+      .filter((team) => !names.has(normalizeOwnerName(team.owner)))
+      .map((team) => ({ key: team.id, name: team.owner, weekMap: {}, absent: true }));
+    return [...entered, ...absent].sort((a, b) => a.name.localeCompare(b.name));
+  }, [picks, nameFor, teams]);
 
-  if (byUser.length === 0) return null;
+  if (picks.length === 0) return null;
 
   return (
     <Card>
@@ -423,11 +441,11 @@ const SeasonGrid = ({ weeks, picks, nameFor }) => {
               </tr>
             </thead>
             <tbody>
-              {byUser.map(([userId, weekMap]) => (
-                <tr key={userId}>
+              {rows.map(({ key, name, weekMap, absent }) => (
+                <tr key={key}>
                   <td className="sticky left-0 z-10 whitespace-nowrap border-t border-border bg-card px-2 py-1.5 font-medium">
-                    <span className="flex items-baseline gap-2">
-                      <span>{nameFor(userId)}</span>
+                    <span className={cn('flex items-baseline gap-2', absent && 'opacity-50')}>
+                      <span>{name}</span>
                       <HitRate picks={Object.values(weekMap)} />
                     </span>
                   </td>

@@ -17,7 +17,7 @@
  *   data       the row set in the record book
  *   direction  'desc' (default) or 'asc'
  *   format     how the value reads; see `formatRecordValue`
- *   kind       how a row is identified; see RecordCard
+ *   kind       how a row is identified; see `describeRow`
  *   phases     game records: offer the regular-season / playoffs toggle
  *   note       a caveat shown under the blurb, for a record the data is
  *              known to distort
@@ -28,12 +28,15 @@
  */
 
 import { SCORE_DECIMALS, formatDelta, formatPct, formatScore } from '../../../utils/format';
+import { SCORE_BANDS } from '../../../../utils/recordBook/situations.js';
 
 export const SECTIONS = [
   { id: 'winning', label: 'Winning' },
   { id: 'scoring', label: 'Scoring' },
+  { id: 'bands', label: 'Score bands' },
   { id: 'games', label: 'Single games' },
   { id: 'league', label: 'League-wide' },
+  { id: 'races', label: 'Seeds & starts' },
   { id: 'playoffs', label: 'Playoffs' },
   { id: 'luck', label: 'Schedule & luck' },
   { id: 'lineups', label: 'Lineups' },
@@ -52,6 +55,10 @@ const game = (entry) => ({ scope: 'season', kind: 'game', section: 'games', phas
 // regular-season week or per completed season.
 const leagueWeek = (entry) => ({ scope: 'season', kind: 'leagueWeek', section: 'league', direction: 'desc', format: 'points', ...entry });
 const leagueSeason = (entry) => ({ scope: 'season', kind: 'leagueSeason', section: 'league', perSeason: true, direction: 'desc', ...entry });
+// A week a place was locked, one row per season.
+const lock = (entry) => ({ scope: 'season', kind: 'lock', section: 'races', perSeason: true, format: 'week', direction: 'asc', ...entry });
+
+const LOCK_NOTE = 'Locked means no result left could change it. A level record is not a lock while games remain, because points for is the tiebreak.';
 
 export const RECORDS = [
   // -------------------------------------------------------------------------
@@ -72,7 +79,8 @@ export const RECORDS = [
   career({ id: 'career-rivalry-wins', section: 'winning', data: 'rivalryWins', title: 'Most Rivalry Week wins', blurb: 'Week 14 every season, and week 4 as well from 2025.', format: 'int', detail: 'record' }),
   career({ id: 'career-top-records', section: 'winning', data: 'topRecords', title: 'Best regular-season record', blurb: 'Seasons finished top of the standings.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-top-record-flops', section: 'winning', data: 'topRecordFlops', title: 'Regular-season merchant', blurb: 'Best record in the league, no finals appearance.', format: 'int', detail: 'seasons' }),
-  career({ id: 'career-last-places', section: 'winning', data: 'lastPlaces', title: 'Last-place finishes', blurb: 'Finished the season dead last. The punishee.', format: 'int', detail: 'seasons' }),
+  career({ id: 'career-division-titles', section: 'winning', data: 'divisionTitles', title: 'Most division titles', blurb: 'Seasons with the best regular-season record in the division.', format: 'int', detail: 'seasons' }),
+  career({ id: 'career-last-places', section: 'winning', data: 'lastPlaces', title: 'Most punishments', blurb: 'Finished the regular season dead last. The punishee.', format: 'int', detail: 'seasons' }),
 
   career({ id: 'career-points', section: 'scoring', data: 'pointsFor', title: 'Most points', blurb: 'Regular-season points for.', format: 'points', detail: 'seasons' }),
   career({ id: 'career-ppg', section: 'scoring', data: 'ppg', title: 'Points per game', blurb: 'Regular-season points for, per game.', format: 'points', detail: 'seasons' }),
@@ -82,6 +90,8 @@ export const RECORDS = [
   career({ id: 'career-weekly-lows', section: 'scoring', data: 'weeklyLows', title: 'Most weekly low scores', blurb: "Weeks with the league's bottom score.", format: 'int' }),
   career({ id: 'career-scoring-titles', section: 'scoring', data: 'scoringTitles', title: 'Most scoring titles', blurb: 'Seasons leading the league in points.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-faced-top', section: 'scoring', data: 'facedTop', title: "Most times facing the week's top score", blurb: 'The guy everyone shot at.', format: 'int' }),
+
+  ...SCORE_BANDS.map((band) => career({ id: `career-${band.id}`, section: 'bands', data: band.id, title: `Most ${band.label} games`, blurb: band.description, format: 'int', unit: 'games' })),
 
   career({ id: 'career-championships', section: 'playoffs', data: 'championships', title: 'Most championships', blurb: 'League titles.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-finals', section: 'playoffs', data: 'finals', title: 'Most finals appearances', blurb: 'Reached the championship game.', format: 'int', detail: 'seasons' }),
@@ -142,6 +152,9 @@ export const RECORDS = [
   season({ id: 'season-consistent-least', section: 'scoring', data: 'consistency', title: 'Least consistent', blurb: 'Highest standard deviation of weekly scores.', format: 'points', unit: 'σ' }),
   season({ id: 'season-points-missed-playoffs', section: 'scoring', data: 'pointsMissedPlayoffs', title: "Most points, missed the playoffs", blurb: "Should've been good.", format: 'points', detail: 'record' }),
 
+  ...SCORE_BANDS.map((band) => season({ id: `season-${band.id}`, section: 'bands', data: band.id, title: `Most ${band.label} games`, blurb: band.description, format: 'int', unit: 'games', detail: 'record' })),
+  ...SCORE_BANDS.map((band) => leagueSeason({ id: `league-${band.id}`, section: 'bands', data: `league_${band.id}`, title: `League ${band.label} games`, blurb: 'Every team in one regular season, added together.', format: 'int', unit: 'games' })),
+
   game({ id: 'game-high-score', data: 'score', title: 'Highest score', blurb: 'One team, one game.' }),
   game({ id: 'game-low-score', data: 'score', direction: 'asc', title: 'Lowest score', blurb: 'One team, one game.' }),
   game({ id: 'game-blowout', data: 'winMargin', title: 'Biggest blowout', blurb: 'Largest margin of victory.', detail: 'score' }),
@@ -168,6 +181,13 @@ export const RECORDS = [
   leagueSeason({ id: 'league-season-trades', data: 'leagueTrades', title: 'Most trades in a season', blurb: 'Accepted trades, each counted once.', format: 'int' }),
   leagueSeason({ id: 'league-season-roster-moves', data: 'leagueRosterMoves', title: 'Most roster moves in a season', blurb: 'Free-agent adds, waiver claims and drops, league-wide.', format: 'int' }),
   leagueSeason({ id: 'league-season-faab', data: 'leagueFaabSpent', title: 'Most FAAB spent in a season', blurb: 'Waiver budget spent on winning claims, league-wide.', format: 'money' }),
+
+  lock({ id: 'lock-one-seed-earliest', data: 'oneSeedLock', title: 'Earliest 1 seed', blurb: 'The soonest a team locked first in the regular season.', note: LOCK_NOTE }),
+  lock({ id: 'lock-one-seed-latest', data: 'oneSeedLock', direction: 'desc', title: 'Latest 1 seed', blurb: 'The last anyone left the 1 seed open.' }),
+  lock({ id: 'lock-punishment-earliest', data: 'punishmentLock', title: 'Earliest punishment', blurb: 'The soonest a team was locked into last place.', note: LOCK_NOTE }),
+  lock({ id: 'lock-punishment-latest', data: 'punishmentLock', direction: 'desc', title: 'Latest punishment', blurb: 'The longest a punishee kept it open.' }),
+  season({ id: 'start-after-0-3', section: 'races', data: 'after03', title: 'Best finish after an 0-3 start', blurb: 'Final regular-season win % of a team that lost its first three.', format: 'pct', detail: 'record' }),
+  season({ id: 'start-after-3-0', section: 'races', data: 'after30', direction: 'asc', title: 'Worst finish after a 3-0 start', blurb: 'Final regular-season win % of a team that won its first three.', format: 'pct', detail: 'record' }),
 
   season({ id: 'season-playoff-wins', section: 'playoffs', data: 'playoffWins', title: 'Most playoff wins', blurb: 'Bracket games, placement games included.', format: 'int' }),
   season({ id: 'season-playoff-losses', section: 'playoffs', data: 'playoffLosses', title: 'Most playoff losses', blurb: 'Bracket games, placement games included.', format: 'int' }),
@@ -227,6 +247,8 @@ export function formatRecordValue(record, value) {
       return formatDelta(value, 2);
     case 'money':
       return `$${Math.round(value).toLocaleString('en-US')}`;
+    case 'week':
+      return `Wk ${Math.round(value)}`;
     case 'points':
     default:
       return formatScore(value);

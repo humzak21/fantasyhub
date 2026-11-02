@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, Crown, Medal, Trophy } from 'lucide-react';
+import { ChevronRight, Crown, Flag, Medal, Skull, Trophy } from 'lucide-react';
 
 import { Button } from '../ui/button';
 import { SectionHeading } from '../ui/section-heading';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '../../lib/utils';
 import { useDivisionTitles, useRecordBook } from '../../../hooks/queries/index.js';
-import { finalsOf, recordsHeldBy } from '../../../utils/profile/trophyCase.js';
+import { finalsOf, locksHeldBy, recordsHeldBy } from '../../../utils/profile/trophyCase.js';
 import { formatRecord } from '../../utils/format';
 import { describeRow } from '../history/records/describeRow';
 import { formatRecordValue } from '../history/records/recordCatalog';
@@ -44,6 +44,22 @@ function Plate({ icon: Icon, tone, year, label, detail, large = false }) {
     </li>
   );
 }
+
+/** A shelf of plates under a heading that counts them. */
+function Shelf({ title, count, children }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold text-foreground">
+        {title} <span className="tabular font-medium text-muted-foreground">{count}</span>
+      </h3>
+      <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4" aria-label={title}>
+        {children}
+      </ul>
+    </div>
+  );
+}
+
+const lockDetail = (lock) => `Locked week ${lock.week} · ${formatRecord(lock.record)}`;
 
 /** One record held: a row, linked to its card in the book when the viewer can open it. */
 function HeldRecord({ held, identity, linkable }) {
@@ -113,6 +129,8 @@ export function TrophyCase({ franchiseId, franchises, seasonHistory, viewer, ful
     [divisionTitles, franchiseId]
   );
   const held = useMemo(() => recordsHeldBy(book, franchiseId), [book, franchiseId]);
+  const oneSeeds = useMemo(() => locksHeldBy(book, 'oneSeedLock', franchiseId), [book, franchiseId]);
+  const punishments = useMemo(() => locksHeldBy(book, 'punishmentLock', franchiseId), [book, franchiseId]);
   const identity = useMemo(
     () => buildRecordIdentity({ franchises, book, user, isAdmin, teamOwnerNames }),
     [franchises, book, user, isAdmin, teamOwnerNames]
@@ -120,7 +138,7 @@ export function TrophyCase({ franchiseId, franchises, seasonHistory, viewer, ful
 
   const teamNameOf = (season) => getMaskedHistoricalTeamName(season, user, isAdmin, teamOwnerNames);
   const shownRecords = showAll ? held : held.slice(0, RECORDS_SHOWN);
-  const shelfEmpty = titles.length + runnerUps.length + wonDivisions.length === 0;
+  const shelfEmpty = titles.length + runnerUps.length + wonDivisions.length + oneSeeds.length + punishments.length === 0;
 
   return (
     <section className="space-y-4" aria-labelledby="trophy-case-heading">
@@ -162,7 +180,7 @@ export function TrophyCase({ franchiseId, franchises, seasonHistory, viewer, ful
           )}
 
           {wonDivisions.length > 0 && (
-            <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4" aria-label="Division titles">
+            <Shelf title="Division titles" count={wonDivisions.length}>
               {wonDivisions.map((title) => (
                 <Plate
                   key={`${title.year}-${title.divisionName}`}
@@ -173,7 +191,37 @@ export function TrophyCase({ franchiseId, franchises, seasonHistory, viewer, ful
                   detail={fullData ? `Division title · ${formatRecord(title)}` : formatRecord(title)}
                 />
               ))}
-            </ul>
+            </Shelf>
+          )}
+
+          {oneSeeds.length > 0 && (
+            <Shelf title="1 seeds" count={oneSeeds.length}>
+              {oneSeeds.map((lock) => (
+                <Plate
+                  key={lock.year}
+                  icon={Flag}
+                  tone="bg-success/15 text-success"
+                  year={lock.year}
+                  label="1 seed"
+                  detail={lockDetail(lock)}
+                />
+              ))}
+            </Shelf>
+          )}
+
+          {punishments.length > 0 && (
+            <Shelf title="Punishments" count={punishments.length}>
+              {punishments.map((lock) => (
+                <Plate
+                  key={lock.year}
+                  icon={Skull}
+                  tone="bg-destructive/15 text-destructive"
+                  year={lock.year}
+                  label="Punishment"
+                  detail={lockDetail(lock)}
+                />
+              ))}
+            </Shelf>
           )}
         </div>
       )}

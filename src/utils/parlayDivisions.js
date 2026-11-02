@@ -23,7 +23,9 @@
 import { normalizeOwnerName } from './displayNameUtils';
 
 /**
- * @typedef {{ division: object, picks: object[] }} DivisionGroup
+ * @typedef {{ division: object, picks: object[], waiting: object[] }} DivisionGroup
+ *   `waiting` is the division's teams with no pick, by owner: a parlay is seven
+ *   picks, so who is missing is as much the board's answer as who is in.
  */
 
 /**
@@ -44,7 +46,15 @@ export function groupPicksByDivision(picks = [], { teams = [], divisions = [] } 
     if (owner) teamByOwner.set(owner, team);
   }
 
-  const groups = divisions.map((division) => ({ division, picks: [] }));
+  const picked = new Set(picks.map((pick) => normalizeOwnerName(pick?.displayName)));
+  const groups = divisions.map((division) => ({
+    division,
+    picks: [],
+    waiting: teams
+      .filter((team) => (team?.division_id ?? team?.divisionId) === division?.id)
+      .filter((team) => !picked.has(normalizeOwnerName(team?.owner)))
+      .sort((a, b) => String(a?.owner ?? '').localeCompare(String(b?.owner ?? '')))
+  }));
   const byDivisionId = new Map(groups.map((group) => [group.division?.id, group]));
   const unassigned = [];
 

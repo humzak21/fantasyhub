@@ -68,6 +68,18 @@ export function finalsOf(seasonHistory = []) {
 }
 
 /**
+ * The seasons a franchise locked a place, newest first.
+ *
+ * @param {object|null} book from `buildRecordBook`
+ * @param {'oneSeedLock'|'punishmentLock'} key
+ */
+export function locksHeldBy(book, key, franchiseId) {
+  return recordRows(book, 'season', key)
+    .filter((row) => row.franchiseId === franchiseId)
+    .sort((a, b) => b.year - a.year);
+}
+
+/**
  * Every record a franchise is #1 on, good or bad: the record book has no
  * best/dubious split, and neither does this. A tie for #1 is held. Game
  * records read the regular season, which is the record proper, as the home
