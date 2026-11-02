@@ -155,7 +155,7 @@ describe('RecordBook', () => {
     expect(figures).toEqual([['1', '2'], ['1', '2'], ['3', '1']]);
     expect(within(rows[0]).getByTitle('Tied for 1st')).toBeInTheDocument();
 
-    // A career total has no season it was set in, so it is never marked new.
+    // No season came before the window, so no career has anything to have entered.
     expect(within(wins).queryByText('New record')).not.toBeInTheDocument();
   });
 
@@ -201,14 +201,13 @@ describe('RecordBook', () => {
     const highScore = await screen.findByRole('region', { name: 'Highest score' });
     expect(within(highScore).getAllByRole('listitem')).toHaveLength(5);
 
-    // The fixture's only season is the most recent one, so its #1 is marked —
-    // and only the #1.
-    const [first, second] = within(highScore).getAllByRole('listitem');
-    expect(within(first).getByText('New record')).toBeInTheDocument();
-    expect(within(second).queryByText('New record')).not.toBeInTheDocument();
+    // The fixture's only season is the most recent one, so its whole top five
+    // is marked — and nothing below it.
+    expect(within(highScore).getAllByText('New record')).toHaveLength(5);
 
     fireEvent.click(within(highScore).getByRole('button', { name: /Show top 12/ }));
     expect(within(highScore).getAllByRole('listitem')).toHaveLength(12);
+    expect(within(highScore).getAllByText('New record')).toHaveLength(5);
 
     fireEvent.click(within(highScore).getByRole('button', { name: 'Playoffs' }));
     const playoff = within(highScore).getAllByRole('listitem');
@@ -221,6 +220,87 @@ describe('RecordBook', () => {
     const [closest] = within(narrowest).getAllByRole('listitem');
     expect(within(closest).getByText('0.04')).toBeInTheDocument();
     expect(within(closest).getByText(/110\.00–109\.96/)).toBeInTheDocument();
+  });
+
+  describe('new records', () => {
+    const S23 = { id: 's23', year: 2023, isCompleted: true, regularSeasonWeeks: 3 };
+    const S24 = { id: 's24', year: 2024, isCompleted: true, regularSeasonWeeks: 3 };
+    const S25 = { id: 's25', year: 2025, isCompleted: false, regularSeasonWeeks: 3 };
+    const seasonTeam = (season, key) => team(key, { id: `t-${season.id}-${key}`, seasonId: season.id });
+    const seasonGame = (season, week, a, sa, b, sb) => ({
+      ...game(week, a, sa, b, sb),
+      id: `g-${season.id}-${week}-${a}${b}`,
+      seasonId: season.id,
+      team1Id: `t-${season.id}-${a}`,
+      team2Id: `t-${season.id}-${b}`
+    });
+
+    // 2023 is outside the window. Six games on 150 lead the board; D's 150 in
+    // week 3 of 2025 ties them and lists last, off the five a shut card shows.
+    const OLD_AND_NEW = {
+      ...SOURCE,
+      seasons: [S23, S24, S25],
+      teams: [S23, S24, S25].flatMap((season) => ['A', 'B', 'C', 'D'].map((key) => seasonTeam(season, key))),
+      games: [
+        seasonGame(S23, 1, 'A', 150, 'B', 90), seasonGame(S23, 1, 'C', 150, 'D', 80),
+        seasonGame(S23, 2, 'A', 150, 'C', 90), seasonGame(S23, 2, 'B', 150, 'D', 80),
+        seasonGame(S23, 3, 'A', 150, 'D', 90), seasonGame(S23, 3, 'B', 150, 'C', 80),
+        seasonGame(S24, 1, 'B', 110, 'C', 100),
+        seasonGame(S25, 3, 'D', 150, 'A', 95)
+      ],
+      transactions: [],
+      trades: []
+    };
+
+    it('lists a row that ties into the top five, however far down the tie it sits', async () => {
+      history.getRecordBookSource.mockResolvedValue(OLD_AND_NEW);
+      renderWithProviders(<RecordBook franchises={FRANCHISES} />);
+      await screen.findByRole('heading', { name: 'Winning' });
+      fireEvent.mouseDown(screen.getByRole('tab', { name: 'Single Season' }), { button: 0 });
+
+      const highScore = await screen.findByRole('region', { name: 'Highest score' });
+      const rows = within(highScore).getAllByRole('listitem');
+      expect(rows).toHaveLength(6);
+      expect(within(rows[5]).getByText('New record')).toBeInTheDocument();
+      expect(within(rows[5]).getByText('Franchise f-delta0')).toBeInTheDocument();
+      expect(within(highScore).getAllByText('New record')).toHaveLength(1);
+    });
+
+    it('keeps the mark with one season picked, where the row is measured on the whole board', async () => {
+      history.getRecordBookSource.mockResolvedValue(OLD_AND_NEW);
+      renderWithProviders(<RecordBook franchises={FRANCHISES} focusRecordId="game-high-score" />);
+
+      const highScore = await screen.findByRole('region', { name: 'Highest score' });
+      fireEvent.click(screen.getByRole('combobox', { name: 'Season' }));
+      fireEvent.click(await screen.findByRole('option', { name: '2025 (in progress)' }));
+
+      const picked = await screen.findByRole('region', { name: 'Highest score' });
+      expect(picked).not.toBe(highScore);
+      const [top, next] = within(picked).getAllByRole('listitem');
+      expect(within(top).getByText('New record')).toBeInTheDocument();
+      // A's 95 led nothing, whatever it reads as in a two-row season.
+      expect(within(next).queryByText('New record')).not.toBeInTheDocument();
+    });
+
+    it('marks a franchise that entered a career top five, and not one already there', async () => {
+      // Going into 2024 only A, B and C have a win; D's 2025 win is its first.
+      history.getRecordBookSource.mockResolvedValue(OLD_AND_NEW);
+      renderWithProviders(<RecordBook franchises={FRANCHISES} />);
+
+      const wins = await screen.findByRole('region', { name: 'Most wins' });
+      const rows = within(wins).getAllByRole('listitem');
+      const delta = rows.find((row) => within(row).queryByText('Franchise f-delta0'));
+      const alpha = rows.find((row) => within(row).queryByText('Franchise f-alpha0'));
+      expect(within(delta).getByText('New record')).toBeInTheDocument();
+      expect(within(alpha).queryByText('New record')).not.toBeInTheDocument();
+    });
+
+    it('says what the highlight means, from the seasons themselves', async () => {
+      history.getRecordBookSource.mockResolvedValue(OLD_AND_NEW);
+      renderWithProviders(<RecordBook franchises={FRANCHISES} />);
+
+      expect(await screen.findByText('New record: entered an all-time top 5 in 2024 or 2025.')).toBeInTheDocument();
+    });
   });
 
   it('adds the league as one team to the Single Season tab, by week and by season', async () => {

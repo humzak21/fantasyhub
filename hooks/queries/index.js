@@ -133,6 +133,7 @@ export {
   useHeadToHeadMatrix,
   useMatchupHistory,
   useRecordBook,
+  useRecordBooks,
   useRecordTrends,
   useStatComparison,
   useHomeRecordBooks,

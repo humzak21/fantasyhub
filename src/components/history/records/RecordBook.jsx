@@ -5,7 +5,7 @@ import { EmptyState } from '../../ui/empty-state';
 import { SectionHeading } from '../../ui/section-heading';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
-import { useRecordBook } from '../../../../hooks/queries/index.js';
+import { useRecordBooks } from '../../../../hooks/queries/index.js';
 import { rankRows, recordRows } from '../../../../utils/recordBook/index.js';
 import { RecordCard } from './RecordCard';
 import { buildRecordIdentity } from './recordIdentity';
@@ -53,7 +53,7 @@ function RecordSkeleton() {
  * subject — winning, scoring, the playoffs — with opposite records side by
  * side, rather than splitting the book into best and worst.
  *
- * The numbers come from `useRecordBook` (`utils/recordBook`); the names,
+ * The numbers come from `useRecordBooks` (`utils/recordBook`); the names,
  * order and formatting from `recordCatalog.js`. This component lays the two
  * out and masks identities, and nothing else.
  */
@@ -67,7 +67,8 @@ const RecordBook = ({
   teamOwnerNames = [],
   onViewFranchise = () => {}
 }) => {
-  const { data: book, isLoading, error } = useRecordBook();
+  const { data, isLoading, error } = useRecordBooks();
+  const book = data?.book;
   const focusRecord = useMemo(
     () => RECORDS.find((record) => record.id === focusRecordId) ?? null,
     [focusRecordId]
@@ -143,10 +144,10 @@ const RecordBook = ({
           </p>
         )}
 
-        {year == null && book?.recentYears?.length > 0 && (
+        {book?.recentYears?.length > 0 && (
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Sparkles className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
-            New record: a #1 set in {[...book.recentYears].sort((a, b) => a - b).join(' or ')}.
+            New record: entered an all-time top 5 in {[...book.recentYears].sort((a, b) => a - b).join(' or ')}.
           </p>
         )}
 
@@ -175,6 +176,7 @@ const RecordBook = ({
                       key={`${record.id}-${year ?? 'all'}`}
                       record={record}
                       book={book}
+                      before={data?.before}
                       year={year}
                       focused={record.id === focusRecord?.id}
                       identity={identity}

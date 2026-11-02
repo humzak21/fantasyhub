@@ -2,8 +2,8 @@
  * The home page's records carousel, decided.
  *
  * Three kinds of card, all read off the record book the History tab builds
- * (`utils/recordBook`) and ranked the way its cards rank (`rankRows`, the
- * catalog's direction and zero rule):
+ * (`utils/recordBook`), with the top five and a row's identity as the Records
+ * tab has them (`utils/recordBook/newRecords.js`):
  *
  * - **New this week** — a row in a record's top five now that was not in it
  *   before the most recent scored week. "Before" is the same book built from
@@ -19,10 +19,9 @@
  * Pure: the component renders these and nothing else.
  */
 
-import { buildRecordBook, rankRows, recordRows } from '../recordBook/index.js';
-import { RECORDS, hidesZero } from '../../src/components/history/records/recordCatalog.js';
-
-export const TOP = 5;
+import { buildRecordBook } from '../recordBook/index.js';
+import { topFiveEntries } from '../recordBook/newRecords.js';
+import { RECORDS } from '../../src/components/history/records/recordCatalog.js';
 
 /**
  * Row sets built on `transactions` (season-level counts) or on the trade log
@@ -41,60 +40,6 @@ const TRANSACTION_DATA = new Set([
 ]);
 
 export const canBeNew = (record) => !TRANSACTION_DATA.has(record.data);
-
-/**
- * Who or what a row is, independent of its value or place, so the same
- * achievement can be found in two books. A streak is keyed on where it began:
- * one still running keeps its start as it grows.
- */
-export function rowIdentity(record, row) {
-  switch (record.kind) {
-    case 'franchise':
-      return `f:${row.franchiseId}`;
-    case 'teamSeason':
-      return `t:${row.teamId}`;
-    case 'game':
-      return `g:${row.teamId}:${row.week}`;
-    case 'streak':
-      return `s:${row.franchiseId}:${row.start?.year}:${row.start?.week}`;
-    case 'seasonStreak':
-      return `ss:${row.franchiseId}:${row.startYear}`;
-    case 'pair':
-      return `p:${[row.franchiseId, row.partnerFranchiseId].sort().join(':')}:${row.year ?? ''}`;
-    case 'bid':
-      return `b:${row.franchiseId}:${row.year}:${row.week}:${row.playerName ?? ''}`;
-    case 'leagueWeek':
-      return `lw:${row.year}:${row.week}`;
-    case 'leagueSeason':
-      return `ls:${row.year}`;
-    case 'lock':
-      return `l:${record.data}:${row.year}`;
-    default:
-      return `x:${row.franchiseId ?? ''}:${row.teamId ?? ''}:${row.year ?? ''}:${row.week ?? ''}`;
-  }
-}
-
-/**
- * Every (record, row) placed in its record's top five, across the whole book.
- * Game records read the regular season, which is the record proper.
- *
- * @returns {Array<{ record: object, row: object, rank: number, key: string }>}
- */
-export function topFiveEntries(book, catalog = RECORDS) {
-  if (!book) return [];
-  const entries = [];
-  for (const record of catalog) {
-    const rows = rankRows(
-      recordRows(book, record.scope, record.data, { phase: record.phases ? 'regular' : null }),
-      { direction: record.direction, hideZero: hidesZero(record), limit: TOP }
-    );
-    for (const row of rows) {
-      if (row.rank > TOP) continue;
-      entries.push({ record, row, rank: row.rank, key: `${record.id}|${rowIdentity(record, row)}` });
-    }
-  }
-  return entries;
-}
 
 /**
  * The last scored regular-season week of the newest season that has one.

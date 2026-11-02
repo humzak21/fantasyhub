@@ -637,7 +637,7 @@ export async function getRecordBookSource(ctx) {
 
     const [seasons, franchises, teams, games, transactions, trades, bids, lineups] = await Promise.all([
       (async () => unwrap(
-        await client.from('seasons').select('id, year, is_completed, regular_season_weeks').order('year'),
+        await client.from('seasons').select('id, year, is_active, is_completed, regular_season_weeks').order('year'),
         'Get record seasons'
       ) ?? [])(),
       getFranchises(ctx),
@@ -682,6 +682,7 @@ export async function getRecordBookSource(ctx) {
       seasons: seasons.map((row) => ({
         id: row.id,
         year: row.year,
+        isActive: Boolean(row.is_active),
         isCompleted: Boolean(row.is_completed),
         regularSeasonWeeks: row.regular_season_weeks
       })),
