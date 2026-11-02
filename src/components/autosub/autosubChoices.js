@@ -51,10 +51,23 @@ export function atWeeklyLimit(autosubs = [], limit = null) {
   return limit != null && autosubs.length >= limit;
 }
 
+/**
+ * Has either player's game started? The deadline is per autosub, so one row can
+ * lock on Thursday while the next stays open until Sunday. It still fires; the
+ * member just cannot change it, or they could keep or drop an autosub knowing how
+ * the game went. `private.autosub_locks_at()` is the rule.
+ */
+export function isAutosubLocked(autosub, opponents = {}, now = new Date()) {
+  return [autosub.starter, autosub.bench].some((player) => {
+    const gameTime = opponents[player?.proTeamId]?.gameTime;
+    return Boolean(gameTime) && new Date(gameTime) <= now;
+  });
+}
+
 /** What a set autosub says for itself, on the member's own roster. */
-export function autosubState(autosub) {
+export function autosubState(autosub, { locked = false } = {}) {
   if (autosub.status === 'swapped') return { label: 'Subbed in', variant: 'success' };
   if (autosub.status === 'manual') return { label: 'Commissioner told', variant: 'warning' };
   if (autosub.status === 'firing') return { label: 'Working', variant: 'info' };
-  return { label: 'Set', variant: 'secondary' };
+  return { label: locked ? 'Locked' : 'Set', variant: 'secondary' };
 }

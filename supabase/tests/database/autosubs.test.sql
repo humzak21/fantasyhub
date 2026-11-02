@@ -9,7 +9,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(34);
+select plan(38);
 
 -- The fixture: one active season, two franchises, an owner, an unlinked member,
 -- an admin with no team, and a lineup with a game still to come.
@@ -131,6 +131,51 @@ select lives_ok(
        (select id from public.autosubs where starter_player_id = '00000000-0000-0000-0000-0000000000e6')) $$,
   'and removing one frees its place'
 );
+
+-- The lock. A row whose bench player has kicked off, as one a member set before
+-- that game: the starter's game is still to come, and it is locked anyway.
+reset role;
+insert into public.autosubs (id, season_id, week, team_id, starter_player_id, bench_player_id, slot)
+values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000b1', 1,
+        '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000e6',
+        '00000000-0000-0000-0000-0000000000e4', 'RB');
+set local role authenticated;
+
+select throws_ok(
+  $$ select public.remove_autosub('00000000-0000-0000-0000-0000000000f1') $$,
+  '23514', 'That autosub is locked: one of its games has started',
+  'an autosub cannot be dropped once either player''s game has started'
+);
+
+select throws_ok(
+  $$ select public.set_autosub('00000000-0000-0000-0000-0000000000d1', 1,
+       '00000000-0000-0000-0000-0000000000e6', '00000000-0000-0000-0000-0000000000e2') $$,
+  '23514', 'That autosub is locked: one of its games has started',
+  'or pointed at somebody else, even a bench player with a game to come'
+);
+
+select is(
+  (select bench_player_id from public.autosubs where id = '00000000-0000-0000-0000-0000000000f1'),
+  '00000000-0000-0000-0000-0000000000e4'::uuid,
+  'so the locked row stands'
+);
+
+-- The NFL moves the game, and nothing else is written: the lock reads the calendar.
+reset role;
+update public.nfl_schedule set game_time = now() + interval '1 hour'
+where season_year = 2099 and week = 1 and pro_team_id = 4;
+set local role authenticated;
+
+select is(
+  public.remove_autosub('00000000-0000-0000-0000-0000000000f1'),
+  true,
+  'a flexed game moves the lock with it'
+);
+
+reset role;
+update public.nfl_schedule set game_time = now() - interval '1 minute'
+where season_year = 2099 and week = 1 and pro_team_id = 4;
+set local role authenticated;
 
 select throws_ok(
   $$ select public.set_autosub('00000000-0000-0000-0000-0000000000d1', 1,

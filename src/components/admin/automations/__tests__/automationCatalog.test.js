@@ -139,6 +139,18 @@ describe('classifyRun', () => {
 });
 
 describe('summarizeStep', () => {
+  it('names the NFL games that moved, and says nothing when none did', () => {
+    const base = WEEKLY_STEPS.nflSchedule;
+    const move = (week) => ({ week, matchup: 'BUF @ KC', from: null, to: null });
+
+    expect(summarizeStep('nflSchedule', base).text).toBe('576 team-weeks over 18 weeks');
+    expect(summarizeStep('nflSchedule', { ...base, changes: [] }).text).toBe('576 team-weeks over 18 weeks');
+    expect(summarizeStep('nflSchedule', { ...base, changes: [move(12)] }).text)
+      .toBe('576 team-weeks over 18 weeks · moved: week 12 BUF @ KC');
+    expect(summarizeStep('nflSchedule', { ...base, changes: [12, 13, 14, 15].map(move) }).text)
+      .toContain('and 1 more');
+  });
+
   it('states counts for a step that ran', () => {
     expect(summarizeStep('scores', WEEKLY_STEPS.scores)).toMatchObject({ state: 'ok', text: '0 created · 7 updated · 0 unchanged' });
     expect(summarizeStep('parlayGrades', WEEKLY_STEPS.parlayGrades)).toMatchObject({
