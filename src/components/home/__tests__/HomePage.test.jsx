@@ -11,7 +11,7 @@
  * /home at 375 and 1280.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { BarChart3, Calendar, Flame, History, House, Target, Users } from 'lucide-react';
@@ -40,7 +40,7 @@ vi.mock('../../../../hooks/queries/index.js', () => ({
   useActualWeek: () => 7,
   useViewedWeek: () => ({ setViewedWeek: vi.fn() }),
   useRankingsForWeek: () => queries.rankings,
-  useLineupsForWeek: () => ({ data: {}, isLoading: false }),
+  useLineupsForWeek: () => queries.lineups,
   useNflOpponentMap: () => ({ data: {} }),
   useMatchupHistory: () => ({ data: [], isPending: false, isError: false }),
   useStandings: () => queries.standings(),
@@ -117,6 +117,7 @@ beforeEach(() => {
     league: { activeSeason: SEASON, isLoading: false },
     config: toSeasonConfig({ id: 's2026', year: 2026, start_date: '2026-09-08', regular_season_weeks: 14, playoff_weeks: 3 }),
     rankings: { data: RANKINGS, isPending: false, isError: false, refetch: vi.fn() },
+    lineups: { data: {}, isLoading: false },
     standings: () => ({
       data: {
         divisions: [
@@ -216,6 +217,69 @@ describe('HomePage — a member who owns a team', () => {
       expect(within(tables[0]).getByRole('columnheader', { name: label })).toBeInTheDocument();
     }
     expect(within(standings).getByRole('button', { name: /full standings/i })).toBeInTheDocument();
+  });
+});
+
+describe('HomePage — a game under way', () => {
+  const starter = (overrides) => ({ started: true, rosterSlot: 'RB', projectedPoints: 20, ...overrides });
+
+  const liveLineups = {
+    isLoading: false,
+    data: {
+      t7: [
+        starter({ actualPoints: 18.5, nflState: 'final' }),
+        starter({ actualPoints: 5, nflState: 'in_progress' }),
+        starter({ actualPoints: null, nflState: 'not_started' })
+      ],
+      t3: [starter({ actualPoints: 10, nflState: 'final' }), starter({ actualPoints: null, nflState: 'final' })]
+    },
+    live: {
+      refreshedAt: '2026-11-01T19:42:00Z',
+      games: {
+        g1: { team1: { points: 23.5, projected: 118.2 }, team2: { points: 10, projected: 96.4 } }
+      }
+    }
+  };
+
+  const scored = (game) => ({ ...SEASON, schedule: [game, ...SEASON.schedule.slice(1)] });
+
+  // The score counts up over 600ms, which a parallel run can stretch past a
+  // findBy's timeout. Reduced motion puts the final figure on the first paint.
+  const matchMedia = window.matchMedia;
+  beforeEach(() => {
+    window.matchMedia = (query) => ({ ...matchMedia(query), matches: query.includes('reduced-motion') });
+  });
+  afterEach(() => {
+    window.matchMedia = matchMedia;
+  });
+
+  it('shows the score so far as live, not as a projection or a result', () => {
+    queries.lineups = liveLineups;
+    render();
+
+    const hero = screen.getByRole('region', { name: /your matchup/i });
+    expect(within(hero).getByText('23.5')).toBeInTheDocument();
+    expect(within(hero).getByText('live')).toBeInTheDocument();
+    expect(within(hero).queryByText('proj')).not.toBeInTheDocument();
+    expect(within(hero).getByText('In progress')).toBeInTheDocument();
+    expect(within(hero).getByText('You lead by 13.5')).toBeInTheDocument();
+    expect(within(hero).getByText(/^as of /)).toBeInTheDocument();
+    expect(within(hero).getByText('1 yet to play · proj 118.2')).toBeInTheDocument();
+  });
+
+  it('gives way to an imported score', () => {
+    queries.lineups = liveLineups;
+    queries.league = {
+      ...queries.league,
+      activeSeason: scored({ ...SEASON.schedule[0], team1Score: 121.2, team2Score: 99.4, isCompleted: true })
+    };
+    render();
+
+    const hero = screen.getByRole('region', { name: /your matchup/i });
+    expect(within(hero).getByText('121.2')).toBeInTheDocument();
+    expect(within(hero).queryByText('live')).not.toBeInTheDocument();
+    expect(within(hero).queryByText(/yet to play/)).not.toBeInTheDocument();
+    expect(within(hero).getByText('Won by 21.80')).toBeInTheDocument();
   });
 });
 

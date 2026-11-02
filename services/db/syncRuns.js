@@ -119,7 +119,8 @@ export async function getAutomationHealth(
       pendingParlayGrades,
       scheduleImport,
       seasonRow,
-      seasonGames
+      seasonGames,
+      liveWeek
     ] = await Promise.all([
       newest(ctx, 'power_rankings_history', 'week_number', (q) =>
         q.eq('season_id', seasonId).eq('snapshot_type', 'weekly'), 'week_number, created_at'),
@@ -147,7 +148,9 @@ export async function getAutomationHealth(
         .then(({ data, error }) => { if (error) throw error; return data; }),
       // A season is ~120 games; the types of all of them is a small read.
       ctx.client.from('games').select('week, type').eq('season_id', seasonId)
-        .then(({ data, error }) => { if (error) throw error; return data ?? []; })
+        .then(({ data, error }) => { if (error) throw error; return data ?? []; }),
+      newest(ctx, 'live_week_snapshot', 'week', (q) => q.eq('season_id', seasonId),
+        'week, live, refreshed_at, last_error')
     ]);
 
     return {
@@ -166,7 +169,15 @@ export async function getAutomationHealth(
       scheduleImport: scheduleImport
         ? { at: scheduleImport.imported_at, summary: scheduleImport.assignment_notes }
         : null,
-      postseason: postseasonHealth(seasonGames, seasonRow, { throughWeek, currentWeek })
+      postseason: postseasonHealth(seasonGames, seasonRow, { throughWeek, currentWeek }),
+      liveWeek: liveWeek
+        ? {
+            week: liveWeek.week,
+            live: liveWeek.live,
+            at: liveWeek.refreshed_at,
+            error: liveWeek.last_error
+          }
+        : null
     };
   } catch (error) {
     log.warn('automation health read failed', error);

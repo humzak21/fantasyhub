@@ -4,7 +4,8 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { EmptyState } from '../ui/empty-state';
-import { PlayerPoints } from '../ui/player-points';
+import { LiveDot } from '../ui/live-dot';
+import { LiveSideNote, PlayerPoints } from '../ui/player-points';
 import { IndependentColumns } from '../ui/independent-columns';
 import PageHeader from '../layout/PageHeader';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
@@ -18,7 +19,8 @@ import {
   useLineupsForWeek,
   useSeasonConfig
 } from '../../../hooks/queries/index.js';
-import { starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
+import { matchupLiveState, starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
+import { overlayGame } from '../../../utils/liveOverlay.js';
 // Shared with the home page's matchup hero, so both render one lineup.
 import LineupPanel from './LineupPanel.jsx';
 import PlayoffSchedule from './PlayoffSchedule.jsx';
@@ -261,7 +263,7 @@ const ScheduleManager = ({
  * under them.
  */
 const BoxScoreGame = ({ game, seasonId, actualWeek, ...card }) => {
-  const { data: lineupsByTeam } = useLineupsForWeek(seasonId, game.week, { actualWeek });
+  const { data: lineupsByTeam, live } = useLineupsForWeek(seasonId, game.week, { actualWeek });
 
   return (
     <GameCard
@@ -273,6 +275,7 @@ const BoxScoreGame = ({ game, seasonId, actualWeek, ...card }) => {
         [game.team1Id]: starterTotal(lineupsByTeam?.[game.team1Id] ?? []),
         [game.team2Id]: starterTotal(lineupsByTeam?.[game.team2Id] ?? [])
       }}
+      liveSides={overlayGame(game, live).live}
       boxScore
     />
   );
@@ -301,7 +304,7 @@ const WeekScheduleView = ({
   // return the league's rows keyed by team, so fourteen cards share a single
   // fetch. It is the same cache entry the lineup disclosure reads, which is
   // what makes a card's projected score add up to the rows underneath it.
-  const { data: lineupsByTeam } = useLineupsForWeek(seasonId, week, { actualWeek });
+  const { data: lineupsByTeam, live } = useLineupsForWeek(seasonId, week, { actualWeek });
 
   if (games.length === 0) {
     return (
@@ -338,6 +341,7 @@ const WeekScheduleView = ({
             [game.team1Id]: starterTotal(lineupsByTeam?.[game.team1Id] ?? []),
             [game.team2Id]: starterTotal(lineupsByTeam?.[game.team2Id] ?? [])
           }}
+          liveSides={overlayGame(game, live).live}
           onUpdateGame={onUpdateGame}
           onDeleteGame={onDeleteGame}
           isAuthenticated={isAuthenticated}
@@ -492,6 +496,28 @@ const FullScheduleView = ({
   );
 };
 
+/**
+ * Where an unscored game stands. Before anybody has played it is "Scheduled";
+ * after the last whistle it is still not a result until Tuesday's sync, and
+ * "Unofficial" is the word the parlay tracker already uses for that. A bracket
+ * game the league has not drawn is "Projected" whatever its teams are doing:
+ * it is not a game yet, so it cannot be under way.
+ */
+const LiveBadge = ({ state, isProjected = false }) => {
+  if (isProjected) return <Badge variant="secondary">Projected</Badge>;
+  if (state === 'playing') {
+    return (
+      <Badge variant="success" className="gap-1.5">
+        <LiveDot />
+        Live
+      </Badge>
+    );
+  }
+  if (state === 'between') return <Badge variant="info">In progress</Badge>;
+  if (state === 'done') return <Badge variant="secondary">Unofficial</Badge>;
+  return <Badge variant="secondary">Scheduled</Badge>;
+};
+
 // Game Card Component with Versus Layout
 const GameCard = ({
   game,
@@ -499,6 +525,7 @@ const GameCard = ({
   nflSeasonYear = null,
   actualWeek = null,
   projectedTotals = {},
+  liveSides = null,
   onUpdateGame,
   onDeleteGame,
   isAuthenticated = false,
@@ -576,7 +603,7 @@ const GameCard = ({
    * a squad list. The line is the fixture; the roster is behind a disclosure
    * and is not rendered until it is opened.
    */
-  const TeamRow = ({ teamId, score, isWinner, isByeSlot }) => {
+  const TeamRow = ({ teamId, score, liveSide, isWinner, isByeSlot }) => {
     const team = teams.find((t) => t.id === teamId);
     const stats = getTeamStats(teamId);
     const rank = getTeamRanking(teamId);
@@ -659,13 +686,17 @@ const GameCard = ({
             writes a real result the projection is gone rather than sitting
             beside it. `PlayerPoints` labels it "proj" until then, and renders
             the em dash by itself for a week with no player data at all —
-            every season before 2026.
+            every season before 2026. While the games are on, the score so far
+            takes the projection's place.
           */
-          <PlayerPoints
-            {...totalAsPoints(projectedTotal)}
-            display
-            className="shrink-0 whitespace-nowrap text-[21px] leading-none tracking-[-0.01em]"
-          />
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <PlayerPoints
+              {...totalAsPoints(projectedTotal, liveSide?.points)}
+              display
+              className="whitespace-nowrap text-[21px] leading-none tracking-[-0.01em]"
+            />
+            <LiveSideNote total={projectedTotal} projected={liveSide?.projected} />
+          </div>
         )}
       </div>
     );
@@ -687,7 +718,10 @@ const GameCard = ({
           {game.isCompleted && game.isBlowout && <Badge variant="warning">Blowout</Badge>}
           {game.isCompleted && game.isClose && <Badge variant="info">Close</Badge>}
           {!game.isCompleted && (
-            <Badge variant="secondary">{game.isProjected ? 'Projected' : 'Scheduled'}</Badge>
+            <LiveBadge
+              state={matchupLiveState(projectedTotals[game.team1Id], projectedTotals[game.team2Id])}
+              isProjected={game.isProjected}
+            />
           )}
         </div>
 
@@ -741,11 +775,13 @@ const GameCard = ({
         <TeamRow
           teamId={game.team1Id}
           score={game.team1Score}
+          liveSide={liveSides?.team1}
           isWinner={game.isCompleted && game.winnerTeamId === game.team1Id}
         />
         <TeamRow
           teamId={game.team2Id}
           score={game.team2Score}
+          liveSide={liveSides?.team2}
           isWinner={game.isCompleted && game.winnerTeamId === game.team2Id}
           isByeSlot={isBye}
         />

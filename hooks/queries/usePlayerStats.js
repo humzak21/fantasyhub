@@ -12,10 +12,13 @@
  * runs as a GitHub Actions cron, out of this process entirely.
  */
 
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { getDb } from '../../services/db/index.js';
+import { overlayLineups } from '../../utils/liveOverlay.js';
 import { qk } from './keys.js';
+import { useLiveWeek } from './useLiveWeek.js';
 
 const db = () => getDb();
 
@@ -135,10 +138,16 @@ export function useCurrentLineups(seasonId, week, { enabled = true } = {}) {
  * roster. `isLoading` is true in that state because, from the caller's side,
  * it is: the answer is coming, we just cannot ask yet.
  *
+ * **The live snapshot is laid over whichever table answered,** here and only
+ * here, so every surface that reads a lineup goes live at once and none of them
+ * can disagree. `live` comes back beside the rows for what they cannot carry:
+ * each game's score and projection, and how old it all is. See
+ * `utils/liveOverlay.js`.
+ *
  * @param {string} seasonId
  * @param {number} week       the week being displayed
  * @param {{ actualWeek?: number|null, enabled?: boolean }} options
- * @returns {{ data: object|undefined, isLoading: boolean, isPastWeek: boolean }}
+ * @returns {{ data: object|undefined, isLoading: boolean, isPastWeek: boolean, live: object|null }}
  *   `data` is `{ [teamId]: rows }`, the shape both underlying hooks select to.
  */
 export function useLineupsForWeek(seasonId, week, { actualWeek = null, enabled = true } = {}) {
@@ -148,15 +157,22 @@ export function useLineupsForWeek(seasonId, week, { actualWeek = null, enabled =
   const past = useWeekPlayerStats(seasonId, week, {
     enabled: enabled && known && isPastWeek
   });
-  const live = useCurrentLineups(seasonId, week, {
+  const current = useCurrentLineups(seasonId, week, {
     enabled: enabled && known && !isPastWeek
   });
 
-  const source = isPastWeek ? past : live;
+  const source = isPastWeek ? past : current;
+  const { data: live } = useLiveWeek(seasonId, week, { actualWeek, enabled });
+
+  const data = useMemo(
+    () => (known ? overlayLineups(source.data, live) : undefined),
+    [known, source.data, live]
+  );
 
   return {
-    data: known ? source.data : undefined,
+    data,
     isLoading: !known || source.isLoading,
-    isPastWeek
+    isPastWeek,
+    live: live ?? null
   };
 }

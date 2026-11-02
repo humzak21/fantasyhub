@@ -80,6 +80,15 @@ export const qk = {
    * stats are an input of that query's own `queryFn`, not a separate cache
    * entry it composes.
    */
+  /**
+   * The week in progress, from the shared snapshot `live-scores` maintains.
+   * Volatile, and nothing invalidates it: the hook polls while a game is on.
+   */
+  live: {
+    ...scope('live'),
+    week: (seasonId, week) => ['live', seasonId, 'week', week]
+  },
+
   playerStats: {
     ...scope('playerStats'),
     forSeason: (seasonId, throughWeek = null) =>

@@ -7,6 +7,7 @@
  */
 
 import { extractOwnerInfo } from '../utils/ownerUtils.js';
+import { BROWSER_HEADERS } from './espnLiveScoreFetcher.js';
 
 /**
  * A team's display name as ESPN reports it.
@@ -23,6 +24,23 @@ import { extractOwnerInfo } from '../utils/ownerUtils.js';
 export function espnTeamName(team, espnTeamId) {
   const composed = [team?.location, team?.nickname].filter(Boolean).join(' ').trim();
   return team?.name?.trim() || composed || team?.abbrev || `Team ${espnTeamId}`;
+}
+
+/**
+ * A side's score while its week is being played.
+ *
+ * `totalPoints` is the settled score and reads 0 until ESPN closes the week, so
+ * it cannot answer a live question. Checked against the league on 2026-11-02,
+ * mid-week: `totalPointsLive` is the score so far and equals the starters'
+ * `appliedStatTotal` exactly, and `totalProjectedPointsLive` is ESPN's own
+ * projection, updated as games finish. A week that has not begun has neither,
+ * only the pregame `totalProjectedPoints`.
+ */
+function liveFigures(side) {
+  return {
+    liveScore: side?.totalPointsLive ?? null,
+    liveProjection: side?.totalProjectedPointsLive ?? side?.totalProjectedPoints ?? null
+  };
 }
 
 export class ESPNScheduleFetcher {
@@ -75,8 +93,10 @@ export class ESPNScheduleFetcher {
     params.append('view', 'mMembers'); // Add members view to get owner info
     params.append('scoringPeriodId', weekNumber.toString());
 
+    // The `live-scores` edge function calls this from Supabase's egress, where
+    // a default runtime User-Agent is what `site.api.espn.com` refused.
     const headers = {
-      'Accept': 'application/json',
+      ...BROWSER_HEADERS,
       'Content-Type': 'application/json'
     };
 
@@ -122,7 +142,7 @@ export class ESPNScheduleFetcher {
         ownerId: homeOwnerInfo.ownerId,
         ownerName: homeOwnerInfo.ownerName,
         score: matchup.home?.totalPoints || 0,
-        projectedScore: matchup.home?.totalPointsLive || 0,
+        ...liveFigures(matchup.home),
         rosterForCurrentScoringPeriod: matchup.home?.rosterForCurrentScoringPeriod || null
       },
       awayTeam: {
@@ -131,7 +151,7 @@ export class ESPNScheduleFetcher {
         ownerId: awayOwnerInfo.ownerId,
         ownerName: awayOwnerInfo.ownerName,
         score: matchup.away?.totalPoints || 0,
-        projectedScore: matchup.away?.totalPointsLive || 0,
+        ...liveFigures(matchup.away),
         rosterForCurrentScoringPeriod: matchup.away?.rosterForCurrentScoringPeriod || null
       },
       winner: this.determineWinner(matchup),
@@ -315,6 +335,12 @@ export class ESPNScheduleFetcher {
   }
 }
 
+/**
+ * @param {string|number} leagueId
+ * @param {number} seasonYear
+ * @param {string|null} [espnS2]
+ * @param {string|null} [swid]
+ */
 export async function createScheduleFetcher(leagueId, seasonYear, espnS2 = null, swid = null) {
   const fetcher = new ESPNScheduleFetcher(leagueId, seasonYear, espnS2, swid);
   

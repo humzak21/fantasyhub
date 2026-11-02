@@ -4,6 +4,7 @@ import { PlayerPoints } from '../ui/player-points';
 import { getPositionColor } from '../../utils/positionColors';
 import { cn } from '../../lib/utils';
 import { useLineupsForWeek, useNflOpponentMap } from '../../../hooks/queries/index.js';
+import { rowAsPoints } from '../../../utils/lineupTotals.js';
 import { teamOf } from '../../../utils/playerImages.js';
 import { TeamLink } from '../ui/team-link';
 import { AutosubSection } from '../autosub/AutosubSection';
@@ -196,11 +197,7 @@ const PlayerRow = ({ row, opponent, muted }) => {
       <span className="w-12 shrink-0 text-right">
         <OpponentChip entry={opponent} warnOnBye />
       </span>
-      <PlayerPoints
-        actualPoints={row.actualPoints}
-        projectedPoints={row.projectedPoints}
-        className="w-[4.25rem] shrink-0 text-right"
-      />
+      <PlayerPoints {...rowAsPoints(row)} className="w-[4.25rem] shrink-0 text-right" />
     </div>
   );
 };

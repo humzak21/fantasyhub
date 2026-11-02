@@ -6,17 +6,24 @@ import { MatchupHistory } from './MatchupHistory';
 import LineupPanel from '../../schedule/LineupPanel';
 import { Badge } from '../../ui/badge';
 import { FieldBackdrop, ShareBar } from '../../ui/field-backdrop';
-import { PlayerPoints } from '../../ui/player-points';
+import { LiveSideNote, PlayerPoints } from '../../ui/player-points';
 import { RecordText } from '../../ui/number-text';
 import { Skeleton } from '../../ui/skeleton';
 import { TeamAvatar } from '../../ui/team-identity';
-import { cn } from '../../../lib/utils';
+import { cn, formatTime } from '../../../lib/utils';
 import { formatOrdinal, formatPoints } from '../../../utils/format';
 import { getMaskedOwnerName, getMaskedTeamName } from '../../../utils/displayNameUtils';
 import { teamRosterPath } from '../../teams/teamLink';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useLineupsForWeek, useRankingsForWeek } from '../../../../hooks/queries/index.js';
-import { isScoringStarter, starterTotal, totalAsPoints } from '../../../../utils/lineupTotals.js';
+import {
+  currentPoints,
+  isScoringStarter,
+  matchupLiveState,
+  starterTotal,
+  totalAsPoints
+} from '../../../../utils/lineupTotals.js';
+import { overlayGame } from '../../../../utils/liveOverlay.js';
 import { gamePhaseLabel } from '../../../../utils/franchiseWeeks.js';
 import { franchiseIdOf } from '../../../../utils/viewerTeam.js';
 import {
@@ -115,11 +122,17 @@ function ViewerMatchup({ ctx, matchup }) {
   const opponentRows = lineups.data?.[opponentId] ?? [];
   const totals = { own: starterTotal(ownRows), opponent: starterTotal(opponentRows) };
 
-  // The imported score wins; until there is one, the starters' total stands in.
+  const liveSides = overlayGame(game, lineups.live).live;
+  const ownLive = liveSides?.[side === 1 ? 'team1' : 'team2'] ?? null;
+  const opponentLive = liveSides?.[side === 1 ? 'team2' : 'team1'] ?? null;
+  const asOf = matchupLiveState(totals.own, totals.opponent) ? lineups.live?.refreshedAt : null;
+
+  // The imported score wins, then the live score; until there is one, the
+  // starters' total stands in.
   const status = matchupStatus({
     completed: Boolean(game.isCompleted),
-    own: hasScores ? scores.own : totals.own?.total ?? null,
-    opponent: hasScores ? scores.opponent : totals.opponent?.total ?? null,
+    own: hasScores ? scores.own : currentPoints(totals.own, ownLive?.points),
+    opponent: hasScores ? scores.opponent : currentPoints(totals.opponent, opponentLive?.points),
     anyActual: [...ownRows, ...opponentRows].some((row) => isScoringStarter(row) && row.actualPoints != null)
   });
 
@@ -155,6 +168,7 @@ function ViewerMatchup({ ctx, matchup }) {
               standing={standingOf(viewerTeam.id)}
               score={hasScores ? scores.own : null}
               total={totals.own}
+              live={ownLive}
               loading={!hasScores && lineups.isLoading}
               isViewer
             />
@@ -173,6 +187,7 @@ function ViewerMatchup({ ctx, matchup }) {
               standing={standingOf(opponentId)}
               score={hasScores ? scores.opponent : null}
               total={totals.opponent}
+              live={opponentLive}
               loading={!hasScores && lineups.isLoading}
               align="end"
             />
@@ -202,6 +217,12 @@ function ViewerMatchup({ ctx, matchup }) {
                 >
                   {status.text}
                 </span>
+              </>
+            )}
+            {asOf && (
+              <>
+                <span aria-hidden="true" className="text-muted-foreground">·</span>
+                <span className="text-muted-foreground tabular">as of {formatTime(asOf)}</span>
               </>
             )}
           </div>
@@ -238,7 +259,7 @@ function ViewerMatchup({ ctx, matchup }) {
  * they share a row — identity at the outer edge, score toward the middle — so
  * the card has no dead centre. The identity links to the team's roster.
  */
-function MatchupSide({ team, name, owner, standing, score, total, loading, isViewer = false, align = 'start' }) {
+function MatchupSide({ team, name, owner, standing, score, total, live, loading, isViewer = false, align = 'start' }) {
   const end = align === 'end';
   return (
     <div
@@ -279,7 +300,10 @@ function MatchupSide({ team, name, owner, standing, score, total, loading, isVie
         <p className="text-sm text-muted-foreground">Unknown team</p>
       )}
 
-      <Score score={score} total={total} loading={loading} label={name} align={align} />
+      <div className={cn('flex shrink-0 flex-col gap-1', end ? 'items-end' : 'items-start')}>
+        <Score score={score} total={total} live={live} loading={loading} label={name} align={align} />
+        {score == null && <LiveSideNote total={total} projected={live?.projected} />}
+      </div>
     </div>
   );
 }
@@ -287,12 +311,13 @@ function MatchupSide({ team, name, owner, standing, score, total, loading, isVie
 /**
  * A side's number, counting up once on arrival. The imported score always
  * wins; until there is one the lineup's starter total stands in, labelled
- * "proj" by `PlayerPoints` while any starter is still a projection. No lineup
- * data is the em dash, never 0.
+ * "proj" by `PlayerPoints` while any starter is still a projection and "live"
+ * once the score so far has taken over. No lineup data is the em dash, never 0.
  */
-function Score({ score, total, loading, label, align = 'start' }) {
+function Score({ score, total, live, loading, label, align = 'start' }) {
   const isResult = score != null;
-  const target = isResult ? score : total?.total ?? null;
+  const points = totalAsPoints(total, live?.points);
+  const target = isResult ? score : points.actualPoints ?? points.projectedPoints;
   const shown = useCountUp(target);
   const className = cn(
     'block shrink-0 font-display text-[40px] font-semibold leading-none tracking-[-0.01em] tabular lg:text-[56px]',
@@ -311,7 +336,9 @@ function Score({ score, total, loading, label, align = 'start' }) {
 
   return (
     <PlayerPoints
-      {...totalAsPoints(total ? { ...total, total: shown } : total)}
+      {...points}
+      actualPoints={points.actualPoints != null ? shown : null}
+      projectedPoints={points.projectedPoints != null ? shown : null}
       display
       className={cn(className, 'whitespace-nowrap')}
     />
@@ -400,7 +427,7 @@ function WeekScoreboard({ ctx }) {
   const lineups = useLineupsForWeek(seasonId, actualWeek, { actualWeek });
   const games = season.schedule.filter((g) => g.week === actualWeek);
 
-  const line = (teamId, score) => {
+  const line = (teamId, score, livePoints) => {
     const team = season.teams.find((t) => sameId(t.id, teamId));
     return (
       <div className="flex min-h-9 items-center justify-between gap-3">
@@ -414,7 +441,7 @@ function WeekScoreboard({ ctx }) {
           <Skeleton className="h-4 w-12" />
         ) : (
           <PlayerPoints
-            {...totalAsPoints(starterTotal(lineups.data?.[teamId] ?? []))}
+            {...totalAsPoints(starterTotal(lineups.data?.[teamId] ?? []), livePoints)}
             display
             className="text-lg"
           />
@@ -435,16 +462,19 @@ function WeekScoreboard({ ctx }) {
       empty={games.length === 0 && <p className="text-sm text-muted-foreground">No games this week.</p>}
     >
       <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-        {games.map((game) => (
-          <li key={game.id} className="rounded-lg border border-border bg-muted/20 px-3 py-1.5">
-            {line(game.team1Id, game.team1Score)}
-            {game.type === 'bye' || game.team2Id == null ? (
-              <p className="min-h-9 py-2 text-sm text-muted-foreground">Bye</p>
-            ) : (
-              line(game.team2Id, game.team2Score)
-            )}
-          </li>
-        ))}
+        {games.map((game) => {
+          const live = overlayGame(game, lineups.live).live;
+          return (
+            <li key={game.id} className="rounded-lg border border-border bg-muted/20 px-3 py-1.5">
+              {line(game.team1Id, game.team1Score, live?.team1?.points)}
+              {game.type === 'bye' || game.team2Id == null ? (
+                <p className="min-h-9 py-2 text-sm text-muted-foreground">Bye</p>
+              ) : (
+                line(game.team2Id, game.team2Score, live?.team2?.points)
+              )}
+            </li>
+          );
+        })}
       </ul>
     </HomeWidget>
   );

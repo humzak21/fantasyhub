@@ -331,6 +331,7 @@ export async function getPlayerWeekStatsForWeek(ctx, seasonId, week) {
         projected_points,
         stat_breakdown,
         injury_status,
+        updated_at,
         player:players (
           id,
           name,
