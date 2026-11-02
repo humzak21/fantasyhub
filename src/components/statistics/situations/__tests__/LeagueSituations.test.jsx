@@ -57,7 +57,9 @@ describe('LeagueSituations', () => {
     await screen.findAllByText('Owner A');
     expect(screen.getAllByText('3-0').length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole('tab', { name: '2 games' }));
+    await user.click(screen.getByRole('combobox', { name: 'Length of the start' }));
+    expect(await screen.findAllByRole('option')).toHaveLength(12);
+    await user.click(screen.getByRole('option', { name: '2' }));
     expect(screen.getAllByText('2-0').length).toBeGreaterThan(0);
   });
 

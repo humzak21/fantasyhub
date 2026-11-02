@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   SCORE_BANDS,
+  START_LENGTHS,
   buildRecordBook,
   buildSituations,
   lockedEnds,
@@ -235,6 +236,16 @@ describe('starts', () => {
     const middling = starts[3].find((group) => group.key === '2-1');
     expect(middling.best.teamId).toBe('tD');
     expect(middling.worst.teamId).toBe('tE');
+  });
+
+  it('offers every start from 2 games to 13', () => {
+    expect(START_LENGTHS).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    expect(Object.keys(starts).map(Number)).toEqual(START_LENGTHS);
+  });
+
+  it('leaves out a team-season too short for the start', () => {
+    expect(starts[5].reduce((total, group) => total + group.count, 0)).toBe(6);
+    expect(starts[13]).toEqual([]);
   });
 
   it('leaves a season still being played out', () => {

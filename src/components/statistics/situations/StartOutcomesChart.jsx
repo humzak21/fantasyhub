@@ -20,8 +20,6 @@ const OUTCOMES = [
   { key: 'punished', label: 'Punishment', color: 'var(--chart-7)' }
 ];
 
-const BAR_HEIGHT = { 3: 'h-[200px]', 4: 'h-[240px]', 5: 'h-[280px]', 6: 'h-[320px]' };
-
 /** One row of the chart: an outcome's teams, with `playoffs` net of the titles. */
 const outcomeCounts = (group) => ({
   titles: group.titles,
@@ -67,7 +65,12 @@ export default function StartOutcomesChart({ groups }) {
   const data = [...groups].reverse().map((group) => ({ ...group, ...outcomeCounts(group) }));
 
   return (
-    <ChartContainer config={{}} className={`${BAR_HEIGHT[data.length] ?? 'h-[320px]'} w-full`}>
+    // One height rule for any number of records: a 13-game start has up to fourteen.
+    <ChartContainer
+      config={{}}
+      className="h-[calc(var(--start-rows)*40px+80px)] w-full"
+      style={{ '--start-rows': data.length }}
+    >
       <BarChart data={data} layout="vertical" stackOffset="expand" margin={{ top: 4, right: 12, bottom: 0, left: 0 }} {...axis.chart}>
         <CartesianGrid horizontal={false} stroke="var(--border)" />
         <XAxis
@@ -80,8 +83,8 @@ export default function StartOutcomesChart({ groups }) {
           tick={{ fontSize: 11 }}
           {...axis.x}
         />
-        {/* A category axis in a horizontal layout: a handful of short records,
-            so every one fits, and `axis.y`'s numeric gutter is not for it. */}
+        {/* A category axis in a horizontal layout: short records, a row each so
+            every one fits, and `axis.y`'s numeric gutter is not for it. */}
         <YAxis type="category" dataKey="key" interval={0} width={48} tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
         <Tooltip cursor={{ fill: 'var(--muted)', fillOpacity: 0.4 }} content={<Tip />} />
         {OUTCOMES.map((outcome) => (
