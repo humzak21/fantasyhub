@@ -93,6 +93,7 @@ export {
 } from './useParlay.js';
 
 export { useParlayLive } from './useParlayLive.js';
+export { useLiveWeek } from './useLiveWeek.js';
 
 export { usePushNotifications } from './usePushNotifications.js';
 export { useNotificationInbox, useInboxMutations, countUnread } from './useNotificationInbox.js';

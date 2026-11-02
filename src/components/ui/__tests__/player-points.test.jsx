@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-import { PlayerPoints } from '../player-points';
+import { LiveSideNote, PlayerPoints } from '../player-points';
 
 describe('PlayerPoints', () => {
   it('shows an actual with no label', () => {
@@ -35,5 +35,44 @@ describe('PlayerPoints', () => {
     expect(screen.getByText('—')).toBeInTheDocument();
     // "proj —" would assert a projection that does not exist.
     expect(screen.queryByText('proj')).not.toBeInTheDocument();
+  });
+});
+
+describe('PlayerPoints, live', () => {
+  it('labels a figure on the field as live, not as a result or a guess', () => {
+    render(<PlayerPoints actualPoints={6.2} projectedPoints={14} live="playing" />);
+
+    expect(screen.getByText('live')).toBeInTheDocument();
+    expect(screen.getByText('6.2')).toBeInTheDocument();
+    expect(screen.queryByText('proj')).not.toBeInTheDocument();
+  });
+
+  it('says "so far" with nobody on the field', () => {
+    render(<PlayerPoints actualPoints={12} live="between" />);
+    expect(screen.getByText('so far')).toBeInTheDocument();
+  });
+
+  it('falls back to the projection until there is a figure', () => {
+    render(<PlayerPoints actualPoints={null} projectedPoints={14} live="playing" />);
+
+    expect(screen.getByText('proj')).toBeInTheDocument();
+    expect(screen.queryByText('live')).not.toBeInTheDocument();
+  });
+});
+
+describe('LiveSideNote', () => {
+  it('says what a side has left', () => {
+    render(<LiveSideNote total={{ liveState: 'playing', yetToPlay: 2 }} projected={132.84} />);
+    expect(screen.getByText('2 yet to play · proj 132.8')).toBeInTheDocument();
+  });
+
+  it('renders nothing before a lineup is under way, or after it has finished', () => {
+    const { container } = render(
+      <>
+        <LiveSideNote total={{ total: 100, isProjected: true }} projected={100} />
+        <LiveSideNote total={{ liveState: 'done', yetToPlay: 0 }} projected={100} />
+      </>
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 });

@@ -14,7 +14,7 @@ import { useCurrentLineups, useNflOpponentMap } from '../../../hooks/queries/ind
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
-import { isScoringStarter, starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
+import { isScoringStarter, rowAsPoints, starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
 
 /**
  * Who is actually starting this week, so a parlay pick is a decision rather
@@ -342,11 +342,7 @@ const PlayerList = ({ rows, opponents = {}, bench = false }) => (
         <span className="w-14 shrink-0 text-right">
           <OpponentChip entry={opponents[row.proTeamId]} warnOnBye />
         </span>
-        <PlayerPoints
-          actualPoints={row.actualPoints}
-          projectedPoints={row.projectedPoints}
-          className="w-[4.25rem] shrink-0 text-right"
-        />
+        <PlayerPoints {...rowAsPoints(row)} className="w-[4.25rem] shrink-0 text-right" />
       </li>
     ))}
   </ul>

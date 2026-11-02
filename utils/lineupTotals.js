@@ -12,6 +12,8 @@
  * real projected score, not an approximation of one.
  */
 
+import { GAME_STATE } from '../services/espnLiveScoreMapper.js';
+
 /**
  * Bench and IR do not score, so they are not part of a team's total.
  *
@@ -38,27 +40,75 @@ export function isScoringStarter(row) {
  * underestimate when a starter has no figure at all, which is why the per-row
  * dash beside them stays visible: the lineup shows what the total is missing.
  *
+ * **Rows the live overlay has touched carry `nflState`, and add three facts.**
+ * While games are on, the sum above is the wrong number to show: it adds a
+ * Sunday starter's projection to a Thursday starter's result. `scored` is the
+ * actuals alone, the score so far, which is ESPN's own live total. `yetToPlay`
+ * counts starters whose game has not kicked off, figure or no figure.
+ * `liveState` says where the lineup stands:
+ *
+ *   - `playing`  somebody in it is on the field
+ *   - `between`  it has points on the board and more to come, nobody on now
+ *   - `done`     every starter's game is over, and it is still not official
+ *
  * @param {object[]} rows lineup rows, as `useWeekPlayerStats` / `useCurrentLineups` return
- * @returns {{ total: number|null, isProjected: boolean }} `total` is null when
- *   nothing is known — an unimported season, or a week nobody has synced.
+ * @returns {{ total: number|null, isProjected: boolean, scored?: number, yetToPlay?: number, liveState?: string|null }}
+ *   `total` is null when nothing is known — an unimported season, or a week
+ *   nobody has synced.
  */
 export function lineupTotal(rows = []) {
   let total = 0;
   let counted = 0;
   let actuals = 0;
+  let scored = 0;
+  let playing = 0;
+  let yetToPlay = 0;
+  let tracked = false;
 
   for (const row of rows) {
+    if (row?.nflState != null) tracked = true;
+    if (row?.nflState === GAME_STATE.IN_PROGRESS) playing += 1;
+    if (row?.nflState === GAME_STATE.NOT_STARTED) yetToPlay += 1;
+
     const points = row?.actualPoints ?? row?.projectedPoints;
     if (points == null || !Number.isFinite(Number(points))) continue;
 
     total += Number(points);
     counted += 1;
-    if (row.actualPoints != null) actuals += 1;
+    if (row.actualPoints != null) {
+      actuals += 1;
+      scored += Number(row.actualPoints);
+    }
   }
 
   if (counted === 0) return { total: null, isProjected: false };
 
-  return { total, isProjected: actuals < counted };
+  const settled = { total, isProjected: actuals < counted };
+  if (!tracked) return settled;
+
+  let liveState = null;
+  if (playing > 0) liveState = 'playing';
+  else if (actuals > 0) liveState = yetToPlay > 0 ? 'between' : 'done';
+
+  return { ...settled, scored, yetToPlay, liveState };
+}
+
+/**
+ * The number a side stands on right now: the score so far once it has one, or
+ * the projected total. `livePoints` is ESPN's matchup score, which wins over
+ * the rows' own sum when the caller has it.
+ */
+export function currentPoints(total, livePoints = null) {
+  if (total?.liveState) return livePoints ?? total.scored;
+  return total?.total ?? null;
+}
+
+/** Where a matchup stands, from its two sides. See `lineupTotal`. */
+export function matchupLiveState(a, b) {
+  const states = [a?.liveState, b?.liveState];
+  if (states.includes('playing')) return 'playing';
+  if (states.includes('between')) return 'between';
+  return states[0] === 'done' && states[1] === 'done' ? 'done' : null;
 }
 
 /**
@@ -68,13 +118,30 @@ export function lineupTotal(rows = []) {
  * writing the ternary out at each of them is how one of them ends up passing
  * `projectedPoints` unconditionally and labelling a finished week's score
  * "proj" — which is exactly what happened.
+ *
+ * A lineup under way shows its score so far, not the projected sum, and says
+ * which of the two it is through `live`.
  */
-export function totalAsPoints(total) {
+export function totalAsPoints(total, livePoints = null) {
   if (!total || total.total == null) return { actualPoints: null, projectedPoints: null };
+
+  if (total.liveState === 'done') return { actualPoints: livePoints ?? total.scored, projectedPoints: null };
+  if (total.liveState) {
+    return { actualPoints: livePoints ?? total.scored, projectedPoints: null, live: total.liveState };
+  }
 
   return total.isProjected
     ? { actualPoints: null, projectedPoints: total.total }
     : { actualPoints: total.total, projectedPoints: null };
+}
+
+/** One player's line as `ui/player-points.jsx` props. On the field is `live`. */
+export function rowAsPoints(row) {
+  return {
+    actualPoints: row.actualPoints,
+    projectedPoints: row.projectedPoints,
+    live: row.nflState === GAME_STATE.IN_PROGRESS ? 'playing' : null
+  };
 }
 
 /** `lineupTotal` over the scoring starters only. The read both surfaces want. */

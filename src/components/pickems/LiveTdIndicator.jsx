@@ -1,6 +1,7 @@
 import { Check, X } from 'lucide-react';
 
 import { Badge } from '../ui/badge';
+import { LiveDot } from '../ui/live-dot';
 import { cn } from '../../lib/utils';
 import { GAME_STATE } from '../../../services/espnLiveScoreMapper.js';
 
@@ -88,16 +89,6 @@ export function ParlayPickStatus({ scoredTd, live, compact = false, showPendingD
     );
   }
   return null;
-}
-
-/** A small status dot: pulsing while live, steady once the game is final. */
-function LiveDot({ done }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={cn('inline-block h-1.5 w-1.5 rounded-full bg-current', !done && 'animate-pulse')}
-    />
-  );
 }
 
 export default ParlayPickStatus;

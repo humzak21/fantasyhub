@@ -509,6 +509,11 @@ const FreshnessRow = ({ label, value, at, ok, note, now }) => {
   );
 };
 
+const describeLiveWeek = (liveWeek) => {
+  if (!liveWeek) return 'none';
+  return `week ${liveWeek.week}, ${liveWeek.live ? 'game on' : 'no game on'}`;
+};
+
 const Freshness = ({ health, actualWeek, config, now }) => {
   if (!health) return null;
   const week = actualWeek ?? null;
@@ -591,6 +596,14 @@ const Freshness = ({ health, actualWeek, config, now }) => {
             at={null}
             ok={health.pendingParlayGrades === 0 ? true : null}
             note="td_parlay_picks.scored_td is null for finished weeks · both jobs"
+            now={now}
+          />
+          <FreshnessRow
+            label="Live scores"
+            value={describeLiveWeek(health.liveWeek)}
+            at={health.liveWeek?.at}
+            ok={health.liveWeek?.error ? false : null}
+            note={health.liveWeek?.error ?? 'live_week_snapshot · live-scores edge function, while a game is on'}
             now={now}
           />
         </ul>

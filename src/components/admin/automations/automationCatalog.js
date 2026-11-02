@@ -489,6 +489,22 @@ export const PASSIVE_AUTOMATIONS = [
       'be done without changing anything. A red run usually means the ESPN cookies have expired.'
   },
   {
+    id: 'live-scores',
+    name: 'Live scores',
+    where: 'Supabase edge function · live-scores, deployed by hand',
+    fires: 'When somebody reads a live week, at most every 15 minutes, and only from the first kickoff of a day to four hours past its last',
+    does:
+      'Pulls the week\'s fantasy scores and every player\'s live line from ESPN, and the NFL scoreboard for each ' +
+      'game\'s clock, into live_week_snapshot. Every viewer reads that one row, so ESPN hears from us once ' +
+      'however many people are watching, and not at all on a Wednesday. It never writes games: the weekly sync ' +
+      'stays the only author of a result, and a real score replaces the live one as soon as it lands.',
+    verify:
+      'Live scores under What the tables say: the newest snapshot, its age, and the last error if the newest ' +
+      'attempt failed. A GET to the function reports which secrets it can see and whether ESPN serves it. A 401 ' +
+      'there means the ESPN_S2 and ESPN_SWID secrets have expired; they are set with supabase secrets set, ' +
+      'separately from the Actions secrets. With the function down the site goes on showing projections.'
+  },
+  {
     id: 'deploy-migrations',
     name: 'Database migrations (deploy-migrations.yml)',
     where: 'GitHub Actions · a merge to main that touches supabase/migrations/',

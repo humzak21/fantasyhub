@@ -17,7 +17,7 @@
  * it just means the stored value can be pasted either way without anyone having
  * to know which.
  */
-const normaliseSwid = (value) => {
+export const normaliseSwid = (value) => {
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;

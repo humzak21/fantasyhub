@@ -9,11 +9,15 @@
 import { describe, it, expect } from 'vitest';
 
 import {
+  currentPoints,
   isScoringStarter,
   lineupTotal,
+  matchupLiveState,
+  rowAsPoints,
   starterTotal,
   totalAsPoints
 } from '../lineupTotals.js';
+import { GAME_STATE } from '../../services/espnLiveScoreMapper.js';
 
 const starter = (over = {}) => ({
   started: true,
@@ -125,5 +129,94 @@ describe('totalAsPoints', () => {
       actualPoints: 0,
       projectedPoints: null
     });
+  });
+});
+
+describe('a lineup under way', () => {
+  const live = (nflState, overrides) => ({
+    started: true,
+    rosterSlot: 'RB',
+    actualPoints: null,
+    projectedPoints: 10,
+    nflState,
+    ...overrides
+  });
+
+  it('reads as it always did until the overlay has touched it', () => {
+    expect(lineupTotal([starter({ actualPoints: 12 })])).toEqual({ total: 12, isProjected: false });
+  });
+
+  it('keeps the score so far apart from the projected sum', () => {
+    const total = lineupTotal([
+      live(GAME_STATE.FINAL, { actualPoints: 20 }),
+      live(GAME_STATE.IN_PROGRESS, { actualPoints: 3.5 }),
+      live(GAME_STATE.NOT_STARTED)
+    ]);
+
+    expect(total).toEqual({
+      total: 33.5,
+      isProjected: true,
+      scored: 23.5,
+      yetToPlay: 1,
+      liveState: 'playing'
+    });
+  });
+
+  it('has no live state before anybody has played', () => {
+    expect(lineupTotal([live(GAME_STATE.NOT_STARTED)]).liveState).toBeNull();
+  });
+
+  it('is between games with points on the board, nobody on and more to come', () => {
+    expect(
+      lineupTotal([live(GAME_STATE.FINAL, { actualPoints: 12 }), live(GAME_STATE.NOT_STARTED)]).liveState
+    ).toBe('between');
+  });
+
+  it('is done once every game is over', () => {
+    expect(lineupTotal([live(GAME_STATE.FINAL, { actualPoints: 12 })]).liveState).toBe('done');
+  });
+
+  it('counts a starter with no figure as yet to play', () => {
+    const rows = [
+      live(GAME_STATE.FINAL, { actualPoints: 12 }),
+      live(GAME_STATE.NOT_STARTED, { projectedPoints: null })
+    ];
+    expect(lineupTotal(rows).yetToPlay).toBe(1);
+  });
+
+  it('shows the score so far, and says it is not a result', () => {
+    const total = { total: 33.5, isProjected: true, scored: 23.5, yetToPlay: 1, liveState: 'playing' };
+
+    expect(totalAsPoints(total)).toEqual({ actualPoints: 23.5, projectedPoints: null, live: 'playing' });
+    expect(totalAsPoints(total, 24.1).actualPoints).toBe(24.1);
+    expect(totalAsPoints({ ...total, liveState: 'between' }).live).toBe('between');
+  });
+
+  it('shows a finished lineup as a bare figure', () => {
+    const total = { total: 12, isProjected: false, scored: 12, yetToPlay: 0, liveState: 'done' };
+    expect(totalAsPoints(total)).toEqual({ actualPoints: 12, projectedPoints: null });
+  });
+
+  it('stands on the score so far once there is one, the projection before', () => {
+    expect(currentPoints({ total: 33.5, scored: 23.5, liveState: 'playing' })).toBe(23.5);
+    expect(currentPoints({ total: 33.5, scored: 23.5, liveState: 'playing' }, 24.1)).toBe(24.1);
+    expect(currentPoints({ total: 33.5, isProjected: true })).toBe(33.5);
+    expect(currentPoints(null)).toBeNull();
+  });
+
+  it('marks only a player who is on the field as live', () => {
+    expect(rowAsPoints(live(GAME_STATE.IN_PROGRESS, { actualPoints: 3 })).live).toBe('playing');
+    expect(rowAsPoints(live(GAME_STATE.FINAL, { actualPoints: 3 })).live).toBeNull();
+    expect(rowAsPoints({ actualPoints: 3 }).live).toBeNull();
+  });
+
+  it('calls a matchup by whichever side is furthest along', () => {
+    const state = (liveState) => ({ liveState });
+
+    expect(matchupLiveState(state('playing'), state('done'))).toBe('playing');
+    expect(matchupLiveState(state('between'), state(null))).toBe('between');
+    expect(matchupLiveState(state('done'), state('done'))).toBe('done');
+    expect(matchupLiveState(state('done'), state(null))).toBeNull();
+    expect(matchupLiveState(undefined, undefined)).toBeNull();
   });
 });

@@ -27,76 +27,22 @@ import {
   buildLiveStatus,
   anyGameLive
 } from './espnLiveScoreMapper.js';
+import {
+  GAME_WINDOWS,
+  etParts,
+  inWindow,
+  isLikelyGameWindow,
+  shouldRefresh as sharedShouldRefresh
+} from './gameWindows.js';
 
 /** Pull ESPN at most this often while games are on. */
 export const REFRESH_TTL_MS = 30 * 60 * 1000;
 
-/**
- * When NFL games are worth polling for, in Eastern wall-clock time. `day` is
- * 0=Sunday … 6=Saturday; `startMin`/`endMin` are minutes past midnight ET.
- *
- * These are the league's usual windows — Thursday and Monday night, and the
- * Sunday slate. They are intentionally a touch generous on the tail (games run
- * long) and easy to extend: a Thanksgiving/Christmas afternoon slate, a
- * Sunday-morning international game (≈09:30 ET), or a late-season Saturday would
- * each be one more row here. Missing a slot is never *wrong* — it just means no
- * live overlay for it; the Tuesday grade still lands.
- */
-export const GAME_WINDOWS = [
-  { day: 4, startMin: 20 * 60, endMin: 24 * 60 }, // Thursday 20:00–23:59 ET
-  { day: 0, startMin: 13 * 60, endMin: 24 * 60 }, // Sunday   13:00–23:59 ET
-  { day: 1, startMin: 20 * 60, endMin: 24 * 60 }  // Monday   20:00–23:59 ET
-];
+export { GAME_WINDOWS, etParts, inWindow, isLikelyGameWindow };
 
-/**
- * A `Date`'s Eastern weekday and minutes-past-midnight, via the runtime's own
- * time-zone database — so it is correct across the EDT→EST change without any
- * offset arithmetic here.
- */
-export function etParts(now, timeZone = 'America/New_York') {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  }).formatToParts(now);
-
-  const get = (type) => parts.find((p) => p.type === type)?.value;
-  const weekday = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[get('weekday')];
-  // `hour12: false` renders midnight as '24' in some engines; fold it back to 0.
-  const hour = Number(get('hour')) % 24;
-  const minute = Number(get('minute'));
-
-  return { weekday, minutes: hour * 60 + minute };
-}
-
-/** Is `{ weekday, minutes }` inside any window? Pure, so it is the tested core. */
-export function inWindow({ weekday, minutes }, windows = GAME_WINDOWS) {
-  return windows.some(
-    (w) => w.day === weekday && minutes >= w.startMin && minutes < w.endMin
-  );
-}
-
-/** Is now inside a game window? A cheap local check, never an ESPN call. */
-export function isLikelyGameWindow(now, windows = GAME_WINDOWS, timeZone) {
-  return inWindow(etParts(now, timeZone), windows);
-}
-
-/**
- * Should ESPN be pulled right now?
- *
- * Only inside a window, and only if the last pull is at least the TTL old (or
- * there has never been one). Outside a window this is always false — the caller
- * serves the last snapshot untouched.
- */
-export function shouldRefresh({ now, refreshedAt, inWindow: isIn, ttlMs = REFRESH_TTL_MS }) {
-  if (!isIn) return false;
-  if (!refreshedAt) return true;
-
-  const last = new Date(refreshedAt).getTime();
-  if (Number.isNaN(last)) return true;
-  return now.getTime() - last >= ttlMs;
+/** The shared clock, at this tracker's own TTL. */
+export function shouldRefresh(args) {
+  return sharedShouldRefresh({ ttlMs: REFRESH_TTL_MS, ...args });
 }
 
 /**

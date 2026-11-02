@@ -55,7 +55,7 @@ function stateFromStatus(status) {
 }
 
 /**
- * `{ normalizedAbbrev → { eventId, state, detail } }`.
+ * `{ normalizedAbbrev → { eventId, state, detail, clock, period } }`.
  *
  * Both teams in a game point at the same event, so a pick on either side finds
  * it with one lookup. `detail` is the short status line the card shows —
@@ -71,7 +71,9 @@ export function indexEventsByTeam(scoreboard) {
     const entry = {
       eventId: String(event.id),
       state: stateFromStatus(event.status),
-      detail: event.status?.type?.shortDetail ?? event.status?.type?.detail ?? null
+      detail: event.status?.type?.shortDetail ?? event.status?.type?.detail ?? null,
+      clock: event.status?.displayClock ?? null,
+      period: event.status?.period ?? null
     };
 
     for (const competitor of competition.competitors ?? []) {

@@ -432,6 +432,7 @@ export async function getCurrentLineupsForWeek(ctx, seasonId, week) {
           id,
           team_id,
           roster_slot,
+          created_at,
           player:players (
             id,
             espn_player_id,
@@ -477,6 +478,8 @@ export async function getCurrentLineupsForWeek(ctx, seasonId, week) {
         actualPoints: stat?.actualPoints ?? null,
         projectedPoints: stat?.projectedPoints ?? row.player?.projected_points ?? null,
         injuryStatus: stat?.injuryStatus ?? row.player?.injury_status ?? null,
+        // Every sync deletes and reinserts, so this is when the lineup was read.
+        updatedAt: row.created_at,
         player: row.player
           ? {
               id: row.player.id,

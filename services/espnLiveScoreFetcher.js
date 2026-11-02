@@ -37,7 +37,7 @@ const SUMMARY_URL =
  * (and Accept) is what the edge function needs to be served, and costs nothing
  * when the same code runs locally. See the 403 this fixed on 2026-09-21.
  */
-const BROWSER_HEADERS = {
+export const BROWSER_HEADERS = {
   Accept: 'application/json, text/plain, */*',
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'

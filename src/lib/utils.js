@@ -77,6 +77,13 @@ export const formatDateTime = (date) => {
   }).format(new Date(date))
 }
 
+export const formatTime = (date) => {
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(date))
+}
+
 // Performance utilities
 export const debounce = (func, wait) => {
   let timeout
