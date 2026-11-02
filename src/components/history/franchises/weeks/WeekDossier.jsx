@@ -13,6 +13,7 @@ import { rankTier } from '../../../../../utils/franchiseWeeks.js';
 import { EMPTY, formatDelta, formatFraction, formatOrdinal, formatPoints, formatRecord, formatScore } from '../../../../utils/format';
 import { getMaskedFranchiseName } from '../../utils/privacyHelpers';
 import { useNflOpponentMap } from '../../../../../hooks/queries/index.js';
+import { TeamLink } from '../../../ui/team-link';
 
 /**
  * One franchise's week, as `utils/franchiseWeeks.js::buildWeekDossier` built it.
@@ -92,7 +93,13 @@ function ResultHeader({ dossier, viewer }) {
   } else if (!matchup.result) {
     body = (
       <p className="text-sm text-muted-foreground">
-        {opponentName ? `vs ${opponentName} · ` : ''}not played yet
+        {opponentName && (
+          <>
+            vs <TeamLink franchiseId={matchup.opponentFranchise.id}>{opponentName}</TeamLink>
+            {' · '}
+          </>
+        )}
+        not played yet
       </p>
     );
   } else {
@@ -116,7 +123,11 @@ function ResultHeader({ dossier, viewer }) {
           {matchup.isBlowout && <Badge variant="warning">Blowout</Badge>}
           {matchup.isClose && <Badge variant="info">Close game</Badge>}
         </div>
-        {opponentName && <p className="w-full text-sm text-muted-foreground">vs {opponentName}</p>}
+        {opponentName && (
+          <p className="w-full text-sm text-muted-foreground">
+            vs <TeamLink franchiseId={matchup.opponentFranchise.id}>{opponentName}</TeamLink>
+          </p>
+        )}
       </div>
     );
   }
@@ -376,9 +387,15 @@ function Moves({ moves, viewer }) {
                   {MOVE_LABEL[move.kind]}
                   {move.kind === 'trade' && move.counterparts.length > 0 && (
                     <span className="font-normal text-muted-foreground">
-                      {' '}with {move.counterparts
-                        .map((f) => getMaskedFranchiseName(f, viewer.user, viewer.isAdmin, viewer.teamOwnerNames))
-                        .join(', ')}
+                      {' '}with{' '}
+                      {move.counterparts.map((f, index) => (
+                        <span key={f.id ?? index}>
+                          {index > 0 && ', '}
+                          <TeamLink franchiseId={f.id}>
+                            {getMaskedFranchiseName(f, viewer.user, viewer.isAdmin, viewer.teamOwnerNames)}
+                          </TeamLink>
+                        </span>
+                      ))}
                     </span>
                   )}
                 </span>

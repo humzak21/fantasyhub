@@ -5,7 +5,6 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { EmptyState } from '../ui/empty-state';
 import { PlayerPoints } from '../ui/player-points';
-import { TeamIdentity } from '../ui/team-identity';
 import { IndependentColumns } from '../ui/independent-columns';
 import PageHeader from '../layout/PageHeader';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
@@ -22,6 +21,7 @@ import {
 import { starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
 // Shared with the home page's matchup hero, so both render one lineup.
 import LineupPanel from './LineupPanel.jsx';
+import { TeamIdentityLink, TeamLink } from '../ui/team-link';
 
 const ScheduleManager = ({
   season = null,
@@ -344,7 +344,7 @@ const FullScheduleView = ({
                         {/* Team 1 */}
                         <div className={`flex-1 flex items-center gap-2 ${isTeam1Winner ? 'font-bold' : 'font-medium'}`}>
                           <span className="flex-1 truncate">
-                            {getTeamName(game.team1Id, game)}
+                            <TeamLink team={team1}>{getTeamName(game.team1Id, game)}</TeamLink>
                           </span>
                           {game.isCompleted && (
                             <span className={`text-lg font-bold min-w-[3rem] text-right ${
@@ -378,7 +378,7 @@ const FullScheduleView = ({
                             </span>
                           )}
                           <span className="flex-1 truncate text-right">
-                            {getTeamName(game.team2Id, game)}
+                            <TeamLink team={team2}>{getTeamName(game.team2Id, game)}</TeamLink>
                           </span>
                         </div>
                       </div>
@@ -522,7 +522,7 @@ const GameCard = ({
           {rank && (
             <span className="w-6 shrink-0 text-xs tabular text-muted-foreground">#{rank}</span>
           )}
-          <TeamIdentity
+          <TeamIdentityLink
             team={{
               ...team,
               name: team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown team',
@@ -689,10 +689,12 @@ const GameCard = ({
               sides={[
                 {
                   teamId: game.team1Id,
+                  team: team1,
                   teamName: team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : ''
                 },
                 {
                   teamId: game.team2Id,
+                  team: team2,
                   teamName: team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : ''
                 }
               ]}

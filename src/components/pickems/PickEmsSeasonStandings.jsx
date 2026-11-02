@@ -11,6 +11,8 @@ import { cn } from '../../lib/utils';
 import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUtils';
 import { rankSeasonStandings, ordinal } from './seasonRanks.js';
 import TourneyNote from './TourneyNote.jsx';
+import { TeamLink } from '../ui/team-link';
+import { franchiseIdsByTeam } from '../../../utils/viewerTeam.js';
 
 /**
  * Picks that have actually been played, and picks still waiting on a game.
@@ -32,6 +34,7 @@ const PickEmsSeasonStandings = ({
   isAdmin = false,
   teamOwnerNames = []
 }) => {
+  const franchiseIds = franchiseIdsByTeam(season?.teams);
   const formatAccuracy = (accuracy) => {
     return `${accuracy?.toFixed(1) || '0.0'}%`;
   };
@@ -268,7 +271,9 @@ const PickEmsSeasonStandings = ({
                     </div>
                     <TeamAvatar team={{ name: team.teamName }} size="sm" />
                     <div className="min-w-0">
-                      <div className="truncate font-medium">{team.teamName}</div>
+                      <TeamLink franchiseId={franchiseIds.get(team.teamId)} className="block truncate font-medium">
+                        {team.teamName}
+                      </TeamLink>
                       <div className="text-sm text-muted-foreground">
                         {team.timesPicked} picks in {team.totalMatchups} matchups
                       </div>

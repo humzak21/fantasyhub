@@ -290,8 +290,8 @@ export async function getAllPicksForWeek(ctx, pickEmWeekId) {
           winner_team_id,
           team1_score,
           team2_score,
-          team1:teams!games_team1_id_fkey(id, name, owner),
-          team2:teams!games_team2_id_fkey(id, name, owner)
+          team1:teams!games_team1_id_fkey(id, name, owner, franchise_id),
+          team2:teams!games_team2_id_fkey(id, name, owner, franchise_id)
         ),
         predicted_team:teams!pick_em_submissions_predicted_winner_team_id_fkey(name)
       `)
@@ -346,8 +346,8 @@ export async function getAdminSubmissionsForWeek(ctx, pickEmWeekId) {
         *,
         games(
           week,
-          team1:teams!games_team1_id_fkey(id, name, owner),
-          team2:teams!games_team2_id_fkey(id, name, owner)
+          team1:teams!games_team1_id_fkey(id, name, owner, franchise_id),
+          team2:teams!games_team2_id_fkey(id, name, owner, franchise_id)
         ),
         predicted_team:teams!pick_em_submissions_predicted_winner_team_id_fkey(name)
       `)

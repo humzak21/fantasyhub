@@ -12,9 +12,11 @@ import { StreakChip } from '../../ui/streak-chip';
 import { ScrollTable } from '../ScrollTable';
 import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../tableTones';
 import { teamRosterPath } from '../../teams/teamLink';
+import { profilePath } from '../../profile/profileLink';
 import { QualifierKey } from '../../standings/DrawerStandingsTable';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useDivisions, useStandings } from '../../../../hooks/queries/index.js';
+import { franchiseIdsByTeam } from '../../../../utils/viewerTeam.js';
 import { usesSeededPlayoffs } from '../../../../utils/playoffSeeding.js';
 import { streakOf } from '../../../../utils/home/streak.js';
 
@@ -49,6 +51,8 @@ const TABLE_WIDTH = {
  */
 export default function StandingsMini({ ctx }) {
   const { seasonId, season, viewerTeam, onOpenStandings } = ctx;
+  const { isApproved } = useViewer();
+  const franchiseIds = franchiseIdsByTeam(season?.teams);
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const navigate = useNavigate();
   const standings = useStandings(seasonId);
@@ -148,7 +152,10 @@ export default function StandingsMini({ ctx }) {
                     {division.teams.map((team, index) => {
                       const isViewer = viewerTeam && sameId(team.id, viewerTeam.id);
                       const name = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
-                      const to = teamRosterPath(team.id);
+                      // The row and the name go to one place: the profile, or
+                      // the roster for a viewer who cannot open one.
+                      const franchiseId = franchiseIds.get(team.id);
+                      const to = isApproved && franchiseId ? profilePath(franchiseId) : teamRosterPath(team.id);
                       const cell = 'h-11 border-b border-border/40 group-last:border-0';
                       return (
                         <tr

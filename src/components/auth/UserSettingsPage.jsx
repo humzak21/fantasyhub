@@ -12,10 +12,11 @@ import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Badge } from '../ui/badge'
-import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow, Crown } from 'lucide-react'
+import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow, Crown, Link2 } from 'lucide-react'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
 import LeagueAdminsManager from '../admin/LeagueAdminsManager.jsx'
+import FranchiseAccountsManager from '../admin/FranchiseAccountsManager.jsx'
 import MemberApprovalsManager from '../admin/MemberApprovalsManager.jsx'
 import AutomationsDashboard, { ColourKey } from '../admin/AutomationsDashboard.jsx'
 import { useAutomationReport } from '../admin/automations/useAutomationReport.js'
@@ -264,6 +265,15 @@ export const UserSettingsPage = () => {
                     </Button>
 
                     <Button
+                      variant={activeSettingsTab === 'franchises' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('franchises')}
+                    >
+                      <Link2 className="mr-2 h-4 w-4" />
+                      Franchises
+                    </Button>
+
+                    <Button
                       variant={activeSettingsTab === 'approvals' ? 'default' : 'ghost'}
                       className="w-full justify-start"
                       onClick={() => setActiveSettingsTab('approvals')}
@@ -499,6 +509,12 @@ export const UserSettingsPage = () => {
                 revoke that would leave the league without an admin. */}
             {activeSettingsTab === 'admins' && isAdmin && (
               <LeagueAdminsManager />
+            )}
+
+            {/* Which account can edit which franchise's profile. `isAdmin` is
+                the affordance; the boundary is `set_franchise_account()`. */}
+            {activeSettingsTab === 'franchises' && isAdmin && (
+              <FranchiseAccountsManager />
             )}
 
             {/* The approval queue. `isAdmin` is the affordance; the boundary

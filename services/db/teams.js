@@ -168,6 +168,9 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
       // them still cannot store an ESPN misspelling.
       const owner = canonicalOwnerName(espnTeam.ownerName);
       const abbreviation = espnTeam.abbreviation?.trim() || null;
+      // Only the rosters step reads the logo. The schedule import's teams carry
+      // none, and a run that did not look must not clear what one that did found.
+      const logoUrl = espnTeam.logoUrl ?? null;
 
       if (!name) {
         errors.push({ espnTeamId: espnTeam.teamId, error: 'ESPN returned no team name' });
@@ -182,7 +185,8 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
           name,
           owner,
           espn_team_id: espnTeam.teamId,
-          abbreviation
+          abbreviation,
+          ...(logoUrl ? { espn_logo_url: logoUrl } : {})
         });
 
         if (error) {
@@ -197,6 +201,7 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
       if (name !== match.name) patch.name = name;
       if (abbreviation !== (match.abbreviation ?? null)) patch.abbreviation = abbreviation;
       if (match.espn_team_id == null) patch.espn_team_id = espnTeam.teamId;
+      if (logoUrl && logoUrl !== match.espn_logo_url) patch.espn_logo_url = logoUrl;
 
       // Filling a blank is not overwriting a value.
       if (owner && !match.owner?.trim()) {

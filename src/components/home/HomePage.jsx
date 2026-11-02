@@ -39,8 +39,9 @@ const ORDER = ['order-1', 'order-2', 'order-3', 'order-4', 'order-5', 'order-6',
  * then flip to their matchup.
  *
  * Present tense only. The page reads `useActualWeek()` and never the viewed
- * week, and the shell hides the header's week control here (`weekAware:
- * false`). `actualWeek` is null until the season config has a start date —
+ * week. The shell keeps the header's week control here from lg (`weekAware:
+ * 'desktop'`) as the way into a week on the other tabs, and it changes nothing
+ * on this page. `actualWeek` is null until the season config has a start date —
  * `useActualWeek()` answers 1 before then, and a 1 cannot be told from a
  * real week 1 — so nothing week-keyed fetches early.
  */

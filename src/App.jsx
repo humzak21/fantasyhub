@@ -93,6 +93,9 @@ function App() {
             its own header and a Back button. */}
         <Route path="/" element={<FantasyFootballApp />} />
         <Route path="/:tab" element={<FantasyFootballApp />} />
+        {/* A franchise's profile, which every team name links to. `/profile`
+            with no id is the viewer's own, through /:tab above. */}
+        <Route path="/profile/:franchiseId" element={<FantasyFootballApp />} />
 
         {/* Statistics was a tab until 2026-10-23. It is a view of the
             rankings tab now, so links and bookmarks land on that view. */}

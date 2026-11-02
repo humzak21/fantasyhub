@@ -770,6 +770,89 @@ export type Database = {
         }
         Relationships: []
       }
+      franchise_accounts: {
+        Row: {
+          franchise_id: string
+          linked_at: string
+          linked_by: string | null
+          user_id: string
+        }
+        Insert: {
+          franchise_id: string
+          linked_at?: string
+          linked_by?: string | null
+          user_id: string
+        }
+        Update: {
+          franchise_id?: string
+          linked_at?: string
+          linked_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "franchise_accounts_franchise_id_fkey"
+            columns: ["franchise_id"]
+            isOneToOne: false
+            referencedRelation: "league_franchises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      franchise_profiles: {
+        Row: {
+          accent_hue: number | null
+          avatar_path: string | null
+          avatar_source: string | null
+          bio: string | null
+          favorite_nfl_team: string | null
+          favorite_player_id: string | null
+          favorite_player_name: string | null
+          franchise_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          accent_hue?: number | null
+          avatar_path?: string | null
+          avatar_source?: string | null
+          bio?: string | null
+          favorite_nfl_team?: string | null
+          favorite_player_id?: string | null
+          favorite_player_name?: string | null
+          franchise_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          accent_hue?: number | null
+          avatar_path?: string | null
+          avatar_source?: string | null
+          bio?: string | null
+          favorite_nfl_team?: string | null
+          favorite_player_id?: string | null
+          favorite_player_name?: string | null
+          franchise_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "franchise_profiles_favorite_player_id_fkey"
+            columns: ["favorite_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "franchise_profiles_franchise_id_fkey"
+            columns: ["franchise_id"]
+            isOneToOne: true
+            referencedRelation: "league_franchises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       league_franchises: {
         Row: {
           career_win_percentage: number | null
@@ -2658,6 +2741,7 @@ export type Database = {
           current_streak: Json | null
           division_id: number | null
           draft_picks: Json | null
+          espn_logo_url: string | null
           espn_team_id: number | null
           final_rank: number | null
           franchise_id: string | null
@@ -2709,6 +2793,7 @@ export type Database = {
           current_streak?: Json | null
           division_id?: number | null
           draft_picks?: Json | null
+          espn_logo_url?: string | null
           espn_team_id?: number | null
           final_rank?: number | null
           franchise_id?: string | null
@@ -2760,6 +2845,7 @@ export type Database = {
           current_streak?: Json | null
           division_id?: number | null
           draft_picks?: Json | null
+          espn_logo_url?: string | null
           espn_team_id?: number | null
           final_rank?: number | null
           franchise_id?: string | null

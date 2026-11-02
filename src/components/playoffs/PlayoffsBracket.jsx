@@ -13,6 +13,7 @@ import {
     usesSeededPlayoffs
 } from '../../../utils/playoffSeeding.js';
 import { toSeasonConfig } from '../../../utils/seasonConfig.js';
+import { TeamLink } from '../ui/team-link';
 
 /**
  * A seed, next to the team it belongs to.
@@ -161,7 +162,7 @@ const ByeSlot = ({ team, seed = null, user, isAdmin, teamOwnerNames, className }
                 <div className="w-full text-center">
                     <div className="truncate text-sm font-medium text-success">
                         <SeedChip seed={team ? seed : null} />
-                        {team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'TBD'}
+                        {team ? <TeamLink team={team}>{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</TeamLink> : 'TBD'}
                     </div>
                     {team && (
                         <div className="truncate text-xs text-success/80">

@@ -5,6 +5,7 @@ import { getPositionColor } from '../../utils/positionColors';
 import { cn } from '../../lib/utils';
 import { useLineupsForWeek, useNflOpponentMap } from '../../../hooks/queries/index.js';
 import { teamOf } from '../../../utils/playerImages.js';
+import { TeamLink } from '../ui/team-link';
 
 /** The slots this league starts, in lineup order. Matches OPTIMAL_LINEUP_TEMPLATE. */
 const STARTER_SLOTS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
@@ -105,11 +106,17 @@ const LineupSkeleton = () => (
  * then IR — the order the manager set it in, so the two columns read as the
  * same lineup side by side.
  */
-const TeamLineup = ({ teamName, rows, opponents }) => {
+const TeamName = ({ team, children }) => (
+  <h4 className="truncate text-sm font-semibold">
+    <TeamLink team={team}>{children}</TeamLink>
+  </h4>
+);
+
+const TeamLineup = ({ team, teamName, rows, opponents }) => {
   if (!rows || rows.length === 0) {
     return (
       <div className="space-y-3">
-        {teamName && <h4 className="truncate text-sm font-semibold">{teamName}</h4>}
+        {teamName && <TeamName team={team}>{teamName}</TeamName>}
         <div className="text-xs text-muted-foreground">No lineup for this team.</div>
       </div>
     );
@@ -143,7 +150,7 @@ const TeamLineup = ({ teamName, rows, opponents }) => {
   // A container, so each row's image follows this column's width (`PlayerMark`).
   return (
     <div className="@container space-y-3">
-      {teamName && <h4 className="truncate text-sm font-semibold">{teamName}</h4>}
+      {teamName && <TeamName team={team}>{teamName}</TeamName>}
       {group('Starters', starters, 'text-foreground')}
       {group('Bench', bench, 'text-foreground')}
       {group('Injured reserve', injured, 'text-destructive')}

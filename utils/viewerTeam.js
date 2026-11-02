@@ -39,4 +39,9 @@ export function franchiseIdOf(team) {
   return team?.franchiseId ?? team?.franchise_id ?? null;
 }
 
+/** `team id -> franchise id` for the rows that name a team by id alone. */
+export function franchiseIdsByTeam(teams = []) {
+  return new Map(teams.map((team) => [team.id, franchiseIdOf(team)]));
+}
+
 export default resolveViewerTeam;

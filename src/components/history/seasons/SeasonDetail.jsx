@@ -8,6 +8,7 @@ import { ResponsiveDataTable } from '../../ui/responsive-table';
 import { useSeasonDetail } from '../../../../hooks/queries/index.js';
 import { getMaskedHistoricalOwnerName, getMaskedHistoricalTeamName } from '../utils/privacyHelpers';
 import { formatRecord, formatPoints, formatPlayoffFinish } from '../utils/statFormatters';
+import { TeamLink } from '../../ui/team-link';
 
 const SeasonDetail = ({
   season,
@@ -129,7 +130,7 @@ const SeasonDetail = ({
       cell: (team) => (
         <div className="min-w-0">
           <p className="truncate font-semibold">
-            {getMaskedHistoricalOwnerName(team, user, isAdmin, teamOwnerNames)}
+            <TeamLink team={team}>{getMaskedHistoricalOwnerName(team, user, isAdmin, teamOwnerNames)}</TeamLink>
           </p>
           <p className="truncate text-xs text-muted-foreground">
             {getMaskedHistoricalTeamName(team, user, isAdmin, teamOwnerNames)}

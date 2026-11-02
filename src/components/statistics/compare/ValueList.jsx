@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button } from '../../ui/button';
 import { TeamAvatar } from '../../ui/team-identity';
 import { formatStatValue } from './statFormat';
+import { TeamLink } from '../../ui/team-link';
 
 /**
  * A list longer than this collapses. One entry per franchise fits (the league
@@ -41,7 +42,7 @@ const ValueList = ({ caption, rows, scatter, stat, statY, averaged, missing, ide
               <TeamAvatar team={identity.avatar(entry.franchiseId)} size="xs" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-foreground">
-                  {identity.name(entry.franchiseId)}
+                  <TeamLink franchiseId={entry.franchiseId}>{identity.name(entry.franchiseId)}</TeamLink>
                   {entry.year != null && <span className="text-muted-foreground"> · {entry.year}</span>}
                 </span>
                 {entry.seasons != null && (

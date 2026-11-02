@@ -15,6 +15,7 @@ import { getMaskedTeamName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { cn } from '../../lib/utils';
 import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../types/index.js';
+import { TeamLink } from '../ui/team-link';
 
 /**
  * The components, in weight order, derived from the weights.
@@ -150,7 +151,7 @@ const PowerRankingsVisualization = ({
                     <Badge variant={index === 0 ? "default" : "secondary"} className="w-6 h-6 text-xs p-0 flex items-center justify-center">
                       {index + 1}
                     </Badge>
-                    <span className="font-medium">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</span>
+                    <TeamLink team={team} className="font-medium">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</TeamLink>
                     {isAboveAverage && (
                       <TrendingUp className="h-3 w-3 text-green-600" />
                     )}
@@ -209,7 +210,9 @@ const PowerRankingsVisualization = ({
                 <h4 className="font-semibold text-sm">{title}</h4>
                 <Badge variant="outline" className="text-xs">{metric}</Badge>
               </div>
-              <div className="font-bold text-lg">{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</div>
+              <div className="font-bold text-lg">
+                <TeamLink team={team}>{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</TeamLink>
+              </div>
               <div className="text-xs text-muted-foreground mt-1">{description}</div>
             </div>
           </div>

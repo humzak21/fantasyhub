@@ -1,42 +1,39 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Trophy, TrendingUp, Award, Calendar, Target, Users, Crown, Medal, Activity } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
-import { Button } from '../../ui/button';
+import { Trophy, Award, Calendar, Crown, Medal, Activity, Target, Percent, TrendingUp } from 'lucide-react';
 import { Badge } from '../../ui/badge';
+import { ChartContainer, useMobileAxis } from '../../ui/chart';
 import { ResponsiveDataTable } from '../../ui/responsive-table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
-import { useFranchiseProfile, useFranchiseTransactions } from '../../../../hooks/queries/index.js';
-import { getMaskedFranchiseName, getMaskedHistoricalTeamName, canViewFullData } from '../utils/privacyHelpers';
-import { formatWinPercentage, formatPoints, formatRecord, formatYearRange, formatPlayoffFinish } from '../utils/statFormatters';
+import { SectionHeading } from '../../ui/section-heading';
+import { Skeleton } from '../../ui/skeleton';
+import { StatCard } from '../../ui/stat-card';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { useFranchiseTransactions } from '../../../../hooks/queries/index.js';
+import { getMaskedHistoricalTeamName } from '../utils/privacyHelpers';
+import { formatWinPercentage, formatPoints, formatRecord, formatPlayoffFinish } from '../utils/statFormatters';
 import { TRANSACTION_COLORS } from '../../../../types/index.js';
-import { AXIS_STYLE, GRID_STYLE } from '../utils/chartHelpers';
+import { AXIS_STYLE } from '../utils/chartHelpers';
 import RecordTrendChart from './RecordTrendChart';
 import FranchiseWeekByWeek from './weeks/FranchiseWeekByWeek';
 
+/**
+ * The stats half of a franchise's profile: career figures, every season, the
+ * week-by-week view, the record trend, its transactions, its rivalries and its
+ * awards. `ProfilePage` owns the data and the head of the page.
+ *
+ * @param {React.ReactNode} props.rivalries - rendered between the charts and the awards
+ */
 const FranchiseProfile = ({
   franchise,
   franchiseId,
+  franchiseData = null,
+  loading = false,
   user = null,
   isAdmin = false,
   teamOwnerNames = [],
-  franchises = [],
-  onSelectFranchise = null,
-  onBack = () => {}
+  rivalries = null
 }) => {
-  const { data: franchiseData, isLoading: loading } = useFranchiseProfile(franchiseId);
   const { data: transactionHistory = [] } = useFranchiseTransactions(franchiseId);
-
-  const rivalries = franchiseData?.rivalries ?? null;
+  const axis = useMobileAxis();
 
   // The week view's season list is the franchise's own season history, newest
   // first — so a season the sync writes next year appears here by existing.
@@ -60,33 +57,13 @@ const FranchiseProfile = ({
   };
 
   const viewer = useMemo(() => ({ user, isAdmin, teamOwnerNames }), [user, isAdmin, teamOwnerNames]);
-  const franchiseOptions = useMemo(
-    () =>
-      franchises
-        .map((f) => ({ id: f.id, name: getMaskedFranchiseName(f, user, isAdmin, teamOwnerNames), active: f.is_active }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [franchises, user, isAdmin, teamOwnerNames]
-  );
 
   if (loading && !franchiseData) {
     return (
-      <Card>
-        <CardContent className="p-12">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!franchise) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <p className="text-muted-foreground text-center">Franchise not found</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4" aria-hidden="true">
+        <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
     );
   }
 
@@ -124,10 +101,9 @@ const FranchiseProfile = ({
 
   const seasonRowClass = (season) => {
     const { isChampion, isRunnerUp, isThird } = finishOf(season);
-    if (isChampion) return 'bg-amber-500/10';
-    if (isRunnerUp) return 'bg-slate-400/10';
-    if (isThird) return 'bg-amber-700/10';
-    if (season.is_current_season) return 'bg-blue-500/10';
+    if (isChampion) return 'bg-warning/10';
+    if (isRunnerUp) return 'bg-muted/60';
+    if (isThird) return 'bg-warning/5';
     return '';
   };
 
@@ -145,15 +121,10 @@ const FranchiseProfile = ({
         const { isChampion, isRunnerUp, isThird } = finishOf(season);
         return (
           <div className="flex items-center gap-2 font-semibold">
-            {isChampion && <Crown className="h-4 w-4 text-amber-500" />}
+            {isChampion && <Crown className="h-4 w-4 text-warning" />}
             {isRunnerUp && <Medal className="h-4 w-4 text-muted-foreground" />}
-            {isThird && <Medal className="h-4 w-4 text-amber-700" />}
+            {isThird && <Medal className="h-4 w-4 text-warning/70" />}
             {season.season.year}
-            {season.is_current_season && (
-              <Badge variant="secondary" className="ml-1 bg-blue-500/20 text-xs text-blue-400">
-                Live
-              </Badge>
-            )}
           </div>
         );
       },
@@ -202,7 +173,7 @@ const FranchiseProfile = ({
         const games = wins + losses;
         const winPct = games > 0 ? wins / games : 0;
         return (
-          <span className={winPct >= 0.5 ? 'font-semibold text-green-500' : ''}>
+          <span className={winPct >= 0.5 ? 'font-semibold text-success' : ''}>
             {formatWinPercentage(winPct)}
           </span>
         );
@@ -232,7 +203,7 @@ const FranchiseProfile = ({
       cell: (season) => {
         const diff = (season.points_for || 0) - (season.points_against || 0);
         return (
-          <span className={diff >= 0 ? 'text-green-500' : 'text-red-500'}>
+          <span className={diff >= 0 ? 'text-success' : 'text-destructive'}>
             {diff >= 0 ? '+' : ''}{diff.toFixed(1)}
           </span>
         );
@@ -241,124 +212,37 @@ const FranchiseProfile = ({
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Back button and header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Leaderboards
-        </Button>
-        {/* Any franchise's profile is one pick away, without the round trip. */}
-        {onSelectFranchise && franchiseOptions.length > 1 && (
-          <Select value={franchiseId ?? undefined} onValueChange={onSelectFranchise}>
-            <SelectTrigger className="h-9 w-full sm:w-[240px]" aria-label="Franchise">
-              <SelectValue placeholder="Franchise" />
-            </SelectTrigger>
-            <SelectContent>
-              {franchiseOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
-
-      {/* Franchise header card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle className="text-2xl mb-2">
-                {getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames)}
-              </CardTitle>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {formatYearRange(franchise.joined_year, franchise.left_year)}
-                </span>
-                <span>•</span>
-                <span>{franchise.total_seasons || 0} seasons</span>
-                {!franchise.is_active && (
-                  <Badge variant="outline" className="ml-2">Inactive</Badge>
-                )}
-              </div>
-            </div>
-            {franchise.total_championships > 0 && (
-              <div className="text-center">
-                <Trophy className="h-8 w-8 text-amber-600 mx-auto mb-1" />
-                <p className="text-2xl font-bold text-amber-600">{franchise.total_championships}</p>
-                <p className="text-xs text-muted-foreground">
-                  {franchise.total_championships === 1 ? 'Championship' : 'Championships'}
-                </p>
-              </div>
-            )}
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Career stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">Career Record</p>
-              <p className="text-2xl font-bold">
-                {formatRecord(careerStats.total_wins, careerStats.total_losses)}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {formatWinPercentage(careerStats.avg_win_percentage)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">Avg Points For</p>
-              <p className="text-2xl font-bold">
-                {careerStats.avg_points_for ? formatPoints(careerStats.avg_points_for) : '-'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">Playoff Apps</p>
-              <p className="text-2xl font-bold">
-                {careerStats.playoff_appearances || 0}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-1">Awards</p>
-              <p className="text-2xl font-bold">
-                {awards.length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+    <div className="space-y-8">
+      {/* Career stats */}
+      <section className="space-y-4" aria-labelledby="career-heading">
+        <SectionHeading id="career-heading" icon={TrendingUp}>
+          Career
+        </SectionHeading>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard
+            label="Career record"
+            icon={Trophy}
+            value={formatRecord(careerStats.total_wins, careerStats.total_losses)}
+            footer={formatWinPercentage(careerStats.avg_win_percentage)}
+          />
+          <StatCard
+            label="Avg points for"
+            icon={Percent}
+            value={careerStats.avg_points_for ? formatPoints(careerStats.avg_points_for) : '—'}
+          />
+          <StatCard label="Playoff appearances" icon={Target} value={careerStats.playoff_appearances || 0} />
+          <StatCard label="Awards" icon={Award} value={awards.length} />
+        </div>
+      </section>
 
       {/* Season-by-season history */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Season-by-Season Performance
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {seasonHistory.length > 0 ? (
-            <div className="rounded-lg border p-2 sm:p-0 sm:overflow-hidden">
+      <section className="space-y-4" aria-labelledby="seasons-heading">
+        <SectionHeading id="seasons-heading" icon={Calendar}>
+          Season by season
+        </SectionHeading>
+        {seasonHistory.length > 0 ? (
+          <>
+            <div className="rounded-xl border border-border p-2 sm:p-0 sm:overflow-hidden">
               <ResponsiveDataTable
                 columns={seasonColumns}
                 data={sortedSeasonHistory}
@@ -366,14 +250,12 @@ const FranchiseProfile = ({
                 onRowClick={(season) => season.season?.id && openSeasonWeeks(season.season.id)}
               />
             </div>
-          ) : (
-            <p className="text-muted-foreground text-center py-8">No season history available</p>
-          )}
-          {seasonHistory.length > 0 && (
-            <p className="mt-2 text-xs text-muted-foreground">Select a season to open it week by week.</p>
-          )}
-        </CardContent>
-      </Card>
+            <p className="text-xs text-muted-foreground">Select a season to open it week by week.</p>
+          </>
+        ) : (
+          <p className="py-8 text-center text-muted-foreground">No season history available</p>
+        )}
+      </section>
 
       <FranchiseWeekByWeek
         ref={weekSectionRef}
@@ -395,15 +277,12 @@ const FranchiseProfile = ({
 
       {/* Transaction Activity Chart */}
       {transactionHistory.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Transaction Activity by Season
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+        <section className="space-y-4" aria-labelledby="transactions-heading">
+          <SectionHeading id="transactions-heading" icon={Activity}>
+            Transactions by season
+          </SectionHeading>
+          <div className="rounded-xl border border-border bg-card p-3 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:p-5">
+            <ChartContainer config={{}} className="h-[260px] sm:h-[300px]">
               <BarChart
                 data={transactionHistory.map(t => ({
                   year: t.year,
@@ -413,16 +292,11 @@ const FranchiseProfile = ({
                   drops: t.drops || 0,
                   total: t.total_transactions || 0
                 }))}
-                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                margin={{ top: 20, right: 12, left: 0, bottom: 5 }}
+                {...axis.chart}
               >
-                <XAxis
-                  dataKey="year"
-                  style={AXIS_STYLE}
-                />
-                <YAxis
-                  style={AXIS_STYLE}
-                  allowDecimals={false}
-                />
+                <XAxis dataKey="year" style={AXIS_STYLE} {...axis.x} />
+                <YAxis style={AXIS_STYLE} allowDecimals={false} width={30} {...axis.y} />
                 <Tooltip
                   content={({ active, payload, label }) => {
                     if (!active || !payload || !payload.length) return null;
@@ -488,119 +362,35 @@ const FranchiseProfile = ({
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+            </ChartContainer>
+          </div>
+        </section>
       )}
 
-      {/* Head-to-Head Rivalries */}
-      {rivalries && (rivalries.bestMatchups?.length > 0 || rivalries.worstMatchups?.length > 0) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5" />
-              Head-to-Head Rivalries
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Best Matchups */}
-              {rivalries.bestMatchups?.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-green-600 mb-3 flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" />
-                    Best Matchups
-                  </h4>
-                  <div className="space-y-2">
-                    {rivalries.bestMatchups.map((matchup, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
-                        <div>
-                          <p className="font-semibold">
-                            {canViewFullData(user, isAdmin, teamOwnerNames)
-                              ? matchup.opponentName
-                              : `Franchise ${matchup.opponentId?.substring(0, 8) || 'Unknown'}`}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {matchup.totalGames} games
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="tabular font-semibold text-success">
-                            {matchup.wins}-{matchup.losses}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {(matchup.winPct * 100).toFixed(0)}%
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+      {rivalries}
 
-              {/* Worst Matchups */}
-              {rivalries.worstMatchups?.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-red-600 mb-3 flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Toughest Opponents
-                  </h4>
-                  <div className="space-y-2">
-                    {rivalries.worstMatchups.map((matchup, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
-                        <div>
-                          <p className="font-semibold">
-                            {canViewFullData(user, isAdmin, teamOwnerNames)
-                              ? matchup.opponentName
-                              : `Franchise ${matchup.opponentId?.substring(0, 8) || 'Unknown'}`}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {matchup.totalGames} games
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="tabular font-semibold text-destructive">
-                            {matchup.wins}-{matchup.losses}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {(matchup.winPct * 100).toFixed(0)}%
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Awards */}
+      {/* League-voted awards only; this franchise's stat records are in the
+          trophy case above and the record book. */}
       {awards.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Award className="h-5 w-5" />
-              League awards
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {/* League-voted awards only; this franchise's stat records are in
-                the record book (History → Records). */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {awards.map((award, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                  <div>
-                    <p className="font-semibold">{award.award_name}</p>
-                    <p className="text-sm text-muted-foreground">{award.season?.year}</p>
-                  </div>
-                  <Badge variant="outline">Voted</Badge>
+        <section className="space-y-4" aria-labelledby="awards-heading">
+          <SectionHeading id="awards-heading" icon={Award}>
+            League awards
+          </SectionHeading>
+          <ul className="grid gap-3 md:grid-cols-2">
+            {awards.map((award, index) => (
+              <li
+                key={index}
+                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{award.award_name}</p>
+                  <p className="text-sm text-muted-foreground">{award.season?.year}</p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                <Badge variant="outline">Voted</Badge>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

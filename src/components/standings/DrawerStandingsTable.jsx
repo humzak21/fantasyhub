@@ -18,6 +18,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '../ui/alert-dialog';
+import { TeamLink } from '../ui/team-link';
+import { franchiseIdsByTeam } from '../../../utils/viewerTeam.js';
 
 /**
  * What the row tints mean, above the first division. Only seeded seasons
@@ -618,6 +620,7 @@ const DrawerStandingsTable = ({
    * `withRank` is false for the unassigned list, which has no division
    * standing to show.
    */
+  const franchiseIds = franchiseIdsByTeam(teams);
   const standingsColumns = ({ withRank, moveTargets, moveLabel }) => [
     ...(withRank
       ? [{
@@ -644,7 +647,10 @@ const DrawerStandingsTable = ({
           {/* Wraps at a space, as the owner column does; the measured column
               floor is the longest single word, so it never breaks inside one. */}
           <div className="min-w-0 font-medium">
-            {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+            {/* The drawer sits over the page the link opens, so it closes. */}
+            <TeamLink franchiseId={franchiseIds.get(team.id)} onClick={onClose}>
+              {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+            </TeamLink>
             {team.isBye && <span className="sr-only">First-round bye</span>}
             {team.isWildcard && <span className="sr-only">Wild card</span>}
           </div>

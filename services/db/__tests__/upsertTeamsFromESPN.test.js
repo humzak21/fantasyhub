@@ -46,6 +46,32 @@ const handlers = (teams = [STORED], overrides = {}) => ({
   ...overrides
 });
 
+describe('upsertTeamsFromESPN · logo', () => {
+  const LOGO = 'https://g.espncdn.com/lm-static/logo.svg';
+
+  it('stores a logo ESPN reports', async () => {
+    const ctx = makeCtx(handlers());
+
+    const result = await upsertTeamsFromESPN(ctx, SEASON_ID, [
+      { ...FROM_ESPN, ownerName: STORED.owner, logoUrl: LOGO }
+    ]);
+
+    expect(result).toMatchObject({ updated: 1 });
+    expect(ctx.client.callsFor('teams', 'update')[0].payload).toEqual({ espn_logo_url: LOGO });
+  });
+
+  it('leaves the stored logo alone when the run did not read one', async () => {
+    const ctx = makeCtx(handlers([{ ...STORED, espn_logo_url: LOGO }]));
+
+    const result = await upsertTeamsFromESPN(ctx, SEASON_ID, [
+      { ...FROM_ESPN, ownerName: STORED.owner }
+    ]);
+
+    expect(result).toMatchObject({ updated: 0, unchanged: 1 });
+    expect(ctx.client.callsFor('teams', 'update')).toHaveLength(0);
+  });
+});
+
 describe('upsertTeamsFromESPN · owner', () => {
   it('never patches an owner ESPN disagrees with', async () => {
     const ctx = makeCtx(handlers());

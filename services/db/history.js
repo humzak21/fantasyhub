@@ -355,7 +355,7 @@ export async function getFranchiseProfile(ctx, franchiseId) {
       await ctx.client
         .from('awards')
         .select('*')
-        .eq('winner_id', franchise?.owner_name ?? ' ')
+        .eq('winner_id', franchise?.owner_name ?? '\u0000')
         .is('winner_franchise_id', null),
       'Get franchise ballot awards'
     );
@@ -399,6 +399,34 @@ export async function getFranchiseProfile(ctx, franchiseId) {
   }
 }
 
+/**
+ * The rows division titles are worked out from: every team's regular-season
+ * standing, with the division names and which seasons are finished. The rule
+ * is pure and lives in `utils/profile/trophyCase.js`.
+ */
+export async function getDivisionTitleSource(ctx) {
+  try {
+    const [standings, divisions, seasons] = await Promise.all([
+      unwrap(
+        await ctx.client
+          .from('v_team_standings')
+          .select('team_id, team_name, franchise_id, season_id, season_year, division_id, wins, losses, ties, points_for, points_against'),
+        'Get standings for division titles'
+      ),
+      unwrap(await ctx.client.from('divisions').select('id, name'), 'Get division names'),
+      unwrap(await ctx.client.from('seasons').select('id, is_completed'), 'Get completed seasons')
+    ]);
+
+    return {
+      standings: standings ?? [],
+      divisions: divisions ?? [],
+      completedSeasonIds: (seasons ?? []).filter((season) => season.is_completed).map((season) => season.id)
+    };
+  } catch (error) {
+    throwDbError(error, 'Get division titles');
+  }
+}
+
 /** `{ seasonId → year }` for a handful of ids. */
 async function getSeasonYears(ctx, seasonIds) {
   if (seasonIds.length === 0) return new Map();
@@ -411,26 +439,26 @@ async function getSeasonYears(ctx, seasonIds) {
   return new Map((rows ?? []).map((row) => [row.id, row.year]));
 }
 
-/** Best, worst and most frequent opponents, from one franchise's H2H rows. */
+/** Every opponent this franchise has played, best record first. */
 function shapeRivalries(rows, byId) {
-  const all = rows.map((row) => ({
-    opponentId: row.opponent_franchise_id,
-    opponentName: byId.get(row.opponent_franchise_id)?.owner_name ?? 'Unknown',
-    wins: Number(row.wins ?? 0),
-    losses: Number(row.losses ?? 0),
-    totalGames: Number(row.total_matchups ?? 0),
-    winPct: row.total_matchups > 0 ? Number(row.wins) / Number(row.total_matchups) : 0
-  }));
-
-  const byWinPct = [...all].sort((a, b) => b.winPct - a.winPct);
-  const byTotalGames = [...all].sort((a, b) => b.totalGames - a.totalGames);
-
-  return {
-    bestMatchups: byWinPct.slice(0, 3),
-    worstMatchups: byWinPct.slice(-3).reverse(),
-    mostFrequent: byTotalGames.slice(0, 3),
-    all
-  };
+  return rows
+    .map((row) => {
+      const totalGames = Number(row.total_matchups ?? 0);
+      const wins = Number(row.wins ?? 0);
+      const ties = Number(row.ties ?? 0);
+      return {
+        opponentId: row.opponent_franchise_id,
+        opponentName: byId.get(row.opponent_franchise_id)?.owner_name ?? 'Unknown',
+        wins,
+        losses: Number(row.losses ?? 0),
+        ties,
+        totalGames,
+        winPct: totalGames > 0 ? (wins + ties / 2) / totalGames : 0,
+        pointsFor: Number(row.total_points_for ?? 0),
+        pointsAgainst: Number(row.total_points_against ?? 0)
+      };
+    })
+    .sort((a, b) => b.winPct - a.winPct || b.totalGames - a.totalGames);
 }
 
 // ---------------------------------------------------------------------------

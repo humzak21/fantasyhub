@@ -112,9 +112,15 @@ test.describe('smoke', () => {
     }
   })
 
-  // Home is present tense, so the week control is not on it — and it is
-  // still on the tabs that are about a week.
-  test('the week control is absent on home and present on rankings', async ({ page }) => {
+  // A franchise's profile is for approved members: a deep link goes home.
+  test('a signed-out viewer cannot open a profile', async ({ page }) => {
+    await page.goto('/profile/00000000-0000-4000-8000-000000000001', { waitUntil: 'domcontentloaded' })
+    await expect(page).toHaveURL(/\/home$/)
+  })
+
+  // Home is present tense, so the week control is hidden on it below lg. From
+  // lg it stays, as the way into a week on the other tabs.
+  test('the week control is on rankings at every width and on home from lg', async ({ page }) => {
     await page.goto('/rankings', { waitUntil: 'domcontentloaded' })
     const standings = page.getByRole('button', { name: /open standings/i })
     const hasSeason = await standings
@@ -128,7 +134,9 @@ test.describe('smoke', () => {
     await page.getByRole('link', { name: 'og jits home' }).click()
     await expect(page).toHaveURL(/\/home$/)
     await expect(page.getByRole('button', { name: /open standings/i })).toBeVisible()
-    await expect(page.getByLabel('Week navigation control')).toHaveCount(0)
+    const isDesktop = (page.viewportSize()?.width ?? 0) >= 1024
+    if (isDesktop) await expect(page.getByLabel('Week navigation control')).toBeVisible()
+    else await expect(page.getByLabel('Week navigation control')).toBeHidden()
   })
 
   // Pick'ems, Playoffs, Awards and Takes are for approved members, and so is

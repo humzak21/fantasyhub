@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, lazy, Suspense } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { House, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings, Bell } from 'lucide-react';
+import { House, Calendar, BarChart3, Users, Target, Award, TrendingUp, History, Flame, Settings, Bell, UserRound } from 'lucide-react';
 import {
   useLeagueData,
   useLeagueMutations,
@@ -19,8 +19,10 @@ import {
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
+import { FranchiseAvatarsProvider } from './src/contexts/FranchiseAvatarsContext.jsx';
 import { useAuth } from './src/contexts/AuthContext.jsx';
 import { countUnseenTakes } from './src/components/takes/seen.js';
+import { PROFILE_TAB } from './src/components/profile/profileLink.js';
 import { viewableResultSeasons } from './src/components/awards/resultsAccess.js';
 import { Card, CardContent } from './src/components/ui/card';
 import { LoginDropdown } from './src/components/auth/LoginDropdown.jsx';
@@ -61,6 +63,7 @@ const PlayoffsBracketManager = lazy(() => import('./src/components/playoffs/Play
 const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueHistoryManager.jsx'));
 const TakesManager = lazy(() => import('./src/components/takes/TakesManager.jsx'));
 const AlertsPage = lazy(() => import('./src/components/alerts/AlertsPage.jsx'));
+const ProfilePage = lazy(() => import('./src/components/profile/ProfilePage.jsx'));
 const UserSettingsPage = lazy(() =>
   import('./src/components/auth/UserSettingsPage.jsx').then((m) => ({ default: m.UserSettingsPage }))
 );
@@ -200,8 +203,8 @@ const FantasyFootballApp = () => {
   // meant the phone's back button left the site instead of walking back a tab,
   // and no tab could be linked to or survive a refresh.
   const navigate = useNavigate();
-  const { tab } = useParams();
-  const activeTab = tab || DEFAULT_TAB;
+  const { tab, franchiseId: profileFranchiseId } = useParams();
+  const activeTab = tab || (profileFranchiseId ? PROFILE_TAB : DEFAULT_TAB);
   const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
 
   // The Statistics tab's face — the rankings table, the analysis charts or the
@@ -261,7 +264,7 @@ const FantasyFootballApp = () => {
       // will press and then distrust. A flag on the definition rather than an
       // `activeTab === 'home'` in the header, so another present-tense tab can
       // opt out the same way.
-      { id: 'home', label: 'Home', icon: House, requiresSeason: false, requiresAuth: false, weekAware: false, tabBarSlot: 0 },
+      { id: 'home', label: 'Home', icon: House, requiresSeason: false, requiresAuth: false, weekAware: 'desktop', tabBarSlot: 0 },
       // Rankings and Statistics are one tab since 2026-10-23: the rankings
       // table, with Analysis and Statistics as views beside it
       // (`RankingsHeader`). Its id stays `rankings` so every existing link
@@ -304,7 +307,10 @@ const FantasyFootballApp = () => {
       // Every notification the viewer was sent. Reached by the bell in the
       // header, which is on screen at every width — not a nav tab, so it is
       // never one tap further away inside the phone tab bar's Menu.
-      { id: 'alerts', label: 'Alerts', icon: Bell, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false }
+      { id: 'alerts', label: 'Alerts', icon: Bell, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false },
+      // A franchise's page, opened by every team name and by the Menu. Members
+      // only, like Takes. It carries its own season and week pickers.
+      { id: PROFILE_TAB, label: 'Profile', icon: UserRound, requiresSeason: false, requiresAuth: false, customAccess: isApproved, inNav: false, weekAware: false }
     ];
   }, [isApproved, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults, isAuthenticated]);
 
@@ -320,7 +326,10 @@ const FantasyFootballApp = () => {
   }, [isAdmin]);
 
   const activeTabDef = mainTabs.find((t) => t.id === activeTab);
-  const showWeekControl = activeTabDef?.weekAware !== false;
+  // `true` (the default), `false`, or `'desktop'`: Home is present tense and
+  // shows no week on a phone, where the header has no room to spare, but keeps
+  // the control from lg as the way into a week.
+  const weekControl = activeTabDef?.weekAware ?? true;
 
   // What the nav actually renders: the tab list plus the one piece of state
   // that is the shell's to know — whether a tab is waiting on the viewer.
@@ -408,6 +417,7 @@ const FantasyFootballApp = () => {
 
   return (
     <ErrorBoundary>
+      <FranchiseAvatarsProvider>
       <LeagueChatProvider enabled={isApproved}>
       <LeagueChatOffset className="min-h-screen bg-background">
         {/* Header - Responsive Design */}
@@ -471,17 +481,20 @@ const FantasyFootballApp = () => {
                         two read as identity *and* tools rather than as one
                         undifferentiated cluster. */}
                     <span className="hidden h-6 w-px shrink-0 bg-border sm:block" aria-hidden="true" />
-                    {/* Absent on a present-tense tab (`weekAware: false`).
-                        The standings stay: they mean the same on every page. */}
-                    {showWeekControl && (
-                      <InlineWeekNavigator
-                        currentWeek={viewedWeek}
-                        totalWeeks={activeSeason.totalWeeks}
-                        regularSeasonWeeks={activeSeason.regularSeasonWeeks}
-                        onWeekChange={setViewedWeek}
-                        completedWeeks={completedWeeks}
-                        season={activeSeason}
-                      />
+                    {/* Absent on a present-tense tab (`weekAware: false`), and
+                        below lg on Home (`'desktop'`). The standings stay: they
+                        mean the same on every page. */}
+                    {weekControl && (
+                      <div className={weekControl === 'desktop' ? 'hidden lg:block' : 'contents'}>
+                        <InlineWeekNavigator
+                          currentWeek={viewedWeek}
+                          totalWeeks={activeSeason.totalWeeks}
+                          regularSeasonWeeks={activeSeason.regularSeasonWeeks}
+                          onWeekChange={setViewedWeek}
+                          completedWeeks={completedWeeks}
+                          season={activeSeason}
+                        />
+                      </div>
                     )}
                     <StandingsTrigger onClick={() => setStandingsOpen(true)} />
                   </>
@@ -531,7 +544,7 @@ const FantasyFootballApp = () => {
                   />
                 )}
                 <div className={cn(user && 'hidden lg:block')}>
-                  <LoginDropdown />
+                  <LoginDropdown showProfile={isApproved} />
                 </div>
               </div>
             </div>
@@ -751,6 +764,12 @@ const FantasyFootballApp = () => {
               </ErrorBoundary>
             )}
 
+            {activeTab === PROFILE_TAB && (
+              <ErrorBoundary key="profile-error-boundary">
+                <ProfilePage />
+              </ErrorBoundary>
+            )}
+
             </Suspense>
           </div>
         </PageContainer>
@@ -767,6 +786,7 @@ const FantasyFootballApp = () => {
           account={{
             user: isAuthenticated ? user : null,
             showNewsletter: isApproved,
+            showProfile: isApproved,
             settingsBadgeCount: pendingApprovals,
             settingsBadgeLabel,
             onSignOut: signOut
@@ -818,6 +838,7 @@ const FantasyFootballApp = () => {
         */}
       </LeagueChatOffset>
       </LeagueChatProvider>
+      </FranchiseAvatarsProvider>
     </ErrorBoundary>
   );
 };

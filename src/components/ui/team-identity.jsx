@@ -2,6 +2,7 @@ import * as React from 'react';
 import { cn } from '../../lib/utils';
 import { getTeamColor, getTeamInitials } from '../../utils/teamColors';
 import { RecordText } from './number-text';
+import { useTeamAvatarUrl } from '../../contexts/FranchiseAvatarsContext.jsx';
 
 /**
  * A team, shown the same way everywhere.
@@ -21,21 +22,29 @@ const SIZES = {
   sm: { avatar: 'h-7 w-7 text-[11px]', name: 'text-sm', sub: 'text-[11px]', gap: 'gap-2.5' },
   md: { avatar: 'h-9 w-9 text-xs', name: 'text-[15px]', sub: 'text-xs', gap: 'gap-3' },
   lg: { avatar: 'h-11 w-11 text-sm', name: 'text-lg', sub: 'text-[13px]', gap: 'gap-3.5' },
+  xl: { avatar: 'h-24 w-24 text-3xl sm:h-28 sm:w-28', name: 'text-2xl', sub: 'text-sm', gap: 'gap-4' },
 };
 
 /**
  * The mark on its own — for a chart legend, a bracket slot, anywhere the name
  * is already present.
+ *
+ * It draws the franchise's avatar when the viewer may see one
+ * (`FranchiseAvatarsContext`). A picture that will not load falls back to the
+ * initials, and the initials never sit under it: a logo can be transparent.
  */
 const TeamAvatar = React.forwardRef(({ team, size = 'sm', className, ...props }, ref) => {
   const color = getTeamColor(team);
   const s = SIZES[size] ?? SIZES.sm;
+  const avatarUrl = useTeamAvatarUrl(team);
+  const [failedUrl, setFailedUrl] = React.useState(null);
+  const showImage = Boolean(avatarUrl) && avatarUrl !== failedUrl;
   return (
     <span
       ref={ref}
       aria-hidden="true"
       className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full font-semibold',
+        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold',
         // The hue identifies the team; the initials stay neutral.
         //
         // Full-strength coloured initials in every row turned a fourteen-team
@@ -51,7 +60,22 @@ const TeamAvatar = React.forwardRef(({ team, size = 'sm', className, ...props },
       )}
       {...props}
     >
-      <span className="font-semibold">{getTeamInitials(team)}</span>
+      {showImage ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          // A manager's ESPN logo can live on any host, which has no business
+          // learning which page of the league it was drawn on.
+          referrerPolicy="no-referrer"
+          onError={() => setFailedUrl(avatarUrl)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <span className="font-semibold">{getTeamInitials(team)}</span>
+      )}
     </span>
   );
 });

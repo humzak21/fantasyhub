@@ -66,8 +66,8 @@ export async function getPlayoffGames(ctx, seasonId) {
         team2_score,
         is_completed,
         winner_team_id,
-        team1:teams!games_team1_id_fkey(id, name, owner),
-        team2:teams!games_team2_id_fkey(id, name, owner)
+        team1:teams!games_team1_id_fkey(id, name, owner, franchise_id),
+        team2:teams!games_team2_id_fkey(id, name, owner, franchise_id)
       `)
 
       .eq('season_id', seasonId)

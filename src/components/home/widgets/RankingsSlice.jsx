@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 
 import HomeWidget from '../HomeWidget';
@@ -13,6 +13,7 @@ import { cn } from '../../../lib/utils';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useRankingsForWeek } from '../../../../hooks/queries/index.js';
+import { TeamLink } from '../../ui/team-link';
 
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 const NONE = [];
@@ -155,19 +156,17 @@ export default function RankingsSlice({ ctx }) {
                     <RankCell rank={index + 1} delta={row.rankChange} />
                   </td>
                   <td className={cn(cell, 'px-1.5')}>
-                    <Link
-                      to="/rankings"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        openTab?.();
-                      }}
+                    <TeamLink
+                      team={row}
+                      fallbackTo="/rankings"
+                      onClick={() => openTab?.()}
                       title={name}
                       className="flex min-w-0 items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <TeamAvatar team={row} size="xs" className="hidden @md:inline-flex" />
                       <span className="truncate font-medium">{name}</span>
                       {isViewer && <span className="sr-only">(your team)</span>}
-                    </Link>
+                    </TeamLink>
                   </td>
                   <td className={cn(cell, 'px-1.5 text-right')}>
                     <NumberText value={row.powerRating} className="font-semibold" />

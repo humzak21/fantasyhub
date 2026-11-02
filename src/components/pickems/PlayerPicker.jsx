@@ -28,7 +28,9 @@ import { getPositionColor } from '../../utils/positionColors';
  * Shared by the Pick'ems tab and the home page's widget. `idPrefix` keeps the
  * label/listbox ids distinct; `initialSelected` and `onChange` are how an
  * unsubmitted choice survives as a draft (`pickDraft.js`) — the picker reports
- * every change and the caller decides what to keep.
+ * every change and the caller decides what to keep. With `actions={false}` it
+ * is one field of a bigger form (the profile editor), and `onChange` is all
+ * there is.
  */
 export const PlayerPicker = ({
   initialQuery,
@@ -38,7 +40,9 @@ export const PlayerPicker = ({
   onSubmit,
   onCancel,
   onChange,
-  idPrefix = 'parlay-player'
+  idPrefix = 'parlay-player',
+  label = 'Your player',
+  actions = true
 }) => {
   const [query, setQuery] = useState(initialSelected?.name ?? initialQuery ?? '');
   const [selected, setSelected] = useState(initialSelected);
@@ -96,7 +100,7 @@ export const PlayerPicker = ({
     <div className="space-y-3">
       <div className="relative">
         <label htmlFor={idPrefix} className="mb-1.5 block text-sm font-medium text-foreground">
-          Your player
+          {label}
         </label>
         <Input
           id={idPrefix}
@@ -196,7 +200,7 @@ export const PlayerPicker = ({
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      {actions && <div className="flex flex-wrap items-center gap-2">
         <Button
           onClick={() => onSubmit({ playerId: selected?.id ?? null, playerName: trimmed })}
           disabled={!canSubmit || submitting}
@@ -216,7 +220,7 @@ export const PlayerPicker = ({
             Saved as typed &mdash; not matched to a synced player.
           </span>
         )}
-      </div>
+      </div>}
     </div>
   );
 };
