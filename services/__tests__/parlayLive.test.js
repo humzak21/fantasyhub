@@ -1,70 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
-import {
-  etParts,
-  inWindow,
-  isLikelyGameWindow,
-  shouldRefresh,
-  planEventFetches,
-  mergeLiveStatus,
-  REFRESH_TTL_MS
-} from '../parlayLive.js';
+import { planEventFetches, mergeLiveStatus, REFRESH_TTL_MS } from '../parlayLive.js';
 import { GAME_STATE } from '../espnLiveScoreMapper.js';
-
-describe('etParts', () => {
-  it('reads Eastern weekday and minutes from a UTC instant (EDT)', () => {
-    // 2026-09-25T01:00Z is Thursday 21:00 in EDT (UTC-4).
-    expect(etParts(new Date('2026-09-25T01:00:00Z'))).toEqual({ weekday: 4, minutes: 21 * 60 });
-  });
-
-  it('handles the EST offset too', () => {
-    // 2026-12-15T02:00Z is Sunday 21:00 in EST (UTC-5) — a Monday-night edge…
-    // actually 2026-12-14 is a Monday, so 02:00Z Mon = 21:00 Sun EST.
-    expect(etParts(new Date('2026-12-14T02:00:00Z'))).toEqual({ weekday: 0, minutes: 21 * 60 });
-  });
-});
-
-describe('inWindow', () => {
-  it('accepts the three game windows and rejects the rest', () => {
-    expect(inWindow({ weekday: 4, minutes: 21 * 60 })).toBe(true);  // Thu 9pm
-    expect(inWindow({ weekday: 0, minutes: 16 * 60 })).toBe(true);  // Sun 4pm
-    expect(inWindow({ weekday: 1, minutes: 21 * 60 })).toBe(true);  // Mon 9pm
-    expect(inWindow({ weekday: 0, minutes: 8 * 60 })).toBe(false);  // Sun 8am (pre-slate)
-    expect(inWindow({ weekday: 4, minutes: 12 * 60 })).toBe(false); // Thu noon
-    expect(inWindow({ weekday: 3, minutes: 21 * 60 })).toBe(false); // Wed 9pm
-  });
-
-  it('is half-open: the start minute is in, the end minute is out', () => {
-    expect(inWindow({ weekday: 4, minutes: 20 * 60 })).toBe(true);      // 20:00 exactly
-    expect(inWindow({ weekday: 4, minutes: 20 * 60 - 1 })).toBe(false); // 19:59
-  });
-});
-
-describe('isLikelyGameWindow', () => {
-  it('is true during Sunday afternoon and false on a Wednesday', () => {
-    expect(isLikelyGameWindow(new Date('2026-09-20T20:00:00Z'))).toBe(true);  // Sun 4pm ET
-    expect(isLikelyGameWindow(new Date('2026-09-23T20:00:00Z'))).toBe(false); // Wed 4pm ET
-  });
-});
-
-describe('shouldRefresh', () => {
-  const now = new Date('2026-09-20T20:00:00Z');
-
-  it('never refreshes outside a window', () => {
-    expect(shouldRefresh({ now, refreshedAt: null, inWindow: false })).toBe(false);
-  });
-
-  it('refreshes in a window when there is no prior pull', () => {
-    expect(shouldRefresh({ now, refreshedAt: null, inWindow: true })).toBe(true);
-  });
-
-  it('waits out the 30-minute TTL, then refreshes', () => {
-    const recent = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
-    const stale = new Date(now.getTime() - REFRESH_TTL_MS - 1000).toISOString();
-    expect(shouldRefresh({ now, refreshedAt: recent, inWindow: true })).toBe(false);
-    expect(shouldRefresh({ now, refreshedAt: stale, inWindow: true })).toBe(true);
-  });
-});
+import { LIVE_REFRESH_TTL_MS } from '../liveScores.js';
 
 // A slate: game 1 live (DEN/JAX), game 2 final (GB/NYJ), game 3 not started (KC/BUF).
 const scoreboard = {
@@ -85,6 +23,12 @@ const picks = [
   { id: 'pFinal', espnPlayerId: '300', teamAbbreviation: 'GB' },
   { id: 'pPre', espnPlayerId: '999', teamAbbreviation: 'KC' }
 ];
+
+describe('REFRESH_TTL_MS', () => {
+  it('is the same 15 minutes as the live scores feed', () => {
+    expect(REFRESH_TTL_MS).toBe(LIVE_REFRESH_TTL_MS);
+  });
+});
 
 describe('planEventFetches', () => {
   it('fetches live and newly-final games, never a game not started', () => {

@@ -1,18 +1,19 @@
 // The TD parlay's live tracker — the one process that talks to ESPN.
 //
 // Every viewer's browser calls this instead of ESPN. It pulls ESPN's public
-// scoreboard at most once every 30 minutes, only during game windows, shares
+// scoreboard at most once every 15 minutes, only during game windows, shares
 // the result through `parlay_live_snapshot`, and returns a tiny per-pick status.
-// So ESPN is hit a couple of dozen times on a Sunday total — not once per
-// viewer per minute — and never at all on a Wednesday.
+// So ESPN is hit a few dozen times on a Sunday total — not once per viewer per
+// minute — and never at all on a day with no game. The windows come from the
+// NFL calendar, so a Wednesday, Friday or Saturday game is covered.
 //
 // It is deliberately parlay-only and unofficial. It reads td_parlay_picks and
 // public NFL data, never fantasy stats, and it never writes scored_td — the
 // Tuesday sync's grader stays the sole author of the official grade.
 //
-// The decisions (game-window gate, the 30-minute clock, which games to fetch,
-// how to merge) live in ../../../services/parlayLive.js and are unit-tested in
-// Node. This file is the thin runtime wrapper: read the request, load the
+// The decisions (game-window gate, the 15-minute clock, which games to fetch,
+// how to merge) live in ../../../services/gameWindows.js and parlayLive.js and
+// are unit-tested in Node. This file is the thin runtime wrapper: read the request, load the
 // previous snapshot, ask those pure functions what to do, do the I/O, store the
 // result. `supabase functions deploy parlay-live` bundles the imported service
 // modules along with it.
@@ -35,13 +36,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 
 import { fetchNflScoreboard, fetchGameSummary } from '../../../services/espnLiveScoreFetcher.js';
-import {
-  REFRESH_TTL_MS,
-  isLikelyGameWindow,
-  shouldRefresh,
-  planEventFetches,
-  mergeLiveStatus
-} from '../../../services/parlayLive.js';
+import { fetchWeekKickoffs, isGameWindowOpen, shouldRefresh } from '../../../services/gameWindows.js';
+import { REFRESH_TTL_MS, planEventFetches, mergeLiveStatus } from '../../../services/parlayLive.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -93,11 +89,12 @@ Deno.serve(async (req) => {
   if (prevError) return json({ error: prevError.message }, 500);
 
   const now = new Date();
-  const windowOpen = isLikelyGameWindow(now);
+  const kickoffs = await fetchWeekKickoffs(supabase, body?.year ?? null, body?.nflWeek ?? null);
+  const windowOpen = isGameWindowOpen(now, kickoffs);
 
-  // Outside a window, or inside the 30-minute cooldown: serve the last snapshot
-  // and call nothing. This is the case that keeps ESPN usage low.
-  if (!shouldRefresh({ now, refreshedAt: prev?.refreshed_at ?? null, inWindow: windowOpen })) {
+  // Outside a window, or inside the cooldown: serve the last snapshot and call
+  // nothing. This is the case that keeps ESPN usage low.
+  if (!shouldRefresh({ now, refreshedAt: prev?.refreshed_at ?? null, inWindow: windowOpen, ttlMs: REFRESH_TTL_MS })) {
     return json({
       status: prev?.status ?? {},
       live: prev?.live ?? false,
@@ -166,6 +163,3 @@ Deno.serve(async (req) => {
   }
 });
 
-// Referenced only so `REFRESH_TTL_MS` is part of this module's contract with the
-// planner even if a future edit stops importing it directly.
-export const _ttlMs = REFRESH_TTL_MS;

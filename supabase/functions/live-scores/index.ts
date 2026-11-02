@@ -26,6 +26,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.115.0';
 
 import { normaliseSwid } from '../../../config/espn-config.js';
 import { fetchNflScoreboard } from '../../../services/espnLiveScoreFetcher.js';
+import { fetchWeekKickoffs } from '../../../services/gameWindows.js';
 import { createScheduleFetcher } from '../../../services/espnScheduleFetcher.js';
 import {
   LIVE_REFRESH_TTL_MS,
@@ -223,21 +224,12 @@ Deno.serve(async (req) => {
       return json(toLiveResponse(snapshot));
     }
 
-    const { data: kickoffRows, error: kickoffError } = await supabase
-      .from('nfl_schedule')
-      .select('game_time')
-      .eq('season_year', espnLeague(config).year)
-      .eq('week', week)
-      .not('game_time', 'is', null);
-
-    if (kickoffError) throw kickoffError;
-
     const plan = planLiveRead({
       now,
       week: week!,
       actualWeek: deriveCurrentWeek(config),
       snapshot,
-      kickoffs: (kickoffRows ?? []).map((row: { game_time: string }) => row.game_time)
+      kickoffs: await fetchWeekKickoffs(supabase, espnLeague(config).year, week!)
     });
 
     if (plan.refresh) {

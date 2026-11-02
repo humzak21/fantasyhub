@@ -7,9 +7,11 @@ import { weekWinners } from '../src/components/pickems/weekWinners.js';
  * what it returns — the same decide/execute split as `parlayGrader.js` and
  * `espnGameMapper.js`.
  *
- * Pick'ems run on a clock — two fixed pg_cron slots a week (see
- * 20261002120000_push_notifications.sql) — so this module, not the slot, is
- * what decides whether something is due. Takes run on events: a trigger on
+ * Pick'ems run on a clock — two fixed pg_cron slots a week, and a job that
+ * starts a run three hours before any deadline (see
+ * 20261002120000_push_notifications.sql and
+ * 20261105120000_pick_em_deadline_first_kickoff.sql) — so this module, not the
+ * slot, is what decides whether something is due. Takes run on events: a trigger on
  * `take_events` starts the sender (20261007120000_take_notifications.sql),
  * and `planTakeNotifications` decides which of the recent events to announce. A slot that lands when nothing is
  * due sends nothing; a re-run after a send sends nothing, because `sent`
@@ -41,9 +43,10 @@ export const ALL_TOPICS = Object.freeze([
 
 /**
  * A closing reminder is due inside this window before the deadline. Wide
- * enough that the Thursday 21:30 UTC slot lands in it under daylight time
- * (2.5 h before an 8 PM ET close) and standard time (3.5 h), narrow enough
- * that a reminder never arrives the day before.
+ * enough that the run started three hours before any deadline lands in it, and
+ * the Thursday 21:30 UTC slot too, under daylight time (2.5 h before an 8 PM ET
+ * close) and standard time (3.5 h). Narrow enough that a reminder never arrives
+ * the day before.
  */
 export const CLOSING_LEAD_HOURS = 6;
 

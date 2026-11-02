@@ -1951,6 +1951,34 @@ Backfilling `player_week_stats` also means a live power-ranking view of a
 2020-25 week now has the roster components it used to drop as unknown; stored
 snapshots are untouched.
 
+### The pick'em deadline follows the NFL calendar
+
+A week's picks and TD parlay close at the season's `pickem_close_*` time,
+Thursday 8 PM ET, or **15 minutes before the week's first kickoff if that comes
+sooner** (`20261105120000_pick_em_deadline_first_kickoff.sql`). A normal Thursday
+8:15 game lands on the same 8 PM. The NFL does not always open a week on Thursday
+now: in 2026 week 1 opened on a Wednesday (set by hand) and week 12 opens on the
+Wednesday before Thanksgiving, where the old deadline sat a day and four games
+after the first kickoff. An early Thursday game moves the deadline the same way.
+
+- **`create_pick_em_week` is the one place this is decided,** because only the
+  database can see `nfl_schedule`. It writes `submission_closes_at`, and both
+  forms' RPCs, the parlay and every client read that column. The client-side
+  `derivePickEmSchedule` knows only the season's time; it is a fallback for a week
+  with no row, and must never be passed to the RPC.
+- **A deadline passed in is left alone,** because that is a person choosing. So
+  `createPickEmWeek` (the admin's button) sends nulls unless given a schedule, like
+  `ensurePickEmWeek`. It used to send the browser's Thursday 8 PM, which would have
+  gone round the rule.
+- **Decided when the row is created,** Tuesday at 05:00 ET. Every week's calendar
+  is on file by then, since the sync imports the whole season, and a kickoff moved
+  later is not followed. A `start_time_tbd` row is skipped: its time is ESPN's
+  placeholder. A week with no calendar keeps the season's time.
+- **Other days are fine as they are.** Friday and Saturday games come after the
+  deadline, and every live feed reads kickoffs: `services/gameWindows.js` opens a
+  window on any day with a game, for `live-scores` and `parlay-live` alike.
+  `supabase/tests/database/pick_em_deadline.test.sql` holds the rule.
+
 ### Pick'ems pays one place, twice a season
 
 The season splits into two in-season tourneys — weeks 1-8 for $20 FAAB in the
@@ -2837,7 +2865,8 @@ Safari tab has no `PushManager`. So the feature is three halves:
   *move* the row — and read/deleted own-row by members, all rows by the
   service role. pg_cron dispatches `.github/workflows/notify-pickems.yml`
   (jobs `notify-pickems-open`, Tuesday 14:00 UTC; `notify-pickems-closing`,
-  Thursday 21:30 UTC) through `private.dispatch_github_workflow`, and
+  Thursday 21:30 UTC; `notify-pickems-deadline`, three hours before any
+  deadline) through `private.dispatch_github_workflow`, and
   `scripts/send-notifications.js` sends with `web-push`.
 
 **Live since 2026-10-02** (#115): the migration is applied (by hand through
@@ -2853,9 +2882,12 @@ Rules that are load-bearing:
   window contains *now*: "open" while the window is open, "closing" inside
   `CLOSING_LEAD_HOURS` (6) of the deadline to members with no
   `pick_em_submissions` row, and never "open" once "closing" is due. A slot
-  with nothing due sends nothing. Moving `pickem_close_time` far from 8 PM ET
-  means moving the Thursday slot too, or the reminder never lands in the
-  window.
+  with nothing due sends nothing. A deadline can fall on any day (see "The
+  pick'em deadline follows the NFL calendar"), so `notify-pickems-deadline`
+  asks every 15 minutes whether one is three hours away and starts the workflow
+  only then. The Thursday slot stays because it is also the retry for winner
+  notifications, including in playoff weeks with no pick'em row. On a normal
+  week both fire and `notification_log` sends the reminder once.
 - **Claim, then send.** `notification_log` is unique on (kind, season, week)
   and the script inserts its row *before* sending, so a re-run, a manual press
   and a race all send once. The row then records delivered / failed / removed.

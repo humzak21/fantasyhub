@@ -1,16 +1,17 @@
 /**
  * When NFL games are on, and so when ESPN is worth calling at all.
  *
- * Shared by the two live feeds. Pure, so the clock can be tested without a
- * database, an edge runtime or a network. Nothing here calls ESPN: these are
- * the checks that decide whether anything else may.
+ * Shared by the two live feeds. Pure apart from `fetchWeekKickoffs`, so the
+ * clock can be tested without an edge runtime or a network. Nothing here calls
+ * ESPN: these are the checks that decide whether anything else may.
  *
  * Two answers, in order of how much they know:
  *
- *   - `kickoffWindows`, from `nfl_schedule.game_time`. Knows about Thanksgiving,
- *     Saturday games and the 9:30 ET London slot, because it reads the calendar.
+ *   - `kickoffWindows`, from `nfl_schedule.game_time`. Knows about Wednesday,
+ *     Friday and Saturday games and the 9:30 ET London slot, because it reads
+ *     the calendar.
  *   - `GAME_WINDOWS`, the league's usual Thu/Sun/Mon slots. Only for a week the
- *     calendar has no kickoffs for, and for `parlay-live` until it moves over.
+ *     calendar has no kickoffs for.
  */
 
 const EASTERN = 'America/New_York';
@@ -120,6 +121,31 @@ export function kickoffWindows(kickoffs = [], { tailMs = LAST_KICKOFF_TAIL_MS, t
   return [...byDay.values()]
     .map(({ first, last }) => ({ start: first, end: last + tailMs }))
     .sort((a, b) => a.start - b.start);
+}
+
+/**
+ * A week's kickoffs. A `start_time_tbd` row is left out because its time is
+ * ESPN's placeholder: week 18 reads 3:01 AM on a Sunday until the NFL sets its
+ * slate, and a window built on that would open in the middle of the night.
+ *
+ * @param {object} client a Supabase client
+ * @param {number|null} seasonYear
+ * @param {number|null} week
+ * @returns {Promise<string[]>} empty without a year and week to ask about
+ */
+export async function fetchWeekKickoffs(client, seasonYear, week) {
+  if (!seasonYear || !week) return [];
+
+  const { data, error } = await client
+    .from('nfl_schedule')
+    .select('game_time')
+    .eq('season_year', seasonYear)
+    .eq('week', week)
+    .eq('start_time_tbd', false)
+    .not('game_time', 'is', null);
+
+  if (error) throw error;
+  return (data ?? []).map((row) => row.game_time);
 }
 
 /**

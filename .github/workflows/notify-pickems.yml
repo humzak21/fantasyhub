@@ -5,7 +5,8 @@ name: Pick'em notifications
 # tourney or the playoff bracket challenge.
 #
 # No `schedule:`, like the ESPN jobs: Supabase's pg_cron dispatches this at
-# two fixed slots (Tuesdays 14:00 UTC, Thursdays 21:30 UTC), and the script
+# two fixed slots (Tuesdays 14:00 UTC, Thursdays 21:30 UTC) and three hours
+# before any pick'em deadline, so a Wednesday game moves it too. The script
 # decides from the pick'em weeks and the games what, if anything, is due. A slot with
 # nothing due sends nothing, and a re-run sends nothing twice — every send is
 # claimed in `notification_log` first. See

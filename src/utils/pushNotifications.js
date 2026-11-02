@@ -40,7 +40,7 @@ export const PUSH_TOPIC_GROUPS = [
       {
         id: 'pickems_closing',
         label: "Pick'ems close soon",
-        description: "Thursday afternoon, only if you haven't picked yet."
+        description: "A few hours before the deadline, only if you haven't picked yet."
       },
       {
         id: 'pickems_wins',
