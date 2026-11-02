@@ -372,6 +372,13 @@ button the live bundle did not have.
   account exists. The first configured run creates the Pages project if it is
   missing. The build reads the same `VITE_SUPABASE_URL` /
   `VITE_SUPABASE_ANON_KEY` secrets CI uses.
+- **A successful deploy can still serve the old build.** On 2026-11-02
+  `56c5e5d4` was live by the Pages API and at its own URL, with `ogjits.com` and
+  `ogjits.pages.dev` still on the previous build through two deploys and a
+  rollback, until **Purge Everything** under the zone's Caching settings fixed
+  it, though `cf-cache-status` read DYNAMIC and cache-busted requests were stale
+  too. So compare the `assets/index-*.js` in the live page against the
+  deployment's own URL before believing a run's green tick.
 - **Undo is Pages' rollback**: Deployments → an earlier one → Rollback,
   instantly, without a build. A merge that never deployed is fixed by running
   the workflow by hand.
@@ -1051,10 +1058,11 @@ then the design pass.
 - **Present tense only.** Home reads `useActualWeek()`, never the viewed
   week, and passes `actualWeek: null` until the season config has a start
   date. The tab carries `weekAware: 'desktop'`: the shell renders
-  `InlineWeekNavigator` from `lg` and hides it below (`false` hides it at
-  every width, as Profile does) — a flag on the definition, not an
-  `activeTab === 'home'` literal. On desktop the control is the way into a
-  week on the other tabs and changes nothing on this page. Links into a
+  `InlineWeekNavigator` from `lg` and hides it below (`false` would hide it at
+  every width) — a flag on the definition, not an `activeTab === 'home'`
+  literal. On desktop the control is the way into a week on the other tabs and
+  changes nothing on this page. Profile keeps it at every width, and it changes
+  nothing there either. Links into a
   week-aware tab call `ctx.openTab()`, which resets the viewed week to the
   actual week first.
 - **Widgets are registered, not placed.** `src/components/home/homeWidgets.js`
@@ -1392,7 +1400,11 @@ every profile); several teams wear their franchise hue, older seasons fainter.
 `/profile/<franchise id>` is what every team name on the site opens: what a
 franchise says about itself, what it has won, and the whole of its history.
 `/profile` alone is the viewer's own. It is a tab with `inNav: false`, reached
-by the names, the avatar's dropdown and the phone Menu's account card. History
+by the names, the header avatar (`ProfileAvatarLink`, the viewer's picture) and
+the phone Menu's account card. Log out is on the member's own profile, under
+Roster, behind `LogOutDialog`, the one confirmation the Menu shares; an account
+with no profile to open keeps `LoginDropdown`, which is what still holds its Log
+out from `lg`. History
 → Franchises is the leaderboards now, and a row navigates here;
 `LeagueHistoryManager` no longer holds a selected franchise. The page
 (`src/components/profile/ProfilePage.jsx`) is the hero, `TrophyCase`, then
@@ -1425,6 +1437,11 @@ by the names, the avatar's dropdown and the phone Menu's account card. History
   `teams.espn_logo_url` through `upsertTeamsFromESPN`, and `avatar_source =
   'espn'` means "this franchise's newest logo". So a logo change lands on its
   own, and the button only appears to work once a sync has run.
+- **The hero carries the current season's standing** (`SeasonFigures`, over the
+  pure `utils/profile/seasonStanding.js`): power rank, place in the division and
+  points for, off the actual week's rankings and the standings RPC, the keys
+  those tabs already hold. Present tense, so the week control does not move it.
+  A franchise with no team this season shows none.
 - **`TeamAvatar` draws the avatar everywhere, through
   `FranchiseAvatarsContext`,** which also answers `useCanOpenProfiles()` for
   `TeamLink`. A context so both primitives stay plain with no provider. It hands
@@ -1585,6 +1602,12 @@ Rules that are load-bearing:
 - **Luck** is wins minus all-play expected wins (all-play win share × games);
   **schedule strength** is the opponents' season PPG; a streak across seasons
   breaks on a season the franchise sat out.
+- **Last place is the bottom of the regular-season standings**, by the sort
+  that names first: record, then points for (`compareStandings`). Never the
+  worst `final_rank`, which the consolation bracket decides: that named the wrong
+  team in four of the first six seasons, and a 6-7 team in 2020. The stat
+  comparison, the matchup facts and the chat's `regular_season_rank` read the
+  same rule. Playoffs count only where a record says so.
 - **Rivalry Week is week 14 every season, and week 4 as well from 2025**
   (`isRivalryWeek`), counted over regular-season games only — 2020's regular
   season ended at week 13, so its week 14 was the first playoff round and 2020
@@ -2926,11 +2949,10 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   chevron (`ChatParts.jsx`). `LeagueChatProvider` in the shell holds the
   conversation, so it survives changing tabs, and is enabled for approved
   members only; everything else renders nothing without it. **One icon
-  opens it, and there is no text box until it is open:** the round orange
-  chat button, floating bottom-left above the phone tab bar below `lg`
-  (`ChatLauncher`, at the root like the tab bar) and header-sized beside the
-  bell from `lg` (`AskHeaderButton`, which toggles the panel and wears a ring
-  while it is open, the way Menu is lit while its drawer is up). Below `md`
+  opens it, and there is no text box until it is open:** `ChatLauncher`, the
+  round orange chat button at the root like the tab bar, floating bottom-left
+  above the tab bar below `lg` and bottom-right from `lg`, where it toggles
+  the panel and wears a ring while it is open. Below `md`
   the chat is a vaul drawer with no autofocus (the keyboard would cover the
   topics); from `md` a panel down the left side, closed by Escape, and from
   `lg` `LeagueChatOffset` moves the page over beside it.

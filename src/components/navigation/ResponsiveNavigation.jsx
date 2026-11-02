@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Bell, ChevronLeft, ChevronRight, Menu, Newspaper, Settings } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { cn } from '../../lib/utils';
+import { getUserDisplayName } from '../../utils/displayNameUtils.js';
 import { useScrollEdges } from '../../hooks/use-scroll-edges';
 import { TabBarMenu } from './TabBarMenu.jsx';
 import { NEWSLETTER_URL } from './navConstants.js';
@@ -271,7 +273,7 @@ const DesktopNav = ({ tabs, activeTab }) => {
  * @param {Array} tabs - the nav tabs; `tabBarSlot` puts one in the bar
  * @param {string} activeTab
  * @param {Function} shouldShowTab
- * @param {object} [account] - { user, showNewsletter, showProfile, settingsBadgeCount,
+ * @param {object} [account] - { user, showNewsletter, showProfile, avatarUrl, settingsBadgeCount,
  *   settingsBadgeLabel, onSignOut }; the menu's account half. Omit it for a
  *   signed-out viewer, whose Login stays in the header.
  */
@@ -283,7 +285,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, acco
     .sort((a, b) => a.tabBarSlot - b.tabBarSlot);
   const menuTabs = visibleTabs.filter((tab) => tab.tabBarSlot == null);
 
-  const { user = null, showNewsletter = false, showProfile = false, settingsBadgeCount = 0, settingsBadgeLabel, onSignOut } = account;
+  const { user = null, showNewsletter = false, showProfile = false, avatarUrl = null, settingsBadgeCount = 0, settingsBadgeLabel, onSignOut } = account;
   const settingsCount = user ? Number(settingsBadgeCount) || 0 : 0;
   const menuCount =
     menuTabs.reduce((sum, tab) => sum + (Number(tab.badgeCount) || 0), 0) + settingsCount;
@@ -362,6 +364,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, acco
         user={user}
         showNewsletter={showNewsletter}
         showProfile={showProfile}
+        avatarUrl={avatarUrl}
         settingsBadgeCount={settingsCount}
         settingsBadgeLabel={settingsBadgeLabel}
         onSignOut={onSignOut}
@@ -402,6 +405,32 @@ const BarItemFace = ({ icon: Icon, label, accessibleName, count, dot, active }) 
     {active && <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-primary" aria-hidden="true" />}
   </>
 );
+
+/**
+ * The viewer's avatar in the header, from lg: one tap to their own profile,
+ * where Log out is. Their picture, or their initial. Radix waits for the image
+ * to load, so a picture that fails leaves the initial, never a broken image.
+ */
+export const ProfileAvatarLink = ({ user, avatarUrl = null, active = false, className }) => {
+  const name = getUserDisplayName(user) || user?.email || '';
+  return (
+    <NavLink
+      to="/profile"
+      aria-label="Your profile"
+      title="Your profile"
+      className={cn(
+        'block rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        active && 'ring-2 ring-primary/60 ring-offset-2 ring-offset-card',
+        className
+      )}
+    >
+      <Avatar className="h-8 w-8">
+        {avatarUrl && <AvatarImage src={avatarUrl} alt="" referrerPolicy="no-referrer" className="object-cover" />}
+        <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
+      </Avatar>
+    </NavLink>
+  );
+};
 
 /**
  * The cog beside the account control. A `NavLink` to `/settings`, rendered by

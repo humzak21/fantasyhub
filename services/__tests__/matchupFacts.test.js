@@ -128,7 +128,15 @@ describe('buildMatchupFacts', () => {
     const empty = indexLeague({ seasons: SEASONS, teams: TEAMS, results: [], currentSeasonId: 's26' });
     const facts = buildMatchupFacts(empty, 'fa', 'fb');
     expect(facts.every((f) => f.subject === 'opponent')).toBe(true);
-    expect(facts.map((f) => f.family).sort()).toEqual(['opponent:finals-lost', 'opponent:last-place', 'opponent:titles']);
+    expect(facts.map((f) => f.family).sort()).toEqual(['opponent:finals-lost', 'opponent:titles']);
+  });
+
+  // 2025: Ben and Dev both go 1-2 and Ben has more points, so Dev is last, though
+  // Ben has the worst final rank.
+  it('calls the bottom of the regular-season standings last, not the worst final rank', () => {
+    const last = (them) => byFamily(buildMatchupFacts(index, 'fa', them))['opponent:last-place'];
+    expect(last('fd').text).toContain('2025');
+    expect(last('fb')).toBeUndefined();
   });
 });
 

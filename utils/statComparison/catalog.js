@@ -199,7 +199,7 @@ export const STATS = [
   placement({ id: 'playoffPpg', label: 'Playoff points per game', kind: 'rate', format: 'points', description: 'Points per bracket game.',
     components: (f) => (f.playoffGames > 0 ? { points: f.playoffPoints, games: f.playoffGames } : null),
     value: (t) => ratio(t.points, t.games) }),
-  placement({ id: 'lastPlaces', label: 'Last-place finishes', better: 'lower', description: 'Seasons finishing last overall.',
+  placement({ id: 'lastPlaces', label: 'Last-place finishes', better: 'lower', description: 'Seasons finishing last in the regular season, by record, then points for.',
     components: (f) => ({ n: is(f.lastPlace) }), value: (t) => t.n }),
 
   // -------------------------------------------------------------------------

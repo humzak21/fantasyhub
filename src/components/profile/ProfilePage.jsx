@@ -9,11 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Skeleton } from '../ui/skeleton';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
+  useActualWeek,
   useFranchiseProfile,
   useFranchiseProfiles,
   useHistoryFranchises,
-  useMyFranchiseId
+  useLeagueData,
+  useMyFranchiseId,
+  useRankingsForWeek,
+  useSeasonConfig,
+  useStandings
 } from '../../../hooks/queries/index.js';
+import { currentSeasonStanding } from '../../../utils/profile/seasonStanding.js';
+import { franchiseIdOf } from '../../../utils/viewerTeam.js';
+import { LogOutButton } from '../auth/LogOutButton.jsx';
 import {
   canViewFullData,
   getMaskedFranchiseName,
@@ -64,6 +72,19 @@ export function ProfilePage() {
   const { data: franchiseData, isLoading: dataLoading } = useFranchiseProfile(franchiseId);
   const [editing, setEditing] = useState(false);
 
+  // The hero's figures are present tense, like Home: the actual week, on the
+  // keys the Rankings tab and the standings drawer already hold. The header's
+  // week control changes nothing here. `null` until the season config has a
+  // start date, because `useActualWeek()` answers 1 before then.
+  const { activeSeason } = useLeagueData();
+  const config = useSeasonConfig();
+  const derivedWeek = useActualWeek();
+  const actualWeek = config?.startDate ? derivedWeek : null;
+  const currentTeam = activeSeason?.teams?.find((row) => franchiseIdOf(row) === franchiseId) ?? null;
+  const seasonId = currentTeam ? activeSeason.id : null;
+  const rankings = useRankingsForWeek(seasonId, actualWeek, actualWeek);
+  const standings = useStandings(seasonId);
+
   const viewer = useMemo(() => ({ user, isAdmin, teamOwnerNames }), [user, isAdmin, teamOwnerNames]);
   const fullData = canViewFullData(user, isAdmin, teamOwnerNames);
   const canOpenHistory = Boolean(isAdmin || isTeamOwner);
@@ -85,6 +106,7 @@ export function ProfilePage() {
           icon={UserRound}
           title="No franchise linked yet"
           description="An admin links your account to your franchise in Settings. Your profile opens here after that."
+          action={<LogOutButton />}
         />
       </Card>
     );
@@ -157,8 +179,23 @@ export function ProfilePage() {
         franchise={franchise}
         profile={profile}
         seasons={seasonHistory.length || franchise.total_seasons || 0}
-        rosterTeamId={franchise.is_active ? latestSeason?.team_id ?? null : null}
+        rosterTeamId={currentTeam?.id ?? null}
+        season={
+          currentTeam
+            ? {
+                year: activeSeason.year,
+                standing: currentSeasonStanding({
+                  teamId: currentTeam.id,
+                  rankings: rankings.data,
+                  standings: standings.data
+                }),
+                loading: rankings.isLoading || standings.isLoading
+              }
+            : null
+        }
+        showDivision={fullData}
         editing={editMode}
+        showLogOut={isOwn}
         onEdit={() => setEditing(true)}
       />
 
