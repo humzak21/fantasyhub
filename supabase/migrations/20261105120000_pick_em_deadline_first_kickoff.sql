@@ -16,7 +16,8 @@
 --
 -- A `start_time_tbd` row is skipped because its time is ESPN's placeholder (week
 -- 18 reads 3:01 AM on a Sunday until the NFL sets its slate). A week with no
--- calendar rows keeps the season's time: unknown is not "no games".
+-- calendar rows keeps the season's time: unknown is not "no games". So does a
+-- kickoff that would close the window before it opens, which is a bad row.
 --
 -- The reminder had the same assumption, a pg_cron slot on Thursdays. That slot
 -- stays, because it is also the retry for winner notifications, which run in
@@ -75,8 +76,13 @@ begin
         and n.game_time is not null
         and not n.start_time_tbd;
 
-      -- `least` ignores a NULL, so a week with no calendar keeps the season's time.
-      v_closes_at := least(v_closes_at, v_first_kickoff - interval '15 minutes');
+      -- A kickoff that would close the window before it opens is a bad calendar
+      -- row, not a real week. `pick_em_weeks_valid_window` would refuse it, and
+      -- one bad row must not cost the league its picks. With no calendar the
+      -- comparison is NULL, so such a week keeps the season's time too.
+      if v_first_kickoff - interval '15 minutes' > v_opens_at then
+        v_closes_at := least(v_closes_at, v_first_kickoff - interval '15 minutes');
+      end if;
     end if;
 
     v_reveal_at := coalesce(

@@ -8,7 +8,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(10);
+select plan(11);
 
 -- Week 1 starts Tuesday 2026-09-08, the real 2026 calendar. The season row's
 -- own year keys the calendar, so a made-up year keeps it apart from real rows.
@@ -74,14 +74,26 @@ select public.create_pick_em_week(
 select is(pg_temp.closes(4), '2026-10-01 12:00:00+00'::timestamptz,
   'a deadline passed in is left alone');
 
+-- Week 5: a bad row, a kickoff before the window even opens. It must not raise:
+-- the weekly sync creates this row, and a week with no row has no pick'ems.
+select pg_temp.game(5, 1, '2026-10-05 12:00:00+00');
+select public.create_pick_em_week('00000000-0000-0000-0000-00000000de01', 5);
+select is(pg_temp.closes(5), '2026-10-09 00:00:00+00'::timestamptz,
+  'a kickoff before the window opens is ignored, and the week is still created');
+
 -- The reminder's clock, asserted from both sides, through the queue
 -- cron_dispatch reads. A gate that is wrong fires nothing and fails nothing.
 select vault.create_secret('test-token', 'github_actions_dispatch_token');
 
-update public.pick_em_weeks set submission_closes_at = now() + interval '4 hours'
-where season_id = '00000000-0000-0000-0000-00000000de01' and week_number = 12;
-update public.pick_em_weeks set submission_closes_at = now() - interval '1 day'
+delete from public.pick_em_weeks
 where season_id = '00000000-0000-0000-0000-00000000de01' and week_number <> 12;
+
+-- The opening time moves too: `pick_em_weeks_valid_window` needs it first.
+update public.pick_em_weeks
+   set submission_opens_at = now() - interval '1 day',
+       submission_closes_at = now() + interval '4 hours',
+       results_reveal_at = now() + interval '7 days'
+where season_id = '00000000-0000-0000-0000-00000000de01';
 
 select private.dispatch_pickems_deadline();
 select is(
