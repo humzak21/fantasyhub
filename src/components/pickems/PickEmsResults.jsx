@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
@@ -7,8 +7,11 @@ import {
   CheckCircle2, XCircle, Clock, Calendar, BarChart3
 } from 'lucide-react';
 import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUtils';
-import LeaguePickSplit, { LeaguePickSplitNote } from './LeaguePickSplit.jsx';
+import { IndependentColumns } from '../ui/independent-columns';
+import { LeaguePickSplitNote, useLeaguePickSplit } from './LeaguePickSplit.jsx';
+import { MatchupPickCard } from './MatchupPickCard.jsx';
 import { isByeGame } from './pickSplit.js';
+import { useMatchupBoard } from './useMatchupBoard.js';
 import { TeamLink } from '../ui/team-link';
 import { franchiseIdsByTeam } from '../../../utils/viewerTeam.js';
 
@@ -51,6 +54,29 @@ const PickEmsResults = ({
   teamOwnerNames = []
 }) => {
   const [selectedTab, setSelectedTab] = useState('weekly');
+
+  // The viewer's own picks, for the chips on the matchup cards. Pick Breakdown
+  // below is everybody's, and stays as it is.
+  const myPicks = useMemo(() => {
+    const mine = {};
+    for (const pick of allPicks) {
+      if (pick.userId === user?.id && pick.gameId) mine[pick.gameId] = pick.pickedTeamId ?? pick.predictedWinnerTeamId;
+    }
+    return mine;
+  }, [allPicks, user]);
+
+  const nflSeasonYear = season?.espnSeasonYear ?? season?.espn_season_year ?? season?.year ?? null;
+  const board = useMatchupBoard({
+    seasonId: season?.id ?? pickEmWeek?.seasonId ?? null,
+    week: currentWeek,
+    nflSeasonYear,
+    games,
+    picks: myPicks,
+    enabled: resultsAvailable
+  });
+  const split = useLeaguePickSplit({ pickEmWeek, games, closed: resultsAvailable });
+  const matchups = games.filter((game) => !isByeGame(game));
+  const viewer = { user, isAdmin, teamOwnerNames };
 
   // Group picks by user for weekly results
   const franchiseIds = franchiseIdsByTeam(season?.teams);
@@ -120,7 +146,7 @@ const PickEmsResults = ({
           </CardDescription>
         </CardHeader>
 
-        {/* The explainer for the boxes below, as it is on Make Picks. The
+        {/* The explainer for the split below, as it is on Make Picks. The
             content block is conditional because an empty one would still
             carry its padding. */}
         {games.some((game) => !isByeGame(game)) && (
@@ -130,12 +156,25 @@ const PickEmsResults = ({
         )}
       </Card>
 
-      {/* How the league picked, with each matchup's winner marked — the boxes
-          Make Picks showed from the close, carried here because a scored week
-          swaps that page for this one. Above the inner tabs, so they stay put
-          whichever of the two is open. `closed` is a given on this branch:
-          results are only available after the window shuts. */}
-      <LeaguePickSplit pickEmWeek={pickEmWeek} games={games} closed week={currentWeek} />
+      {/* The week's matchups, with the winners marked and how the league
+          picked each. Above the inner tabs, so they stay put whichever of the
+          two is open. Read-only: results are only available after the window
+          shuts. */}
+      {games.length > 0 && (
+        <IndependentColumns items={games} itemKey={(game) => game.id} columns={2}>
+          {(game) => (
+            <MatchupPickCard
+              game={game}
+              number={matchups.findIndex((g) => g.id === game.id) + 1}
+              selectedTeamId={myPicks[game.id] ?? null}
+              canPick={false}
+              board={board}
+              split={split.byGame?.get(game.id) ?? null}
+              viewer={viewer}
+            />
+          )}
+        </IndependentColumns>
+      )}
 
       {/* Results tabs */}
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>

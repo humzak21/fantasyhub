@@ -29,6 +29,9 @@ vi.mock('../../../contexts/ViewerContext.jsx', () => ({
 vi.mock('../../pickems/ParlayMyPick.jsx', () => ({ default: () => <p>parlay pick</p> }));
 vi.mock('../../../../hooks/queries/index.js', () => ({
   useNow: () => new Date(),
+  useActualWeek: () => 7,
+  useSeasonConfig: () => ({ startDate: '2026-09-08' }),
+  useLineupsForWeek: () => q.lineups,
   usePickEmWeek: () => q.week,
   usePickEmGameData: () => q.games,
   useUserPicks: () => q.userPicks,
@@ -75,7 +78,8 @@ beforeEach(() => {
     allPicks: ok(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'].map((userId) => ({ userId, gameId: 'g1' }))),
     parlayPicks: ok(Array.from({ length: 7 }, (_, i) => ({ id: `p${i}`, userId: `m${i}` }))),
     season: { year: 2026, leagueSize: 14 },
-    myParlay: { data: null, isLoading: false }
+    myParlay: { data: null, isLoading: false },
+    lineups: { data: {}, live: null, isLoading: false }
   };
 });
 
@@ -166,5 +170,41 @@ describe('PickemsParlayWidget', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     expect(screen.getByText(/^pick'ems$/i)).toBeInTheDocument();
     expect(screen.getByText(/opens with pick'ems/i)).toBeInTheDocument();
+  });
+
+  it('reads "1 of 2 safe · 1 in danger" while the week is live', () => {
+    const final = (actualPoints) => ({
+      started: true,
+      rosterSlot: 'RB',
+      position: 'RB',
+      proTeamId: 12,
+      projectedPoints: 12,
+      actualPoints,
+      nflState: 'final'
+    });
+    const waiting = { ...final(null), nflState: 'not_started' };
+
+    q.week = ok({
+      ...openWeek(),
+      submissionOpensAt: new Date(Date.now() - 72 * HOUR).toISOString(),
+      submissionClosesAt: new Date(Date.now() - HOUR).toISOString()
+    });
+    q.userPicks = ok([
+      { gameId: 'g1', predictedWinnerTeamId: 't1' },
+      { gameId: 'g2', predictedWinnerTeamId: 't3' }
+    ]);
+    q.lineups = {
+      isLoading: false,
+      live: { refreshedAt: 'now', games: {}, nflGames: {}, live: true },
+      data: {
+        t1: [final(60)],
+        t2: [final(40)],
+        t3: [final(40), waiting, waiting],
+        t4: [final(90), waiting]
+      }
+    };
+    render();
+
+    expect(screen.getByText('1 of 2 safe · 1 in danger')).toBeInTheDocument();
   });
 });

@@ -7,6 +7,11 @@ import { getMaskedTeamName } from '../../../utils/displayNameUtils';
 // so it renders through the providers and needs the db they reach.
 const pickems = { getAllPicksForWeek: vi.fn(async () => []) };
 
+// The cards' own reads have tests of their own; this suite is about the page.
+vi.mock('../useMatchupBoard.js', () => ({
+  useMatchupBoard: () => ({ rowsByTeam: {}, live: null, opponents: {}, outlooks: {}, isLoading: false })
+}));
+
 vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
   getDb: () => ({
@@ -215,32 +220,38 @@ describe('PickEmsResults league split', () => {
   it('sits under the results header and above the results, with the winner marked', async () => {
     renderScored();
 
-    const grid = await screen.findByRole('list', { name: 'How the league picked week 3' });
+    const wizards = await screen.findByRole('radio', { name: /Waiver Wire Wizards/ });
+    const card = wizards.closest('.rounded-xl');
     const header = screen.getByText(/Pick'ems Results - Week 3/).closest('.rounded-xl');
     const tabs = screen.getByRole('tablist');
 
     expect(header).toContainElement(screen.getByText('How the league picked'));
-    expect(header).not.toContainElement(grid);
+    expect(header).not.toContainElement(card);
     const follows = (a, b) =>
       Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(follows(header, grid)).toBe(true);
-    expect(follows(grid, tabs)).toBe(true);
+    expect(follows(header, card)).toBe(true);
+    expect(follows(card, tabs)).toBe(true);
 
     // Nobody picked the Wizards, and they won.
-    await vi.waitFor(() => expect(grid).toHaveTextContent('100.0%'));
-    const [gang, wizards] = within(grid).getAllByRole('listitem');
-    expect(gang).not.toHaveTextContent('Won:');
-    expect(wizards).toHaveTextContent('Won:');
-    expect(wizards).toHaveTextContent('0.0%');
+    await vi.waitFor(() => expect(card).toHaveTextContent('100.0%'));
+    expect(screen.getByRole('radio', { name: /Gridiron Gang/ })).not.toHaveTextContent('Won.');
+    expect(wizards).toHaveTextContent('Won.');
+    expect(card).toHaveTextContent('0.0%');
   });
 
   it('stays in view on the pick breakdown', async () => {
     renderScored();
 
-    await screen.findByRole('list', { name: 'How the league picked week 3' });
+    await screen.findByRole('radio', { name: /Waiver Wire Wizards/ });
     fireEvent.mouseDown(screen.getByRole('tab', { name: /Pick Breakdown/ }), { button: 0 });
 
-    expect(screen.getByRole('list', { name: 'How the league picked week 3' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Waiver Wire Wizards/ })).toBeInTheDocument();
+  });
+
+  it('locks every card: results are for reading', async () => {
+    renderScored();
+
+    expect(await screen.findByRole('radio', { name: /Gridiron Gang/ })).toBeDisabled();
   });
 
   it('shows neither without the week\'s games, and asks for nothing', () => {

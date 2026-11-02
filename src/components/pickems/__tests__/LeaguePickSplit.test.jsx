@@ -1,16 +1,14 @@
 /**
- * "How the league picked" — the team boxes and their explainer.
+ * "How the league picked": the read behind each card's split, and its explainer.
  *
- * What must not break: nothing is shown, and nothing is fetched, while picks
- * can still change; once the window closes every team gets a box with its
- * share; a W marks a matchup's winner only once the game is scored; the boxes
- * and their note share one request; and a viewer who sees masked names sees
- * them masked here too, initials included.
+ * What must not break: nothing is shown, and nothing is fetched, while picks can
+ * still change; once the window closes every matchup has its shares; a W marks a
+ * matchup's winner only once the game is scored; the cards and the note share
+ * one request. The split as drawn, masking included, is in MatchupPickCard.test.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithProviders, screen, within } from '../../../test/renderWithProviders.jsx';
-import { getMaskedOwnerName, getMaskedTeamName } from '../../../utils/displayNameUtils';
+import { renderWithProviders, screen } from '../../../test/renderWithProviders.jsx';
 
 const pickems = { getAllPicksForWeek: vi.fn(async () => []) };
 
@@ -43,7 +41,7 @@ vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
   useAuth: () => auth
 }));
 
-const { default: LeaguePickSplit, LeaguePickSplitNote } = await import('../LeaguePickSplit.jsx');
+const { LeaguePickSplitNote, useLeaguePickSplit } = await import('../LeaguePickSplit.jsx');
 
 const WEEK = { id: 'pew-2', seasonId: 'season-1', weekNumber: 2 };
 
@@ -89,22 +87,32 @@ const PICKS = [
   pick('u1', G2, 2), pick('u2', G2, 1), pick('u3', G2, 1), pick('u4', G2, 2)
 ];
 
-const renderBoth = ({ closed = true, games = GAMES } = {}) =>
+/** Each matchup's split, as a card would read it. */
+function Shares({ pickEmWeek, games, closed }) {
+  const { byGame } = useLeaguePickSplit({ pickEmWeek, games, closed });
+  if (!byGame) return null;
+
+  return (
+    <ul aria-label="Shares">
+      {[...byGame.values()].flatMap((matchup) =>
+        matchup.sides.map((side) => (
+          <li key={side.team.id}>
+            {side.team.name}: {side.share}
+            {side.won && ' won'}
+          </li>
+        ))
+      )}
+    </ul>
+  );
+}
+
+const renderBoth = ({ closed = true, games = GAMES, pickEmWeek = WEEK } = {}) =>
   renderWithProviders(
     <>
-      <LeaguePickSplitNote pickEmWeek={WEEK} games={games} closed={closed} />
-      <LeaguePickSplit pickEmWeek={WEEK} games={games} closed={closed} week={2} />
+      <LeaguePickSplitNote pickEmWeek={pickEmWeek} games={games} closed={closed} />
+      <Shares pickEmWeek={pickEmWeek} games={games} closed={closed} />
     </>
   );
-
-/** The boxes, once the picks have landed in them. */
-const findBoxes = async () => {
-  const grid = await screen.findByRole('list', { name: 'How the league picked week 2' });
-  await vi.waitFor(() => expect(grid).toHaveTextContent('75.0%'));
-  return within(grid).getAllByRole('listitem');
-};
-
-const wonFlags = (boxes) => boxes.map((box) => box.textContent.includes('Won:'));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -116,121 +124,76 @@ beforeEach(() => {
   });
 });
 
-describe('LeaguePickSplit', () => {
+describe('the league split', () => {
   it('shows nothing and fetches nothing while picks are still open', () => {
-    const { container } = renderBoth({ closed: false });
+    renderBoth({ closed: false });
 
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText('How the league picked')).not.toBeInTheDocument();
     expect(pickems.getAllPicksForWeek).not.toHaveBeenCalled();
   });
 
-  it('shows one box per team, with its name, owner, initials and share, once picks close', async () => {
+  it('gives every matchup its shares once picks close', async () => {
     renderBoth();
 
-    const boxes = await findBoxes();
-    expect(boxes).toHaveLength(4);
-
-    // In matchup order — team 1 then team 2, then the next matchup. The grid
-    // pours that order down its columns, which is what puts each matchup in a
-    // column of its own; jsdom has no layout, so the order is what is asserted.
-    const expected = [
-      ['Glizzy Galaxy', 'Aaron Wadhwa', 'AW', '75.0%'],
-      ['i chase brown kids', 'Aashish Gatamaneni', 'AG', '25.0%'],
-      ['Lightskin Empire', 'Humza Khalil', 'HK', '50.0%'],
-      ['Comeback season', 'Arya Shah', 'AS', '50.0%']
-    ];
-    expected.forEach((facts, index) => {
-      for (const fact of facts) expect(boxes[index]).toHaveTextContent(fact);
-    });
-
-    // One team to a box.
-    expect(boxes[0]).not.toHaveTextContent('i chase brown kids');
-    expect(boxes[1]).not.toHaveTextContent('Glizzy Galaxy');
+    expect(await screen.findByText('Glizzy Galaxy: 75')).toBeInTheDocument();
+    expect(screen.getByText('i chase brown kids: 25')).toBeInTheDocument();
+    expect(screen.getByText('Lightskin Empire: 50')).toBeInTheDocument();
+    expect(screen.getByText('Comeback season: 50')).toBeInTheDocument();
   });
 
   it('marks no winner before the week is scored', async () => {
     renderBoth();
 
-    const boxes = await findBoxes();
-    expect(wonFlags(boxes)).toEqual([false, false, false, false]);
-    expect(screen.getByText(/Once the week is scored/)).toHaveTextContent(
-      /marks each matchup’s winner\.$/
-    );
+    await screen.findByText('Glizzy Galaxy: 75');
+    expect(screen.queryByText(/won$/)).not.toBeInTheDocument();
   });
 
-  it('puts a W on each matchup\'s winner once it is scored, whoever the league backed', async () => {
+  it("marks each matchup's winner once it is scored, whoever the league backed", async () => {
     renderBoth({ games: SCORED });
 
-    const boxes = await findBoxes();
-    // The 25% underdog won g1; Lightskin Empire won g2.
-    expect(wonFlags(boxes)).toEqual([false, true, true, false]);
-    expect(within(boxes[1]).getByText('W')).toBeInTheDocument();
-
-    expect(screen.queryByText(/Once the week is scored/)).not.toBeInTheDocument();
-    expect(screen.getByText(/marks each matchup’s winner/)).toBeInTheDocument();
+    expect(await screen.findByText('i chase brown kids: 25 won')).toBeInTheDocument();
+    expect(screen.getByText('Lightskin Empire: 50 won')).toBeInTheDocument();
+    expect(screen.getByText('Glizzy Galaxy: 75')).toBeInTheDocument();
   });
 
-  it('explains the boxes in a sentence that ends at picking a team to win', async () => {
+  it('explains the split in a sentence that ends at picking a team to win', async () => {
     renderBoth();
 
-    const body = await screen.findByText(/4 members submitted/);
-    expect(body.textContent).toBe(
-      'Picks are locked, and 4 members submitted. Each box below shows the percentage of ' +
-        'those submissions that picked that team to win.'
-    );
-    expect(screen.getByText('How the league picked')).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        'Picks are locked, and 4 members submitted. Each matchup below shows the percentage of those submissions that picked each team to win.'
+      )
+    ).toBeInTheDocument();
   });
 
-  it('asks for the league\'s picks once for the boxes and their note together', async () => {
+  it("asks for the league's picks once for the cards and their note together", async () => {
     renderBoth();
 
-    await screen.findByText(/4 members submitted/);
+    await screen.findByText('Glizzy Galaxy: 75');
     expect(pickems.getAllPicksForWeek).toHaveBeenCalledTimes(1);
-    expect(pickems.getAllPicksForWeek).toHaveBeenCalledWith('pew-2');
   });
 
-  it('masks names and initials for a viewer who cannot see them', async () => {
-    Object.assign(auth, { isAuthenticated: false, isAdmin: false, user: null });
-    renderBoth();
-
-    const [first] = await findBoxes();
-    expect(first).not.toHaveTextContent('Glizzy Galaxy');
-    expect(first).not.toHaveTextContent('Aaron Wadhwa');
-    expect(first).not.toHaveTextContent('AW');
-    expect(first).toHaveTextContent(getMaskedTeamName(G1.team1, null, false, []));
-    expect(first).toHaveTextContent(getMaskedOwnerName(G1.team1, null, false, []));
-  });
-
-  it('says nobody submitted, instead of a grid of empty boxes', async () => {
+  it('says nobody submitted, instead of a page of empty splits', async () => {
     pickems.getAllPicksForWeek.mockResolvedValue([]);
     renderBoth();
 
-    expect(
-      await screen.findByText('Picks are locked, and nobody submitted any this week.')
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('list')).not.toBeInTheDocument();
-    expect(screen.queryByText(/marks each matchup’s winner/)).not.toBeInTheDocument();
+    expect(await screen.findByText('Picks are locked, and nobody submitted any this week.')).toBeInTheDocument();
   });
 
   it('says so when the picks cannot be loaded', async () => {
-    pickems.getAllPicksForWeek.mockRejectedValue(new Error('boom'));
+    pickems.getAllPicksForWeek.mockRejectedValue(new Error('offline'));
     renderBoth();
 
-    expect(
-      await screen.findByText('Could not load how the league picked this week.')
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('list')).not.toBeInTheDocument();
+    expect(await screen.findByText('Could not load how the league picked this week.')).toBeInTheDocument();
   });
 
-  it('renders nothing, and fetches nothing, without a pick\'em row or a matchup', () => {
-    const { container } = renderWithProviders(
-      <>
-        <LeaguePickSplit pickEmWeek={null} games={GAMES} closed week={2} />
-        <LeaguePickSplitNote pickEmWeek={WEEK} games={[]} closed />
-      </>
-    );
+  it("renders nothing, and fetches nothing, without a pick'em row or a matchup", () => {
+    const { unmount } = renderBoth({ pickEmWeek: null });
+    expect(screen.queryByText('How the league picked')).not.toBeInTheDocument();
+    unmount();
 
-    expect(container).toBeEmptyDOMElement();
+    renderBoth({ games: [] });
+    expect(screen.queryByText('How the league picked')).not.toBeInTheDocument();
     expect(pickems.getAllPicksForWeek).not.toHaveBeenCalled();
   });
 });

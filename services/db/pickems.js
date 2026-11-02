@@ -723,8 +723,8 @@ export async function getPickEmGameData(ctx, seasonId, weekNumber) {
         team2_score,
         is_completed,
         winner_team_id,
-        team1:teams!games_team1_id_fkey(id, name, owner, franchise_id),
-        team2:teams!games_team2_id_fkey(id, name, owner, franchise_id)
+        team1:teams!games_team1_id_fkey(id, name, owner, franchise_id, wins, losses, ties),
+        team2:teams!games_team2_id_fkey(id, name, owner, franchise_id, wins, losses, ties)
       `)
       .eq('season_id', seasonId)
       .eq('week', weekNumber)

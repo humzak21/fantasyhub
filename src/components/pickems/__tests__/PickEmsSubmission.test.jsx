@@ -1,10 +1,10 @@
 /**
- * Where "how the league picked" sits on the Make Picks page.
+ * The Make Picks page, around its cards.
  *
- * The explainer belongs inside the week's card and the row directly under
- * that card, above the TD parlay — the league asked for it there, between the
- * two. The research panel and the parlay have tests of their own and are
- * stubbed here, so this suite is about the page's order and nothing else.
+ * The explainer belongs inside the week's card, and the split on each matchup.
+ * Every game stays on the page, a finished one locked. Once the window closes a
+ * pick is what was submitted, not a draft. The cards' own reads and the parlay
+ * have tests of their own and are stubbed here.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -27,7 +27,14 @@ vi.mock('../../../../services/db/index.js', async (importOriginal) => ({
   })
 }));
 
-vi.mock('../MatchupResearchSection', () => ({ default: () => null }));
+const boardArgs = vi.fn();
+
+vi.mock('../useMatchupBoard.js', () => ({
+  useMatchupBoard: (args) => {
+    boardArgs(args);
+    return { rowsByTeam: {}, live: null, opponents: {}, outlooks: {}, isLoading: false };
+  }
+}));
 
 vi.mock('../ParlayPickSection', async () => {
   const React = await import('react');
@@ -74,13 +81,14 @@ const GAMES = [
   }
 ];
 
-const renderPage = (pickEmWeek) =>
+const renderPage = (pickEmWeek, props = {}) =>
   renderWithProviders(
     <PickEmsSubmission
       season={{ id: 'season-1', year: 2026 }}
       currentWeek={2}
       pickEmWeek={pickEmWeek}
       games={GAMES}
+      {...props}
       user={auth.user}
       isApproved
       isAdmin
@@ -100,29 +108,66 @@ beforeEach(() => {
 });
 
 describe('PickEmsSubmission', () => {
-  it('puts the league\'s split under the week card and above the parlay once picks close', async () => {
+  it("puts the note in the week's card and the split on the matchup once picks close", async () => {
     renderPage(week(-48, -1, 72));
 
-    const row = await screen.findByRole('list', { name: 'How the league picked week 2' });
     const note = await screen.findByText('How the league picked');
     const weekCard = screen.getByText("Week 2 Pick'ems").closest('.rounded-xl');
-    const parlay = screen.getByRole('region', { name: 'Weekly TD Parlay' });
+    const matchup = screen.getByRole('radio', { name: /Glizzy Galaxy/ }).closest('.rounded-xl');
 
-    // The explainer is inside the week's card; the row is not.
     expect(weekCard).toContainElement(note);
-    expect(weekCard).not.toContainElement(row);
+    expect(weekCard).not.toContainElement(matchup);
+    await vi.waitFor(() => expect(matchup).toHaveTextContent('50.0%'));
+  });
 
-    const follows = (a, b) =>
-      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(follows(weekCard, row)).toBe(true);
-    expect(follows(row, parlay)).toBe(true);
+  it('puts the parlay above the matchups, where it is not forgotten', () => {
+    renderPage(week(-48, 24, 72));
+
+    const parlay = screen.getByRole('region', { name: 'Weekly TD Parlay' });
+    const matchup = screen.getByRole('radio', { name: /Glizzy Galaxy/ });
+
+    expect(parlay.compareDocumentPosition(matchup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows neither while picks are still open', () => {
     renderPage(week(-48, 24, 72));
 
     expect(screen.queryByText('How the league picked')).not.toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /How the league picked/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("League's picks")).not.toBeInTheDocument();
     expect(pickems.getAllPicksForWeek).not.toHaveBeenCalled();
+  });
+
+  it('keeps a finished game on the page, locked, beside one still to pick', () => {
+    const games = [
+      GAMES[0],
+      {
+        id: 'g2',
+        isCompleted: true,
+        winnerTeamId: 't3',
+        team1Score: 120,
+        team2Score: 100,
+        team1Id: 't3',
+        team2Id: 't4',
+        team1: { id: 't3', name: 'Finished Winners', owner: 'A' },
+        team2: { id: 't4', name: 'Finished Losers', owner: 'B' }
+      }
+    ];
+    renderPage(week(-48, 24, 72), { games });
+
+    expect(screen.getByRole('radio', { name: /Finished Winners/ })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: /Glizzy Galaxy/ })).toBeEnabled();
+  });
+
+  it('reads a draft as a pick while the window is open, and only then', () => {
+    localStorage.setItem(
+      'pickems:draft:u1:pew-2',
+      JSON.stringify({ picks: { g1: 't2' }, savedAt: Date.now() })
+    );
+    const userPicks = [{ gameId: 'g1', predictedWinnerTeamId: 't1' }];
+
+    renderPage(week(-48, -1, 72), { userPicks });
+
+    expect(boardArgs).toHaveBeenLastCalledWith(expect.objectContaining({ picks: { g1: 't1' } }));
+    expect(screen.getByRole('radio', { name: /Glizzy Galaxy/ })).toBeChecked();
   });
 });

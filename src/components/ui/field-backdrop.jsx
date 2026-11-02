@@ -1,3 +1,4 @@
+import { cn } from '../../lib/utils'
 import { getTeamColor } from '../../utils/teamColors'
 
 /**
@@ -34,10 +35,10 @@ export function FieldBackdrop({ left, right }) {
  * franchise colour. A tug of war, not a probability. It says who is ahead and
  * by how much at a glance, and the line under it says it in words.
  */
-export function ShareBar({ share, left, right }) {
-  if (share == null) return <div className="mt-4 h-1.5 rounded-full bg-muted" aria-hidden="true" />
+export function ShareBar({ share, left, right, className }) {
+  if (share == null) return <div className={cn('mt-4 h-1.5 rounded-full bg-muted', className)} aria-hidden="true" />
   return (
-    <div className="mt-4 flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
+    <div className={cn('mt-4 flex h-1.5 gap-0.5 overflow-hidden rounded-full', className)} aria-hidden="true">
       <div
         className="h-full rounded-l-full transition-[width] duration-700 ease-out"
         style={{ width: `${share}%`, background: left ? getTeamColor(left).value : 'var(--muted)' }}

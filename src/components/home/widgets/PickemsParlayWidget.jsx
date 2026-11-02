@@ -25,12 +25,16 @@ import {
   useUserPicks,
   useWeeklyPickEmScores
 } from '../../../../hooks/queries/index.js';
-import { PickEmGameRow } from '../../pickems/PickEmGameRow.jsx';
+import { useLeaguePickSplit } from '../../pickems/LeaguePickSplit.jsx';
+import { MatchupPickCard } from '../../pickems/MatchupPickCard.jsx';
 import PickEmsSubmitBar from '../../pickems/PickEmsSubmitBar.jsx';
 import ParlayMyPick from '../../pickems/ParlayMyPick.jsx';
 import { ParlayPickStatus } from '../../pickems/LiveTdIndicator.jsx';
 import { isByeGame } from '../../pickems/pickSplit.js';
+import { submittedSelections } from '../../pickems/pickDraft.js';
 import { formatCountdown, isWindowClosed, pickEmWindowState } from '../../pickems/pickEmWindow.js';
+import { countOutlooks } from '../../pickems/pickOutlook.js';
+import { useMatchupBoard } from '../../pickems/useMatchupBoard.js';
 import { usePickEmForm } from '../../pickems/usePickEmForm.js';
 import { pickemCounters, viewerWeekResult } from '../../../../utils/home/pickems.js';
 
@@ -47,8 +51,8 @@ const MINUTE = 60_000;
  * panel at a time, so the card never grows two forms at once.
  *
  * Every read is the Pick'ems tab's own cache entry and every write its own
- * mutation, through the tab's own pieces (`usePickEmForm`, `PickEmGameRow`,
- * `PickEmsSubmitBar`, `ParlayMyPick`), so a selection made here and not yet
+ * mutation, through the tab's own pieces (`usePickEmForm`,
+ * `MatchupPickCard`, `PickEmsSubmitBar`, `ParlayMyPick`), so a selection made here and not yet
  * submitted is on the tab (and survives a reload), and a submission here is on
  * the tab without a refetch of its own.
  *
@@ -97,13 +101,23 @@ export default function PickemsParlayWidget({ ctx }) {
   );
 
   const games = gamesQuery.data ?? NONE;
+  const userPicks = userPicksQuery.data ?? NONE;
   const form = usePickEmForm({
     pickEmWeek,
     games,
-    userPicks: userPicksQuery.data ?? NONE,
+    userPicks,
     userId: user?.id ?? null,
     submit
   });
+
+  // Once the window closes a pick is what was submitted, as on the tab.
+  const madePicks = useMemo(
+    () => (closed ? submittedSelections(userPicks) : form.picks),
+    [closed, userPicks, form.picks]
+  );
+  const board = useMatchupBoard({ seasonId, week: actualWeek, nflSeasonYear, games, picks: madePicks });
+  const split = useLeaguePickSplit({ pickEmWeek, games, closed });
+  const outlookCounts = useMemo(() => countOutlooks(Object.values(board.outlooks)), [board.outlooks]);
 
   const counters = useMemo(
     () =>
@@ -121,7 +135,7 @@ export default function PickemsParlayWidget({ ctx }) {
 
   const loading = weekQuery.isPending || (Boolean(pickEmWeek) && gamesQuery.isPending);
   const weekGames = useMemo(() => games.filter((game) => !isByeGame(game)), [games]);
-  const matchupRows = isOpen ? form.availableGames : weekGames;
+  const matchupRows = isOpen ? games : weekGames;
   const weekPicked = weekGames.filter((game) => form.picks[game.id]).length;
 
   return (
@@ -151,6 +165,7 @@ export default function PickemsParlayWidget({ ctx }) {
             counters={counters}
             weekPicked={weekPicked}
             weekTotal={weekGames.length}
+            outlookCounts={outlookCounts}
             open={panel === 'picks'}
             onToggle={matchupRows.length > 0 && state.status !== 'upcoming' ? () => toggle('picks') : null}
             seasonId={seasonId}
@@ -180,7 +195,15 @@ export default function PickemsParlayWidget({ ctx }) {
         )}
 
         {panel === 'picks' && (
-          <PicksPanel form={form} rows={matchupRows} isOpen={isOpen} viewer={viewer} />
+          <PicksPanel
+            form={form}
+            rows={matchupRows}
+            isOpen={isOpen}
+            viewer={viewer}
+            board={board}
+            picks={madePicks}
+            split={split.byGame}
+          />
         )}
 
         {panel === 'parlay' && (
@@ -290,7 +313,7 @@ const Figure = ({ children, className }) => (
   </span>
 );
 
-function PicksTile({ state, form, result, counters, weekPicked, weekTotal, open, onToggle, seasonId, week }) {
+function PicksTile({ state, form, result, counters, weekPicked, weekTotal, outlookCounts, open, onToggle, seasonId, week }) {
   const total = form.selectableGames.length;
   const meter = state.status === 'upcoming' ? null : { count: counters.picked, of: counters.of, noun: 'picked' };
 
@@ -311,6 +334,14 @@ function PicksTile({ state, form, result, counters, weekPicked, weekTotal, open,
       </Figure>
     );
     sub = `${result.mine.tied ? 'T-' : ''}${formatOrdinal(result.mine.place)} of ${result.entrants}`;
+  } else if (isWindowClosed(state) && outlookCounts.live) {
+    headline = (
+      <span className="block text-[17px] font-semibold leading-tight tabular">
+        {outlookCounts.safe} of {weekTotal} safe
+        {outlookCounts.danger > 0 && ` · ${outlookCounts.danger} in danger`}
+      </span>
+    );
+    sub = 'Locked in';
   } else if (form.hasSubmitted && !form.isEditing) {
     headline = (
       <Figure>
@@ -411,12 +442,12 @@ function ParlayTile({ state, pick, loading, opponent, live, counters, open, onTo
 }
 
 /**
- * The week's matchups, under the tiles. The rows are the Pick'ems form's own;
- * the bar is the form's submit bar, fitted to the card. While the window is
- * open it lists the games still to pick; once it closes, every matchup,
- * read-only, with each finished game's winner marked.
+ * The week's matchups, under the tiles. The cards are the Pick'ems tab's own, at
+ * their compact density; the bar is the form's submit bar, fitted to the card.
+ * Every matchup is listed, and a finished game stays, locked, with its winner
+ * marked. Read-only once the window closes.
  */
-function PicksPanel({ form, rows, isOpen, viewer }) {
+function PicksPanel({ form, rows, isOpen, viewer, board, picks, split }) {
   const canPick = isOpen && Boolean(viewer.user) && form.canEdit;
   return (
     <section aria-label="Your picks" className="space-y-3 border-t border-border/60 pt-4">
@@ -436,17 +467,16 @@ function PicksPanel({ form, rows, isOpen, viewer }) {
       <ul className="space-y-2">
         {rows.map((game, index) => (
           <li key={game.id}>
-            <PickEmGameRow
+            <MatchupPickCard
               compact
-              showResult={!isOpen}
               game={game}
               number={index + 1}
-              selectedTeamId={form.picks[game.id] ?? null}
+              selectedTeamId={picks[game.id] ?? null}
               canPick={canPick}
               onPick={(teamId) => form.pick(game.id, teamId)}
-              user={viewer.user}
-              isAdmin={viewer.isAdmin}
-              teamOwnerNames={viewer.teamOwnerNames}
+              board={board}
+              split={split?.get(game.id) ?? null}
+              viewer={viewer}
             />
           </li>
         ))}
