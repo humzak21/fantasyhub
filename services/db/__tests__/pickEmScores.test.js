@@ -20,9 +20,10 @@ import { describe, it, expect } from 'vitest';
 
 import {
   getAdminSubmissionsForWeek,
-  getWeeklyPickEmScores,
-  getSeasonPickEmStandings
+  getAllSeasonPicks,
+  getWeeklyPickEmScores
 } from '../pickems.js';
+import { buildPickEmStandings } from '../../../src/components/pickems/pickEmStandings.js';
 import { makeCtx } from './fakeClient.js';
 
 const seasonId = 'season-2026';
@@ -106,7 +107,10 @@ describe('getWeeklyPickEmScores', () => {
   });
 });
 
-describe('getSeasonPickEmStandings', () => {
+describe('season standings', () => {
+  const seasonStandings = async (ctx) =>
+    buildPickEmStandings(await getAllSeasonPicks(ctx, seasonId));
+
   const WEEKS = [
     { id: 'pew-1', week_number: 1 },
     { id: 'pew-2', week_number: 2 }
@@ -121,7 +125,7 @@ describe('getSeasonPickEmStandings', () => {
     const week2 = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7'].map((g) => pending('u1', g));
 
     const ctx = withPicks({ 'pew-1': week1, 'pew-2': week2 }, WEEKS);
-    const [standing] = await getSeasonPickEmStandings(ctx, seasonId);
+    const [standing] = await seasonStandings(ctx);
 
     // The bug: 5/14 at 35.7%.
     expect(standing.totalPicks).toBe(14);
@@ -138,7 +142,7 @@ describe('getSeasonPickEmStandings', () => {
       WEEKS
     );
 
-    const [standing] = await getSeasonPickEmStandings(ctx, seasonId);
+    const [standing] = await seasonStandings(ctx);
 
     expect(standing.totalWeeksParticipated).toBe(2);
   });
@@ -149,7 +153,7 @@ describe('getSeasonPickEmStandings', () => {
       WEEKS
     );
 
-    const [standing] = await getSeasonPickEmStandings(ctx, seasonId);
+    const [standing] = await seasonStandings(ctx);
 
     expect(standing.perfectWeeks).toBe(0);
   });
@@ -160,7 +164,7 @@ describe('getSeasonPickEmStandings', () => {
       WEEKS
     );
 
-    const [standing] = await getSeasonPickEmStandings(ctx, seasonId);
+    const [standing] = await seasonStandings(ctx);
 
     expect(standing.perfectWeeks).toBe(1);
   });
@@ -168,7 +172,7 @@ describe('getSeasonPickEmStandings', () => {
   it('gives a member with nothing played yet no accuracy rather than 0%', async () => {
     const ctx = withPicks({ 'pew-1': [pending('u1', 'g1')], 'pew-2': [] }, WEEKS);
 
-    const [standing] = await getSeasonPickEmStandings(ctx, seasonId);
+    const [standing] = await seasonStandings(ctx);
 
     expect(standing.totalDecidedPicks).toBe(0);
     expect(standing.overallAccuracyPercentage).toBe(0);

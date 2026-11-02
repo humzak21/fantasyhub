@@ -121,7 +121,6 @@ export const qk = {
     allWeeks: (seasonId) => ['pickems', seasonId, 'weeks'],
     status: (seasonId) => ['pickems', seasonId, 'status'],
     gameData: (seasonId, week) => ['pickems', seasonId, 'gameData', week],
-    standings: (seasonId) => ['pickems', seasonId, 'standings'],
     allSeasonPicks: (seasonId) => ['pickems', seasonId, 'allSeasonPicks'],
     userPicks: (pickEmWeekId, userId = null) => ['pickems', 'userPicks', pickEmWeekId, userId],
     allPicks: (pickEmWeekId) => ['pickems', 'allPicks', pickEmWeekId],

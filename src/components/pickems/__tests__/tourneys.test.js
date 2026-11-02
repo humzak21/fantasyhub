@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 
-import { PICK_EM_TOURNEYS, tourneyStandings, tourneyWinners } from '../tourneys.js';
+import {
+  PICK_EM_TOURNEYS,
+  STANDINGS_SCOPES,
+  defaultStandingsScopeId,
+  picksInScope,
+  tourneyStandings,
+  tourneyWinners
+} from '../tourneys.js';
 
 const [firstHalf, secondHalf] = PICK_EM_TOURNEYS;
 
@@ -49,5 +56,48 @@ describe('tourneyWinners', () => {
     expect(tourneyWinners([row('a', 50, false)])).toEqual([]);
     expect(tourneyWinners([row('a', 0)])).toEqual([]);
     expect(tourneyWinners([])).toEqual([]);
+  });
+});
+
+describe('picksInScope', () => {
+  const picks = [1, 8, 9, 17, 18].map((weekNumber) => ({ weekNumber }));
+  const weeksIn = (id) =>
+    picksInScope(picks, STANDINGS_SCOPES.find((scope) => scope.id === id)).map(
+      (pick) => pick.weekNumber
+    );
+
+  it('keeps a tourney to its own weeks, both ends included', () => {
+    expect(weeksIn('first-half')).toEqual([1, 8]);
+    expect(weeksIn('second-half')).toEqual([9, 17]);
+  });
+
+  it('keeps every pick for the season', () => {
+    expect(weeksIn('season')).toEqual([1, 8, 9, 17, 18]);
+  });
+});
+
+describe('defaultStandingsScopeId', () => {
+  it('opens on the tourney in progress', () => {
+    expect(defaultStandingsScopeId({ actualWeek: 1 })).toBe('first-half');
+    expect(defaultStandingsScopeId({ actualWeek: 8 })).toBe('first-half');
+    expect(defaultStandingsScopeId({ actualWeek: 9 })).toBe('second-half');
+    expect(defaultStandingsScopeId({ actualWeek: 17 })).toBe('second-half');
+  });
+
+  it('stays on the last tourney until its final week is scored', () => {
+    // The league's week stops at 17, so this is what the last Tuesday looks like
+    // on either side of the sync.
+    expect(defaultStandingsScopeId({ actualWeek: 17, finishedWeek: 16 })).toBe('second-half');
+    expect(defaultStandingsScopeId({ actualWeek: 17, finishedWeek: 17 })).toBe('season');
+  });
+
+  it('opens on the season once the season is finalized, however short it ran', () => {
+    expect(
+      defaultStandingsScopeId({ actualWeek: 16, finishedWeek: 16, seasonCompleted: true })
+    ).toBe('season');
+  });
+
+  it('opens on the season for a week past both tourneys', () => {
+    expect(defaultStandingsScopeId({ actualWeek: 18 })).toBe('season');
   });
 });

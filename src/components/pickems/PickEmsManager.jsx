@@ -21,16 +21,19 @@ import PreviousWeekWinners from './PreviousWeekWinners';
 // must not undo that.
 const ParlayCommissionerDashboard = lazy(() => import('../parlay/ParlayCommissionerDashboard.jsx'));
 import {
+  useActualWeek,
   useAllPicks,
   useAllSeasonPicks,
   usePickEmGameData,
   usePickEmMutations,
-  usePickEmStandings,
   usePickEmStatus,
   usePickEmWeek,
+  useSeasonGames,
   useUserPicks,
   useWeeklyPickEmScores
 } from '../../../hooks/queries/index.js';
+import { newestFinishedWeek } from '../../../services/notificationPlanner.js';
+import { defaultStandingsScopeId } from './tourneys.js';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 /** Shared empty defaults: a fresh `[]` per render is a new identity, and the
@@ -76,8 +79,9 @@ const PickEmsManager = ({
   // The viewer's own picks only when there is a viewer: an anonymous visitor
   // issues no query rather than one that answers [].
   const userPicksQuery = useUserPicks(pickEmWeek?.id, { enabled: Boolean(user) });
-  const standingsQuery = usePickEmStandings(seasonId, { enabled: hasWeek });
   const seasonPicksQuery = useAllSeasonPicks(seasonId, { enabled: hasWeek });
+  const seasonGamesQuery = useSeasonGames(seasonId);
+  const actualWeek = useActualWeek();
   const allPicksQuery = useAllPicks(pickEmWeek?.id, { enabled: resultsAvailable });
   const scoresQuery = useWeeklyPickEmScores(pickEmWeek?.id, { enabled: resultsAvailable });
 
@@ -317,9 +321,13 @@ const PickEmsManager = ({
             <PickEmsSeasonStandings
               season={season}
               currentWeek={currentWeek}
-              seasonStandings={standingsQuery.data ?? NONE}
               seasonPicks={seasonPicksQuery.data ?? NONE}
-              loading={standingsQuery.isPending || seasonPicksQuery.isPending}
+              defaultScopeId={defaultStandingsScopeId({
+                actualWeek,
+                finishedWeek: newestFinishedWeek(seasonGamesQuery.data ?? NONE),
+                seasonCompleted: Boolean(season?.isCompleted)
+              })}
+              loading={seasonPicksQuery.isPending || seasonGamesQuery.isPending}
               resultsAvailable={resultsAvailable}
               user={user}
               isAdmin={isAdmin}

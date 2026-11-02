@@ -56,7 +56,6 @@ export {
   useAllPickEmWeeks,
   usePickEmStatus,
   usePickEmGameData,
-  usePickEmStandings,
   useAllSeasonPicks,
   useUserPicks,
   useAllPicks,
