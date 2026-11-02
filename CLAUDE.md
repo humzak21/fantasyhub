@@ -70,6 +70,12 @@ clock, GitHub's runners".
   week so the season is one formula. Run for 2025 with `--replace` on
   2026-09-27; see "The franchise profile opens week by week".
 
+- `npm run prune-player-week-stats` - Delete the `player_week_stats` rows ESPN
+  does not report for a finished week, and nothing else. `<year> [week]`. It
+  prints every row and writes nothing without `--apply`, the opposite of the
+  scripts above, and refuses a week in progress or a row with a result. See
+  "`player_week_stats` holds what ESPN reports".
+
 - `npm run build-league-chat-db` - Rebuild the league chat's snapshot (one
   SQLite file of the league's history) and upload it to the private
   `league-chat` bucket. `--dry-run` to print row counts, `--out=FILE` to keep
@@ -675,7 +681,44 @@ exactly what it writes, and it passes `--manual` only on a button press so
 
 Verified against the live league: this league starts QB/2RB/2WR/TE/FLEX/D/ST/K,
 which is what `OPTIMAL_LINEUP_TEMPLATE` encodes, and summing a team's starters
-reproduces ESPN's own matchup score exactly.
+reproduces ESPN's own matchup score exactly. **Nine is a ceiling, not a count:**
+a manager can leave a slot empty, and GrandPinto started six in 2026 week 6,
+which is all ESPN reports and sums to the 79.78 they scored.
+
+**`player_week_stats` holds what ESPN reports, and a row it stops reporting is
+removed.** The sync writes a week twice, its rosters and projections on the
+Tuesday it opens and its results on the Tuesday after, and an upsert can only
+touch the players it names. So a player dropped between the two kept Tuesday's
+row: `started = true`, a projection, no result, in a lineup ESPN says he was
+never in. A benched player was never affected, since he stays in the payload
+and is rewritten. `findLeftBehindRows` (`services/db/playerWeekStats.js`) now
+finds those rows at the end of every `upsertPlayerWeekStats`, and they are
+deleted there, so `playerStats` and `finalizePrev` both report `removed` on
+their `sync_runs` entries.
+
+- **What it cost.** Through week 7 of 2026, 190 rows (81 started, 109 bench)
+  and 57 team-weeks with extra starters. Each left-behind row is a phantom
+  starter on Schedule's lineups, the franchise week view, a player's sheet and
+  the chat's `lineups` table, and a starter with a projection made
+  `lineupTotal` call 56 finished team-weeks projected, up to 26.36 points high.
+  It also stopped the grader's recovery of a dropped player (below): a row with
+  no breakdown is a row, so no fetch was made and the pick would stay pending.
+  Nothing that sums actuals noticed, because a left-behind row has none: the
+  ranking components, `team_week_lineups` (built from the mapped rows, not the
+  stored ones) and the record book were all right throughout. That is why it
+  took a calibration script to find it.
+- **Compared across the whole payload, kept per team.** A player reported on
+  another team has been moved by the upsert, not left behind. Only a team the
+  payload has rows for can lose one: a side with no roster is ESPN not knowing,
+  so 2024 week 1, which ESPN has no rosters for, stays as it is. It goes off what
+  ESPN reported rather than what the upsert accepted, so a row skipped for its
+  own reasons is never read as dropped.
+- **It runs last and counts what the database deleted**, because a delete RLS
+  refuses reports success. A payload that somehow lost a player costs a row
+  until the next run writes it back.
+- **`prune-player-week-stats` removes the rows from before this existed**, and
+  deletes only: re-running `backfill-player-week-stats` would rewrite every other
+  row of the week, and it does not stop at the week in progress.
 
 ### Takes are enforced by the database, not the UI
 
@@ -2335,8 +2378,10 @@ skips. A quarterback who threw four grades **false**.
   human set by hand is never overwritten. `applyParlayGrades` repeats the
   `IS NULL` filter on the write so a second writer cannot win silently.
 - **A dropped player is recovered, not guessed at.** `player_week_stats` only
-  holds players who were rostered when the sync ran, and the fringe goal-line
-  backs this parlay invites are exactly who gets dropped. A targeted
+  holds players ESPN reports on a roster for the week, and the fringe goal-line
+  backs this parlay invites are exactly who gets dropped. This depends on a
+  dropped player having no row: `findMissingStatLines` asks about a player with
+  no row, not one with no breakdown. A targeted
   `kona_player_info` fetch (`services/espnPlayerInfoFetcher.js`) asks ESPN
   about just those ids, reusing `findStatBreakdown`'s predicates rather than
   restating them. It is league-scoped and therefore cookied — the opposite of

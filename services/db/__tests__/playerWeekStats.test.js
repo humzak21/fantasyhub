@@ -8,7 +8,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { makeCtx } from './fakeClient.js';
-import { upsertPlayerWeekStats, getPlayerWeekStats } from '../playerWeekStats.js';
+import {
+  upsertPlayerWeekStats,
+  getPlayerWeekStats,
+  findLeftBehindRows
+} from '../playerWeekStats.js';
 
 const SEASON = 'season-1';
 const WEEK = 4;
@@ -34,9 +38,11 @@ const mapped = (overrides = {}) => ({
 });
 
 /** Every player already exists, so no `players` write is expected. */
-const existingPlayers = (rows) => ({
+const existingPlayers = (rows, storedWeek = []) => ({
   'players.select': () => rows,
+  'player_week_stats.select': () => storedWeek,
   'player_week_stats.upsert': () => [],
+  'player_week_stats.delete': ({ filters }) => filters['in:id'].map((id) => ({ id })),
   'team_week_lineups.upsert': () => []
 });
 
@@ -116,8 +122,9 @@ describe('upsertPlayerWeekStats', () => {
           espn_player_id: row.espn_player_id
         }));
       },
+      'player_week_stats.select': () => [],
       'player_week_stats.upsert': () => [],
-  'team_week_lineups.upsert': () => []
+      'team_week_lineups.upsert': () => []
     });
 
     const result = await upsertPlayerWeekStats(
@@ -223,6 +230,172 @@ describe('upsertPlayerWeekStats · team_week_lineups', () => {
         starters_scoring: 1
       })
     ]);
+  });
+});
+
+/**
+ * Tuesday's write holds that week's rosters as they stood on Tuesday. A player
+ * dropped before kickoff is not in the finished week's payload, and an upsert
+ * can only touch the players it names, so his row stayed: a starter with a
+ * projection and no result, in a lineup ESPN says he was never in.
+ */
+describe('upsertPlayerWeekStats · rows ESPN no longer reports', () => {
+  const stored = (overrides = {}) => ({
+    id: 'row-1',
+    team_id: 'team-a',
+    espn_player_id: 101,
+    roster_slot: 'QB',
+    started: true,
+    actual_points: 21.4,
+    projected_points: 19.8,
+    ...overrides
+  });
+
+  const players = [
+    { id: 'player-1', espn_player_id: 101 },
+    { id: 'player-2', espn_player_id: 102 }
+  ];
+
+  it('removes a starter dropped after the projection write, and only him', async () => {
+    const ctx = makeCtx(existingPlayers(players, [
+      stored(),
+      stored({ id: 'row-dropped', espn_player_id: 555, actual_points: null, projected_points: 13.17 })
+    ]));
+
+    const result = await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams);
+
+    expect(result.removed).toBe(1);
+    const [{ filters }] = ctx.client.callsFor('player_week_stats', 'delete');
+    expect(filters['in:id']).toEqual(['row-dropped']);
+  });
+
+  it('removes a dropped bench player too', async () => {
+    const ctx = makeCtx(existingPlayers(players, [
+      stored({ id: 'row-bench', espn_player_id: 556, roster_slot: 'BE', started: false, actual_points: null })
+    ]));
+
+    await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams);
+
+    const [{ filters }] = ctx.client.callsFor('player_week_stats', 'delete');
+    expect(filters['in:id']).toEqual(['row-bench']);
+  });
+
+  it('reads the stored week after the upsert, so a run that failed removes nothing', async () => {
+    const ctx = makeCtx({
+      ...existingPlayers(players, [stored({ id: 'row-dropped', espn_player_id: 555 })]),
+      'player_week_stats.upsert': () => {
+        throw new Error('upsert refused');
+      }
+    });
+
+    await expect(upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams)).rejects.toThrow();
+    expect(ctx.client.callsFor('player_week_stats', 'delete')).toHaveLength(0);
+  });
+
+  it('keeps a player ESPN now reports on another team, which the upsert has moved', async () => {
+    const ctx = makeCtx(existingPlayers(players, [stored({ id: 'row-moved', espn_player_id: 102 })]));
+
+    const result = await upsertPlayerWeekStats(ctx, SEASON, WEEK, [
+      mapped(),
+      mapped({ espnTeamId: 2, espnPlayerId: 102 })
+    ], teams);
+
+    expect(result.removed).toBe(0);
+    expect(ctx.client.callsFor('player_week_stats', 'delete')).toHaveLength(0);
+  });
+
+  it('leaves a team the payload says nothing about', async () => {
+    // A side with no roster is ESPN not knowing, not ESPN saying nobody played.
+    const ctx = makeCtx(existingPlayers(players, [
+      stored({ id: 'row-b', team_id: 'team-b', espn_player_id: 202 })
+    ]));
+
+    const result = await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams);
+
+    expect(result.removed).toBe(0);
+    expect(ctx.client.callsFor('player_week_stats', 'delete')).toHaveLength(0);
+  });
+
+  it('removes nothing from a week ESPN returned no rosters for', async () => {
+    // 2024 week 1: the league was wiped and restarted, so ESPN has no rosters.
+    const ctx = makeCtx(existingPlayers(players, [stored()]));
+
+    await upsertPlayerWeekStats(ctx, SEASON, WEEK, [], teams);
+
+    expect(ctx.client.calls).toHaveLength(0);
+  });
+
+  it('removes nothing when no row in the payload could be written', async () => {
+    const ctx = makeCtx(existingPlayers(players, [stored()]));
+
+    await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped({ espnTeamId: 99 })], teams);
+
+    expect(ctx.client.callsFor('player_week_stats', 'delete')).toHaveLength(0);
+  });
+
+  it('keeps a stored row with no ESPN id, which nothing can compare', async () => {
+    const ctx = makeCtx(existingPlayers(players, [stored({ id: 'row-unknown', espn_player_id: null })]));
+
+    const result = await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams);
+
+    expect(result.removed).toBe(0);
+  });
+
+  it('still writes the settled lineup, and says so when the delete fails', async () => {
+    const ctx = makeCtx({
+      ...existingPlayers(players, [stored({ id: 'row-dropped', espn_player_id: 555 })]),
+      'player_week_stats.delete': () => {
+        throw new Error('delete refused');
+      }
+    });
+
+    await expect(upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams)).rejects.toThrow();
+    expect(ctx.client.callsFor('team_week_lineups', 'upsert')).toHaveLength(1);
+  });
+
+  it('counts what the database deleted, not what it was asked to', async () => {
+    // RLS refuses a delete by matching no rows, with no error.
+    const ctx = makeCtx({
+      ...existingPlayers(players, [stored({ id: 'row-dropped', espn_player_id: 555 })]),
+      'player_week_stats.delete': () => []
+    });
+
+    const result = await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams);
+
+    expect(result.removed).toBe(0);
+  });
+
+  it('scopes the read to one week of one season', async () => {
+    const ctx = makeCtx(existingPlayers(players, []));
+
+    await upsertPlayerWeekStats(ctx, SEASON, WEEK, [mapped()], teams);
+
+    const [{ filters }] = ctx.client.callsFor('player_week_stats', 'select');
+    expect(filters).toMatchObject({ season_id: SEASON, week: WEEK });
+  });
+});
+
+describe('findLeftBehindRows', () => {
+  it('answers the repair script without creating a player or writing a row', async () => {
+    const ctx = makeCtx({
+      'player_week_stats.select': () => [
+        { id: 'row-1', team_id: 'team-a', espn_player_id: 101 },
+        { id: 'row-2', team_id: 'team-a', espn_player_id: 555, actual_points: null }
+      ]
+    });
+
+    const rows = await findLeftBehindRows(ctx, SEASON, WEEK, [mapped()], teams);
+
+    expect(rows.map((row) => row.id)).toEqual(['row-2']);
+    expect(rows[0].espnPlayerId).toBe(555);
+    expect(ctx.client.calls.every((call) => call.op === 'select')).toBe(true);
+  });
+
+  it('asks nothing when the payload covers no team', async () => {
+    const ctx = makeCtx({});
+
+    expect(await findLeftBehindRows(ctx, SEASON, WEEK, [], teams)).toEqual([]);
+    expect(ctx.client.calls).toHaveLength(0);
   });
 });
 
