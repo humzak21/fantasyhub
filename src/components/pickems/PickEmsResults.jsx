@@ -9,6 +9,8 @@ import {
 import { getMaskedTeamName, getMaskedUserName } from '../../utils/displayNameUtils';
 import LeaguePickSplit, { LeaguePickSplitNote } from './LeaguePickSplit.jsx';
 import { isByeGame } from './pickSplit.js';
+import { TeamLink } from '../ui/team-link';
+import { franchiseIdsByTeam } from '../../../utils/viewerTeam.js';
 
 /** The `games` default, shared, so a missing prop is not a new array each render. */
 const NO_GAMES = [];
@@ -51,6 +53,7 @@ const PickEmsResults = ({
   const [selectedTab, setSelectedTab] = useState('weekly');
 
   // Group picks by user for weekly results
+  const franchiseIds = franchiseIdsByTeam(season?.teams);
   const picksByUser = allPicks.reduce((acc, pick) => {
     const userId = pick.userId;
     if (!acc[userId]) {
@@ -270,7 +273,13 @@ const PickEmsResults = ({
 
                             <div className="min-w-0">
                               <div className="font-medium break-words">
-                                {getMaskedTeamName({ id: pick.team1Id, name: pick.team1Name }, user, isAdmin, teamOwnerNames)} vs {getMaskedTeamName({ id: pick.team2Id, name: pick.team2Name }, user, isAdmin, teamOwnerNames)}
+                                <TeamLink franchiseId={franchiseIds.get(pick.team1Id)}>
+                                  {getMaskedTeamName({ id: pick.team1Id, name: pick.team1Name }, user, isAdmin, teamOwnerNames)}
+                                </TeamLink>
+                                {' vs '}
+                                <TeamLink franchiseId={franchiseIds.get(pick.team2Id)}>
+                                  {getMaskedTeamName({ id: pick.team2Id, name: pick.team2Name }, user, isAdmin, teamOwnerNames)}
+                                </TeamLink>
                               </div>
                               <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-0.5 text-sm">
                                 <dt className="text-muted-foreground">Winner of Matchup:</dt>

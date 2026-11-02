@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { CalendarClock, ChevronDown, Swords, Trophy } from 'lucide-react';
 
 import HomeWidget from '../HomeWidget';
@@ -28,6 +27,7 @@ import {
 import { getTeamColor } from '../../../utils/teamColors';
 import { useCountUp } from '../../../hooks/use-count-up.js';
 import { headToHeadPath } from '../../history/headtohead/headToHeadLink.js';
+import { TeamLink } from '../../ui/team-link';
 
 const FINISH_LABEL = {
   champion: 'Champion',
@@ -223,8 +223,8 @@ function ViewerMatchup({ ctx, matchup }) {
             week={actualWeek}
             actualWeek={actualWeek}
             sides={[
-              { teamId: viewerTeam.id, teamName: masked.teamName(viewerTeam) },
-              { teamId: opponentId, teamName: masked.teamName(opponent) }
+              { teamId: viewerTeam.id, team: viewerTeam, teamName: masked.teamName(viewerTeam) },
+              { teamId: opponentId, team: opponent, teamName: masked.teamName(opponent) }
             ]}
           />
         </Disclosure>
@@ -298,11 +298,12 @@ function MatchupSide({ team, name, owner, standing, score, total, loading, isVie
       )}
     >
       {team ? (
-        <Link
-          to={teamRosterPath(team.id)}
+        <TeamLink
+          team={team}
+          fallbackTo={teamRosterPath(team.id)}
           title={name}
           className={cn(
-            'group -m-1.5 flex min-w-0 max-w-full flex-col gap-2 rounded-lg p-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex-row md:items-center md:gap-3',
+            'group -m-1.5 flex min-w-0 max-w-full flex-col gap-2 rounded-lg p-1.5 outline-none hover:no-underline focus-visible:no-underline focus-visible:ring-2 focus-visible:ring-ring md:flex-row md:items-center md:gap-3',
             end ? 'items-end text-right md:flex-row-reverse' : 'items-start text-left'
           )}
         >
@@ -323,7 +324,7 @@ function MatchupSide({ team, name, owner, standing, score, total, loading, isVie
               </p>
             )}
           </div>
-        </Link>
+        </TeamLink>
       ) : (
         <p className="text-sm text-muted-foreground">Unknown team</p>
       )}
@@ -455,7 +456,7 @@ function WeekScoreboard({ ctx }) {
       <div className="flex min-h-9 items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-2">
           {team && <TeamAvatar team={team} size="xs" />}
-          <span className="truncate text-sm">{masked.teamName(team)}</span>
+          <TeamLink team={team} className="truncate text-sm">{masked.teamName(team)}</TeamLink>
         </span>
         {score != null ? (
           <span className="font-display text-lg font-semibold tabular">{formatPoints(score)}</span>

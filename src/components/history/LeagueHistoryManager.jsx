@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { History, Users, Target, Award, Medal } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Card } from '../ui/card';
@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { EmptyState } from '../ui/empty-state';
+import { ScrollHint } from '../ui/scroll-hint';
 import PageHeader from '../layout/PageHeader';
 import RouteLoading from '../layout/RouteLoading';
 import {
@@ -21,7 +22,6 @@ import QuickStatsPanel from './overview/QuickStatsPanel';
 
 // Import franchise components
 import AllTimeLeaderboards from './franchises/AllTimeLeaderboards';
-import FranchiseProfile from './franchises/FranchiseProfile';
 
 // Import season components
 import SeasonDetail from './seasons/SeasonDetail';
@@ -35,6 +35,7 @@ import RecordBook from './records/RecordBook';
 import AwardsGallery from './awards/AwardsGallery';
 import { HISTORY_TAB_PARAM, RECORD_PARAM } from './records/recordLink';
 import { FRANCHISE1_PARAM, FRANCHISE2_PARAM } from './headtohead/headToHeadLink';
+import { profilePath } from '../profile/profileLink';
 
 /** The sub-tabs a `?tab=` link may open. */
 const SUB_TABS = ['overview', 'franchises', 'headtohead', 'records', 'awards'];
@@ -76,6 +77,9 @@ const LeagueHistoryManager = ({
   // opens a sub-tab directly and names a record for the book to open; see
   // `records/recordLink.js`. An unknown tab is ignored rather than trusted.
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  // A franchise opens on its own page, the one every team name links to.
+  const viewFranchise = (franchiseId) => navigate(profilePath(franchiseId));
   const linkedTab = SUB_TABS.includes(searchParams.get(HISTORY_TAB_PARAM))
     ? searchParams.get(HISTORY_TAB_PARAM)
     : null;
@@ -86,7 +90,6 @@ const LeagueHistoryManager = ({
   }, [linkedTab, linkedRecordId]);
 
   // Selection state
-  const [selectedFranchiseId, setSelectedFranchiseId] = useState(null);
   const [selectedSeasonYear, setSelectedSeasonYear] = useState(null);
 
   // View-specific state
@@ -107,7 +110,6 @@ const LeagueHistoryManager = ({
     setSelectedH2HFranchise2(linkedFranchise2);
   }, [linkedTab, linkedFranchise1, linkedFranchise2, franchises]);
 
-  const selectedFranchise = franchises.find(f => f.id === selectedFranchiseId) ?? null;
   const selectedSeason = seasons.find(s => s.year === selectedSeasonYear) ?? null;
 
   // Auto-scroll to top on sub-tab change
@@ -231,19 +233,21 @@ const LeagueHistoryManager = ({
 
       {/* Sub-tabs Navigation */}
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-full">
-        {/* This is where the `icon` prop came from — `hidden sm:inline` on the
-            label, done by hand here first. It is a TabsTrigger feature now, so
-            the label also survives as the accessible name. */}
-        <TabsList className="w-full">
-          {subTabs.map(tab => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger key={tab.id} value={tab.id} icon={<Icon className="h-4 w-4" />}>
-                {tab.label}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+        {/* Five labels are wider than a phone, so the strip scrolls and every
+            tab keeps its name: an icon on its own is not a title. */}
+        <ScrollHint>
+          <TabsList className="w-full min-w-max max-w-none overflow-x-visible">
+            {subTabs.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  <Icon aria-hidden="true" />
+                  {tab.label}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </ScrollHint>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
@@ -257,10 +261,7 @@ const LeagueHistoryManager = ({
                 user={user}
                 isAdmin={isAdmin}
                 teamOwnerNames={teamOwnerNames}
-                onViewFranchise={(franchiseId) => {
-                  setSelectedFranchiseId(franchiseId);
-                  setActiveSubTab('franchises');
-                }}
+                onViewFranchise={viewFranchise}
                 onViewSeason={(year) => {
                   setSelectedSeasonYear(year);
                 }}
@@ -289,27 +290,14 @@ const LeagueHistoryManager = ({
 
         {/* Franchises Tab */}
         <TabsContent value="franchises" className="space-y-6">
-          {!selectedFranchiseId ? (
-            <AllTimeLeaderboards
-              franchises={franchises}
-              careerStats={careerStats}
-              user={user}
-              isAdmin={isAdmin}
-              teamOwnerNames={teamOwnerNames}
-              onViewProfile={(franchiseId) => setSelectedFranchiseId(franchiseId)}
-            />
-          ) : (
-            <FranchiseProfile
-              franchise={selectedFranchise}
-              franchiseId={selectedFranchiseId}
-              user={user}
-              isAdmin={isAdmin}
-              teamOwnerNames={teamOwnerNames}
-              franchises={franchises}
-              onSelectFranchise={setSelectedFranchiseId}
-              onBack={() => setSelectedFranchiseId(null)}
-            />
-          )}
+          <AllTimeLeaderboards
+            franchises={franchises}
+            careerStats={careerStats}
+            user={user}
+            isAdmin={isAdmin}
+            teamOwnerNames={teamOwnerNames}
+            onViewProfile={viewFranchise}
+          />
         </TabsContent>
 
 
@@ -350,10 +338,7 @@ const LeagueHistoryManager = ({
             user={user}
             isAdmin={isAdmin}
             teamOwnerNames={teamOwnerNames}
-            onViewFranchise={(franchiseId) => {
-              setSelectedFranchiseId(franchiseId);
-              setActiveSubTab('franchises');
-            }}
+            onViewFranchise={viewFranchise}
           />
         </TabsContent>
 
@@ -365,10 +350,7 @@ const LeagueHistoryManager = ({
             user={user}
             isAdmin={isAdmin}
             teamOwnerNames={teamOwnerNames}
-            onViewFranchise={(franchiseId) => {
-              setSelectedFranchiseId(franchiseId);
-              setActiveSubTab('franchises');
-            }}
+            onViewFranchise={viewFranchise}
             onViewSeason={(year) => {
               setSelectedSeasonYear(year);
               setActiveSubTab('overview');

@@ -4,6 +4,17 @@ import { buildTeamIndex } from './espnGameMapper.js';
 import { espnTeamName } from './espnScheduleFetcher.js';
 import { extractOwnerInfo, findMatchingTeam } from '../utils/ownerUtils.js';
 
+/**
+ * A team's logo as ESPN reports it, kept only if it is an https URL. A manager
+ * chooses this image, and the field is rendered as an avatar on every page; the
+ * column has the same check, so this is what keeps a bad value from failing
+ * the team's whole identity write.
+ */
+export function espnLogoUrl(logo) {
+  const url = typeof logo === 'string' ? logo.trim() : '';
+  return url.startsWith('https://') ? url : null;
+}
+
 export class ESPNRosterUpdater {
   constructor(leagueId, seasonYear, espnS2 = null, swid = null) {
     this.leagueId = leagueId;
@@ -94,7 +105,8 @@ export class ESPNRosterUpdater {
       teamId: team.id,
       teamName: espnTeamName(team, team.id),
       abbreviation: team.abbrev ?? null,
-      ownerName: extractOwnerInfo(team, members).ownerName
+      ownerName: extractOwnerInfo(team, members).ownerName,
+      logoUrl: espnLogoUrl(team.logo)
     }));
   }
 

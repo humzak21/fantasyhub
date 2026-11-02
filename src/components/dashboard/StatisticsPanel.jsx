@@ -19,10 +19,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { StatCard } from '../ui/stat-card';
 import { SectionHeading } from '../ui/section-heading';
 import { EmptyState } from '../ui/empty-state';
-import { TeamIdentity } from '../ui/team-identity';
 import { NumberText } from '../ui/number-text';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Label } from '../ui/label';
+import { TeamIdentityLink } from '../ui/team-link';
 
 /**
  * `embedded` drops the page header: the panel is the Statistics face of the
@@ -181,7 +181,7 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, embedd
       <div className="rounded-xl border border-border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:p-5">
         <h3 className="text-base font-semibold leading-snug text-foreground">{title}</h3>
         <div className="mt-3">
-          <TeamIdentity
+          <TeamIdentityLink
             team={{
               ...team,
               name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),

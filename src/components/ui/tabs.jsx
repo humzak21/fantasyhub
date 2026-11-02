@@ -31,9 +31,9 @@ const TabsList = React.forwardRef(({ className, ...props }, ref) => (
 TabsList.displayName = TabsPrimitive.List.displayName
 
 /**
- * Pass `icon` and the label collapses to the icon below sm:, which is the
- * pattern LeagueHistoryManager arrived at independently (`hidden sm:inline`)
- * and the reason its tab strip is the one that already worked on a phone.
+ * Pass `icon` and the label collapses to the icon below sm:. A strip where the
+ * names matter (League History) puts the icon in `children` instead: it keeps
+ * every title and scrolls.
  *
  * The label stays in the accessible name either way — an icon-only tab with
  * no name is unusable with a screen reader, and `title` is not a substitute.

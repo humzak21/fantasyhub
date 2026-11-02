@@ -10,6 +10,7 @@ import { formatOrdinal } from '../../../utils/format';
 import { isRecentRecord, rankRows, recordRows, tradesForRow } from '../../../../utils/recordBook/index.js';
 import { expandsTrades, formatRecordValue, hidesZero } from './recordCatalog';
 import { describeRow } from './describeRow';
+import { TeamLink } from '../../ui/team-link';
 
 /** Rows a card shows before it is opened. */
 export const COLLAPSED_ROWS = 5;
@@ -74,7 +75,7 @@ function TradeList({ id, trades, count, identity }) {
                       <div key={side.franchiseId} className="min-w-0">
                         <p className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
                           <TeamAvatar team={identity.avatar(side.franchiseId)} size="xs" />
-                          <span className="truncate">{name}</span>
+                          <TeamLink franchiseId={side.franchiseId} className="truncate">{name}</TeamLink>
                           <span className="shrink-0 text-[10px] font-normal uppercase tracking-[0.06em] text-muted-foreground">
                             received
                           </span>

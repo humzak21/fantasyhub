@@ -19,7 +19,7 @@ const db = {
 
 vi.mock('../db/index.js', () => ({ getDb: () => db }));
 
-const { ESPNRosterUpdater } = await import('../espnRosterUpdater.js');
+const { ESPNRosterUpdater, espnLogoUrl } = await import('../espnRosterUpdater.js');
 
 const SEASON = { id: 'season-2026', teams: [] };
 
@@ -74,7 +74,7 @@ describe('ESPNRosterUpdater · team identity', () => {
     const updater = new ESPNRosterUpdater('1', 2026);
 
     expect(updater.parseTeamIdentities(leaguePayload)).toEqual([
-      { teamId: 7, teamName: 'Renamed Mid-Season', abbreviation: 'RMS', ownerName: 'Humza Khalil' }
+      { teamId: 7, teamName: 'Renamed Mid-Season', abbreviation: 'RMS', ownerName: 'Humza Khalil', logoUrl: null }
     ]);
     // `parseTeamData` used to report the abbreviation as the team's name.
     expect(updater.parseTeamData(leaguePayload.teams[0], leaguePayload.members).teamName)
@@ -87,7 +87,7 @@ describe('ESPNRosterUpdater · team identity', () => {
     const result = await updater.updateTeamRosters('season-2026');
 
     expect(db.teams.upsertTeamsFromESPN).toHaveBeenCalledWith('season-2026', [
-      { teamId: 7, teamName: 'Renamed Mid-Season', abbreviation: 'RMS', ownerName: 'Humza Khalil' }
+      { teamId: 7, teamName: 'Renamed Mid-Season', abbreviation: 'RMS', ownerName: 'Humza Khalil', logoUrl: null }
     ]);
     // Identity, then a re-read, then the roster — the match must see the new name.
     expect(calls).toEqual(['identity', 'reread', 'roster']);
@@ -111,5 +111,18 @@ describe('ESPNRosterUpdater · team identity', () => {
     expect(db.teams.updateTeam).toHaveBeenCalledWith(
       'season-2026', 'team-7', expect.objectContaining({ espnTeamId: 7 })
     );
+  });
+});
+
+describe('espnLogoUrl', () => {
+  it('keeps an https URL', () => {
+    expect(espnLogoUrl(' https://g.espncdn.com/lm-static/logo.svg ')).toBe('https://g.espncdn.com/lm-static/logo.svg');
+  });
+
+  it('drops anything else, which the column would refuse', () => {
+    expect(espnLogoUrl('http://example.com/logo.png')).toBeNull();
+    expect(espnLogoUrl('javascript:alert(1)')).toBeNull();
+    expect(espnLogoUrl('')).toBeNull();
+    expect(espnLogoUrl(undefined)).toBeNull();
   });
 });

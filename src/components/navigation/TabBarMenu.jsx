@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { ChevronRight, ExternalLink, LogOut, Newspaper, Settings, UserRound } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
@@ -17,6 +17,19 @@ import {
 } from '../ui/alert-dialog';
 import { buttonVariants } from '../ui/button';
 import { NEWSLETTER_URL } from './navConstants.js';
+
+const ACCOUNT_CARD =
+  'flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]';
+
+/** The account at the head of the menu: a link when there is somewhere to go. */
+const AccountCard = ({ to, onClick, children }) =>
+  to ? (
+    <Link to={to} onClick={onClick} className={ACCOUNT_CARD}>
+      {children}
+    </Link>
+  ) : (
+    <div className={ACCOUNT_CARD}>{children}</div>
+  );
 
 /**
  * The count or dot on a menu tile or row. `aria-hidden`: the reason lives in
@@ -83,6 +96,7 @@ const ROW_IDLE = 'text-foreground hover:bg-accent/50 active:bg-accent/60';
  * @param {string} activeTab
  * @param {object|null} user - the signed-in account, or null
  * @param {boolean} showNewsletter - approved members only, like the members-only tabs
+ * @param {boolean} showProfile - approved members only: profiles are theirs
  * @param {number} settingsBadgeCount - the admin's pending approvals
  * @param {string} [settingsBadgeLabel]
  * @param {Function} [onSignOut]
@@ -94,6 +108,7 @@ export function TabBarMenu({
   activeTab,
   user = null,
   showNewsletter = false,
+  showProfile = false,
   settingsBadgeCount = 0,
   settingsBadgeLabel,
   onSignOut,
@@ -117,14 +132,10 @@ export function TabBarMenu({
           </DrawerHeader>
 
           <DrawerBody className="space-y-5 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-            {/* The account, and Profile — which has no page yet. It reads as
-                the row it will become, marked "Soon", rather than as a link
-                whose only outcome is nothing. */}
+            {/* The account. For a member it is the way to their own profile;
+                anyone else has no profile to open, so it is only who they are. */}
             {user && (
-              <div
-                aria-disabled="true"
-                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]"
-              >
+              <AccountCard to={showProfile ? '/profile' : null} onClick={close}>
                 <span
                   aria-hidden="true"
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold text-foreground"
@@ -135,14 +146,14 @@ export function TabBarMenu({
                   <p className="truncate text-sm font-semibold text-foreground">{name}</p>
                   {user.email && <p className="truncate text-xs text-muted-foreground">{user.email}</p>}
                 </div>
-                <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                  <UserRound className="h-4 w-4" aria-hidden="true" />
-                  Profile
-                  <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                    Soon
+                {showProfile && (
+                  <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    <UserRound className="h-4 w-4" aria-hidden="true" />
+                    Profile
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
                   </span>
-                </span>
-              </div>
+                )}
+              </AccountCard>
             )}
 
             {tabs.length > 0 && (

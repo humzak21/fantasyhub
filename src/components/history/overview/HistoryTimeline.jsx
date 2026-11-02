@@ -5,6 +5,7 @@ import { Badge } from '../../ui/badge';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatSeasonYear } from '../utils/statFormatters';
 import { isCurrentSeason } from '../../../../utils/seasonConfig.js';
+import { TeamLink } from '../../ui/team-link';
 
 const HistoryTimeline = ({
   seasons = [],
@@ -96,7 +97,9 @@ const HistoryTimeline = ({
                         {champion && champion.franchise ? (
                           <>
                             <p className="font-medium text-sm truncate">
-                              {getMaskedFranchiseName(champion.franchise, user, isAdmin, teamOwnerNames)}
+                              <TeamLink franchiseId={champion.franchise.id}>
+                                {getMaskedFranchiseName(champion.franchise, user, isAdmin, teamOwnerNames)}
+                              </TeamLink>
                             </p>
                             {champion.record && (
                               <p className="text-xs text-muted-foreground mt-1">
@@ -118,7 +121,9 @@ const HistoryTimeline = ({
                         {runnerUp && runnerUp.franchise ? (
                           <>
                             <p className="font-medium text-sm truncate">
-                              {getMaskedFranchiseName(runnerUp.franchise, user, isAdmin, teamOwnerNames)}
+                              <TeamLink franchiseId={runnerUp.franchise.id}>
+                                {getMaskedFranchiseName(runnerUp.franchise, user, isAdmin, teamOwnerNames)}
+                              </TeamLink>
                             </p>
                             {runnerUp.record && (
                               <p className="text-xs text-muted-foreground mt-1">
@@ -140,7 +145,9 @@ const HistoryTimeline = ({
                         {thirdPlace && thirdPlace.franchise ? (
                           <>
                             <p className="font-medium text-sm truncate">
-                              {getMaskedFranchiseName(thirdPlace.franchise, user, isAdmin, teamOwnerNames)}
+                              <TeamLink franchiseId={thirdPlace.franchise.id}>
+                                {getMaskedFranchiseName(thirdPlace.franchise, user, isAdmin, teamOwnerNames)}
+                              </TeamLink>
                             </p>
                             {thirdPlace.record && (
                               <p className="text-xs text-muted-foreground mt-1">

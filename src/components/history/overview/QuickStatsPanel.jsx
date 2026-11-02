@@ -7,6 +7,7 @@ import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatPoints, formatWinPercentage } from '../utils/statFormatters';
 import PointsWinsDistributionChart from '../charts/PointsWinsDistributionChart';
 import { useTransactionLeaderboard } from '../../../../hooks/queries/index.js';
+import { TeamLink } from '../../ui/team-link';
 
 const QuickStatsPanel = ({
   franchises = [],
@@ -135,14 +136,14 @@ const QuickStatsPanel = ({
             <CardContent>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">
+                  <TeamLink franchiseId={stats.mostChampionships.franchise_id} className="font-semibold">
                     {getMaskedFranchiseName(
                       franchises.find(f => f.id === stats.mostChampionships.franchise_id),
                       user,
                       isAdmin,
                       teamOwnerNames
                     )}
-                  </span>
+                  </TeamLink>
                   <Badge className="bg-amber-600">
                     {stats.mostChampionships.championships} {stats.mostChampionships.championships === 1 ? 'Title' : 'Titles'}
                   </Badge>
@@ -173,14 +174,14 @@ const QuickStatsPanel = ({
             <CardContent>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">
+                  <TeamLink franchiseId={stats.bestWinPct.franchise_id} className="font-semibold">
                     {getMaskedFranchiseName(
                       franchises.find(f => f.id === stats.bestWinPct.franchise_id),
                       user,
                       isAdmin,
                       teamOwnerNames
                     )}
-                  </span>
+                  </TeamLink>
                   <Badge variant="secondary" className="bg-green-100 text-green-700">
                     {formatWinPercentage(stats.bestWinPct.avg_win_percentage)}
                   </Badge>
@@ -214,14 +215,14 @@ const QuickStatsPanel = ({
             <CardContent>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">
+                  <TeamLink franchiseId={stats.mostWins.franchise_id} className="font-semibold">
                     {getMaskedFranchiseName(
                       franchises.find(f => f.id === stats.mostWins.franchise_id),
                       user,
                       isAdmin,
                       teamOwnerNames
                     )}
-                  </span>
+                  </TeamLink>
                   <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                     {stats.mostWins.total_wins} Wins
                   </Badge>

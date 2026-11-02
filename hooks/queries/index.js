@@ -12,6 +12,14 @@ export { qk } from './keys.js';
 export { createQueryClient } from './queryClient.js';
 
 export {
+  useFranchiseProfiles,
+  useMyFranchiseId,
+  useSaveFranchiseProfile,
+  useFranchiseAccounts,
+  useSetFranchiseAccount
+} from './useFranchiseProfiles.js';
+
+export {
   useSeasons,
   useActiveSeason,
   useSeasonTeams,
@@ -129,6 +137,7 @@ export {
   useStatComparison,
   useHomeRecordBooks,
   useFranchiseProfile,
+  useDivisionTitles,
   useTransactionLeaderboard,
   useFranchiseTransactions,
   useSeasonWeeks,

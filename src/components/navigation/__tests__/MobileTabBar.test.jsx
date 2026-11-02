@@ -119,6 +119,7 @@ describe('MobileTabBar', () => {
       account: {
         user: USER,
         showNewsletter: true,
+        showProfile: true,
         settingsBadgeCount: 1,
         settingsBadgeLabel: '1 account awaiting approval',
       },
@@ -128,7 +129,7 @@ describe('MobileTabBar', () => {
     const dialog = await screen.findByRole('dialog');
 
     expect(within(dialog).getByText('Jo Member')).toBeInTheDocument();
-    expect(within(dialog).getByText('Soon')).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: /Jo Member/ })).toHaveAttribute('href', '/profile');
     expect(
       within(dialog).getByRole('link', { name: 'Settings (1 account awaiting approval)' })
     ).toHaveAttribute('href', '/settings');

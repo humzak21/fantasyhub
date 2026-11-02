@@ -5,6 +5,7 @@ import { Button } from '../../ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../../ui/tooltip';
 import { useHeadToHeadMatrix } from '../../../../hooks/queries/index.js';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
+import { TeamLink } from '../../ui/team-link';
 
 const HeadToHeadMatrix = ({
   franchises = [],
@@ -153,7 +154,7 @@ const HeadToHeadMatrix = ({
                 {displayData.map(row => (
                   <tr key={row.franchiseId}>
                     <td className="p-2 font-medium sticky left-0 bg-background z-10 whitespace-nowrap">
-                      {getDisplayName(row.ownerName)}
+                      <TeamLink franchiseId={row.franchiseId}>{getDisplayName(row.ownerName)}</TeamLink>
                     </td>
                     {displayData.map(col => {
                       const isSelf = row.franchiseId === col.franchiseId;

@@ -9,6 +9,7 @@ import { UserCheck, AlertCircle } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { getMaskedTeamName, getMaskedOwnerName, getMaskedUserName } from '../../utils/displayNameUtils';
 import { getDb } from '../../../services/db/index.js';
+import { TeamLink } from '../ui/team-link';
 
 /**
  * Who submitted what, for the admin.
@@ -273,7 +274,7 @@ const PickRow = ({ submission, currentWeek, user, isAdmin, teamOwnerNames }) => 
             hasPick ? 'font-medium text-foreground' : 'text-muted-foreground'
           )}
         >
-          {takenLabel.name}
+          <TeamLink team={taken}>{takenLabel.name}</TeamLink>
         </span>
         <span className="block truncate text-[10px] text-muted-foreground">
           {takenLabel.owner}
@@ -290,7 +291,9 @@ const PickRow = ({ submission, currentWeek, user, isAdmin, teamOwnerNames }) => 
       </span>
 
       <span className="min-w-0 flex-1 text-right">
-        <span className="block truncate text-muted-foreground">{otherLabel.name}</span>
+        <span className="block truncate text-muted-foreground">
+          <TeamLink team={other}>{otherLabel.name}</TeamLink>
+        </span>
         <span className="block truncate text-[10px] text-muted-foreground/70">
           {otherLabel.owner}
         </span>

@@ -28,12 +28,12 @@ import { OpponentChip } from '../ui/opponent-chip';
 import { PlayerMark } from '../ui/player-avatar';
 import { teamOf } from '../../../utils/playerImages.js';
 import { PlayerPoints } from '../ui/player-points';
-import { TeamIdentity } from '../ui/team-identity';
 import { IndependentColumns } from '../ui/independent-columns';
 import { isUserTeam } from '../../utils/userTeamUtils';
 import { useActualWeek, useNflOpponentMap } from '../../../hooks/queries/index.js';
 import { cn } from '../../lib/utils';
 import { TEAM_PARAM } from './teamLink.js';
+import { TeamIdentityLink } from '../ui/team-link';
 
 /** How long a linked card keeps its ring after the scroll lands. */
 const LINKED_HIGHLIGHT_MS = 2000;
@@ -476,7 +476,7 @@ const TeamsAndRosters = ({
                       information already says. */}
                   <div className="mb-4 flex items-start justify-between gap-2">
                     <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <TeamIdentity
+                      <TeamIdentityLink
                         team={{
                           ...team,
                           name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),

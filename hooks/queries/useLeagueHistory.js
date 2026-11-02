@@ -17,6 +17,7 @@ import { useQueries, useQuery } from '@tanstack/react-query';
 import { getDb } from '../../services/db/index.js';
 import { buildRecordBook } from '../../utils/recordBook/index.js';
 import { buildRecordTrends } from '../../utils/recordTrend.js';
+import { deriveDivisionTitles } from '../../utils/profile/trophyCase.js';
 import { buildSeasonIndex } from '../../utils/franchiseWeeks.js';
 import { buildComparisonFacts } from '../../utils/statComparison/index.js';
 import { buildHomeRecordBooks } from '../../utils/home/records.js';
@@ -170,6 +171,16 @@ export function useHomeRecordBooks({ enabled = true } = {}) {
     queryFn: () => db().history.getRecordBookSource(),
     select: buildHomeRecordBooks,
     enabled,
+    ...STABLE
+  });
+}
+
+/** Every division won in a completed season. League-wide, so switching profile fetches nothing. */
+export function useDivisionTitles() {
+  return useQuery({
+    queryKey: qk.history.divisionTitles(),
+    queryFn: () => db().history.getDivisionTitleSource(),
+    select: deriveDivisionTitles,
     ...STABLE
   });
 }

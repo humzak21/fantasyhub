@@ -10,6 +10,7 @@ import { formatPct, formatRecord, formatScore } from '../../../utils/format';
 import { useMatchupHistory } from '../../../../hooks/queries/index.js';
 import { canViewFullData, getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { phaseOf, summarizeMatchup } from './matchupSummary';
+import { TeamLink } from '../../ui/team-link';
 
 const PHASE_LABEL = { regular: 'Regular season', playoff: 'Playoffs', consolation: 'Consolation' };
 
@@ -209,7 +210,9 @@ const MatchupDetail = ({
                 className={cn('flex min-w-0 flex-col items-center gap-2 text-center', i === 0 ? 'order-1' : 'order-3')}
               >
                 <TeamAvatar team={avatar(i)} size="md" />
-                <span className="w-full truncate text-sm font-medium">{names[i]}</span>
+                <TeamLink franchiseId={ids[i]} className="w-full truncate text-sm font-medium">
+                  {names[i]}
+                </TeamLink>
                 <span
                   className={cn(
                     'font-display text-4xl font-semibold leading-none tracking-[-0.01em] tabular',

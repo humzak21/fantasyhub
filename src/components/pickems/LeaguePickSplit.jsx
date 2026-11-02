@@ -12,6 +12,7 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { useAllPicks } from '../../../hooks/queries/index.js';
 import { getMaskedOwnerName, getMaskedTeamName } from '../../utils/displayNameUtils';
 import { isByeGame, summarizePickSplit } from './pickSplit.js';
+import { TeamLink } from '../ui/team-link';
 
 /**
  * How the league picked this week: one box per team, two rows of seven, with
@@ -211,7 +212,9 @@ const TeamBox = ({ side, viewer }) => {
       <TeamAvatar team={{ ...side.team, name, ownerName: owner }} size="md" />
 
       <div className="mt-2 flex min-h-[2.5em] w-full items-center justify-center text-sm leading-tight">
-        <span className="line-clamp-2 break-words font-semibold text-foreground">{name}</span>
+        <TeamLink team={side.team} className="line-clamp-2 break-words font-semibold text-foreground">
+          {name}
+        </TeamLink>
       </div>
       <span className="mt-0.5 w-full truncate text-xs text-muted-foreground" title={owner}>
         {owner}

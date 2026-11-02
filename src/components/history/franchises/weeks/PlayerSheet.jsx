@@ -12,6 +12,7 @@ import { EMPTY, formatPoints } from '../../../../utils/format';
 import { getMaskedFranchiseName } from '../../utils/privacyHelpers';
 import { useNflOpponentMap, usePlayerCareer } from '../../../../../hooks/queries/index.js';
 import { buildPlayerCareer, buildPlayerSeason } from '../../../../../utils/franchiseWeeks.js';
+import { TeamLink } from '../../../ui/team-link';
 
 const SERIES = 'var(--chart-1)';
 
@@ -263,12 +264,14 @@ function Career({ seasons, loading, viewer }) {
               <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                 {s.stints.map((stint) => (
                   <li key={`${stint.franchiseId}-${stint.fromWeek}`}>
-                    {getMaskedFranchiseName(
-                      { id: stint.franchiseId, owner_name: stint.owner, display_name: null },
-                      viewer.user,
-                      viewer.isAdmin,
-                      viewer.teamOwnerNames
-                    )}
+                    <TeamLink franchiseId={stint.franchiseId} onClick={() => onOpenChange(false)}>
+                      {getMaskedFranchiseName(
+                        { id: stint.franchiseId, owner_name: stint.owner, display_name: null },
+                        viewer.user,
+                        viewer.isAdmin,
+                        viewer.teamOwnerNames
+                      )}
+                    </TeamLink>
                     {' · '}
                     {stint.fromWeek === stint.toWeek ? `week ${stint.fromWeek}` : `weeks ${stint.fromWeek}–${stint.toWeek}`}
                     {` · started ${stint.starts} of ${stint.weeks}`}

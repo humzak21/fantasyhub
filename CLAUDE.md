@@ -87,7 +87,8 @@ clock, GitHub's runners".
 - **Data Layer**: `services/db/` - one module per domain (`seasons`, `teams`,
   `divisions`, `rosters`, `players`, `playerWeekStats`, `games`, `rankings`,
   `schedule`, `nflSchedule`, `pickems`, `parlay`, `awards`, `playoffs`,
-  `transactions`, `takes`, `history`, `users`, `espnMapping`, `leagueChat`).
+  `transactions`, `takes`, `history`, `users`, `espnMapping`, `leagueChat`,
+  `franchiseProfiles`).
   **Write new data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
@@ -1045,10 +1046,12 @@ then the design pass.
   does.
 - **Present tense only.** Home reads `useActualWeek()`, never the viewed
   week, and passes `actualWeek: null` until the season config has a start
-  date. The tab carries `weekAware: false`, and the shell renders
-  `InlineWeekNavigator` only when `activeTabDef?.weekAware !== false` — a
-  flag on the definition, not an `activeTab === 'home'` literal. Links into
-  a week-aware tab call `ctx.openTab()`, which resets the viewed week to the
+  date. The tab carries `weekAware: 'desktop'`: the shell renders
+  `InlineWeekNavigator` from `lg` and hides it below (`false` hides it at
+  every width, as Profile does) — a flag on the definition, not an
+  `activeTab === 'home'` literal. On desktop the control is the way into a
+  week on the other tabs and changes nothing on this page. Links into a
+  week-aware tab call `ctx.openTab()`, which resets the viewed week to the
   actual week first.
 - **Widgets are registered, not placed.** `src/components/home/homeWidgets.js`
   is the ordered list (`id`, `title`, `column`, `Component`, `when(ctx)`);
@@ -1066,6 +1069,9 @@ then the design pass.
   (season phase, the week's game, a bye, the series sentence),
   `utils/home/streak.js` (a standings row's streak, from the games when the
   RPC's is blank).
+- **A team name opens its profile**, through `TeamLink` (see "The profile is
+  the franchise's page"), so the hero, the standings and the rankings slice
+  link there for a member and keep their old destination for anyone else.
 - **The hero shares the Schedule tab's lineup.** `LineupPanel` was lifted
   out of `ScheduleManager` into `schedule/LineupPanel.jsx`; both import it.
 - **The brand is a link to `/home`** — the only way back from Settings and
@@ -1377,6 +1383,64 @@ book's source would work too but carries lineups and transaction events.
 colours its seasons by their place on the league calendar (2023 is one hue on
 every profile); several teams wear their franchise hue, older seasons fainter.
 
+### The profile is the franchise's page
+
+`/profile/<franchise id>` is what every team name on the site opens: what a
+franchise says about itself, what it has won, and the whole of its history.
+`/profile` alone is the viewer's own. It is a tab with `inNav: false`, reached
+by the names, the avatar's dropdown and the phone Menu's account card. History
+→ Franchises is the leaderboards now, and a row navigates here;
+`LeagueHistoryManager` no longer holds a selected franchise. The page
+(`src/components/profile/ProfilePage.jsx`) is the hero, `TrophyCase`, then
+`history/franchises/FranchiseProfile.jsx`, which is the stats half.
+
+- **The row is the franchise's, not the account's.** `franchise_profiles` is
+  keyed on `franchise_id`, because the page exists for a franchise with no
+  account and two accounts can speak for one franchise
+  (`20261102120000_franchise_profiles.sql`).
+- **Who may edit is `franchise_accounts`, never a display name.** Everything
+  else ties an account to a team by comparing `user_metadata` with
+  `teams.owner`, which is fine for deciding what to unmask and not for deciding
+  who may write: a member can retype that name. Only an admin writes the link,
+  through `set_franchise_account()`, in **Settings → Franchises**. A new member
+  has no link until an admin makes one; the migration seeded the existing
+  accounts. `supabase/tests/database/franchise_profiles.test.sql` holds it.
+- **`can_edit_franchise_profile()` is the rule**: an admin, or an approved
+  member linked to the franchise. Reads are `is_approved_member()`, so RLS, not
+  the shell, is what hides a bio from a signed-out caller. An admin edits every
+  field of any profile. There is no DELETE policy: clearing is an UPDATE to
+  nulls.
+- **Avatars are a public bucket, `profile-avatars`,** so `<img src>` works on
+  every chip without signing a URL; paths are `<franchise id>/<uuid>.<ext>`.
+  Writes go through `can_edit_avatar_path()`, which pgTAP can test even though
+  CI has no storage schema. `utils/avatarImage.js` centre-crops to 256px in the
+  browser; the bucket's 1 MB and type limits are what hold. A replaced file is
+  removed best-effort, once the row no longer points at it.
+- **An ESPN logo is a pointer.** The browser cannot read ESPN (the league is
+  private and the cookies live in the sync), so the rosters step stores
+  `teams.espn_logo_url` through `upsertTeamsFromESPN`, and `avatar_source =
+  'espn'` means "this franchise's newest logo". So a logo change lands on its
+  own, and the button only appears to work once a sync has run.
+- **`TeamAvatar` draws the avatar everywhere, through
+  `FranchiseAvatarsContext`,** which also answers `useCanOpenProfiles()` for
+  `TeamLink`. A context so both primitives stay plain with no provider. It hands
+  nothing to a viewer who sees masked names: a face would unmask the row.
+- **`TeamLink` is how a name links** (`TeamIdentityLink` for a whole identity).
+  An approved member gets the profile; anyone else gets `fallbackTo`, or plain
+  text. It stops click propagation, so a clickable row behind it does not also
+  fire. **Not in a `<button>`**: a pick'em or bracket slot is a radio whose
+  press means "pick this team", and an anchor cannot nest there. Chart axes,
+  form labels and whole-row links (recent form, record cards) stay as they are.
+- **Division titles are worked out, not stored**
+  (`utils/profile/trophyCase.js::deriveDivisionTitles`): the best regular-season
+  record in each division of a completed season, by the canonical sort.
+- **Records held are every #1, good or bad**, ties included, regular season for
+  game records: `recordsHeldBy` over the record book's own query key. A row
+  links to its card only for a viewer who can open History.
+- **A member who sees masked names gets the masked page**, with no bio or
+  avatar: that is what the masking hides. An approved account whose display name
+  matches no owner is in that state until the name is fixed.
+
 ### The franchise profile opens week by week
 
 Below its season table, a franchise profile has **Week by week**
@@ -1385,9 +1449,9 @@ the section's picker) and a week, and see the franchise as it stood then —
 result, power rank and standing by record, the lineup with each player's
 opponent, TDs and in-league rank, why the snapshot ranked it there, and the
 moves it made. Every player opens a sheet with his week, his season and every
-stint he has had in this league. Any viewer can open any franchise; names go
-through the masking helpers like everywhere else. The profile header switches
-franchise without the round trip to the leaderboards.
+stint he has had in this league. Any approved member can open any franchise;
+names go through the masking helpers like everywhere else. The franchise picker above
+the hero switches without the round trip to the leaderboards.
 
 - **One read per season, league-wide.** `history.getSeasonWeekSource` reads the
   season's teams, games, `player_week_stats`, `team_week_lineups`,
@@ -2090,7 +2154,8 @@ bottom padding that clears it.
 the tabs whose definition carries `tabBarSlot` — Home, Statistics, Pick'ems,
 History, in slot order — and **Menu**, a vaul drawer (`navigation/TabBarMenu.jsx`)
 that slides up with every other tab the viewer may open, then the account:
-the profile card (Profile has no page yet and says "Soon"), Settings with the
+the profile card (a link to `/profile`, the viewer's own, for an approved
+member), Settings with the
 pending-approval count, the newsletter (approved members) and **Log out, which
 asks first** in an `AlertDialog`. It used to hold every destination in a strip
 that scrolled sideways, and the tabs past the edge went unfound however it was

@@ -164,7 +164,20 @@ export const qk = {
      */
     inbox: (userId) => ['viewer', 'inbox', userId],
     /** The viewer's taunt offers (`matchup_taunts`), read beside Alerts. */
-    taunts: (userId) => ['viewer', 'taunts', userId]
+    taunts: (userId) => ['viewer', 'taunts', userId],
+    /** The franchise this account may edit (`franchise_accounts`). */
+    franchise: (userId) => ['viewer', 'franchise', userId]
+  },
+
+  /**
+   * Every franchise's customized profile, and the admin's list of which
+   * account speaks for which. One league-wide entry: the avatar on every team
+   * chip reads it, so a saved profile reaches them all by one invalidation.
+   */
+  profiles: {
+    all: ['profiles'],
+    list: () => ['profiles', 'list'],
+    accounts: () => ['profiles', 'accounts']
   },
 
   /**
@@ -256,6 +269,7 @@ export const qk = {
     h2hMatrix: () => ['history', 'h2h', 'matrix'],
     matchup: (franchise1Id, franchise2Id) => ['history', 'h2h', franchise1Id, franchise2Id],
     recordBook: () => ['history', 'records'],
+    divisionTitles: () => ['history', 'divisionTitles'],
     recordTrends: () => ['history', 'recordTrends'],
     franchiseProfile: (franchiseId) => ['history', 'franchise', franchiseId],
     transactionLeaderboard: () => ['history', 'transactions'],

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { Edit3, Trophy } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -10,12 +9,12 @@ import RouteLoading from '../layout/RouteLoading';
 import { NumberText, RecordText } from '../ui/number-text';
 import { RankBadge } from '../ui/rank-badge';
 import { StreakChip } from '../ui/streak-chip';
-import { TeamIdentity } from '../ui/team-identity';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../types/index.js';
 import { teamRosterPath } from '../teams/teamLink.js';
+import { TeamIdentityLink, TeamLink } from '../ui/team-link';
 
 /**
  * The components, in weight order, built from the weights themselves.
@@ -114,26 +113,22 @@ const PowerRankingsTable = ({
       key: 'team',
       header: 'Team',
       priority: 'primary',
-      // The name opens the team's roster on the Teams tab, which scrolls the
-      // card into view from `?team=`. A link rather than an `onRowClick`: a
-      // clickable row is a div with a handler, unreachable by keyboard, and
-      // on a phone the whole card would become one tap target.
+      // The name opens the team's profile, or for anyone who cannot open one,
+      // its roster on the Teams tab, which scrolls the card into view from
+      // `?team=`. A link rather than an `onRowClick`: a clickable row is a div
+      // with a handler, unreachable by keyboard, and on a phone the whole card
+      // would become one tap target.
       cell: (team) => (
-        <Link
-          to={teamRosterPath(team.teamId ?? team.id)}
-          className="group -m-1 inline-flex min-w-0 max-w-full rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <TeamIdentity
-            team={{
-              ...team,
-              name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
-              ownerName: getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
-            }}
-            showOwner={Boolean(team.owner)}
-            isViewer={isUserTeam(team, user)}
-            nameClassName="underline-offset-2 decoration-foreground/40 group-hover:underline"
-          />
-        </Link>
+        <TeamIdentityLink
+          team={{
+            ...team,
+            name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
+            ownerName: getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
+          }}
+          fallbackTo={teamRosterPath(team.teamId ?? team.id)}
+          showOwner={Boolean(team.owner)}
+          isViewer={isUserTeam(team, user)}
+        />
       ),
     },
     {
@@ -305,7 +300,7 @@ const PowerRankingsTable = ({
         // name, never between the dot and the number.
         return (
           <span className="inline-block max-w-[10rem] whitespace-normal text-sm">
-            {getMaskedTeamName(opponent, user, isAdmin, teamOwnerNames)}
+            <TeamLink team={opponent}>{getMaskedTeamName(opponent, user, isAdmin, teamOwnerNames)}</TeamLink>
             <span className="whitespace-nowrap">
               <span className="text-muted-foreground"> · </span>
               <NumberText

@@ -271,7 +271,7 @@ const DesktopNav = ({ tabs, activeTab }) => {
  * @param {Array} tabs - the nav tabs; `tabBarSlot` puts one in the bar
  * @param {string} activeTab
  * @param {Function} shouldShowTab
- * @param {object} [account] - { user, showNewsletter, settingsBadgeCount,
+ * @param {object} [account] - { user, showNewsletter, showProfile, settingsBadgeCount,
  *   settingsBadgeLabel, onSignOut }; the menu's account half. Omit it for a
  *   signed-out viewer, whose Login stays in the header.
  */
@@ -283,7 +283,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, acco
     .sort((a, b) => a.tabBarSlot - b.tabBarSlot);
   const menuTabs = visibleTabs.filter((tab) => tab.tabBarSlot == null);
 
-  const { user = null, showNewsletter = false, settingsBadgeCount = 0, settingsBadgeLabel, onSignOut } = account;
+  const { user = null, showNewsletter = false, showProfile = false, settingsBadgeCount = 0, settingsBadgeLabel, onSignOut } = account;
   const settingsCount = user ? Number(settingsBadgeCount) || 0 : 0;
   const menuCount =
     menuTabs.reduce((sum, tab) => sum + (Number(tab.badgeCount) || 0), 0) + settingsCount;
@@ -361,6 +361,7 @@ export const MobileTabBar = ({ tabs, activeTab, shouldShowTab = () => true, acco
         activeTab={activeTab}
         user={user}
         showNewsletter={showNewsletter}
+        showProfile={showProfile}
         settingsBadgeCount={settingsCount}
         settingsBadgeLabel={settingsBadgeLabel}
         onSignOut={onSignOut}
