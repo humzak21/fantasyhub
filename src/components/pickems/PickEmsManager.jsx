@@ -332,6 +332,7 @@ const PickEmsManager = ({
               <PickEmsAdminSubmissions
                 currentWeek={currentWeek}
                 pickEmWeek={pickEmWeek}
+                games={games}
                 loading={dataLoading}
                 user={user}
                 isAdmin={isAdmin}

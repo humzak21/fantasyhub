@@ -269,6 +269,16 @@ export async function getUserPicksForWeek(ctx, pickEmWeekId, userId = null) {
   }
 }
 
+/**
+ * Did this pick call the game? Decided on the fly from the game's own result. A
+ * tie has no winner and is correct for nobody, and a row with no stored winner
+ * must not match it.
+ */
+const isPickCorrect = (game, submission) =>
+  Boolean(game?.is_completed) &&
+  submission.predicted_winner_team_id != null &&
+  game.winner_team_id === submission.predicted_winner_team_id;
+
 export async function getAllPicksForWeek(ctx, pickEmWeekId) {
 
   try {
@@ -300,7 +310,7 @@ export async function getAllPicksForWeek(ctx, pickEmWeekId) {
     // Calculate results on the fly by comparing picks to actual game results
     const submissions = (data || []).map(submission => {
       const game = submission.games;
-      const isCorrect = game?.is_completed && game.winner_team_id === submission.predicted_winner_team_id;
+      const isCorrect = isPickCorrect(game, submission);
       const pointsEarned = isCorrect ? 1 : 0; // Simple scoring: 1 point per correct pick
       const formattedSubmission = formatFromDatabase(submission);
 
@@ -340,6 +350,8 @@ export async function getAdminSubmissionsForWeek(ctx, pickEmWeekId) {
         *,
         games(
           week,
+          is_completed,
+          winner_team_id,
           team1:teams!games_team1_id_fkey(id, name, owner, franchise_id),
           team2:teams!games_team2_id_fkey(id, name, owner, franchise_id)
         ),
@@ -350,7 +362,11 @@ export async function getAdminSubmissionsForWeek(ctx, pickEmWeekId) {
 
     if (error) throw error;
 
-    const submissions = (data || []).map(formatFromDatabase);
+    const submissions = (data || []).map((submission) => ({
+      ...formatFromDatabase(submission),
+      isCorrect: isPickCorrect(submission.games, submission),
+      gameCompleted: Boolean(submission.games?.is_completed)
+    }));
 
     // Get user details for each unique user ID
     const userIds = [...new Set(submissions.map(s => s.userId))];
