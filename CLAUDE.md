@@ -1270,6 +1270,59 @@ table. The view is in the URL so the phone's back button walks through it, and
 `/statistics` is a static redirect in `App.jsx` to
 `/rankings?view=statistics`.
 
+### The bracket is projected until it is drawn
+
+From the first week of 2026 the playoff page fills its bracket from the
+standings, and the home page shows the upper bracket once week 10 is scored.
+Both, and the Path to the Playoffs scenario, go through
+`utils/projectedBracket.js`. It used to be a rule here that a bracket showed TBD
+until real rows existed; the league asked for the projection instead.
+
+- **`resolveUpperBracket` is the one answer to who is in a slot.** Real rows win
+  slot by slot (`organizeSeededBracket`), so the same call covers a projection,
+  a half-drawn postseason and a finished one. `BracketView` draws it. Seeds are
+  the RPC's `playoffSeed`, so the bracket cannot disagree with the standings;
+  `seedOrder` numbers everyone else on from 7 for the consolation pairs (7v8,
+  9v10, 11v12, 13v14, which is how 2025 drew them).
+- **A projection is read-only.** `PlayoffsBracket` disables every slot while
+  `isProjected`: a pick is stored against a real game, and a pick on a team that
+  later slips out of the field would point at one that never happens. Say
+  "Projected" wherever it renders.
+- **The semifinals are not guessed.** They re-seed, so seed 1's opponent is
+  "Lowest seed left" until both round-1 games are played.
+- **`HOME_BRACKET_AFTER_WEEK` (10) is the home card's gate**, read by
+  `showsHomeBracket`: every game of that week scored, or any postseason row. A
+  part-scored week does not count. Pre-2026 seasons project nothing.
+
+### Path to the Playoffs is the odds model, asked "what if"
+
+`/playoffs?tab=path` (`src/components/playoffs/path/`) lets a member pick any
+team, decide any game left, and see the odds, bye chance, seed chances, the
+record it takes, the first-round opponent, the games that matter most, the league
+and the bracket under that scenario. `services/playoffPathCalculator.js` is the
+model and `PathToPlayoffs.jsx` renders it.
+
+- **It is the same simulation, not a second one.** `simulatePath` draws from
+  `createSimulationNormal` in the same order as `simulateMadeField`, with
+  `fieldSeeds` agreeing with `computeSeeds`, so with nothing decided it reads
+  exactly the Rankings tab's Playoff%. A test holds that. Change the model in
+  `playoffOddsCalculator.js`, or the two will drift.
+- **A decided game is still played.** Its scores are drawn and swapped if the
+  wrong side led, so its points still reach the tiebreak and every other draw
+  stays where it was. One press moves the odds by that game alone.
+- **100 and 0 stay `mathematicalStatus`'s**, over the records with the decided
+  games applied, at a lower `exactLimit` because this runs on every press.
+- **One pass answers everything.** Every simulated season already played every
+  game, so a game's swing and a record's chance are tallies inside the loop, not
+  further simulations. It runs on the main thread behind `useDeferredValue`.
+- **The URL is the scenario, and the only state.** `team` and `s`
+  (`encodeScenario`): `8c1` is week 8, the third game by id, team 1 wins. The
+  index runs over every game of the week, so a link survives that week being
+  scored; a token for a played game is dropped, because the real result won.
+  Nothing is stored, so there is no save and no migration.
+- **Its bracket is seeded on each team's average finish** (`scenarioStandings`),
+  through the league's own rule, because one simulated season is one roll.
+
 ### The automation dashboard watches; it cannot run anything
 
 **Settings → Automations** (`src/components/admin/AutomationsDashboard.jsx`)
@@ -1639,7 +1692,13 @@ mask as the standings do.
 `getMatchupHistory`, which now reports `isRegular`/`isConsolation`: series,
 record by phase, win %, points, average and highest scores, biggest win,
 longest win streak, the notable games, the last five meetings and every
-meeting.
+meeting. `MatchupDetail.jsx` draws it on the home page's field
+(`ui/field-backdrop.jsx`). **The names stick under the app header for the whole
+page and every section keeps their two columns** (`SIDES_GRID`), so a score's
+column says whose it is and no caption has to. The bar must stay a direct child
+of the page's column, because a sticky element stops at the end of its parent,
+and its `top` is the app header's height. The page is held to `max-w-3xl`: at
+desktop width the two columns are too far apart to compare.
 
 ### How seasons were decided
 
@@ -2273,6 +2332,12 @@ was pasted.
 renders a real table at `md:`+ and a card stack below it, from one set of
 column definitions. Do not solve a wide table by scrolling it sideways: the
 reader loses their row the moment the first column leaves the viewport.
+**To sort one, give columns a `sortValue` and pass `sort` / `onSortChange`**:
+headers cycle default → descending → ascending with `aria-sort`, and the card
+stack gets a compact control, since it has no headers. The caller owns the state
+and sorts with `sortRows` (`src/utils/tableSort.js`). Default is `null`, the rows
+as they arrived. On History → Franchises the rank is the franchise's place on the
+default board and stays with it, so sorting never renumbers.
 
 **Charts use `ChartContainer` and `useMobileAxis()`** (`ui/chart.jsx`). Never
 an inline pixel height — 520px is 139% of an iPhone SE viewport, and an inline

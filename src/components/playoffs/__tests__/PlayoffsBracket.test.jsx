@@ -46,6 +46,17 @@ const game = (id, type, week, team1, team2 = null) => ({
   winnerTeamId: null
 });
 
+// Seeds 1-6, then eight more teams the standings do not seed.
+const standingsRows = Object.values(T).map((team, index) => ({
+  ...team,
+  playoffSeed: index + 1,
+  wins: 9 - index,
+  losses: index,
+  winPercentage: (9 - index) / 9,
+  pointsFor: 1000 - index,
+  pointsAgainst: 900
+}));
+
 const seededGames = [
   game('bye-1', 'bye', 15, T.s1),
   game('bye-2', 'bye', 15, T.s2),
@@ -229,5 +240,63 @@ describe('PlayoffsBracket, 2026 and later', () => {
       expect(group.textContent).toContain('TBD');
     }
     expect(screen.getByText(/0\/20 matchups selected/)).toBeInTheDocument();
+  });
+});
+
+describe('a projected bracket', () => {
+  const renderProjected = (props = {}) =>
+    render(
+      <PlayoffsBracket
+        season={{ id: 1, year: 2026, regular_season_weeks: 14 }}
+        playoffGames={[]}
+        bracketStatus={{ canSubmit: true }}
+        user={{ id: 'u1' }}
+        isApproved
+        isAdmin
+        seedByTeamId={new Map(standingsRows.map((row) => [row.id, row.playoffSeed]))}
+        standingsRows={standingsRows}
+        throughWeek={7}
+        {...props}
+      />
+    );
+
+  it('fills the slots from the standings, and says that it has', async () => {
+    renderProjected();
+
+    expect(await screen.findByText(/If the season ended after week 7/)).toBeInTheDocument();
+    expect(screen.getByText('Projected bracket')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Charlie/ })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: /Foxtrot/ })).toBeInTheDocument();
+  });
+
+  it('names what the semifinals wait for rather than guessing a team', async () => {
+    renderProjected();
+
+    expect(await screen.findByText('Lowest seed left')).toBeInTheDocument();
+    expect(screen.getByText('Highest seed left')).toBeInTheDocument();
+  });
+
+  it('takes no picks, even inside a submission window', async () => {
+    renderProjected();
+
+    await screen.findByText('Projected bracket');
+    for (const radio of screen.getAllByRole('radio')) expect(radio).toBeDisabled();
+    expect(screen.queryByPlaceholderText(/Enter total points/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/matchups selected/)).not.toBeInTheDocument();
+  });
+
+  it('gives way as soon as the real bracket exists', async () => {
+    renderProjected({ playoffGames: seededGames });
+
+    await screen.findAllByRole('radio');
+    expect(screen.queryByText('Projected bracket')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lowest seed left')).not.toBeInTheDocument();
+  });
+
+  it('never projects a season before the seeded format', async () => {
+    renderProjected({ season: { id: 1, year: 2025 } });
+
+    await screen.findAllByRole('radio');
+    expect(screen.queryByText('Projected bracket')).not.toBeInTheDocument();
   });
 });

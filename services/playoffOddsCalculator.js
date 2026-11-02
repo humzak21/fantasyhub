@@ -106,7 +106,8 @@ const scoresOf = (game) => [
  * @returns {{
  *   ids: Array, divisions: Array, wins: number[], played: number[],
  *   pointsFor: number[], pointsAgainst: number[], scoredGames: number[],
- *   remaining: Array<[number, number]>, unscheduled: number[]
+ *   remaining: Array<[number, number]>, remainingGames: Array<Object>,
+ *   unscheduled: number[]
  * }}
  */
 export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks }) {
@@ -121,6 +122,7 @@ export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks
   const pointsAgainst = new Array(count).fill(0);
   const scoredGames = new Array(count).fill(0);
   const remaining = [];
+  const remainingGames = []; // the rows behind `remaining`, index for index
 
   const weeksLeft = Math.max(0, regularSeasonWeeks - viewingWeek + 1);
 
@@ -160,6 +162,7 @@ export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks
       pointsAgainst,
       scoredGames,
       remaining,
+      remainingGames,
       unscheduled: new Array(count).fill(weeksLeft)
     };
   }
@@ -173,6 +176,7 @@ export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks
     if (Number(game.week) >= viewingWeek) {
       // Unplayed as of the viewed week, whether or not it has been played since.
       remaining.push([a, b]);
+      remainingGames.push(game);
       scheduled[a] += 1;
       scheduled[b] += 1;
       continue;
@@ -207,6 +211,7 @@ export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks
     pointsAgainst,
     scoredGames,
     remaining,
+    remainingGames,
     unscheduled: scheduled.map((n) => Math.max(0, weeksLeft - n))
   };
 }
@@ -240,14 +245,8 @@ export function buildRule(divisions, seeded) {
   };
 }
 
-/**
- * The field for one finished season, by the canonical sort — win% desc,
- * points for desc, points against asc, id — exactly as `computeSeeds` (2026+)
- * and the old top-three-per-division rule (through 2025) award it.
- *
- * @returns {boolean[]} qualified, by team index
- */
-export function qualifiedField(rule, ids, pct, pointsFor, pointsAgainst) {
+/** Team indexes by the canonical sort: win% desc, points for desc, points against asc, id. */
+export function standingsOrder(ids, pct, pointsFor, pointsAgainst) {
   const order = ids.map((_, i) => i);
   order.sort((a, b) => {
     if (pct[a] !== pct[b]) return pct[b] - pct[a];
@@ -257,6 +256,18 @@ export function qualifiedField(rule, ids, pct, pointsFor, pointsAgainst) {
     const idB = String(ids[b] ?? '');
     return idA < idB ? -1 : idA > idB ? 1 : 0;
   });
+  return order;
+}
+
+/**
+ * The field for one finished season, by the canonical sort, exactly as
+ * `computeSeeds` (2026+) and the old top-three-per-division rule (through 2025)
+ * award it.
+ *
+ * @returns {boolean[]} qualified, by team index
+ */
+export function qualifiedField(rule, ids, pct, pointsFor, pointsAgainst) {
+  const order = standingsOrder(ids, pct, pointsFor, pointsAgainst);
 
   const inField = new Array(ids.length).fill(false);
 
@@ -359,9 +370,10 @@ const toPct = (wins, played) => wins.map((w, i) => (played[i] > 0 ? w / played[i
  * The bound ignores that two rivals who play each other cannot both win, so it
  * can be late to call a clinch; it is never early.
  *
+ * @param {number} [exactLimit] a caller re-running this on every tap lowers it
  * @returns {{ clinched: boolean[], eliminated: boolean[] }}
  */
-export function mathematicalStatus(rule, state) {
+export function mathematicalStatus(rule, state, exactLimit = EXACT_OUTCOME_LIMIT) {
   const { wins, played, remaining, unscheduled } = state;
   const count = wins.length;
 
@@ -373,7 +385,7 @@ export function mathematicalStatus(rule, state) {
 
   const allScheduled = unscheduled.every((n) => n === 0);
 
-  if (allScheduled && remaining.length <= EXACT_OUTCOME_LIMIT) {
+  if (allScheduled && remaining.length <= exactLimit) {
     const canMiss = new Array(count).fill(false);
     const canMake = new Array(count).fill(false);
     const outcomes = 2 ** remaining.length;
@@ -459,6 +471,13 @@ function createNormal(random) {
 }
 
 /**
+ * The stream every simulation draws from. Fixed, so two runs over the same
+ * games make the same draws, and a what-if that forces one result changes that
+ * result rather than reshuffling the whole league.
+ */
+export const createSimulationNormal = () => createNormal(createRandom(RANDOM_SEED));
+
+/**
  * Each team's expected weekly score: its own average, blended with
  * `PRIOR_WEEKS` weeks of the league's.
  */
@@ -483,7 +502,7 @@ export function expectedScores(state) {
 export function simulateMadeField(rule, state, simulations = SIMULATIONS) {
   const count = state.ids.length;
   const { leagueMean, means } = expectedScores(state);
-  const normal = createNormal(createRandom(RANDOM_SEED));
+  const normal = createSimulationNormal();
 
   const finalPlayed = state.played.map((n, i) => n + state.unscheduled[i]);
   for (const [a, b] of state.remaining) {

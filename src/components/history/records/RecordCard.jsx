@@ -34,7 +34,7 @@ function PlayerLine({ player }) {
   return (
     <li className="flex min-w-0 items-center gap-1.5 text-xs">
       <PlayerAvatar name={player.name} espnPlayerId={player.espnPlayerId} position={player.position} size={18} />
-      <span className="truncate text-foreground">{playerName(player)}</span>
+      <span className="min-w-0 break-words text-foreground">{playerName(player)}</span>
       {player.position && (
         <span className="shrink-0 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
           {player.position}
@@ -75,7 +75,7 @@ function TradeList({ id, trades, count, identity }) {
                       <div key={side.franchiseId} className="min-w-0">
                         <p className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
                           <TeamAvatar team={identity.avatar(side.franchiseId)} size="xs" />
-                          <TeamLink franchiseId={side.franchiseId} className="truncate">{name}</TeamLink>
+                          <TeamLink franchiseId={side.franchiseId} className="break-words">{name}</TeamLink>
                           <span className="shrink-0 text-[10px] font-normal uppercase tracking-[0.06em] text-muted-foreground">
                             received
                           </span>
@@ -101,7 +101,7 @@ function TradeList({ id, trades, count, identity }) {
               ) : (
                 // Stored before direction was: the players, without guessing a side.
                 <div className="mt-2 min-w-0">
-                  <p className="truncate text-xs font-medium">
+                  <p className="break-words text-xs font-medium">
                     {trade.sides.map((side) => identity.franchiseName(side.franchiseId)).join(' & ')}
                   </p>
                   <ul aria-label="Players moved" className="mt-1 space-y-0.5">
@@ -164,20 +164,22 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, rec
         >
           {row.franchiseId && <TeamAvatar team={identity.avatar(row.franchiseId)} size="xs" />}
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-medium leading-tight">
+            {/* Every line wraps. A row is the record's evidence — who, against
+                whom, the score, the week — so a narrow card takes another line
+                rather than cutting any of it off. */}
+            <span className="block break-words text-sm font-medium leading-tight">
               {name}
               {row.tied && <span className="sr-only"> (tied)</span>}
             </span>
             {(meta || active || recent) && (
-              <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
-                {/* First, so a long meta line truncates rather than hiding it. */}
+              <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-snug text-muted-foreground">
                 {recent && (
                   <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-warning/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-warning">
                     <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
                     New record
                   </span>
                 )}
-                {meta && <span className="truncate">{meta}</span>}
+                {meta && <span className="min-w-0 break-words">{meta}</span>}
                 {active && (
                   <span className="shrink-0 rounded-full bg-info/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-info">
                     Active
