@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
+import { FaabBreakdown } from '../ui/faab-breakdown';
 import { NflTeamLogo } from '../ui/nfl-team-logo';
 import { PlayerAvatar } from '../ui/player-avatar';
 import { Skeleton } from '../ui/skeleton';
@@ -63,7 +64,7 @@ function SeasonFigure({ label, value, loading }) {
 }
 
 /** Where the team stands right now: power rank, division place, points for, FAAB left. */
-function SeasonFigures({ year, standing, faabRemaining, loading, showDivision }) {
+function SeasonFigures({ year, standing, faabRemaining, faabLedger, loading, showDivision }) {
   const divisionLabel = showDivision && standing?.divisionName ? `${standing.divisionName} rank` : 'Division rank';
   return (
     <div>
@@ -82,6 +83,7 @@ function SeasonFigures({ year, standing, faabRemaining, loading, showDivision })
         />
         <SeasonFigure label="FAAB left" value={faabRemaining != null ? formatFaab(faabRemaining) : null} loading={loading} />
       </dl>
+      <FaabBreakdown ledger={faabLedger} className="mt-3" />
     </div>
   );
 }
@@ -99,7 +101,7 @@ function SeasonFigures({ year, standing, faabRemaining, loading, showDivision })
  * @param {object} props.franchise
  * @param {object|null} props.profile - null for a viewer who sees masked names
  * @param {string|number|null} props.rosterTeamId - this season's team, for its roster link
- * @param {{ year: number, standing: object|null, faabRemaining: number|null, loading: boolean }|null} props.season -
+ * @param {{ year: number, standing: object|null, faabRemaining: number|null, faabLedger: object|null, loading: boolean }|null} props.season -
  *   the current season's figures; null for a franchise not playing in it
  * @param {boolean} props.showDivision - may this viewer see the division's name
  * @param {'own'|'admin'|null} props.editing - what the Edit button says, if shown
@@ -180,6 +182,7 @@ export function ProfileHero({
             year={season.year}
             standing={season.standing}
             faabRemaining={season.faabRemaining}
+            faabLedger={season.faabLedger}
             loading={season.loading}
             showDivision={showDivision}
           />

@@ -48,7 +48,14 @@ export function faabOf(team) {
 
 /** FAAB is whole dollars: "$13". Unknown is the em dash, and $0 is a real figure. */
 export function formatFaab(value) {
-  return isMissing(value) ? EMPTY : `$${Number(value)}`;
+  if (isMissing(value)) return EMPTY;
+  const amount = Number(value);
+  return amount < 0 ? `\u2212$${-amount}` : `$${amount}`;
+}
+
+/** A change in FAAB: "+$40", "\u2212$13", or "$0" for none. */
+export function formatFaabChange(value) {
+  return Number(value) > 0 ? `+${formatFaab(value)}` : formatFaab(value);
 }
 
 /** Decimal places a fantasy score is recorded to. */

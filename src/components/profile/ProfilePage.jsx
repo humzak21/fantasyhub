@@ -11,6 +11,7 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
   useActualWeek,
   useAutosubAccess,
+  useFaabLedger,
   useFranchiseProfile,
   useFranchiseProfiles,
   useHistoryFranchises,
@@ -89,6 +90,7 @@ export function ProfilePage() {
   const seasonId = currentTeam ? activeSeason.id : null;
   const rankings = useRankingsForWeek(seasonId, actualWeek, actualWeek);
   const standings = useStandings(seasonId);
+  const { data: faabLedger } = useFaabLedger(seasonId);
 
   const viewer = useMemo(() => ({ user, isAdmin, teamOwnerNames }), [user, isAdmin, teamOwnerNames]);
   const fullData = canViewFullData(user, isAdmin, teamOwnerNames);
@@ -195,6 +197,7 @@ export function ProfilePage() {
                   standings: standings.data
                 }),
                 faabRemaining: faabOf(currentTeam),
+                faabLedger: faabLedger?.[currentTeam.id] ?? null,
                 loading: rankings.isLoading || standings.isLoading
               }
             : null

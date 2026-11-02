@@ -204,8 +204,7 @@ roster updater already fetches, before it writes a single roster. Managers
 rename their teams mid-season, and until 2026-09-10 the only writer of the
 name was the annual `sync-schedule`, so a week-3 rename stayed wrong on every
 page until the following August. Both crons run this step, so a rename lands
-by the daily refresh at the latest. It stores `teams.faab_remaining` the same
-way; see "FAAB left is ESPN's number". `owner` is never overwritten there (see
+by the daily refresh at the latest. `owner` is never overwritten there (see
 below); a disagreement comes back as `teams.ownerConflicts` on the step's
 `sync_runs` entry, which the Automations dashboard shows as a warning. The nflSchedule and nflRatings steps fetch separately and need no
 cookies; nflRatings runs before snapshot on purpose, so the week's snapshot
@@ -1829,31 +1828,54 @@ from the selection. Rules that are load-bearing:
 - **Live-only numbers are out by design.** Projections, FPI, playoff odds and
   the power rating have no history: `power_rankings_history` starts in 2025.
 
-### FAAB left is ESPN's number
+### FAAB is a ledger, and bids alone do not add up
 
-`teams.faab_remaining` is `settings.acquisitionSettings.acquisitionBudget` minus
-the team's `transactionCounter.acquisitionBudgetSpent`, from the `mTeam` and
-`mSettings` views the rosters step already fetches (`espnFaabRemaining`), written
-through `upsertTeamsFromESPN`. Both crons run that step, so it follows each
-waiver run by the daily refresh. It shows on the Teams cards, Power Rankings
-(live week only), the standings drawer, both home tables and the profile hero.
+A team's bids can run past the budget, because bids are not the whole story:
+teams trade FAAB, and the commissioner awards it for pick'ems, takes and the
+like. `utils/faabLedger.js` is the pure half, and each line has its own source:
 
-- **It is not the budget minus `transactions.faab_spent`, and the two will not
-  add up.** `faab_spent` sums winning bids, which is what the record book means
-  by it. ESPN's counter nets out something the transaction feed does not show. On
-  2026-11-02 the bids put one team at $114 of a $100 budget while ESPN had $87 and
-  was still accepting their bids, and only 2 of 14 teams agreed. The likely cause
-  is the commissioner's adjustments, the pick'ems tourney prize among them, but
-  nothing in the feed says so. The counter is what a member can actually bid.
-- **The rosters step skips playoff weeks, so the figure stops at the end of the
-  regular season.** Nothing to spend it on matters by then.
-- **NULL is unknown, never 0**, and 0 is a real answer. Only the rosters step
-  knows the budget, so the schedule import's teams carry none and must not clear
-  it. A season the step has not reached has no figure, and a table with no
-  figures at all drops the column, which is what a past season in the drawer gets.
+| Line | Source | Stored |
+|---|---|---|
+| Budget | `settings.acquisitionSettings.acquisitionBudget` | `transactions.faab_budget` |
+| Spent | winning bids, as ever | `transactions.faab_spent` |
+| Traded | ESPN's activity feed, message 290 | `transactions.faab_traded_in` / `_out` |
+| Awarded | what is left of ESPN's counter | `transactions.faab_awarded` |
+| Left | budget minus ESPN's counter | `teams.faab_remaining` |
+
+`counter = bids - tradedIn + tradedOut - awarded`, where the counter is
+`transactionCounter.acquisitionBudgetSpent`, the number ESPN enforces. So
+`budget + awarded + traded - spent` is ESPN's left by construction. `useFaabLedger`
+reads the ledger, and `ui/faab-breakdown.jsx` draws it on the Teams cards and the
+profile hero. The tables (Power Rankings on the live week, the standings drawer,
+both home tables) show `teams.faab_remaining`, which needs no join.
+
+- **The amounts are only in the feed.** A trade's transaction row has an
+  `ACQUISITION_BUDGET_TRADE` item saying who sent FAAB to whom, and no amount.
+  `fetchFaabTransfers` reads
+  `/communication/?view=kona_league_communication`, a different endpoint, cookied.
+  Only message 290 moved anything: 284 is an accepted proposal, 286 an offer and
+  289 a veto, and their amounts are right there to double-count. 290's `targetId`
+  is the dollars.
+- **Awarded is net and derived, because ESPN keeps no amounts.** The commissioner's
+  edit shows in the feed as message 167 under `ACTIVITY_SETTINGS`, naming the team
+  and nothing else, so it cannot be split into pick'em prizes and take payouts. A
+  take-back shows as a negative. Verified on 2026-11-02: the remainder was
+  non-negative for all 14 teams, zero for exactly the four teams with no 167, and
+  non-zero for the ten with one, including a team traded out of $30 that came to
+  $0.
+- **Both are written by the transactions step**, from `syncTransactions`' one
+  fetch plus one feed read. Not the rosters step, which skips the playoffs: FAAB
+  left would stop at week 14 while spending carried on. The daily refresh runs it,
+  so the figures follow each waiver run. `scripts/backfill-transactions.js` runs
+  the same path, so past seasons get a ledger by running it; none has yet.
+- **A failed feed costs the ledger's next update and nothing else.** The columns
+  are left out of the upsert rather than nulled, and FAAB left needs no feed.
+- **NULL is unknown, never 0**, and 0 is a real answer. A table with no figures
+  at all drops the column, which is what a past season in the drawer gets.
+- **Records keep meaning bids.** "Most FAAB spent" is `faab_spent`, unchanged.
 - **The standings RPC has no FAAB.** `StandingsMini` and the drawer read it off
-  the season's own teams, a row they already hold. `faabOf` takes either shape.
-- **It is a figure about today,** so `PowerRankingsTable` drops it for a past
+  the season's own teams. `faabOf` takes either shape.
+- **Left is a figure about today,** so `PowerRankingsTable` drops it for a past
   week (`showFaab`).
 
 ### Lineups and transactions go back to 2020

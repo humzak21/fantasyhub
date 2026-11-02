@@ -191,10 +191,11 @@ export const STEPS = {
   transactions: {
     label: 'Refresh transaction counts',
     fatal: false,
-    espn: 'mTransactions2 season summary (league-private)',
+    espn: 'mTransactions2 season summary and the league activity feed (league-private)',
     reads: ['teams (franchise_id)'],
     writes: [
-      'transactions (adds, waivers, trades, drops, FAAB per franchise)',
+      'transactions (adds, waivers, trades, drops, and the FAAB ledger per franchise)',
+      'teams (faab_remaining)',
       'transaction_events (each executed add, claim and trade, with bids and trade partners)'
     ],
     description:

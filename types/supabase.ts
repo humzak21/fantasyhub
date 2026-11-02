@@ -3139,7 +3139,11 @@ export type Database = {
           created_at: string | null
           drops: number | null
           espn_team_id: number | null
+          faab_awarded: number | null
+          faab_budget: number | null
           faab_spent: number | null
+          faab_traded_in: number | null
+          faab_traded_out: number | null
           franchise_id: string
           free_agent_adds: number | null
           id: string
@@ -3156,7 +3160,11 @@ export type Database = {
           created_at?: string | null
           drops?: number | null
           espn_team_id?: number | null
+          faab_awarded?: number | null
+          faab_budget?: number | null
           faab_spent?: number | null
+          faab_traded_in?: number | null
+          faab_traded_out?: number | null
           franchise_id: string
           free_agent_adds?: number | null
           id?: string
@@ -3173,7 +3181,11 @@ export type Database = {
           created_at?: string | null
           drops?: number | null
           espn_team_id?: number | null
+          faab_awarded?: number | null
+          faab_budget?: number | null
           faab_spent?: number | null
+          faab_traded_in?: number | null
+          faab_traded_out?: number | null
           franchise_id?: string
           free_agent_adds?: number | null
           id?: string

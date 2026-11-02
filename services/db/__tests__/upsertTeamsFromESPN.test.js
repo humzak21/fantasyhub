@@ -72,25 +72,6 @@ describe('upsertTeamsFromESPN · logo', () => {
   });
 });
 
-describe('upsertTeamsFromESPN · FAAB', () => {
-  it('stores what is left, including nothing at all', async () => {
-    const ctx = makeCtx(handlers([{ ...STORED, faab_remaining: 13 }]));
-
-    await upsertTeamsFromESPN(ctx, SEASON_ID, [{ ...FROM_ESPN, ownerName: STORED.owner, faabRemaining: 0 }]);
-
-    expect(ctx.client.callsFor('teams', 'update')[0].payload).toEqual({ faab_remaining: 0 });
-  });
-
-  it('leaves the figure alone when the run did not read one', async () => {
-    const ctx = makeCtx(handlers([{ ...STORED, faab_remaining: 13 }]));
-
-    const result = await upsertTeamsFromESPN(ctx, SEASON_ID, [{ ...FROM_ESPN, ownerName: STORED.owner }]);
-
-    expect(result).toMatchObject({ updated: 0, unchanged: 1 });
-    expect(ctx.client.callsFor('teams', 'update')).toHaveLength(0);
-  });
-});
-
 describe('upsertTeamsFromESPN · owner', () => {
   it('never patches an owner ESPN disagrees with', async () => {
     const ctx = makeCtx(handlers());

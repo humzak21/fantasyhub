@@ -27,7 +27,8 @@ export const qk = {
 
   teams: {
     ...scope('teams'),
-    forSeason: (seasonId) => ['teams', seasonId, 'list']
+    forSeason: (seasonId) => ['teams', seasonId, 'list'],
+    faabLedger: (seasonId) => ['teams', seasonId, 'faab']
   },
 
   divisions: {
