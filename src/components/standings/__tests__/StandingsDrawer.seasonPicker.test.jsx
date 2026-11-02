@@ -28,6 +28,9 @@ const SEASONS = [
 const hookCalls = { seasonTeams: [], divisions: [], standings: [], mutations: [] };
 
 vi.mock('../../../../hooks/queries/index.js', () => ({
+  useActualWeek: () => 1,
+  useSeasonConfig: () => null,
+  useLiveWeek: () => ({ data: null }),
   useSeasons: ({ enabled } = {}) => ({ data: enabled ? SEASONS : undefined }),
   useSeasonTeams: (seasonId) => {
     hookCalls.seasonTeams.push(seasonId);

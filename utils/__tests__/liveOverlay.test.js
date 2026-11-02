@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 
-import { canBeLive, joinLiveWeek, overlayGame, overlayLineups } from '../liveOverlay.js';
+import {
+  applyLiveScores,
+  canBeLive,
+  joinLiveWeek,
+  liveStandingsWeek,
+  overlayGame,
+  overlayLineups
+} from '../liveOverlay.js';
 import { GAME_STATE } from '../../services/espnLiveScoreMapper.js';
 
 const WEEK = 8;
@@ -225,5 +232,47 @@ describe('overlayLineups', () => {
     const [row] = overlayLineups({ 'team-a': [] }, live)['team-a'];
 
     expect(row.injuryStatus).toBe('OUT');
+  });
+});
+
+describe('liveStandingsWeek', () => {
+  it('is this week while its games are unscored', () => {
+    expect(liveStandingsWeek({ actualWeek: WEEK, games })).toBe(WEEK);
+  });
+
+  it('holds last week until its scores land, in the small hours of Tuesday', () => {
+    expect(liveStandingsWeek({ actualWeek: WEEK + 1, games })).toBe(WEEK);
+  });
+
+  it('is nothing once every game is scored, or before the week is known', () => {
+    const scored = games.map((g) => ({ ...g, team1Score: 100, team2Score: 90 }));
+
+    expect(liveStandingsWeek({ actualWeek: WEEK, games: scored })).toBeNull();
+    expect(liveStandingsWeek({ actualWeek: null, games })).toBeNull();
+  });
+});
+
+describe('applyLiveScores', () => {
+  const liveWith = (first, second) => ({
+    games: { 'game-1': { team1: side(6, first, 100), team2: side(2, second, 100) } }
+  });
+
+  it('plays a game as if it ended now, without calling it complete', () => {
+    const [game, untouched] = applyLiveScores(games, liveWith(18.5, 40));
+
+    expect(game).toMatchObject({ team1Score: 18.5, team2Score: 40 });
+    expect(game.isCompleted).toBeUndefined();
+    expect(untouched).toBe(games[1]);
+  });
+
+  it('leaves a game at 0-0 alone: it has not started, and is not a tie', () => {
+    expect(applyLiveScores(games, liveWith(0, 0))[0]).toBe(games[0]);
+  });
+
+  it('leaves the caller\'s games alone, and everything without a snapshot', () => {
+    applyLiveScores(games, liveWith(18.5, 40));
+
+    expect(games[0].team1Score).toBeNull();
+    expect(applyLiveScores(games, null)).toEqual(games);
   });
 });
