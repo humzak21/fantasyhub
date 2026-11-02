@@ -29,7 +29,7 @@
  * rating — are out by design: none of them exists for past seasons.
  */
 
-import { FULL_LINEUP, EPSILON } from '../recordBook/index.js';
+import { FULL_LINEUP, EPSILON, SCORE_BANDS } from '../recordBook/index.js';
 
 export const CATEGORIES = [
   { id: 'record', label: 'Record' },
@@ -135,6 +135,10 @@ export const STATS = [
     components: (f) => ({ n: is(f.weeklyHigh) }), value: (t) => t.n }),
   week({ id: 'weeklyLows', category: 'scoring', label: 'Weekly low scores', better: 'lower', description: 'Weeks with the league’s bottom score.',
     components: (f) => ({ n: is(f.weeklyLow) }), value: (t) => t.n }),
+  ...SCORE_BANDS.map((band) =>
+    week({ id: band.id, category: 'scoring', label: `${band.label} games`, better: band.id === 'gamesUnder100' ? 'lower' : 'higher', description: band.description,
+      components: (f) => ({ n: is(band.matches(f.pf)) }), value: (t) => t.n })
+  ),
   placement({ id: 'scoringTitles', category: 'scoring', label: 'Scoring titles', description: 'Seasons with the most regular-season points.',
     components: (f) => ({ n: is(f.scoringTitle) }), value: (t) => t.n }),
 
@@ -199,7 +203,9 @@ export const STATS = [
   placement({ id: 'playoffPpg', label: 'Playoff points per game', kind: 'rate', format: 'points', description: 'Points per bracket game.',
     components: (f) => (f.playoffGames > 0 ? { points: f.playoffPoints, games: f.playoffGames } : null),
     value: (t) => ratio(t.points, t.games) }),
-  placement({ id: 'lastPlaces', label: 'Last-place finishes', better: 'lower', description: 'Seasons finishing last in the regular season, by record, then points for.',
+  placement({ id: 'divisionTitles', label: 'Division titles', description: 'Seasons with the best regular-season record in the division.',
+    components: (f) => ({ n: is(f.divisionTitle) }), value: (t) => t.n }),
+  placement({ id: 'lastPlaces', label: 'Punishments', better: 'lower', description: 'Seasons finishing last in the regular season, by record, then points for.',
     components: (f) => ({ n: is(f.lastPlace) }), value: (t) => t.n }),
 
   // -------------------------------------------------------------------------

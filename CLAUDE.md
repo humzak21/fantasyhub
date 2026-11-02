@@ -1454,7 +1454,9 @@ out from `lg`. History
   form labels and whole-row links (recent form, record cards) stay as they are.
 - **Division titles are worked out, not stored**
   (`utils/profile/trophyCase.js::deriveDivisionTitles`): the best regular-season
-  record in each division of a completed season, by the canonical sort.
+  record in each division of a completed season, by the canonical sort. The
+  shelf counts them, and below it the franchise's 1 seeds and punishments, each
+  with the week it was locked (`locksHeldBy`).
 - **Records held are every #1, good or bad**, ties included, regular season for
   game records: `recordsHeldBy` over the record book's own query key. A row
   links to its card only for a viewer who can open History.
@@ -1629,11 +1631,54 @@ decided. The admin's hand-entered stat awards (`category = 'non-voted'`, e.g.
 now. Three have no data to become one: injuries ("INOVA"), and the Monday-night
 comeback and collapse awards, which need intra-week scoring.
 
+**History's season detail** carries the season's division winners, 1 seed and
+punishment above its standings. Both come from the season's own teams, so they
+mask as the standings do.
+
 **Head-to-head detail** is `headtohead/matchupSummary.js` (pure, tested) over
 `getMatchupHistory`, which now reports `isRegular`/`isConsolation`: series,
 record by phase, win %, points, average and highest scores, biggest win,
 longest win streak, the notable games, the last five meetings and every
 meeting.
+
+### How seasons were decided
+
+The Statistics view of the Statistics tab has **How seasons were decided**
+(`src/components/statistics/situations/LeagueSituations.jsx`) above Compare
+stats: who locked the 1 seed and the punishment and when, how seasons ended by
+starting record, each punishee's path, and the score bands by season. It is
+league history, so like Compare stats it is in place before the season's first
+game. `utils/recordBook/situations.js` is the pure half. `buildRecordBook` turns
+it into rows and `useSituations` reads it on the record book's own query key.
+
+- **Punishment is last place in the regular season**, by the canonical sort.
+  It is not the worst `final_rank`, which the consolation bracket settles: over
+  2020-25 those named different teams in four seasons of six. `lastPlaces` (the
+  record and the comparison stat) reads the standings for that reason, and
+  `final_rank` stays what it was.
+- **The 1 seed is first in the regular season.** Every stored `playoff_seed = 1`
+  is that team, under both seeding rules.
+- **`lockedEnds` is exact and needs no schedule.** First place is lost only if
+  a rival catches the leader, and the worst case against any one rival (the
+  leader loses out, the rival wins out) is always a possible outcome, so each
+  rival is checked alone. `mathematicalStatus` cannot answer this. It asks who
+  makes a six-team field, which is why it tries outcomes and why its fallback
+  bound can be late. Last place is the mirror.
+- **A level record is not a lock while games remain.** The tiebreak is points
+  for, which is still to be scored, the same reasoning as
+  `mathematicalStatus`. So a season that comes down to points locks in its final
+  week and says so (`onPoints`). With nothing left, `compareStandings` decides.
+- **`oneSeedLock` / `punishmentLock` rows include a season in progress once it
+  has locked.** A lock is a result, like a game. Nothing else about that season
+  counts: starts and team-season bands are completed seasons only.
+- **Division titles have two definitions that must agree:**
+  `deriveDivisionTitles` (the trophy case and season detail, from
+  `v_team_standings`) and `markSeasonHonours` / `buildComparisonFacts` (the
+  record and the stat, from the games). Both are the canonical sort within a
+  season's own divisions.
+- **`SCORE_BANDS` is the one list of bands.** Regular-season games; sub-100 is
+  under 100 and each upper band is that score or more, so 130+ includes 160+.
+  Add a band there and the records, comparison stat and table all gain it.
 
 ### The stat comparison is the record book's facts, re-cut
 
@@ -1870,7 +1915,10 @@ somebody in the wrong division rather than fail. A pick that matches no owner
 lands in `unassigned` and renders under its own heading — a member's display
 name is theirs to type, and filing them under a guessed division would
 misreport who is competing with whom. Empty divisions still render, so the
-board's shape does not change as picks arrive. Display names come attached to
+board's shape does not change as picks arrive, and **a team with no pick is on
+the board, greyed out**: each group carries `waiting`, the division's teams with
+no pick that week, on both the Make Picks board and the TD Parlay tab. A
+masked viewer's row is keyed on the team id, never the owner's name. Display names come attached to
 the rows: `getParlayPicksForWeek` resolves them through `getUserDisplayNames`,
 the way `getTakes` and the pick'ems submissions do, because a component
 fetching them separately would paint once with every pick in the wrong column.
@@ -1906,7 +1954,7 @@ again; the page no longer waits on `isParlayCommissionerLoading` either.
 PickEmsManager lazy-loads it and passes `embedded`, which drops its
 `PageHeader` so the page is not titled twice.
 
-**Its week board is division columns too**, through the same
+**Its week board is division columns too**, greyed teams and all, through the same
 `groupPicksByDivision` the members' board uses — the league runs one parlay per
 division, so seven picks in a column is the unit that hits or does not, and a
 flat table sorted by name put two competitions in one list. The grouping matches

@@ -1,14 +1,35 @@
 import React from 'react';
-import { ArrowLeft, Calendar, Crown, Medal } from 'lucide-react';
+import { ArrowLeft, Calendar, Crown, Flag, Medal, Skull } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { isCurrentSeason } from '../../../../utils/seasonConfig.js';
 import { ResponsiveDataTable } from '../../ui/responsive-table';
-import { useSeasonDetail } from '../../../../hooks/queries/index.js';
-import { getMaskedHistoricalOwnerName, getMaskedHistoricalTeamName } from '../utils/privacyHelpers';
+import { useDivisionTitles, useSeasonDetail, useSituations } from '../../../../hooks/queries/index.js';
+import { canViewFullData, getMaskedHistoricalOwnerName, getMaskedHistoricalTeamName } from '../utils/privacyHelpers';
 import { formatRecord, formatPoints, formatPlayoffFinish } from '../utils/statFormatters';
 import { TeamLink } from '../../ui/team-link';
+import { formatRecord as formatRecordRow } from '../../../utils/format';
+
+/** The one line of context under a season's 1 seed or punishee. */
+const lockLine = (lock) =>
+  lock.weeksLeft > 0
+    ? `Locked week ${lock.week}, ${formatRecordRow(lock.record)} with ${lock.weeksLeft} to play`
+    : `Locked in the final week${lock.onPoints ? ', on points' : ''}`;
+
+/** One named line of the season's summary: what it was, who, and how. */
+const SeasonFact = ({ icon: Icon, tone, label, children, detail }) => (
+  <li className="flex min-w-0 items-center gap-3 rounded-lg bg-muted/50 p-3">
+    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${tone}`}>
+      <Icon className="h-4 w-4" aria-hidden="true" />
+    </span>
+    <div className="min-w-0">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="truncate text-sm font-semibold">{children}</p>
+      {detail && <p className="truncate text-xs text-muted-foreground">{detail}</p>}
+    </div>
+  </li>
+);
 
 const SeasonDetail = ({
   season,
@@ -22,6 +43,8 @@ const SeasonDetail = ({
   // the detail behind it.
   const currentSeason = season;
   const { data: seasonData, isLoading: loading } = useSeasonDetail(currentSeason?.id);
+  const { data: divisionTitles = [] } = useDivisionTitles();
+  const { data: situations } = useSituations();
 
   if (loading && !seasonData) {
     return (
@@ -83,6 +106,19 @@ const SeasonDetail = ({
     // Then by points for
     return (b.points_for || 0) - (a.points_for || 0);
   });
+
+  // A team's name as this viewer may read it. Both winners and locks point at
+  // the season's own teams, so they mask exactly as the standings below do.
+  const teamById = new Map(teams.map((team) => [team.team_id, team]));
+  const nameOf = (teamId) => {
+    const team = teamById.get(teamId);
+    if (!team) return null;
+    return <TeamLink team={team}>{getMaskedHistoricalOwnerName(team, user, isAdmin, teamOwnerNames)}</TeamLink>;
+  };
+
+  const seasonDivisionTitles = divisionTitles.filter((title) => title.year === currentSeason.year);
+  const race = situations?.races.find((entry) => entry.seasonId === currentSeason.id);
+  const hasSeasonFacts = seasonDivisionTitles.length > 0 || Boolean(race?.oneSeed || race?.punishment);
 
   const getRankIcon = (index) => {
     if (index === 0) return <Crown className="h-4 w-4 text-amber-500" />;
@@ -228,6 +264,32 @@ const SeasonDetail = ({
               <p className="text-2xl font-bold">{currentSeason.playoff_weeks || 3} weeks</p>
             </div>
           </div>
+
+          {hasSeasonFacts && (
+            <ul className="mb-6 grid gap-3 sm:grid-cols-2" aria-label="How the season was decided">
+              {seasonDivisionTitles.map((title) => (
+                <SeasonFact
+                  key={title.divisionName}
+                  icon={Crown}
+                  tone="bg-primary/12 text-primary"
+                  label={canViewFullData(user, isAdmin, teamOwnerNames) ? `${title.divisionName} winner` : 'Division winner'}
+                  detail={formatRecordRow(title)}
+                >
+                  {nameOf(title.teamId)}
+                </SeasonFact>
+              ))}
+              {race?.oneSeed && (
+                <SeasonFact icon={Flag} tone="bg-success/15 text-success" label="1 seed" detail={lockLine(race.oneSeed)}>
+                  {nameOf(race.oneSeed.teamId)}
+                </SeasonFact>
+              )}
+              {race?.punishment && (
+                <SeasonFact icon={Skull} tone="bg-destructive/15 text-destructive" label="Punishment" detail={lockLine(race.punishment)}>
+                  {nameOf(race.punishment.teamId)}
+                </SeasonFact>
+              )}
+            </ul>
+          )}
 
           {sortedTeams.length > 0 ? (
             <div className="rounded-lg border p-2 sm:p-0 sm:overflow-hidden">

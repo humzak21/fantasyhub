@@ -40,10 +40,12 @@
  */
 
 import { compareStandings } from '../playoffSeeding.js';
+import { SCORE_BANDS, START_LENGTHS, buildSeasonStories, scoreBandsBySeason, startOf, startOutcomes } from './situations.js';
 import { streakRuns } from './streaks.js';
 
 export { rankRows } from './rank.js';
 export { streakRuns } from './streaks.js';
+export { SCORE_BANDS, START_LENGTHS, lockedEnds, startKey } from './situations.js';
 
 /** A lineup starts nine; a win with fewer scoring is short-handed. */
 export const FULL_LINEUP = 9;
@@ -214,7 +216,8 @@ const emptyAggregate = (team, side) => ({
   playoffWins: 0, playoffLosses: 0, playoffPoints: 0,
   firstRoundWins: 0, firstRoundExits: 0,
   lineupWeeks: 0, starterPoints: 0, optimalPoints: 0, perfectWeeks: 0,
-  benchPoints: 0, avoidableLosses: 0, shortHandedWins: 0
+  benchPoints: 0, avoidableLosses: 0, shortHandedWins: 0,
+  ...Object.fromEntries(SCORE_BANDS.map((band) => [band.id, 0]))
 });
 
 /** 'W' | 'L' | 'T' → the matching counter's suffix. */
@@ -243,6 +246,7 @@ function aggregateTeamSeasons(sides, teamById, lineups) {
       if (side.facedTop) a.facedTop += 1;
       if (side.week === 1) a[`week1${RESULT_SUFFIX[side.result]}`] += 1;
       if (isRivalryWeek(side.year, side.week)) a[`rivalry${RESULT_SUFFIX[side.result]}`] += 1;
+      for (const band of SCORE_BANDS) if (band.matches(side.pf)) a[band.id] += 1;
 
       if (side.result === 'W') {
         a.wins += 1;
@@ -308,7 +312,7 @@ function aggregateTeamSeasons(sides, teamById, lineups) {
 
 /**
  * Per completed season: the top record, the scoring title, last place, the
- * podium.
+ * podium, the division titles.
  *
  * Last place is the bottom of the regular-season standings, by the same sort
  * that names first: record, then points for. It is not the worst `final_rank`,
@@ -316,14 +320,18 @@ function aggregateTeamSeasons(sides, teamById, lineups) {
  * 2020, and named the wrong team in four of the first six seasons.
  */
 function markSeasonHonours(aggregates) {
-  for (const [, list] of groupBy(aggregates.filter((a) => a.completed), (a) => a.seasonId)) {
-    const standing = (a) => ({
-      id: a.teamId, wins: a.wins, losses: a.losses, ties: a.ties, pointsFor: a.pf, pointsAgainst: a.pa
-    });
-    const standings = [...list].sort((x, y) => compareStandings(standing(x), standing(y)));
-    const [leader] = standings;
-    const last = standings[standings.length - 1];
+  const standing = (a) => ({
+    id: a.teamId, wins: a.wins, losses: a.losses, ties: a.ties, pointsFor: a.pf, pointsAgainst: a.pa
+  });
+  const byStanding = (list) => [...list].sort((x, y) => compareStandings(standing(x), standing(y)));
+
+  for (const list of groupBy(aggregates.filter((a) => a.completed), (a) => a.seasonId).values()) {
+    const order = byStanding(list);
+    const leader = order[0];
+    const last = order[order.length - 1];
     const highPf = Math.max(...list.map((a) => a.pf));
+    const divisions = groupBy(list.filter((a) => a.team.divisionId), (a) => a.team.divisionId);
+    const divisionWinners = new Set([...divisions.values()].map((members) => byStanding(members)[0]));
 
     for (const a of list) {
       a.madePlayoffs = Boolean(a.team.madePlayoffs);
@@ -333,6 +341,7 @@ function markSeasonHonours(aggregates) {
       a.topRecordFlop = a.topRecord && !a.finalist;
       a.scoringTitle = Math.abs(a.pf - highPf) < EPSILON;
       a.lastPlace = a === last;
+      a.divisionTitle = divisionWinners.has(a);
     }
   }
 }
@@ -373,6 +382,7 @@ function addSeasonRows(store, aggregates, transactions) {
     add('weeklyHighs', a.weeklyHighs);
     add('weeklyLows', a.weeklyLows);
     add('facedTop', a.facedTop);
+    for (const band of SCORE_BANDS) add(band.id, a[band.id]);
     add('consistency', a.consistency);
     if (!a.madePlayoffs) add('pointsMissedPlayoffs', a.pf);
 
@@ -418,9 +428,10 @@ function addCareerRows(store, aggregates, transactions) {
       playoffWins: 0, playoffLosses: 0, playoffPoints: 0,
       firstRoundWins: 0, firstRoundExits: 0,
       championships: 0, finals: 0, playoffAppearances: 0,
-      topRecords: 0, topRecordFlops: 0, scoringTitles: 0, lastPlaces: 0,
+      topRecords: 0, topRecordFlops: 0, scoringTitles: 0, lastPlaces: 0, divisionTitles: 0,
       lineupWeeks: 0, starterPoints: 0, optimalPoints: 0, perfectWeeks: 0,
-      benchPoints: 0, avoidableLosses: 0, shortHandedWins: 0
+      benchPoints: 0, avoidableLosses: 0, shortHandedWins: 0,
+      ...Object.fromEntries(SCORE_BANDS.map((band) => [band.id, 0]))
     };
 
     for (const key of [
@@ -429,7 +440,7 @@ function addCareerRows(store, aggregates, transactions) {
       'week1Wins', 'week1Losses', 'week1Ties', 'rivalryWins', 'rivalryLosses', 'rivalryTies',
       'playoffWins', 'playoffLosses', 'playoffPoints', 'firstRoundWins', 'firstRoundExits',
       'lineupWeeks', 'starterPoints', 'optimalPoints', 'perfectWeeks',
-      'benchPoints', 'avoidableLosses', 'shortHandedWins'
+      'benchPoints', 'avoidableLosses', 'shortHandedWins', ...SCORE_BANDS.map((band) => band.id)
     ]) {
       c[key] += a[key];
     }
@@ -445,6 +456,7 @@ function addCareerRows(store, aggregates, transactions) {
       if (a.topRecordFlop) c.topRecordFlops += 1;
       if (a.scoringTitle) c.scoringTitles += 1;
       if (a.lastPlace) c.lastPlaces += 1;
+      if (a.divisionTitle) c.divisionTitles += 1;
     }
 
     careers.set(a.franchiseId, c);
@@ -481,12 +493,14 @@ function addCareerRows(store, aggregates, transactions) {
     add('topRecords', c.topRecords);
     add('topRecordFlops', c.topRecordFlops);
     add('lastPlaces', c.lastPlaces);
+    add('divisionTitles', c.divisionTitles);
 
     add('pointsFor', c.pf);
     add('weeklyHighs', c.weeklyHighs);
     add('weeklyLows', c.weeklyLows);
     add('scoringTitles', c.scoringTitles);
     add('facedTop', c.facedTop);
+    for (const band of SCORE_BANDS) add(band.id, c[band.id]);
 
     add('championships', c.championships);
     add('finals', c.finals);
@@ -839,6 +853,7 @@ function addLeagueRows(store, sides, teamById, lineups, trades, transactions) {
     add('leaguePpg', points / list.length);
     add('leagueBlowouts', gamesWhere(list, 'isBlowout'));
     add('leagueNarrow', gamesWhere(list, 'isClose'));
+    for (const band of SCORE_BANDS) add(`league_${band.id}`, list.filter((side) => band.matches(side.pf)).length);
 
     // Over the weeks with lineups on record, as the team-level efficiency is.
     const seasonLineups = list.map(lineupFor).filter(hasLineup);
@@ -859,8 +874,70 @@ function addLeagueRows(store, sides, teamById, lineups, trades, transactions) {
 }
 
 // ---------------------------------------------------------------------------
+// How seasons were decided
+// ---------------------------------------------------------------------------
+
+/** The two records' rows for one lock: the week it happened, and the team-season. */
+function addLockRows(store, key, races, pick) {
+  for (const race of races) {
+    const lock = pick(race);
+    if (!lock) continue;
+    push(store, key, {
+      franchiseId: lock.franchiseId,
+      teamId: lock.teamId,
+      year: race.year,
+      week: lock.week,
+      weeksLeft: lock.weeksLeft,
+      onPoints: lock.onPoints,
+      record: lock.record,
+      value: lock.week
+    });
+  }
+}
+
+/** Where a team-season ended up after a given start, as a win % to rank on. */
+function addStartRows(store, key, teamSeasons, start) {
+  for (const team of teamSeasons) {
+    if (!team.completed) continue;
+    const opened = startOf(team, start.games);
+    if (opened?.wins !== start.wins || opened.losses !== start.losses) continue;
+    const games = team.wins + team.losses + team.ties;
+    push(store, key, {
+      franchiseId: team.franchiseId,
+      teamId: team.teamId,
+      year: team.year,
+      finish: team.finish,
+      record: { wins: team.wins, losses: team.losses, ties: team.ties },
+      value: round(winPct({ ...team, games }))
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Entry points
 // ---------------------------------------------------------------------------
+
+/**
+ * How each season was decided, from the record book's own source: the
+ * Statistics tab's half of `buildSeasonStories`, without the rest of the book.
+ *
+ * @param {object} source from `getRecordBookSource`
+ * @returns {{ races: object[], bands: object[], starts: Object<number, object[]> }}
+ *   races newest first; `starts` keyed by `START_LENGTHS`
+ */
+export function buildSituations(source = {}) {
+  const seasons = [...(source.seasons ?? [])].sort((a, b) => a.year - b.year);
+  const seasonById = new Map(seasons.map((season) => [season.id, season]));
+  const teamById = new Map((source.teams ?? []).map((team) => [team.id, team]));
+  const sides = buildSides(source.games ?? [], seasonById, teamById);
+  const { teamSeasons, races } = buildSeasonStories(sides, seasons, teamById);
+
+  return {
+    races: [...races].reverse(),
+    bands: scoreBandsBySeason(sides, seasons),
+    starts: Object.fromEntries(START_LENGTHS.map((games) => [games, startOutcomes(teamSeasons, games)]))
+  };
+}
 
 /**
  * @param {object} source from `getRecordBookSource`
@@ -894,6 +971,12 @@ export function buildRecordBook(source = {}) {
   addTradeRows(career, season, trades);
   addBidRows(season, source.bids ?? [], seasonById);
   addLeagueRows(season, sides, teamById, source.lineups ?? [], trades, source.transactions ?? []);
+
+  const stories = buildSeasonStories(sides, seasons, teamById);
+  addLockRows(season, 'oneSeedLock', stories.races, (race) => race.oneSeed);
+  addLockRows(season, 'punishmentLock', stories.races, (race) => race.punishment);
+  addStartRows(season, 'after03', stories.teamSeasons, { games: 3, wins: 0, losses: 3 });
+  addStartRows(season, 'after30', stories.teamSeasons, { games: 3, wins: 3, losses: 0 });
 
   const yearsPlayed = new Set(sides.map((side) => side.year));
 

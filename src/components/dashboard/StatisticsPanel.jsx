@@ -13,6 +13,7 @@ import AllPlayRecordsChart from '../statistics/charts/AllPlayRecordsChart';
 import PointsPerGameChart from '../statistics/charts/PointsPerGameChart';
 import FloatingTeamFilter from '../ui/FloatingTeamFilter';
 import StatComparison from '../statistics/compare/StatComparison';
+import LeagueSituations from '../statistics/situations/LeagueSituations';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import PageHeader from '../layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -97,7 +98,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, embedd
           />
         </Card>
         {/* League history, so it does not wait on this season's first game. */}
-        <div className="mt-10">
+        <div className="mt-10 space-y-10">
+          <LeagueSituations user={user} isAdmin={isAdmin} teamOwnerNames={teamOwnerNames} />
           <StatComparison user={user} isAdmin={isAdmin} teamOwnerNames={teamOwnerNames} />
         </div>
       </>
@@ -453,6 +455,8 @@ const StatisticsPanel = ({ rankings = [], currentWeek = 1, season = null, embedd
             </Card>
           </div>
         </Section>
+
+        <LeagueSituations user={user} isAdmin={isAdmin} teamOwnerNames={teamOwnerNames} />
 
         <StatComparison user={user} isAdmin={isAdmin} teamOwnerNames={teamOwnerNames} />
       </div>

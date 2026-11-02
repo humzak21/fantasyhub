@@ -15,7 +15,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 
 import { getDb } from '../../services/db/index.js';
-import { buildRecordBook } from '../../utils/recordBook/index.js';
+import { buildRecordBook, buildSituations } from '../../utils/recordBook/index.js';
 import { buildRecordTrends } from '../../utils/recordTrend.js';
 import { deriveDivisionTitles } from '../../utils/profile/trophyCase.js';
 import { buildSeasonIndex } from '../../utils/franchiseWeeks.js';
@@ -170,6 +170,21 @@ export function useHomeRecordBooks({ enabled = true } = {}) {
     queryKey: qk.history.recordBook(),
     queryFn: () => db().history.getRecordBookSource(),
     select: buildHomeRecordBooks,
+    enabled,
+    ...STABLE
+  });
+}
+
+/**
+ * How each season was decided: the locks, the punishee's path, starts and
+ * score bands. The record book's query again, so the Statistics tab's cards
+ * and Compare stats share one read, and `enabled` waits for the scroll.
+ */
+export function useSituations({ enabled = true } = {}) {
+  return useQuery({
+    queryKey: qk.history.recordBook(),
+    queryFn: () => db().history.getRecordBookSource(),
+    select: buildSituations,
     enabled,
     ...STABLE
   });
