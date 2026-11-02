@@ -192,7 +192,7 @@ describe('pickOutlook, in play', () => {
 
   it('says what can catch a lead', () => {
     const chip = outlook({
-      a: [played(60), starter(NOT_STARTED)],
+      a: [played(80), starter(NOT_STARTED)],
       b: [played(50), starter(NOT_STARTED), starter(NOT_STARTED)]
     });
     expect(chip.detail).toBe('opponent has 2 left');
