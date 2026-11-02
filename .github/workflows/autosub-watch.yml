@@ -1,0 +1,68 @@
+name: Autosub watch
+
+# Fires autosubs. A member names a bench player to take over from a starter;
+# in the two hours before that starter's game (when ESPN publishes inactives)
+# and the hour after, this reads ESPN's live lineup. If the starter is ruled
+# out it makes the swap on ESPN or leaves it to the commissioners, and tells
+# the commissioner and vice commissioner either way. See
+# scripts/autosub-watch.js and services/autosubPlanner.js.
+#
+# No `schedule:`. pg_cron runs private.dispatch_autosub_watch() every ten
+# minutes, and that dispatches this only when an autosub is inside its window,
+# so a week with no autosubs costs no minutes. See
+# supabase/migrations/20261103120000_autosubs.sql.
+#
+# Run it by hand as a dry run to see what would happen. A real manual run acts
+# on anything inside its window, exactly as a scheduled one does.
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: 'Who started this run. The Supabase cron sends "cron"; leave it on "manual".'
+        required: false
+        default: manual
+        type: choice
+        options: [manual, cron]
+      dry_run:
+        description: 'Only print what would be done. Reads ESPN; changes nothing.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  # Its own group, not `espn-write`: this must not wait behind a sync that can
+  # hold that group for fifteen minutes on a Sunday morning, and it writes
+  # nothing a sync writes except two roster slots the next sync rewrites.
+  # One at a time is what lets a `firing` row mean a run died.
+  group: autosub-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Fire due autosubs
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ESPN_S2: ${{ secrets.ESPN_S2 }}
+          ESPN_SWID: ${{ secrets.ESPN_SWID }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node scripts/autosub-watch.js ${{ inputs.dry_run && '--dry-run' || '' }}

@@ -88,8 +88,8 @@ export {
   usePlayersByName,
   useIsParlayCommissioner,
   useLeagueMembers,
-  useParlayCommissioners,
-  useSetParlayCommissioners
+  useRoleHolders,
+  useSetRoleHolders
 } from './useParlay.js';
 
 export { useParlayLive } from './useParlayLive.js';
@@ -144,3 +144,4 @@ export {
   usePlayerCareer
 } from './useLeagueHistory.js';
 export { useAskLeague } from './useAskLeague.js';
+export { useAutosubAccess, useMyAutosubs, useAutosubMutations } from './useAutosubs.js';

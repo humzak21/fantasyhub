@@ -39,6 +39,89 @@ export type Database = {
   }
   public: {
     Tables: {
+      autosubs: {
+        Row: {
+          bench_player_id: string
+          created_at: string
+          created_by: string | null
+          detail: string | null
+          fired_at: string | null
+          id: string
+          injury_status: string | null
+          notified_at: string | null
+          reason: string | null
+          season_id: string
+          slot: string
+          starter_player_id: string
+          status: string
+          team_id: string
+          week: number
+        }
+        Insert: {
+          bench_player_id: string
+          created_at?: string
+          created_by?: string | null
+          detail?: string | null
+          fired_at?: string | null
+          id?: string
+          injury_status?: string | null
+          notified_at?: string | null
+          reason?: string | null
+          season_id: string
+          slot: string
+          starter_player_id: string
+          status?: string
+          team_id: string
+          week: number
+        }
+        Update: {
+          bench_player_id?: string
+          created_at?: string
+          created_by?: string | null
+          detail?: string | null
+          fired_at?: string | null
+          id?: string
+          injury_status?: string | null
+          notified_at?: string | null
+          reason?: string | null
+          season_id?: string
+          slot?: string
+          starter_player_id?: string
+          status?: string
+          team_id?: string
+          week?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "autosubs_bench_player_id_fkey"
+            columns: ["bench_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autosubs_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autosubs_starter_player_id_fkey"
+            columns: ["starter_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "autosubs_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       award_votes: {
         Row: {
           award_id: string | null
@@ -2150,6 +2233,9 @@ export type Database = {
       }
       seasons: {
         Row: {
+          autosub_espn_writes: boolean
+          autosub_weekly_limit: number
+          autosubs_enabled: boolean
           awards_release_at: string | null
           completed_at: string | null
           created_at: string | null
@@ -2179,6 +2265,9 @@ export type Database = {
           year: number
         }
         Insert: {
+          autosub_espn_writes?: boolean
+          autosub_weekly_limit?: number
+          autosubs_enabled?: boolean
           awards_release_at?: string | null
           completed_at?: string | null
           created_at?: string | null
@@ -2208,6 +2297,9 @@ export type Database = {
           year: number
         }
         Update: {
+          autosub_espn_writes?: boolean
+          autosub_weekly_limit?: number
+          autosubs_enabled?: boolean
           awards_release_at?: string | null
           completed_at?: string | null
           created_at?: string | null
@@ -4389,6 +4481,17 @@ export type Database = {
       season_current_week: { Args: { p_season_id: string }; Returns: number }
       season_week_start: {
         Args: { p_season_id: string; p_week: number }
+        Returns: string
+      }
+      owns_team: { Args: { p_team_id: string }; Returns: boolean }
+      remove_autosub: { Args: { p_id: string }; Returns: boolean }
+      set_autosub: {
+        Args: {
+          p_bench_player_id: string
+          p_starter_player_id: string
+          p_team_id: string
+          p_week: number
+        }
         Returns: string
       }
       set_member_approval: {

@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils';
 import { useLineupsForWeek, useNflOpponentMap } from '../../../hooks/queries/index.js';
 import { teamOf } from '../../../utils/playerImages.js';
 import { TeamLink } from '../ui/team-link';
+import { AutosubSection } from '../autosub/AutosubSection';
 
 /** The slots this league starts, in lineup order. Matches OPTIMAL_LINEUP_TEMPLATE. */
 const STARTER_SLOTS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
@@ -63,12 +64,15 @@ const LineupPanel = ({ seasonId, nflSeasonYear, week, actualWeek, sides = [] }) 
   return (
     <div className="grid grid-cols-1 gap-5 border-t border-border/60 p-3.5 sm:grid-cols-2">
       {sides.map((side) => (
-        <TeamLineup
-          key={side.teamId}
-          teamName={side.teamName}
-          rows={rowsByTeam?.[side.teamId] ?? []}
-          opponents={opponents}
-        />
+        <div key={side.teamId} className="min-w-0 space-y-3">
+          <TeamLineup
+            teamName={side.teamName}
+            rows={rowsByTeam?.[side.teamId] ?? []}
+            opponents={opponents}
+          />
+          {/* A past or future week has nothing to set: an autosub is for now. */}
+          {week === actualWeek && <AutosubSection teamId={side.teamId} />}
+        </div>
       ))}
     </div>
   );

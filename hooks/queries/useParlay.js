@@ -156,30 +156,30 @@ export function useLeagueMembers({ enabled = true } = {}) {
   });
 }
 
-/** Who currently holds `parlay_commissioner`. */
-export function useParlayCommissioners({ enabled = true } = {}) {
+/** Who currently holds a role. */
+export function useRoleHolders(role, { enabled = true } = {}) {
   const { isAuthenticated } = useAuth();
 
   return useQuery({
-    queryKey: qk.roles.parlayCommissioners(),
-    queryFn: () => db().users.getParlayCommissioners(),
+    queryKey: qk.roles.holders(role),
+    queryFn: () => db().users.getRoleHolders(role),
     enabled: enabled && isAuthenticated
   });
 }
 
 /**
- * Set the commissioner list to exactly the ids given.
+ * Set a role's holders to exactly the ids given.
  *
  * Invalidates the whole `viewer` domain, not just the admin's own entry: the
  * grant changes what *someone else* may see, and their session is keyed on
  * their own user id. Invalidating the key the admin happens to hold would
  * leave the grantee looking at a cached "no" for half an hour.
  */
-export function useSetParlayCommissioners() {
+export function useSetRoleHolders(role) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (userIds) => db().users.setParlayCommissioners(userIds),
+    mutationFn: (userIds) => db().users.setRoleHolders(role, userIds),
     onSuccess: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: qk.roles.all }),

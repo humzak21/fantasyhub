@@ -76,6 +76,10 @@ clock, GitHub's runners".
   a local copy. The daily refresh and weekly sync run it; see "The league chat
   queries a snapshot".
 
+- `npm run autosub-watch` - Fire the autosubs that are due. `--dry-run` reads ESPN
+  and changes nothing. pg_cron dispatches the workflow only when one is near
+  kickoff; see "An autosub is a member's standing order".
+
 ### Utilities
 - `npm run clean` - Clean build artifacts and cache
 - `npm run check-bundle` - Assert no circular static imports between eager chunks
@@ -88,7 +92,7 @@ clock, GitHub's runners".
   `divisions`, `rosters`, `players`, `playerWeekStats`, `games`, `rankings`,
   `schedule`, `nflSchedule`, `pickems`, `parlay`, `awards`, `playoffs`,
   `transactions`, `takes`, `history`, `users`, `espnMapping`, `leagueChat`,
-  `franchiseProfiles`).
+  `franchiseProfiles`, `autosubs`).
   **Write new data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
@@ -1857,7 +1861,9 @@ re-picking resets it to NULL, and the weekly sync's grader deliberately leaves
 it NULL for every case it is not certain of. See "`scored_td` is written by the
 sync's `parlayGrades` step" under the NFL-data notes below.
 
-**The commissioner is a role, not an admin.** `league_roles` +
+**The parlay commissioner is a role, not an admin** (the league's commissioner
+and vice commissioner are two more rows in the same table, with no powers; see
+"An autosub is a member's standing order"). `league_roles` +
 `is_parlay_commissioner()` exist because admin is every power the app has,
 and the parlay needs a person who grades it without gaining the league's
 write paths. Grants are keyed on `user_id`, so they survive
@@ -3016,6 +3022,86 @@ login" reports were; nothing was bypassed, and nothing had been built.
 - A failed link (`#error_code=otp_expired`) lands here signed out;
   `authLinkError` is left in place so the login popover opens with the same
   message when the member goes back.
+
+### An autosub is a member's standing order for a starter who is ruled out
+
+A member who may not be able to reach their phone names a bench player to take
+over from a starter for one week (`20261103120000_autosubs.sql`). If the
+starter is ruled out, the swap is made on ESPN, or left to the commissioners,
+and the commissioner and vice commissioner hear either way.
+
+- **This is the only write to ESPN in the app.** Everything else reads.
+  `services/espnLineupWriter.js` posts a `ROSTER` transaction to
+  `lm-api-writes`. ESPN documents none of it; the request follows what other
+  projects report. So a reply is never believed: `makeSwap` in
+  `scripts/autosub-watch.js` reads the lineup back, and only that read says
+  `swapped`. A 200 that did not land is `unconfirmed`; a timeout that did land is
+  a swap.
+- **Settings → Autosubs is three columns on the season, admin only**, through
+  `seasons`' own `is_admin()` write policy. All three carry to next season.
+- **`autosub_weekly_limit` is how many a team may set in a week, 1-9**, for all
+  teams alike. Nine is every starter in this league's lineup, so the default caps
+  nothing until an admin lowers it. `set_autosub()` enforces it, with a lock on
+  the team row so two devices cannot both slip under it. A fired autosub still
+  counts, re-pointing one does not, and removing one frees its place. Lowering
+  it leaves what is already set. It is per team, not per account: two accounts
+  on one franchise share it. `seasons_autosub_weekly_limit_check` is the range,
+  and `AUTOSUB_LIMIT_MIN` / `AUTOSUB_LIMIT_MAX` are what the setting offers.
+- **Two switches on the season**, because they fail differently. `autosubs_enabled` is the feature: off hides it from every
+  roster, `set_autosub()` refuses, and armed rows do not fire (they resume if it
+  comes back on). `autosub_espn_writes` is whether the watcher may touch ESPN,
+  and **it starts off**: with it off every fired autosub goes to the
+  commissioners by hand. Turn it on once a supervised swap has worked. It needs
+  the `ESPN_S2` secret to belong to a league manager, or ESPN refuses other
+  teams' lineups and every autosub falls back to the commissioners.
+- **Who may set one is `franchise_accounts`, through `owns_team()`**, never a
+  display name, for the reason franchise profiles use it: this one ends in a
+  write to somebody's lineup. **An admin is not folded in.** An autosub is the
+  manager's, so the admin sees only their own team's, and RLS holds that.
+- **`set_autosub()` is the only member write**, and it holds the rules: your
+  team, active season, switch on, under the weekly limit, starter in a starting
+  slot, bench player on the bench and eligible for the slot, both with a game
+  still to come. There is
+  no member write policy. `canCoverSlot` in `services/autosubPlanner.js` and
+  `autosubChoices.js` are the picker's mirror of it.
+- **Every roster renders `AutosubSection teamId={…}`, and the gate lives
+  there**, in `useAutosubAccess`: Teams, Schedule's `LineupPanel` (so the home
+  hero too, current week only) and the viewer's own profile (`framed`). A new
+  roster surface adds that one line. It draws nothing for anybody else's team,
+  and fetches nothing either.
+- **The clock is a query.** `autosub-watch` runs in pg_cron every ten minutes
+  and calls `private.dispatch_autosub_watch()`, which dispatches
+  `autosub-watch.yml` only when an autosub is between two hours before its
+  starter's kickoff and an hour after (inactives land about ninety minutes
+  before). A week with no autosubs costs no Actions minutes. That window is
+  stated twice: the function, and `WATCH_BEFORE_MINUTES` /
+  `WATCH_AFTER_MINUTES`. Change both.
+- **Every doubtful case ends with a person** (`decideAutosub`, pure). The swap
+  needs: starter still in the lineup and ruled out, bench player still on the
+  bench, healthy and in ESPN's own `eligibleSlots`, neither game started, writes
+  on. A starter the manager has already moved means `wait`: they got to their
+  phone, and an autosub must not undo that. Anything else is `manual` with a
+  `reason`, which `describeAutosub` turns into what to do.
+- **"Ruled out" is ESPN's raw status** (`OUT`, `INJURY_RESERVE`, `SUSPENSION`),
+  deliberately not `mapESPNInjuryStatus`, which answers `ACTIVE` for anything it
+  does not know, including those last two. `DOUBTFUL` and `QUESTIONABLE` do not
+  fire. It depends on ESPN marking game-day inactives `OUT`.
+- **Claim, then act.** A row goes `armed` → `firing` before anything happens, so
+  it cannot fire twice. One run at a time (the `autosub-watch` concurrency
+  group, not `espn-write`, because a Sunday sync must not delay this) is what
+  lets a leftover `firing` mean a run died: the next run makes it `manual`
+  (`interrupted`) and never retries, since nobody knows what ESPN did. Telling
+  the commissioners is at-least-once: no `notified_at` means the next run tells
+  them.
+- **Commissioners are not a topic.** The alert goes to every device of
+  `commissioner` and `vice_commissioner`, whatever their topics, plus an Alerts
+  row each, because it is a job and not a preference. Nobody in either role: the
+  admins hear, so a fired autosub is never heard by nobody. Both roles are rows
+  in `league_roles`, granted in Settings → Roles, and neither carries any write
+  power. `getRoleHolders` / `setRoleHolders` are generic over the role.
+- `supabase/tests/database/autosubs.test.sql` holds the rules;
+  `scripts/__tests__/autosub-watch.test.js` the order of things. Run the workflow
+  with `dry_run` to see what would happen: it reads ESPN and changes nothing.
 
 ### Admin is a row in `league_admins`, never an email or the user's own metadata
 

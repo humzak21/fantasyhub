@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Bell, Check, CheckCheck, ListChecks, MessageSquare, Swords, Trash2 } from 'lucide-react';
+import { Bell, Check, CheckCheck, ListChecks, MessageSquare, Repeat2, Swords, Trash2 } from 'lucide-react';
 
 import PageHeader from '../layout/PageHeader.jsx';
 import { Card, CardContent } from '../ui/card';
@@ -42,7 +42,8 @@ const KIND_ICON = [
   [/^pickems/, ListChecks],
   [/^take/, MessageSquare],
   [/^matchup_facts/, Swords],
-  [/^taunts/, Swords]
+  [/^taunts/, Swords],
+  [/^autosub/, Repeat2]
 ];
 
 function alertIcon(kind = '') {

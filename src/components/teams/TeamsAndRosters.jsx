@@ -34,6 +34,7 @@ import { useActualWeek, useNflOpponentMap } from '../../../hooks/queries/index.j
 import { cn } from '../../lib/utils';
 import { TEAM_PARAM } from './teamLink.js';
 import { TeamIdentityLink } from '../ui/team-link';
+import { AutosubSection } from '../autosub/AutosubSection';
 
 /** How long a linked card keeps its ring after the scroll lands. */
 const LINKED_HIGHLIGHT_MS = 2000;
@@ -542,6 +543,7 @@ const TeamsAndRosters = ({
 
                   {/* Compact Roster Section */}
                   <CompactTeamRoster team={team} roster={teamRoster} />
+                  <AutosubSection teamId={team.id} className="mt-3" />
                 </CardContent>
               </Card>
             );
