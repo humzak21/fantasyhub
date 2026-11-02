@@ -36,8 +36,12 @@ export const SCORE_BANDS = [
   { id: 'games160Plus', label: '160+', description: 'Regular-season games of 160 points or more.', matches: (score) => score >= 160 }
 ];
 
-/** The starts the Statistics tab can be read by, in games played. */
-export const START_LENGTHS = [2, 3, 4, 5];
+/**
+ * The starts the Statistics tab can be read by, in games played. Thirteen is the
+ * shortest regular season the league has played (2020), so every completed
+ * season reaches every length.
+ */
+export const START_LENGTHS = Array.from({ length: 12 }, (_, index) => index + 2);
 
 const equivalentWins = (row) => row.wins + row.ties / 2;
 
