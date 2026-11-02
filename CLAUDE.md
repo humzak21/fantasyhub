@@ -27,7 +27,8 @@ clock, GitHub's runners".
 - `npm run lint:fix` - Automatically fix ESLint errors
 - `npm run type-check` - Run TypeScript checking without emitting files
 - `npm run test:e2e` - Playwright smoke: every route at 375x667 and 1280x800,
-  asserting no horizontal overflow. Needs a build first.
+  asserting no horizontal overflow, plus the projected, live and final states of a
+  score against a fixed league. Needs a build first.
 - `npm run check-css-tokens` - Assert the Tailwind theme layer reached the
   built CSS. Run after `npm run build`.
 - `npm run check-mobile` - Grep guards for the mobile mistakes this codebase
@@ -82,6 +83,10 @@ clock, GitHub's runners".
   a local copy. The daily refresh and weekly sync run it; see "The league chat
   queries a snapshot".
 
+- `npm run calibrate-outlook-spreads` - Print how far starters land from their
+  projections, by position: the numbers behind the Pick'ems chips. Read-only, and
+  they go in by hand; see "One matchup card, on every Pick'ems surface".
+
 - `npm run autosub-watch` - Fire the autosubs that are due. `--dry-run` reads ESPN
   and changes nothing. pg_cron dispatches the workflow only when one is near
   kickoff; see "An autosub is a member's standing order".
@@ -98,7 +103,7 @@ clock, GitHub's runners".
   `divisions`, `rosters`, `players`, `playerWeekStats`, `games`, `rankings`,
   `schedule`, `nflSchedule`, `pickems`, `parlay`, `awards`, `playoffs`,
   `transactions`, `takes`, `history`, `users`, `espnMapping`, `leagueChat`,
-  `franchiseProfiles`, `autosubs`).
+  `franchiseProfiles`, `autosubs`, `liveScores`).
   **Write new data access here.**
   - `services/powerRankingCalculator.js` - Advanced ranking algorithms with configurable weights
   - `services/espnScheduleFetcher.js` - ESPN integration for schedule data
@@ -573,6 +578,85 @@ created before ESPN ids were stored instead of duplicating them. The ESPN
 staging tables (`espn_teams`, `espn_matchups`) and `assign_schedule_to_season`
 were deleted on 2026-08-08; `espn_schedule_imports` remains as the import log.
 The browser cannot start an import — ESPN needs cookies only the scripts have.
+
+### The live week is one shared snapshot
+
+Fantasy scores are written once a week, so from Thursday's kickoff to Tuesday
+morning every surface used to show projections. `supabase/functions/live-scores`
+closes that gap. Every browser asks the function, never ESPN. It answers at once
+from one row per (season, week) in `live_week_snapshot`, and while a game is on it
+refreshes that row behind the answer, at most every 15 minutes, so ESPN hears from
+us once however many people are watching, and not at all on a day with no game.
+
+**Nothing writes `games`, and nothing may.** `games.is_completed` is generated from
+the two scores and the triggers roll standings from it, so a partial score there
+would complete the game, move the standings and feed the parlay grader. The Tuesday
+sync stays the only author of a result, and the table can be dropped with no effect
+on anything official.
+
+- **The precedence is official, then live, then projected, in one file:**
+  `utils/liveOverlay.js`. `joinLiveWeek` drops a game with a score, lineup and all.
+  `overlayGame` puts a live side on `game.live` and never touches `team1Score`,
+  because that field is what every surface takes to mean a result. The one
+  exception is `applyLiveScores`, a copy for the standings drawer's Live view.
+- **`useLineupsForWeek` is where the overlay is applied.** Anything that reads
+  lineups through it goes live for free, and `live` comes back beside the rows for
+  what rows cannot carry: each game's score and projection, and the snapshot's age.
+  `useCurrentLineups` on its own skips the overlay. The old research panel called
+  it directly, and stayed on projections while Schedule went live.
+- **ESPN's score fields are not what they look like.** `totalPoints` reads 0 until
+  a week settles. `totalPointsLive` is the score so far, and equals the starters'
+  `appliedStatTotal` exactly. `totalProjectedPointsLive` is ESPN's live projection.
+  A week that has not begun has only the pregame `totalProjectedPoints`. All
+  measured on 2026-11-02, mid-week; see `liveFigures` in
+  `services/espnScheduleFetcher.js`.
+- **The rosters go through the sync's own `mapMatchupRosterEntries`,** so an actual
+  is still null until there is a stat line: a 0 before kickoff stays a projection, a
+  0 at halftime is a real 0 so far. `mapLiveLineups` adds one thing the sync never
+  needs. A player whose NFL game has finished with no stat line was inactive, so his
+  0 is a result now, and ESPN's live total already counts it.
+- **Whichever lineup was read last decides who is in it.** A snapshot's lineup beats
+  `rosters` only when it is newer than that roster sync (`overlayTeam` compares
+  `refreshedAt` with each row's `updatedAt`). That is what shows a 12:55 lineup
+  change from the first refresh after it, and stops Thursday's snapshot standing over
+  Friday's waivers until Sunday. Points are the snapshot's either way.
+- **Windows come from the calendar.** `services/gameWindows.js` opens one window per
+  Eastern day with a game, from its first kickoff to four hours past its last, so
+  Wednesday, Friday, Saturday and London games need no rule of their own. A
+  `start_time_tbd` row is skipped, because its time is ESPN's placeholder. A week
+  with no kickoffs on file is unknown, and falls back to the usual Thu/Sun/Mon slots.
+  `parlay-live` reads the same windows at the same 15 minutes.
+- **The claim is one atomic statement.** `claim_live_week_refresh` checks the claim
+  and `refreshed_at` together, because a refresh that has just finished has released
+  its claim and a viewer who read the old row a moment ago would otherwise spend a
+  second call. A failed refresh keeps its claim, so a dead cookie costs one attempt
+  per `LIVE_RETRY_AFTER_MS` (5 minutes), not one per viewer. Service role only.
+- **The client polls on `windowOpen` as well as `live`.** The first viewer of a
+  Sunday is answered from Thursday's row while the refresh runs behind that answer,
+  and polling on `live` alone would stop there. Past the window, a row that still
+  says a game is on takes one more look, so a game in overtime is not left a quarter
+  short. `LIVE_TAIL_MS` (6 hours) ends that, because a failing refresh never writes
+  `live = false`.
+- **`canBeLive` keeps it off history:** only this week, or last week until Tuesday's
+  sync lands (the week rolls over at 00:00 ET and the sync runs at 05:00), and only
+  while one of its games has no score. The function is public, so it will not
+  refresh any other week, whatever it is asked.
+- **Live is a third claim** in `ui/player-points.jsx`, neither a result nor a guess.
+  `lineupTotal` adds `scored`, `yetToPlay` and `liveState` (`playing`, `between`,
+  `done`), but only to rows the overlay has touched, so nothing else changes shape.
+  `between` reads "so far": a dot pulsing through a Saturday would claim a game
+  nobody is playing. Schedule's badge reads Live, In progress or Unofficial.
+- **`getLiveWeek` degrades instead of throwing,** like `parlay.getLiveStatus`. This
+  is an overlay, and with it gone the page shows what it showed before there was one.
+
+**Deployed by hand, and it bundles `services/`.** A change to `liveScores.js`,
+`gameWindows.js`, `espnPlayerStatsMapper.js` or `espnScheduleFetcher.js` does not
+reach the function on merge. Redeploy `live-scores` (and `parlay-live` for
+`gameWindows.js`) with `--no-verify-jwt`. The function holds its own `ESPN_S2` and
+`ESPN_SWID`, set with `supabase secrets set`, separately from the Actions secrets,
+so a yearly cookie change means both. **A GET is the check:** which secrets it can
+see, and whether ESPN serves Supabase's egress. Settings → Automations shows the
+newest snapshot, its age and the last error.
 
 ### The power ranking is roster-aware
 `services/powerRankingCalculator.js` scores ten components, each normalized
@@ -1188,8 +1272,8 @@ surfaces cannot drift:
   cancelling an edit. A write sweeps the member's other weeks. Every storage
   call is wrapped. Tests that render a form clear `localStorage` in
   `beforeEach`, or one test's typing becomes the next one's form.
-- **Shared components, not copies:** `PickEmGameRow` (with `compact` and
-  `showResult`), `PlayerPicker` (`idPrefix`, `onChange`), `ParlayCurrentPick`,
+- **Shared components, not copies:** `MatchupPickCard` (with `compact`),
+  `PlayerPicker` (`idPrefix`, `onChange`), `ParlayCurrentPick`,
   `ParlayMyPick`, `PickEmsSubmitBar` (a `className` to re-fit it in a card).
 - **`PickEmsManager` reads through the `usePickEms` hooks** — it used to load
   with raw `getDb()` calls into `useState`, so a submission anywhere else was
@@ -1364,6 +1448,44 @@ bracket, which is what the History season bracket can build on.
   included, and they sit under it with the same card. Nothing projects those.
 - **`fallback` is the old list**, for a league with no full field. Pre-2026
   seasons never reach this component.
+
+### The standings drawer reads three ways
+
+The drawer's toggle is **Live · Official · Week** (`StandingsViewToggle`), for the
+active season. A past season has one table.
+
+- **Official is the RPC.** It reads the totals the triggers roll onto `teams`, so it
+  can only ever say "as of now", which is why the other two need a mirror.
+- **Live plays the week in progress as if the games ended now,** and shows each row's
+  movement against Official. It is the default while a game is on, and it is computed
+  in the drawer and nowhere else: Home's standings and the rankings stay official. A
+  game still at 0-0 has not started, and counting it would hand both teams a tie.
+- **Week N is the table as it stood.** The picker offers weeks with every game scored.
+
+**`utils/standings/computeStandings.js` is the RPC's client mirror:** teams and games
+in, the RPC's row shape out, through `compareStandings` and `computeSeeds`.
+`standingsThrough` calls the same `tallyRecords`. `computeStandings.test.js` holds it
+to the RPC's real output for 2025 and 2026 (ids anonymised in sorted order, so the id
+tiebreak still means what it did). Changing the rule means changing the RPC,
+`utils/playoffSeeding.js` and that fixture together.
+
+Compared on 2026-11-02 for all of 2020-26, every record, rank, playoff spot, seed and
+bye matched for every team. Two things did not, and neither is the mirror's:
+
+- **`teams.current_streak` is blank on every row,** so the RPC always reports none. The
+  mirror works it out from the games, as `streakOf` already did.
+- **Three 2025 teams' stored point totals differ from their own games** by 2-6 points,
+  while their records agree. That is drift in `teams`. The test pins them by anonymised
+  id rather than loosening the check for everybody.
+
+**The bracket under the tables is drawn from whichever rows are showing,** through
+`resolveUpperBracket`, so real rows winning slot by slot needs no rule of its own. A
+week's view stops at that week, so it shows the bracket that week projected. Under Live
+a drawn game shows its live score, and `isCompleted` staying false is what stops it
+calling a winner. Seeded seasons only.
+
+The rank column's arrow sits under the number. The table is `table-fixed` and already
+tight, and a wider rank column pushes Owner into Record.
 
 ### Path to the Playoffs is the odds model, asked "what if"
 
@@ -2022,6 +2144,45 @@ after the first kickoff. An early Thursday game moves the deadline the same way.
   window on any day with a game, for `live-scores` and `parlay-live` alike.
   `supabase/tests/database/pick_em_deadline.test.sql` holds the rule.
 
+### One matchup card, on every Pick'ems surface
+
+`MatchupPickCard` is the card on Make Picks, Results and the home panel (`compact`,
+no lineups). It replaced two lists over the same games, "Research matchups" and a
+card with the two buttons, and a finished game used to fall off the page. Each side
+is still the radio, carrying the owner, the record and the score. Under the pair sit
+the viewer's chip, how the league picked once the window has closed, and the
+lineups. A finished game stays, locked, with its W.
+
+- **`useMatchupBoard` is one read for the page:** lineups through `useLineupsForWeek`,
+  the opponents, and a chip per game. Fourteen cards share it, on keys Schedule and
+  the hero already hold.
+- **Nothing inside a side may be a block.** A side is a button, which is why
+  `LiveSideNote` takes `as`.
+- **Once the window closes a pick is what was submitted** (`submittedSelections`). A
+  draft nobody sent is not selected and earns no chip. Both pages decide this the same
+  way, and it is a page-level decision: the form still holds the draft.
+- **Chips are the viewer's own picks only,** and Results → Pick Breakdown stays as it
+  is. The home tile reads "5 of 7 safe · 1 in danger" while the week is live.
+
+**`pickOutlook.js` turns a game into a chip and a reason.** The margin is each side's
+live projection; the uncertainty is each remaining starter's spread, shrunk by how much
+of his game is left (`fractionLeft`). That gives a probability, and the probability
+picks Safe (90% or better), On track, Coin flip (40-60%), In danger or Upset alert.
+Locked, Lost, Hit and Miss need no probability: the arithmetic is finished. Before
+kickoff only **Underdog pick** shows, at 8 points behind on projection.
+
+- **A chip never reads red while the pick can still hit.** Only Lost and Miss are
+  destructive.
+- **A trailing pick says what it needs,** even when the opponent has finished. "Opponent
+  has nobody left" is for a lead.
+- **`POSITION_SPREADS` are measured,** by `npm run calibrate-outlook-spreads`, and go in
+  by hand so a person looks at a change that moves every chip. Summed across a lineup
+  they gave 22.7 points of spread against the 22.0 teams actually missed by over weeks
+  1-7 of 2026, so the width is right. The middle is softer: pregame favourites won 23 of
+  48 games, and those favoured by 8 or more 9 of 22. So a chip early in a game is a weak
+  signal, and it sharpens as points replace projections. The thresholds are a first
+  guess, to be tuned after a live Sunday.
+
 ### Pick'ems pays one place, twice a season
 
 The season splits into two in-season tourneys — weeks 1-8 for $20 FAAB in the
@@ -2071,21 +2232,18 @@ still on every line; the team taken is the line's subject and the other follows
 "over", so which was picked survives without colour. A row with no stored
 winner reads "no pick", never as a vote for team 1.
 
-**How the league picked appears once the window closes.** `LeaguePickSplit.jsx`
-shows one box per team, with the share of the week's picks that team got. The
-boxes sit in two rows of seven, one matchup per column (team 1 on top). The
-list stays in matchup order and `grid-flow-col grid-rows-2` pours it down the
-columns, so the reading order and the pairing agree. Its explainer
-(`LeaguePickSplitNote`) goes inside the page's header card. Before the window
-closes it renders nothing and issues no request.
+**How the league picked appears once the window closes.** Each matchup card shows
+its own split, the share of the week's picks each side got, either end of one bar.
+It replaced fourteen boxes in a 2×7 grid above the page. `useLeaguePickSplit` is the
+read, and `LeaguePickSplitNote` is the explainer, inside the page's header card.
+Before the window closes neither renders and no request goes out.
 
-- **It follows the week across two pages.** On Make Picks it sits between the
-  week's card and the TD parlay from the close. A scored week swaps Make Picks
-  for Results (`resultsAvailable`), so the same boxes sit on Results too,
-  under the "Pick'ems Results" card and above the Weekly Results / Pick
-  Breakdown tabs, where a green W (`WinnerMark`) marks each matchup's winner.
-  Each page passes `closed`: Make Picks from its own status (the test the
-  parlay's `isRevealed` makes), Results from `resultsAvailable`.
+- **It follows the week across two pages.** A scored week swaps Make Picks for
+  Results (`resultsAvailable`), so the same cards sit on Results, under the
+  "Pick'ems Results" card and above the Weekly Results / Pick Breakdown tabs, where a
+  green W (`WinnerMark`) marks each matchup's winner. Each page passes `closed`: Make
+  Picks from its own status (the test the parlay's `isRevealed` makes), Results from
+  `resultsAvailable`.
 - **A W needs a completed game with a winner.** `won` in `summarizePickSplit`
   requires `isCompleted` as well as `winnerTeamId`, so an unscored game and a
   tie mark nobody. The explainer says "once the week is scored" until every
@@ -2287,7 +2445,7 @@ standings CSVs. The domain is `nflTeamRatings`; there is no query key — the
 rankings queryFn consumes it inside the db layer, like player stats.
 
 **Three surfaces render the chips**, all through `ui/opponent-chip.jsx`: the
-pick'ems research lineups and parlay picker, the Schedule tab's lineup
+matchup card's lineups and the parlay picker, the Schedule tab's lineup
 disclosure, and the Teams tab. Each reads `useNflOpponentMap(nflSeasonYear,
 week)` — note the *year*, derived as
 `season.espnSeasonYear ?? season.espn_season_year ?? season.year`, never the
@@ -2300,9 +2458,9 @@ projection — a mid-week mixture of settled Thursday actuals and pending Sunday
 projections is not a result, and calling it one is the error a reader cannot
 detect, since 118.4 looks identical either way. Rows with no figure at all are
 skipped rather than counted as zero; the per-row dash is what shows the gap.
-Two surfaces render it and both go through `totalAsPoints` — the pick'ems
-research header (collapsed by default, so that total is often the only number
-a reader sees) and the Schedule card's score line.
+Every surface goes through `totalAsPoints`: the matchup card's sides, the
+Schedule card's score line and the home hero. Rows the live overlay has touched
+add the score so far beside this sum; see "The live week is one shared snapshot".
 
 **On Schedule the imported score always wins.** The projected total renders
 only where `games.team1Score`/`team2Score` is null, so the moment the sync
@@ -2424,7 +2582,7 @@ tested) the URLs, the team spellings and the fallbacks.
   team there would be wrong for a 2021 trade.
 - **Fits or it's omitted, by the list's own width.** `PlayerMark` is the
   image for the dense lineup rows (Schedule's lineup panel, the Teams cards,
-  the pick'ems research panel). It uses container queries on the list (each
+  a matchup card's lineups). It uses container queries on the list (each
   list is `@container`), because the Schedule card's desktop columns are
   narrower than a phone. Under 19rem it draws nothing, from 19rem the 14px
   logo, from 20rem the headshot with a team badge. The thresholds come from
@@ -2736,7 +2894,10 @@ each replaced four or five hand-rolled variants:
   actual is bare; a projection is **labelled "proj"**, not merely dimmed,
   because a guess and a result are different claims and a shade cannot carry
   that. Missing is the em dash, unlabelled. `display` sets it in the scoreboard
-  face for the one place it stands in for a matchup score.
+  face for the one place it stands in for a matchup score. `live` is the third
+  claim, a real figure still moving, and `LiveSideNote` is what a side has left.
+- `ui/live-dot.jsx` — the status dot beside anything live: pulsing with a game on,
+  steady without one.
 - `utils/lineupTotals.js` — `starterTotal(rows)` → `{ total, isProjected }`,
   and `totalAsPoints` to hand that pair to `PlayerPoints`. See "A team's total
   is a projection until every starter in it is a result" below.
@@ -2754,6 +2915,12 @@ was off-screen and unclickable, so nobody could pick team 2 on a phone.
 It is only meaningful because the root `overflow-x: hidden` is gone. Do not
 reintroduce it: it hid every one of those bugs from measurement and from the
 reader alike.
+
+`e2e/live-overlay.spec.js` holds the three claims a score can make (projected,
+live, final) on Schedule's card and the home hero, at both widths. Real data would
+make it a function of the calendar, so `e2e/fixtures/liveWeek.js` freezes the clock
+on a made-up league and answers every Supabase call itself. An unknown read comes
+back empty and an unknown write is refused, so it cannot reach the real database.
 
 For a change to shared CSS, `scripts/capture-screens.mjs` shoots every tab at
 375/768/1280 into a directory. Capture, change, capture again, `cmp` the two.
