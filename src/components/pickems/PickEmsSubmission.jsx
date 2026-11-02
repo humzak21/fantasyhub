@@ -1,16 +1,18 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Clock, Users, Target, AlertCircle, CheckCircle2, Calendar } from 'lucide-react';
 import PickEmsSubmitBar from './PickEmsSubmitBar';
-import MatchupResearchSection from './MatchupResearchSection';
 import ParlayPickSection from './ParlayPickSection';
 import TourneyNote from './TourneyNote.jsx';
-import LeaguePickSplit, { LeaguePickSplitNote } from './LeaguePickSplit.jsx';
-import { PickEmGameRow } from './PickEmGameRow.jsx';
+import { IndependentColumns } from '../ui/independent-columns';
+import { LeaguePickSplitNote, useLeaguePickSplit } from './LeaguePickSplit.jsx';
+import { MatchupPickCard } from './MatchupPickCard.jsx';
+import { submittedSelections } from './pickDraft.js';
 import { isByeGame } from './pickSplit.js';
 import { isWindowClosed, pickEmWindowState } from './pickEmWindow.js';
+import { useMatchupBoard } from './useMatchupBoard.js';
 import { usePickEmForm } from './usePickEmForm.js';
 
 /**
@@ -46,7 +48,7 @@ const PickEmsSubmission = ({
     userId: user?.id ?? null,
     submit: onSubmitPicks
   });
-  const { picks, availableGames, selectableGames, hasSubmitted, isEditing, error, showConfirmation } = form;
+  const { picks, selectableGames, hasSubmitted, isEditing, error, showConfirmation } = form;
 
   // The NFL season the opponent chips are keyed on. `espn_season_year` is the
   // year ESPN's calendar endpoint is keyed by; `year` is the same value today
@@ -58,6 +60,28 @@ const PickEmsSubmission = ({
   // The same test ParlayPickSection's `isRevealed` makes over this `status`:
   // one window, stated by the form that owns it.
   const picksClosed = isWindowClosed(status);
+
+  // Once the window closes a pick is what was submitted. A draft nobody sent is
+  // not a pick, and a chip on one would report a bet that was never placed.
+  const madePicks = useMemo(
+    () => (picksClosed ? submittedSelections(userPicks) : picks),
+    [picksClosed, userPicks, picks]
+  );
+
+  const board = useMatchupBoard({
+    seasonId: season?.id ?? pickEmWeek?.seasonId ?? null,
+    week: currentWeek,
+    nflSeasonYear,
+    games,
+    picks: madePicks
+  });
+  const split = useLeaguePickSplit({ pickEmWeek, games, closed: picksClosed });
+
+  const matchups = games.filter((game) => !isByeGame(game));
+  const viewer = { user, isAdmin, teamOwnerNames };
+  // `isApproved`, not just a user: `submit_pick_em_picks` refuses an unapproved
+  // account, so a pick it could make is a pick it could never submit.
+  const canPick = Boolean(user) && isApproved && status.status === 'open' && form.canEdit;
 
   return (
     <div className="space-y-6">
@@ -102,24 +126,12 @@ const PickEmsSubmission = ({
             see `tourneys.js` for why they are not written twice.
 
             Once the window closes, the note on how the league picked sits
-            under them: the last thing in this card, directly above the row
-            it explains. */}
+            under them, explaining the split on each matchup below. */}
         <CardContent className="space-y-3">
           <TourneyNote compact currentWeek={currentWeek} />
           <LeaguePickSplitNote pickEmWeek={pickEmWeek} games={games} closed={picksClosed} />
         </CardContent>
       </Card>
-
-      {/* How the league picked, between the week's card and the parlay. It
-          renders nothing until the window closes — see LeaguePickSplit. Once
-          the week is scored this page gives way to Results, which shows the
-          same boxes with the winners marked. */}
-      <LeaguePickSplit
-        pickEmWeek={pickEmWeek}
-        games={games}
-        closed={picksClosed}
-        week={currentWeek}
-      />
 
       {/* Success confirmation */}
       {showConfirmation && (
@@ -156,19 +168,6 @@ const PickEmsSubmission = ({
         weekNumber={currentWeek}
       />
 
-      {/* Research, above the picks: the point of it is to be read before a
-          choice is made, and a panel underneath the buttons is a panel nobody
-          opens. Every matchup is listed; each one folds open to its lineups —
-          see MatchupResearchSection. */}
-      {status.status !== 'no-week' && availableGames.length > 0 && (
-        <MatchupResearchSection
-          seasonId={season?.id ?? pickEmWeek?.seasonId ?? null}
-          seasonYear={nflSeasonYear}
-          week={currentWeek}
-          games={availableGames}
-        />
-      )}
-
       {/* Games list */}
       {status.status === 'no-week' ? (
         <Card>
@@ -180,48 +179,34 @@ const PickEmsSubmission = ({
             </p>
           </CardContent>
         </Card>
-      ) : availableGames.length === 0 ? (
+      ) : games.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Games Available</h3>
             <p className="text-muted-foreground">
-              All games for week {currentWeek} have been completed.
+              Week {currentWeek} has no games.
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {availableGames.map((game) => {
-            const isBye = isByeGame(game);
-            // One expression for "may this viewer change this pick", instead
-            // of the same four-clause condition repeated in each button's
-            // onClick, its `disabled` and twice more in its class string.
-            // `isApproved`, not just a user: `submit_pick_em_picks` refuses an
-            // unapproved account, so a pick it could make is a pick it could
-            // never submit.
-            const canPick = Boolean(user) && isApproved && status.status === 'open' && form.canEdit;
-            return (
-              <Card key={game.id} className={`overflow-hidden ${isBye ? 'bg-muted/30' : ''}`}>
-                <CardContent className="p-4 sm:p-6">
-                  <PickEmGameRow
-                    game={game}
-                    number={selectableGames.findIndex((g) => g.id === game.id) + 1}
-                    selectedTeamId={picks[game.id] ?? null}
-                    canPick={canPick}
-                    onPick={(teamId) => form.pick(game.id, teamId)}
-                    user={user}
-                    isAdmin={isAdmin}
-                    teamOwnerNames={teamOwnerNames}
-                  />
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        <IndependentColumns items={games} itemKey={(game) => game.id} columns={2}>
+          {(game) => (
+            <MatchupPickCard
+              game={game}
+              number={matchups.findIndex((g) => g.id === game.id) + 1}
+              selectedTeamId={madePicks[game.id] ?? null}
+              canPick={canPick}
+              onPick={(teamId) => form.pick(game.id, teamId)}
+              board={board}
+              split={split.byGame?.get(game.id) ?? null}
+              viewer={viewer}
+            />
+          )}
+        </IndependentColumns>
       )}
 
-      {status.status === 'open' && availableGames.length > 0 && (
+      {status.status === 'open' && selectableGames.length > 0 && (
         <PickEmsSubmitBar
           totalPicks={form.totalPicks}
           totalGames={selectableGames.length}

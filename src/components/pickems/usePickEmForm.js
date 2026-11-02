@@ -139,7 +139,6 @@ export function usePickEmForm({ pickEmWeek, games = [], userPicks = NO_PICKS, us
 
   return {
     picks,
-    availableGames,
     selectableGames,
     totalPicks,
     hasSubmitted,

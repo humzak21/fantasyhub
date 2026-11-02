@@ -85,9 +85,11 @@ const PlayerPoints = ({
  * What a side has left, under its live score: "2 yet to play · proj 132.8".
  * Renders nothing before a lineup is under way, or once it has finished.
  *
- * @param {{ total?: object|null, projected?: number|null, className?: string }} props
+ * `as` is for a parent that only takes phrasing content: a pick is a button.
+ *
+ * @param {{ total?: object|null, projected?: number|null, as?: string, className?: string }} props
  */
-const LiveSideNote = ({ total, projected = null, className }) => {
+const LiveSideNote = ({ total, projected = null, as: Tag = 'p', className }) => {
   if (total?.liveState !== 'playing' && total?.liveState !== 'between') return null;
 
   const parts = [];
@@ -95,7 +97,7 @@ const LiveSideNote = ({ total, projected = null, className }) => {
   if (projected != null) parts.push(`proj ${formatPoints(projected)}`);
   if (parts.length === 0) return null;
 
-  return <p className={cn('text-xs text-muted-foreground tabular', className)}>{parts.join(' · ')}</p>;
+  return <Tag className={cn('text-xs text-muted-foreground tabular', className)}>{parts.join(' · ')}</Tag>;
 };
 
 export { LiveSideNote, PlayerPoints };
