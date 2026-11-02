@@ -1169,7 +1169,8 @@ surfaces cannot drift:
   books by row identity (`rowIdentity`: a streak keyed on where it began):
   the book now, and the book built from the same source without the latest
   scored week (`withoutWeek`). Records built on season transaction counts are
-  left out of that slot, because a count cannot be rolled back a week.
+  left out of that slot, because a count cannot be rolled back a week. A top
+  five is a place, not five rows (see "A row new to a top five is highlighted").
   *Record of the day* is a #1 picked by an FNV hash of the local date over
   the sorted #1s, the same for everyone and stored nowhere. *Yours* is the
   viewer's best top-five place. `useHomeRecordBooks` is the record book's
@@ -1679,6 +1680,39 @@ Rules that are load-bearing:
   a bye is not a game and does not.
 - Masking goes through `getMaskedFranchiseName`/`canViewFullData`, and a masked
   viewer's avatar is keyed on the masked name, since initials come from owners.
+
+**A row new to a top five is highlighted**, yellow (`warning`), on both tabs.
+`utils/recordBook/newRecords.js` is the one definition, shared with the home
+carousel's *New this week*: `topFive` and `rowIdentity` for both, and
+`newRowIds` for this page.
+
+- **A top five is a place, not five rows.** Competition ranking means more than
+  five rows can hold a place in it, and a tie lists the earlier achievement
+  first, so the row cut off at five is always the newest. Until 2026-11-02 the
+  home widget cut there, and missed any new row that tied its way in.
+- **The window is `book.recentYears`**: the active season and the one before
+  it, from the season rows, never a hardcoded year. It reads `is_active` rather
+  than taking the two newest rows, because next year's row is often created
+  early.
+- **A row with a moment is new by its year; a row without one is new by entry.**
+  `recordSetYear` dates a team-season, game, bid, week or lock, and a streak by
+  the season it ended in. A career total and an all-time trade pair only grow,
+  so they have no year. They are new if they are in the top five now and were
+  not going into the window, which is the book built by `beforeSeason`. Climbing
+  inside the top five does not count, or every leader would be marked every
+  week. Whole seasons can be subtracted from transaction counts, so unlike the
+  home slot, those records are included. With no season before the window there
+  is no `before` book, and no career row is new.
+- **Season totals are completed seasons only, so a 2026 season-total row cannot
+  appear yet.** That is the rule above, not a miss: 2026 shows up on games,
+  streaks, league weeks and career rows until `finalize_season` runs.
+- **Measured on the whole board, always.** With a season picked a card ranks
+  that season alone, but a row keeps its mark from the all-time board, and a
+  game card's Regular / Playoffs toggle measures the phase it shows.
+- **A marked row is always listed.** It stays on the card past the five a shut
+  card shows and past the twenty an open one does, so a record with many ties
+  can run long. `useRecordBooks` runs `buildRecordBooks` in `select`, and
+  `useRecordBook` stays one book, since the trophy case has no use for the second.
 
 **History → Awards is league-voted awards only.** `shapeAwards` keeps
 `source = 'ballot' and category = 'voted'`, so the gallery, a season and a
