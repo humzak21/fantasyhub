@@ -1,11 +1,17 @@
 import React, { useState, useMemo } from 'react';
-import { Trophy, TrendingUp, Award, Medal, Crown, Target } from 'lucide-react';
+import { Trophy, Medal, Crown } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../ui/card';
-import { Button } from '../../ui/button';
 import { Badge } from '../../ui/badge';
 import { ResponsiveDataTable } from '../../ui/responsive-table';
 import { getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { formatWinPercentage, formatPoints, formatRecord } from '../utils/statFormatters';
+import { sortRows } from '../../../utils/tableSort';
+
+/** Championships, then win %, then average points: the board's own order. */
+const byDefaultOrder = (a, b) =>
+  (b.championships || 0) - (a.championships || 0) ||
+  (b.avg_win_percentage || 0) - (a.avg_win_percentage || 0) ||
+  (b.avg_points_for || 0) - (a.avg_points_for || 0);
 
 const AllTimeLeaderboards = ({
   franchises = [],
@@ -15,8 +21,7 @@ const AllTimeLeaderboards = ({
   teamOwnerNames = [],
   onViewProfile = () => {}
 }) => {
-  const [sortBy, setSortBy] = useState('championships');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sort, setSort] = useState(null);
 
   // Merge franchises with career stats from mv_franchise_career_stats
   // Falls back to league_franchises table fields if materialized view data is unavailable
@@ -52,44 +57,12 @@ const AllTimeLeaderboards = ({
     });
   }, [franchises, careerStats]);
 
-  // Sort data - default sort by championships, then win%, then avg points
-  const sortedData = useMemo(() => {
-    const sorted = [...leaderboardData].sort((a, b) => {
-      // Primary sort by selected field
-      let aVal = a[sortBy] || 0;
-      let bVal = b[sortBy] || 0;
-
-      let comparison;
-      if (sortOrder === 'asc') {
-        comparison = aVal - bVal;
-      } else {
-        comparison = bVal - aVal;
-      }
-
-      // If primary sort is equal, use tiebreakers
-      if (comparison === 0) {
-        // Secondary: win percentage (descending)
-        const winPctDiff = (b.avg_win_percentage || 0) - (a.avg_win_percentage || 0);
-        if (winPctDiff !== 0) return winPctDiff;
-
-        // Tertiary: average points for (descending)
-        return (b.avg_points_for || 0) - (a.avg_points_for || 0);
-      }
-
-      return comparison;
-    });
-
-    return sorted;
-  }, [leaderboardData, sortBy, sortOrder]);
-
-  const handleSort = (key) => {
-    if (sortBy === key) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(key);
-      setSortOrder('desc');
-    }
-  };
+  // The rank is the franchise's place on the default board, so it stays with
+  // the franchise however the table is sorted.
+  const rankedData = useMemo(
+    () => [...leaderboardData].sort(byDefaultOrder).map((franchise, index) => ({ ...franchise, rank: index + 1 })),
+    [leaderboardData]
+  );
 
   const getRankIcon = (index) => {
     if (index === 0) return <Crown className="h-4 w-4 text-amber-600" />;
@@ -122,10 +95,11 @@ const AllTimeLeaderboards = ({
       priority: 'primary',
       headerClassName: 'w-12',
       className: 'font-medium',
-      cell: (_f, index) => (
+      sortValue: (franchise) => franchise.rank,
+      cell: (franchise) => (
         <div className="flex items-center gap-2 font-medium">
-          {getRankIcon(index)}
-          {index + 1}
+          {getRankIcon(franchise.rank - 1)}
+          {franchise.rank}
         </div>
       ),
     },
@@ -133,6 +107,7 @@ const AllTimeLeaderboards = ({
       key: 'franchise',
       header: 'Franchise',
       priority: 'primary',
+      sortValue: (franchise) => getMaskedFranchiseName(franchise, user, isAdmin, teamOwnerNames),
       cell: (franchise) => (
         <div className="min-w-0">
           <p className="truncate font-semibold">
@@ -153,6 +128,7 @@ const AllTimeLeaderboards = ({
       priority: 'primary',
       className: 'text-center',
       headerClassName: 'text-center',
+      sortValue: (franchise) => franchise.championships,
       cell: (franchise) =>
         franchise.championships > 0 ? (
           <Badge className="bg-amber-600">{franchise.championships}</Badge>
@@ -165,6 +141,7 @@ const AllTimeLeaderboards = ({
       header: 'Record',
       className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
+      sortValue: (franchise) => franchise.total_wins,
       cell: (franchise) => formatRecord(franchise.total_wins || 0, franchise.total_losses || 0),
     },
     {
@@ -172,6 +149,7 @@ const AllTimeLeaderboards = ({
       header: 'Win %',
       className: 'text-center',
       headerClassName: 'text-center',
+      sortValue: (franchise) => franchise.avg_win_percentage,
       cell: (franchise) => (
         <span className={franchise.avg_win_percentage >= 0.5 ? 'font-semibold text-green-600' : ''}>
           {formatWinPercentage(franchise.avg_win_percentage)}
@@ -183,6 +161,7 @@ const AllTimeLeaderboards = ({
       header: 'Avg PF',
       className: 'text-center tabular text-sm',
       headerClassName: 'text-center',
+      sortValue: (franchise) => franchise.avg_points_for,
       cell: (franchise) => (franchise.avg_points_for ? formatPoints(franchise.avg_points_for) : '-'),
     },
     {
@@ -190,6 +169,7 @@ const AllTimeLeaderboards = ({
       header: 'Playoffs',
       className: 'text-center',
       headerClassName: 'text-center',
+      sortValue: (franchise) => franchise.playoff_appearances,
       cell: (franchise) => <Badge variant="secondary">{franchise.playoff_appearances || 0}</Badge>,
     },
   ];
@@ -203,49 +183,15 @@ const AllTimeLeaderboards = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* Sort buttons */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          <Button
-            variant={sortBy === 'championships' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleSort('championships')}
-          >
-            <Trophy className="h-3 w-3 mr-1" />
-            Championships
-          </Button>
-          <Button
-            variant={sortBy === 'avg_win_percentage' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleSort('avg_win_percentage')}
-          >
-            <TrendingUp className="h-3 w-3 mr-1" />
-            Wins
-          </Button>
-          <Button
-            variant={sortBy === 'avg_points_for' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleSort('avg_points_for')}
-          >
-            <Award className="h-3 w-3 mr-1" />
-            Avg Points
-          </Button>
-          <Button
-            variant={sortBy === 'playoff_appearances' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleSort('playoff_appearances')}
-          >
-            <Target className="h-3 w-3 mr-1" />
-            Playoffs
-          </Button>
-        </div>
-
         {/* Leaderboard table. Seven columns of small numbers; below sm: the
             same column definitions render one card per franchise. */}
         <div className="rounded-lg border p-2 sm:p-0 sm:overflow-hidden">
           <ResponsiveDataTable
             columns={leaderboardColumns}
-            data={sortedData}
-            rowClassName={(_f, index) => `${getRankClass(index)} hover:bg-muted/50 transition-colors`}
+            data={sortRows(rankedData, sort, leaderboardColumns)}
+            sort={sort}
+            onSortChange={setSort}
+            rowClassName={(franchise) => `${getRankClass(franchise.rank - 1)} hover:bg-muted/50 transition-colors`}
             onRowClick={(franchise) => onViewProfile(franchise.id)}
           />
         </div>

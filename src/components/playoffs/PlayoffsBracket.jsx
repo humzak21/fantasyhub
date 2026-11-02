@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Trophy, Target, Clock, CheckCircle2, AlertCircle, Save, Edit3, X, Check } from 'lucide-react';
+import { Trophy, Target, Telescope, CheckCircle2, AlertCircle, Save, Edit3, X, Check } from 'lucide-react';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getDb } from '../../../services/db/index.js';
 import { ScrollHint } from '../ui/scroll-hint';
@@ -12,6 +12,7 @@ import {
     reseedSemis,
     usesSeededPlayoffs
 } from '../../../utils/playoffSeeding.js';
+import { isBracketSet, projectBracket } from '../../../utils/projectedBracket.js';
 import { toSeasonConfig } from '../../../utils/seasonConfig.js';
 import { TeamLink } from '../ui/team-link';
 
@@ -38,6 +39,9 @@ const BracketSlot = ({
     team2,
     team1Seed = null,
     team2Seed = null,
+    // What an empty slot says. A projection knows more than "TBD" about who
+    // lands there, without knowing the team.
+    team2Placeholder = 'TBD',
     selectedTeam,
     actualWinner,
     onSelect,
@@ -123,7 +127,7 @@ const BracketSlot = ({
                 <div className="text-center w-full">
                     <div className="font-medium text-sm truncate">
                         <SeedChip seed={team2 ? team2Seed : null} />
-                        {team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : 'TBD'}
+                        {team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : team2Placeholder}
                     </div>
                     {team2 && (
                         <div className="truncate text-xs text-muted-foreground">
@@ -184,6 +188,7 @@ const ByeSlot = ({ team, seed = null, user, isAdmin, teamOwnerNames, className }
 // pass one, which is why this never showed up.
 const NO_PICKS = Object.freeze([]);
 const NO_GAMES = Object.freeze([]);
+const NO_ROWS = Object.freeze([]);
 
 /**
  * Main bracket visualization component
@@ -207,6 +212,11 @@ const PlayoffsBracket = ({
     // 2026+ only: the projected seeds, from the standings RPC. Empty is fine —
     // the bracket then falls back to arrival order and shows no seed chips.
     seedByTeamId = null,
+    // 2026+ only: the standings rows, which fill the bracket with the field as
+    // it stands until the real postseason rows exist.
+    standingsRows = NO_ROWS,
+    // The newest fully scored week, to date the projection.
+    throughWeek = null,
 }) => {
     const [picks, setPicks] = useState({});
     const [hasChanges, setHasChanges] = useState(false);
@@ -429,9 +439,6 @@ const PlayoffsBracket = ({
     };
 
     const { playoffs, consolation } = organizeGames();
-    // Approval, not a session: `submit_playoff_picks` refuses an unapproved
-    // account, so offering the form to one would only ever produce an error.
-    const canEdit = bracketStatus?.canSubmit && isApproved;
     const showResult = bracketStatus?.resultsReleased;
 
     // ---------------------------------------------------------------------
@@ -453,13 +460,24 @@ const PlayoffsBracket = ({
     const seedOf = (team) =>
         team?.id == null ? null : (seedByTeamId?.get?.(team.id) ?? null);
 
-    // Byes and round 1 come from real rows only. A projected pairing drawn from
-    // week-1 standings would be a fabrication dressed as a bracket, so an
-    // unsynced season shows TBD — the same thing the 2025 bracket does.
-    const byeTeam1 = seededBracket.byes[1]?.team1 ?? null;
-    const byeTeam2 = seededBracket.byes[2]?.team1 ?? null;
-    const r1TopGame = seededBracket.r1['3v6'];
-    const r1LowerGame = seededBracket.r1['4v5'];
+    // Until the postseason is drawn the slots show the field as it stands, and
+    // say so. A projection is read-only: the picks are stored against real
+    // games, and a pick on a team that then slips out of the field would point
+    // at a game that never happens. Real rows replace it as soon as one exists.
+    const projection = seededSeason && !isBracketSet(playoffGames, seedByTeamId)
+        ? projectBracket(standingsRows)
+        : null;
+    const isProjected = Boolean(projection);
+
+    // Approval, not a session: `submit_playoff_picks` refuses an unapproved
+    // account, so offering the form to one would only ever produce an error.
+    const canEdit = bracketStatus?.canSubmit && isApproved && !isProjected;
+
+    const byeTeam1 = projection?.byes[1] ?? seededBracket.byes[1]?.team1 ?? null;
+    const byeTeam2 = projection?.byes[2] ?? seededBracket.byes[2]?.team1 ?? null;
+    const r1TopGame = projection?.r1['3v6'] ?? seededBracket.r1['3v6'];
+    const r1LowerGame = projection?.r1['4v5'] ?? seededBracket.r1['4v5'];
+    const consolationR1 = projection?.consolation ?? consolation.winnersR1;
 
     const loserOfGame = (game, winner) => {
         if (!game || !winner) return null;
@@ -747,9 +765,15 @@ const PlayoffsBracket = ({
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex flex-wrap items-center gap-2">
                             <div className="flex items-center gap-2">
-                                <Target className="h-4 w-4 text-primary" aria-hidden="true" />
+                                {isProjected ? (
+                                    <Telescope className="h-4 w-4 text-primary" aria-hidden="true" />
+                                ) : (
+                                    <Target className="h-4 w-4 text-primary" aria-hidden="true" />
+                                )}
                                 <span className="font-medium">
-                                    {hasSubmitted && !isEditing ? 'Your Picks Submitted' : 'Make Your Picks'}
+                                    {isProjected
+                                        ? 'Projected bracket'
+                                        : hasSubmitted && !isEditing ? 'Your Picks Submitted' : 'Make Your Picks'}
                                 </span>
                             </div>
 
@@ -767,6 +791,11 @@ const PlayoffsBracket = ({
                             )}
                         </div>
 
+                        {isProjected ? (
+                            <p className="text-sm text-muted-foreground">
+                                Picks open once the bracket is set after the regular season.
+                            </p>
+                        ) : (
                         <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                             <div className="min-w-0">
                                 <div className="text-sm font-medium">Ready to submit?</div>
@@ -825,6 +854,7 @@ const PlayoffsBracket = ({
                                 <Badge variant="secondary">Submissions Closed</Badge>
                             )}
                         </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -882,11 +912,21 @@ const PlayoffsBracket = ({
                     <CardTitle className="flex items-center gap-2">
                         <Trophy className="h-5 w-5 text-yellow-500" />
                         Playoff Bracket
+                        {isProjected && <Badge variant="secondary">Projected</Badge>}
                     </CardTitle>
                     <CardDescription>
                         {seededSeason
                             ? 'Each division winner takes a bye; the next four teams league-wide take the wildcards, and the semifinals re-seed.'
                             : 'The top 3 seeds from each division!'}
+                        {isProjected && (
+                            <>
+                                {' '}
+                                {throughWeek
+                                    ? `If the season ended after week ${throughWeek}, this is the bracket.`
+                                    : 'If the season ended today, this is the bracket.'}{' '}
+                                It moves with the standings until the regular season ends.
+                            </>
+                        )}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -979,6 +1019,7 @@ const PlayoffsBracket = ({
                                       team2={semi1Team2}
                                       team1Seed={seedOf(byeTeam1) ?? 1}
                                       team2Seed={semi1Pairing[1]}
+                                      team2Placeholder={isProjected ? 'Lowest seed left' : 'TBD'}
                                       selectedTeam={getPick('semi_1')}
                                       actualWinner={getActualWinner(seededBracket.semis.semi1)}
                                       onSelect={(id, team) => pickHandler(id, team, seededBracket.semis.semi1?.id)}
@@ -995,6 +1036,7 @@ const PlayoffsBracket = ({
                                       team2={semi2Team2}
                                       team1Seed={seedOf(byeTeam2) ?? 2}
                                       team2Seed={semi2Pairing[1]}
+                                      team2Placeholder={isProjected ? 'Highest seed left' : 'TBD'}
                                       selectedTeam={getPick('semi_2')}
                                       actualWinner={getActualWinner(seededBracket.semis.semi2)}
                                       onSelect={(id, team) => pickHandler(id, team, seededBracket.semis.semi2?.id)}
@@ -1030,6 +1072,7 @@ const PlayoffsBracket = ({
                                       teamOwnerNames={teamOwnerNames}
                                   />
 
+                                  {!isProjected && (
                                   <div className="flex flex-col gap-2 p-3 bg-card rounded-lg border shadow-sm min-w-[180px]">
                                       <div className="text-xs font-semibold text-center text-muted-foreground">
                                           Championship Combined Point Total
@@ -1057,6 +1100,7 @@ const PlayoffsBracket = ({
                                           3 bonus points for closest prediction
                                       </div>
                                   </div>
+                                  )}
                               </div>
                             </div>
                           </ScrollHint>
@@ -1314,6 +1358,7 @@ const PlayoffsBracket = ({
                     <CardTitle className="flex items-center gap-2">
                         <Target className="h-5 w-5" />
                         Consolation Bracket
+                        {isProjected && <Badge variant="secondary">Projected</Badge>}
                     </CardTitle>
                     <CardDescription>8 teams compete across 3 weeks</CardDescription>
                 </CardHeader>
@@ -1329,11 +1374,13 @@ const PlayoffsBracket = ({
                                 <BracketSlot
                                     key={index}
                                     matchupId={`con_r1_${index}`}
-                                    team1={consolation.winnersR1[index]?.team1}
-                                    team2={consolation.winnersR1[index]?.team2}
+                                    team1={consolationR1[index]?.team1}
+                                    team2={consolationR1[index]?.team2}
+                                    team1Seed={consolationR1[index]?.team1Seed}
+                                    team2Seed={consolationR1[index]?.team2Seed}
                                     selectedTeam={getPick(`con_r1_${index}`)}
-                                    actualWinner={getActualWinner(consolation.winnersR1[index])}
-                                    onSelect={(id, team) => handlePickChange(id, team, consolation.winnersR1[index]?.id)}
+                                    actualWinner={getActualWinner(consolationR1[index])}
+                                    onSelect={(id, team) => handlePickChange(id, team, consolationR1[index]?.id)}
                                     disabled={!canEdit || (hasSubmitted && !isEditing)}
                                     showResult={showResult}
                                     user={user}

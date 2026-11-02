@@ -18,7 +18,10 @@
  * `HomePage`.
  */
 
+import { usesSeededPlayoffs } from '../../../utils/playoffSeeding.js';
+import { showsHomeBracket } from '../../../utils/projectedBracket.js';
 import MatchupHero from './widgets/MatchupHero.jsx';
+import PlayoffBracketCard from './widgets/PlayoffBracketCard.jsx';
 import PickemsParlayWidget from './widgets/PickemsParlayWidget.jsx';
 import RankingsSlice from './widgets/RankingsSlice.jsx';
 import RecentForm from './widgets/RecentForm.jsx';
@@ -84,6 +87,16 @@ export const HOME_WIDGETS = [
     column: 'main',
     Component: StandingsMini,
     when: inSeason
+  },
+  {
+    // Under the standings it is drawn from, and only once they mean something:
+    // from the Tuesday week 10 is scored, and on through the postseason.
+    id: 'playoff-bracket',
+    title: 'Playoff bracket',
+    column: 'main',
+    Component: PlayoffBracketCard,
+    when: (ctx) =>
+      inSeason(ctx) && usesSeededPlayoffs(ctx.season?.year) && showsHomeBracket(ctx.season?.schedule)
   },
   {
     id: 'recent-form',

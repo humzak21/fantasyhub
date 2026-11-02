@@ -52,10 +52,10 @@ export function RecordCardMini({ card, identity, linkable = true }) {
         <div className="flex min-w-0 items-center gap-2">
           {row.franchiseId && <TeamAvatar team={identity.avatar(row.franchiseId)} size="sm" />}
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium" title={name}>
+            <p className="break-words text-sm font-medium leading-tight" title={name}>
               {name}
             </p>
-            {meta && <p className="truncate text-xs text-muted-foreground">{meta}</p>}
+            {meta && <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{meta}</p>}
           </div>
         </div>
         <p className="shrink-0 text-right">
