@@ -2842,7 +2842,7 @@ Rules that are load-bearing:
   card's "Show a test notification" is local and only proves the app may
   display one.
 
-**You are told when you win** (`20261103130000_take_edits_and_pickem_wins_notified.sql`).
+**You are told when you win** (`20261103150000_take_edits_and_pickem_wins_notified.sql`).
 Topic `pickems_wins`, on by default, and it goes to the winners and nobody else:
 a tie for first is everybody on it, each told it was a tie.
 `sendWinnerNotifications` runs in the default mode beside
