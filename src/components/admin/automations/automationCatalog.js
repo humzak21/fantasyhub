@@ -410,7 +410,7 @@ export const PASSIVE_AUTOMATIONS = [
     id: 'cron-dispatch',
     name: 'pg_cron → workflow dispatch',
     where: 'Database · cron.job, private.dispatch_github_workflow',
-    fires: 'At each job\'s slot (weekly-sync, daily-refresh, notify-pickems-open, notify-pickems-closing, notify-matchup-facts, autosub-watch), in UTC',
+    fires: 'At each job\'s slot (weekly-sync, daily-refresh, notify-pickems-open, notify-pickems-closing, notify-pickems-deadline, notify-matchup-facts, autosub-watch), in UTC',
     does:
       'Keeps the clock for the two ESPN workflows. Each pg_cron job calls GitHub\'s workflow_dispatch API ' +
       'with trigger = cron, so the run starts within seconds and logs as a cron run. GitHub\'s own schedule ' +
@@ -424,7 +424,7 @@ export const PASSIVE_AUTOMATIONS = [
     id: 'push-notifications',
     name: "Pick'em notifications",
     where: 'GitHub Actions · notify-pickems.yml, dispatched by pg_cron',
-    fires: 'Tuesdays 14:00 UTC and Thursdays 21:30 UTC (pg_cron jobs notify-pickems-open / notify-pickems-closing)',
+    fires: 'Tuesdays 14:00 UTC, Thursdays 21:30 UTC, and three hours before any pick\'em deadline (pg_cron jobs notify-pickems-open / notify-pickems-closing / notify-pickems-deadline)',
     does:
       "Sends push notifications to members' phones: \"pick'ems are open\" once the week's window opens, and " +
       "\"pick'ems close soon\" in the six hours before the deadline to members who have not picked. The same slots " +

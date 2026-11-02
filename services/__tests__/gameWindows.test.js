@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 
 import {
   LAST_KICKOFF_TAIL_MS,
+  etParts,
+  fetchWeekKickoffs,
+  inWindow,
   isGameWindowOpen,
   isLikelyGameWindow,
   kickoffWindows,
@@ -9,6 +12,42 @@ import {
 } from '../gameWindows.js';
 
 const HOUR = 60 * 60 * 1000;
+
+describe('etParts', () => {
+  it('reads Eastern weekday and minutes from a UTC instant (EDT)', () => {
+    // 2026-09-25T01:00Z is Thursday 21:00 in EDT (UTC-4).
+    expect(etParts(new Date('2026-09-25T01:00:00Z'))).toEqual({ weekday: 4, minutes: 21 * 60 });
+  });
+
+  it('handles the EST offset too', () => {
+    // 2026-12-15T02:00Z is Sunday 21:00 in EST (UTC-5) — a Monday-night edge…
+    // actually 2026-12-14 is a Monday, so 02:00Z Mon = 21:00 Sun EST.
+    expect(etParts(new Date('2026-12-14T02:00:00Z'))).toEqual({ weekday: 0, minutes: 21 * 60 });
+  });
+});
+
+describe('inWindow', () => {
+  it('accepts the three game windows and rejects the rest', () => {
+    expect(inWindow({ weekday: 4, minutes: 21 * 60 })).toBe(true);  // Thu 9pm
+    expect(inWindow({ weekday: 0, minutes: 16 * 60 })).toBe(true);  // Sun 4pm
+    expect(inWindow({ weekday: 1, minutes: 21 * 60 })).toBe(true);  // Mon 9pm
+    expect(inWindow({ weekday: 0, minutes: 8 * 60 })).toBe(false);  // Sun 8am (pre-slate)
+    expect(inWindow({ weekday: 4, minutes: 12 * 60 })).toBe(false); // Thu noon
+    expect(inWindow({ weekday: 3, minutes: 21 * 60 })).toBe(false); // Wed 9pm
+  });
+
+  it('is half-open: the start minute is in, the end minute is out', () => {
+    expect(inWindow({ weekday: 4, minutes: 20 * 60 })).toBe(true);      // 20:00 exactly
+    expect(inWindow({ weekday: 4, minutes: 20 * 60 - 1 })).toBe(false); // 19:59
+  });
+});
+
+describe('isLikelyGameWindow', () => {
+  it('is true during Sunday afternoon and false on a Wednesday', () => {
+    expect(isLikelyGameWindow(new Date('2026-09-20T20:00:00Z'))).toBe(true);  // Sun 4pm ET
+    expect(isLikelyGameWindow(new Date('2026-09-23T20:00:00Z'))).toBe(false); // Wed 4pm ET
+  });
+});
 
 describe('kickoffWindows', () => {
   it('makes one window per Eastern day, first kickoff to last kickoff plus the tail', () => {
@@ -70,6 +109,58 @@ describe('isGameWindowOpen', () => {
     const wednesday = new Date('2026-11-04T19:00:00Z');
     expect(isGameWindowOpen(sunday, [])).toBe(true);
     expect(isGameWindowOpen(wednesday, [])).toBe(false);
+  });
+});
+
+describe('the 2026 calendar', () => {
+  // The first kickoff of each day that is not a Thursday, Sunday or Monday.
+  const unusual = [
+    ['the Wednesday opener', '2026-09-10T00:20:00Z'],
+    ['the night before Thanksgiving', '2026-11-26T01:00:00Z'],
+    ['the Friday after it', '2026-11-27T20:00:00Z'],
+    ['a Saturday in December', '2026-12-19T22:00:00Z'],
+    ['Christmas, a Friday', '2026-12-25T18:00:00Z']
+  ];
+
+  it.each(unusual)('is open for %s, which the fixed slots miss', (_name, kickoff) => {
+    const inGame = new Date(Date.parse(kickoff) + HOUR);
+
+    expect(isLikelyGameWindow(inGame)).toBe(false);
+    expect(isGameWindowOpen(inGame, [kickoff])).toBe(true);
+  });
+});
+
+describe('fetchWeekKickoffs', () => {
+  /** A stand-in for the query builder, recording what was asked for. */
+  const clientWith = (result) => {
+    const filters = {};
+    const query = {
+      select: () => query,
+      eq: (column, value) => {
+        filters[column] = value;
+        return query;
+      },
+      not: () => query,
+      then: (resolve) => resolve(result)
+    };
+    return { filters, client: { from: () => query } };
+  };
+
+  it('leaves out ESPN\'s placeholder times', async () => {
+    const { client, filters } = clientWith({ data: [{ game_time: 'kickoff' }], error: null });
+
+    await expect(fetchWeekKickoffs(client, 2026, 12)).resolves.toEqual(['kickoff']);
+    expect(filters).toEqual({ season_year: 2026, week: 12, start_time_tbd: false });
+  });
+
+  it('asks nothing without a year and a week', async () => {
+    const { client } = clientWith({ data: null, error: new Error('should not run') });
+    await expect(fetchWeekKickoffs(client, null, 12)).resolves.toEqual([]);
+  });
+
+  it('says so when the read fails, rather than reporting no games', async () => {
+    const { client } = clientWith({ data: null, error: new Error('no') });
+    await expect(fetchWeekKickoffs(client, 2026, 12)).rejects.toThrow('no');
   });
 });
 

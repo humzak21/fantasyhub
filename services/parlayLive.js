@@ -5,12 +5,12 @@
  *
  * Three jobs, each a lever on "keep ESPN calls low and only when games are on":
  *
- *   1. `isLikelyGameWindow` — a *local* time check (no ESPN call) that says
- *      whether it is even worth looking. Outside these windows the function
- *      returns the last snapshot and calls nothing.
- *   2. `shouldRefresh` — the 30-minute clock. ESPN is pulled at most once per
- *      window per 30 minutes, shared across every viewer, so a busy Sunday is a
- *      couple of dozen refreshes, not one per person per minute.
+ *   1. `services/gameWindows.js` — a check of the week's kickoffs (no ESPN call)
+ *      that says whether it is even worth looking. Outside a game window the
+ *      function returns the last snapshot and calls nothing.
+ *   2. Its `shouldRefresh`, at `REFRESH_TTL_MS` — ESPN is pulled at most once
+ *      per 15 minutes, shared across every viewer, so a busy Sunday is a few
+ *      dozen refreshes, not one per person per minute.
  *   3. `planEventFetches` / `mergeLiveStatus` — fetch a game's box score only
  *      while it can still change. A game already recorded as final is not
  *      re-fetched; its stored TD count is carried forward. That is what keeps
@@ -27,23 +27,9 @@ import {
   buildLiveStatus,
   anyGameLive
 } from './espnLiveScoreMapper.js';
-import {
-  GAME_WINDOWS,
-  etParts,
-  inWindow,
-  isLikelyGameWindow,
-  shouldRefresh as sharedShouldRefresh
-} from './gameWindows.js';
 
 /** Pull ESPN at most this often while games are on. */
-export const REFRESH_TTL_MS = 30 * 60 * 1000;
-
-export { GAME_WINDOWS, etParts, inWindow, isLikelyGameWindow };
-
-/** The shared clock, at this tracker's own TTL. */
-export function shouldRefresh(args) {
-  return sharedShouldRefresh({ ttlMs: REFRESH_TTL_MS, ...args });
-}
+export const REFRESH_TTL_MS = 15 * 60 * 1000;
 
 /**
  * Which games to fetch a box score for this refresh.

@@ -8,7 +8,7 @@
  *
  * Like the other two public fetchers, this runs server-side — in the
  * `parlay-live` edge function, not the browser. That is the whole point of the
- * live tracker's design: ESPN is called once, by the function, at most every 30
+ * live tracker's design: ESPN is called once, by the function, at most every 15
  * minutes and only during game windows, and every viewer reads the shared
  * result from `parlay_live_snapshot`. So there is no per-browser fan-out, no
  * CORS to depend on, and no way for the poll to scale with the audience.

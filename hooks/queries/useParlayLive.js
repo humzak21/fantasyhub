@@ -11,7 +11,7 @@
  * It is the in-progress overlay only. It never writes, never touches
  * `scored_td`, and the card shows the official grade the moment one exists.
  *
- * The edge function refreshes ESPN at most every 30 minutes and only during
+ * The edge function refreshes ESPN at most every 15 minutes and only during
  * game windows, so the client polls gently: every few minutes while a game is
  * live (those calls mostly return the cached snapshot), and it stops entirely
  * once nothing is live. On a non-game day it makes one call and stops.
@@ -25,7 +25,7 @@ import { qk } from './keys.js';
 const db = () => getDb();
 
 /** Poll the shared snapshot this often while a game is live. The edge function
- *  only hits ESPN every 30 minutes, so a shorter client interval just re-reads
+ *  only hits ESPN every 15 minutes, so a shorter client interval just re-reads
  *  the cache; 5 minutes keeps updates timely without churning invocations. */
 const POLL_MS = 5 * 60_000;
 

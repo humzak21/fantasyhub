@@ -18,14 +18,15 @@ const log = createLogger('db:pickems');
 export async function createPickEmWeek(ctx, seasonId, weekNumber, customSchedule = null) {
 
   try {
-    const schedule = customSchedule || models.calculatePickEmSchedule(weekNumber);
-
+    // Nothing is sent unless a caller chose a time. The database derives the
+    // window, and only it can see the NFL calendar: a deadline worked out here
+    // would be passed in as a choice and would override the first-kickoff rule.
     const { data, error } = await ctx.client.rpc('create_pick_em_week', {
       p_season_id: seasonId,
       p_week_number: weekNumber,
-      p_submission_opens_at: schedule.submissionOpensAt,
-      p_submission_closes_at: schedule.submissionClosesAt,
-      p_results_reveal_at: schedule.resultsRevealAt
+      p_submission_opens_at: customSchedule?.submissionOpensAt ?? null,
+      p_submission_closes_at: customSchedule?.submissionClosesAt ?? null,
+      p_results_reveal_at: customSchedule?.resultsRevealAt ?? null
     });
 
     if (error) throw error;
@@ -44,17 +45,10 @@ export async function createPickEmWeek(ctx, seasonId, weekNumber, customSchedule
  * with no row has no pick'em form and no TD parlay — so a missed morning was
  * a missed week for the whole league.
  *
- * Two things separate this from `createPickEmWeek` above, and both are why it
- * is a second function rather than a flag:
- *
- * - **It sends no timestamps.** `createPickEmWeek` computes the window in the
- *   browser through `calculatePickEmSchedule`, which reads the season config
- *   the app has loaded into module state — state a script does not have.
- *   Passing nulls lets `create_pick_em_week` derive the window itself from the
- *   season row's `pickem_*` columns, which is the single definition anyway.
- * - **It is idempotent.** `(season_id, week_number)` is unique, so a second
- *   call would raise; checking first makes a re-run, a Wednesday roster
- *   refresh, or an admin who already pressed the button all a quiet no-op.
+ * **It is idempotent**, which is what separates it from `createPickEmWeek`
+ * above. `(season_id, week_number)` is unique, so a second call would raise;
+ * checking first makes a re-run, a Wednesday roster refresh, or an admin who
+ * already pressed the button all a quiet no-op.
  *
  * @returns {Promise<{ created: boolean, id: string }>}
  */

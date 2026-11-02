@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { ensurePickEmWeek } from '../pickems.js';
+import { createPickEmWeek, ensurePickEmWeek } from '../pickems.js';
 import { makeCtx } from './fakeClient.js';
 
 const seasonId = 'season-2026';
@@ -78,5 +78,35 @@ describe('ensurePickEmWeek', () => {
     });
 
     await expect(ensurePickEmWeek(ctx, seasonId, 3)).rejects.toThrow(/admin only/);
+  });
+});
+
+describe('createPickEmWeek', () => {
+  // The admin's button. It used to send a deadline worked out in the browser,
+  // which the database reads as a person's choice, so a week created this way
+  // would have skipped the first-kickoff rule.
+  it('leaves the window to the database unless a caller chose one', async () => {
+    const ctx = makeCtx({ 'rpc.create_pick_em_week': () => 'new-week-id' });
+
+    await createPickEmWeek(ctx, seasonId, 12);
+
+    const [call] = ctx.client.callsFor('rpc', 'create_pick_em_week');
+    expect(call.payload).toEqual({
+      p_season_id: seasonId,
+      p_week_number: 12,
+      p_submission_opens_at: null,
+      p_submission_closes_at: null,
+      p_results_reveal_at: null
+    });
+  });
+
+  it('passes a chosen deadline through', async () => {
+    const ctx = makeCtx({ 'rpc.create_pick_em_week': () => 'new-week-id' });
+    const closes = '2026-11-25T23:00:00Z';
+
+    await createPickEmWeek(ctx, seasonId, 12, { submissionClosesAt: closes });
+
+    const [call] = ctx.client.callsFor('rpc', 'create_pick_em_week');
+    expect(call.payload.p_submission_closes_at).toBe(closes);
   });
 });

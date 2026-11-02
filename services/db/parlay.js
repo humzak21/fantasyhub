@@ -180,7 +180,7 @@ export async function getSeasonParlayPicks(ctx, seasonId) {
  * The week's live TD status, via the `parlay-live` edge function.
  *
  * The client never touches ESPN. It asks the edge function, which pulls ESPN at
- * most once every 30 minutes during game windows, shares the result across every
+ * most once every 15 minutes during game windows, shares the result across every
  * viewer through `parlay_live_snapshot`, and returns the tiny per-pick answer.
  * So this is a small, fast, shared read — the app's latency profile is unchanged
  * and ESPN sees a couple of dozen calls a Sunday, not one per viewer.

@@ -14,8 +14,9 @@
  *                                                   # one test notification to that member's devices
  *
  * Run by .github/workflows/notify-pickems.yml, which Supabase's pg_cron
- * dispatches Tuesdays 14:00 UTC and Thursdays 21:30 UTC (see
- * 20261002120000_push_notifications.sql). What is due is decided by
+ * dispatches Tuesdays 14:00 UTC, Thursdays 21:30 UTC and three hours before any
+ * pick'em deadline (see 20261002120000_push_notifications.sql and
+ * 20261105120000_pick_em_deadline_first_kickoff.sql). What is due is decided by
  * `services/notificationPlanner.js` from the pick'em week whose window is open
  * now; this file reads the inputs, claims a `notification_log` row, sends, and
  * cleans up devices the push service reports gone. Re-running is safe: a
