@@ -10,13 +10,16 @@ const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 const SEED_CHIP =
   'inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded bg-primary/15 px-1 font-display text-[11px] font-semibold leading-none text-primary tabular';
 
-/** One side of a matchup: a seeded team, or what the slot is waiting for. */
+/**
+ * One side of a matchup: a seeded team, or what the slot is waiting for. Spans,
+ * because a matchup can be a button, and nothing inside a button may be a div.
+ */
 function BracketSide({ side, viewerTeamId, nameOf, detailOf }) {
   if (!side.team) {
     return (
-      <div className="flex min-h-9 items-center px-2.5 text-[13px] text-muted-foreground">
+      <span className="flex min-h-9 items-center px-2.5 text-[13px] text-muted-foreground">
         {side.label}
-      </div>
+      </span>
     );
   }
 
@@ -24,7 +27,7 @@ function BracketSide({ side, viewerTeamId, nameOf, detailOf }) {
   const name = nameOf(side.team);
 
   return (
-    <div
+    <span
       className={cn(
         'flex min-h-9 min-w-0 items-center gap-2 px-2.5 py-1 text-[13px]',
         isViewer && 'shadow-[inset_2px_0_0_var(--primary)]',
@@ -41,12 +44,55 @@ function BracketSide({ side, viewerTeamId, nameOf, detailOf }) {
       ) : (
         <span className="shrink-0 text-xs text-muted-foreground tabular">{detailOf(side.team)}</span>
       )}
-    </div>
+    </span>
   );
 }
 
 const defaultDetail = (team) =>
   team.wins == null ? null : <RecordText wins={team.wins} losses={team.losses} ties={team.ties} />;
+
+/**
+ * One matchup's card. With `onOpen` the whole card is a button; a matchup with
+ * nobody in it yet has nothing to open, so it stays a card.
+ */
+export function BracketMatchup({ matchup, viewerTeamId = null, nameOf, detailOf = defaultDetail, onOpen = null }) {
+  const named = matchup.sides.filter((side) => side.team);
+  const sides = (
+    <>
+      {matchup.sides.map((side, index) => (
+        <BracketSide
+          key={side.team?.id ?? side.label ?? index}
+          side={side}
+          viewerTeamId={viewerTeamId}
+          nameOf={nameOf}
+          detailOf={detailOf}
+        />
+      ))}
+      {matchup.bye && (
+        <span className="flex min-h-9 items-center px-2.5 text-[13px] text-muted-foreground">First-round bye</span>
+      )}
+    </>
+  );
+  const card = 'overflow-hidden rounded-lg border border-border/70 bg-muted/20';
+
+  if (!onOpen || named.length === 0) {
+    return <li className={cn(card, 'divide-y divide-border/50')}>{sides}</li>;
+  }
+
+  return (
+    <li className={card}>
+      <button
+        type="button"
+        onClick={() => onOpen(matchup)}
+        aria-haspopup="dialog"
+        aria-label={`Box score: ${named.map((side) => nameOf(side.team)).join(' vs ')}`}
+        className="block w-full cursor-pointer divide-y divide-border/50 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
+        {sides}
+      </button>
+    </li>
+  );
+}
 
 /**
  * The upper bracket, from `resolveUpperBracket`: three rounds side by side
@@ -55,15 +101,26 @@ const defaultDetail = (team) =>
  * page it sits on. Nothing scrolls sideways, and a long name wraps.
  *
  * Read-only. The form you pick winners on is `PlayoffsBracket`, whose slots are
- * radios; this is the picture of who is where.
+ * radios; this is the picture of who is where. It takes any season's bracket,
+ * so the Schedule tab, the home card and the Path to the Playoffs draw the same
+ * thing, and `onOpenMatchup` is what the Schedule tab hangs its box scores on.
  *
  * @param {object} props
  * @param {object} props.bracket
  * @param {*} [props.viewerTeamId] - railed like the viewer's row in a table
  * @param {(team: object) => string} props.nameOf - the masked name
  * @param {(team: object) => React.ReactNode} [props.detailOf] - right of the name
+ * @param {(matchup: object, round: object) => void} [props.onOpenMatchup]
+ * @param {number|null} [props.currentWeek] - the round being looked at, lit
  */
-export function BracketView({ bracket, viewerTeamId = null, nameOf, detailOf = defaultDetail }) {
+export function BracketView({
+  bracket,
+  viewerTeamId = null,
+  nameOf,
+  detailOf = defaultDetail,
+  onOpenMatchup = null,
+  currentWeek = null
+}) {
   return (
     <div className="@container">
       <div className="grid gap-4 @2xl:grid-cols-3 @2xl:gap-3">
@@ -71,29 +128,25 @@ export function BracketView({ bracket, viewerTeamId = null, nameOf, detailOf = d
           <section key={round.id} aria-label={round.title} className="min-w-0">
             <h3 className="mb-1.5 flex items-baseline justify-between gap-2 text-sm font-semibold">
               {round.title}
-              <span className="text-xs font-normal text-muted-foreground tabular">Week {round.week}</span>
+              <span
+                className={cn(
+                  'text-xs font-normal tabular',
+                  round.week === currentWeek ? 'font-medium text-primary' : 'text-muted-foreground'
+                )}
+              >
+                Week {round.week}
+              </span>
             </h3>
             <ul className="grid gap-2 @md:grid-cols-2 @2xl:grid-cols-1">
               {round.matchups.map((matchup) => (
-                <li
+                <BracketMatchup
                   key={matchup.id}
-                  className="divide-y divide-border/50 overflow-hidden rounded-lg border border-border/70 bg-muted/20"
-                >
-                  {matchup.sides.map((side, index) => (
-                    <BracketSide
-                      key={side.team?.id ?? side.label ?? index}
-                      side={side}
-                      viewerTeamId={viewerTeamId}
-                      nameOf={nameOf}
-                      detailOf={detailOf}
-                    />
-                  ))}
-                  {matchup.bye && (
-                    <div className="flex min-h-9 items-center px-2.5 text-[13px] text-muted-foreground">
-                      First-round bye
-                    </div>
-                  )}
-                </li>
+                  matchup={matchup}
+                  viewerTeamId={viewerTeamId}
+                  nameOf={nameOf}
+                  detailOf={detailOf}
+                  onOpen={onOpenMatchup ? (opened) => onOpenMatchup(opened, round) : null}
+                />
               ))}
             </ul>
           </section>

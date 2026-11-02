@@ -5,7 +5,11 @@
  * Aggregates transaction counts by team and type per season.
  */
 
+import { FAAB_TRADE_PROCESSED, parseFaabTransfers } from '../utils/faabLedger.js';
 import { extractOwnerInfo } from '../utils/ownerUtils.js';
+
+/** Topics per request from ESPN's league activity feed. */
+const FEED_PAGE = 200;
 
 // Transaction type mappings from ESPN API
 export const TRANSACTION_TYPES = {
@@ -147,9 +151,10 @@ export class ESPNTransactionFetcher {
         params.append('view', 'mTransactions2');
 
         if (week === 1) {
-          // Only need team/member data once
+          // Only need team/member data once. mSettings is the FAAB budget.
           params.append('view', 'mTeam');
           params.append('view', 'mMembers');
+          params.append('view', 'mSettings');
         }
 
         if (seasonYear < 2018) {
@@ -181,6 +186,7 @@ export class ESPNTransactionFetcher {
         if (week === 1) {
           this._teamsData = weekData.teams;
           this._membersData = weekData.members;
+          this._settingsData = weekData.settings;
         }
 
         // Small delay to avoid rate limiting
@@ -202,11 +208,55 @@ export class ESPNTransactionFetcher {
       return {
         transactions: uniqueTransactions,
         teams: this._teamsData || [],
-        members: this._membersData || []
+        members: this._membersData || [],
+        settings: this._settingsData ?? null
       };
     } catch (error) {
       console.error(`Error fetching transactions for ${seasonYear}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * The FAAB moved in processed trades, from the league activity feed. A
+   * trade's own transaction row says FAAB moved and not how much, so this is
+   * the only place the amounts are. Cookied, and a separate endpoint from the
+   * league itself. See `utils/faabLedger.js`.
+   */
+  async fetchFaabTransfers(year = null) {
+    const seasonYear = year || this.seasonYear;
+    const url = `${this.baseUrl}/${seasonYear}/segments/0/leagues/${this.leagueId}/communication/?view=kona_league_communication`;
+    const headers = { 'Accept': 'application/json' };
+
+    if (this.espnS2 && this.swid) {
+      headers['Cookie'] = `espn_s2=${this.espnS2}; SWID=${this.swid}`;
+    }
+
+    const topics = [];
+    for (let offset = 0; ; offset += FEED_PAGE) {
+      const filter = {
+        topics: {
+          filterType: { value: ['ACTIVITY_TRANSACTIONS'] },
+          filterIncludeMessageTypeIds: { value: [FAAB_TRADE_PROCESSED] },
+          limit: FEED_PAGE,
+          limitPerMessageSet: { value: 25 },
+          offset,
+          sortMessageDate: { sortPriority: 1, sortAsc: false },
+          sortFor: { sortPriority: 2, sortAsc: false }
+        }
+      };
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { ...headers, 'x-fantasy-filter': JSON.stringify(filter) }
+      });
+      if (!response.ok) {
+        throw new Error(`ESPN activity feed failed: ${response.status} - ${response.statusText}`);
+      }
+
+      const page = (await response.json()).topics ?? [];
+      topics.push(...page);
+      if (page.length < FEED_PAGE) return parseFaabTransfers(topics);
     }
   }
 

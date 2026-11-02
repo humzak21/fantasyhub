@@ -4,12 +4,16 @@ import {
   CLOSING_LEAD_HOURS,
   TAKE_EVENT_MAX_AGE_HOURS,
   TOPICS,
+  WIN_KINDS,
   formatDeadline,
   isGoneStatus,
+  newestFinishedWeek,
   planPickemNotifications,
   planTakeNotifications,
+  planWinnerNotifications,
   previewTake
 } from '../notificationPlanner.js';
+import { PICK_EM_TOURNEYS } from '../../src/components/pickems/tourneys.js';
 
 // Week 5, 2026: opens Tuesday 06 Oct 04:00 EDT, closes Thursday 08 Oct 20:00 EDT.
 const WEEK = {
@@ -191,10 +195,10 @@ describe('planTakeNotifications', () => {
     expect(plans).toEqual([]);
   });
 
-  it('skips stale events, deleted takes, withdrawals and edits', () => {
+  it('skips stale events, deleted takes, withdrawals and grades', () => {
     expect(plan({ events: [event('posted', 'author', { createdAt: minutesAgo(TAKE_EVENT_MAX_AGE_HOURS * 60 + 1) })] })).toEqual([]);
     expect(plan({ events: [event('posted', 'author', { takeId: 'gone' })] })).toEqual([]);
-    expect(plan({ events: [event('unfaded', 'sam'), event('edited', 'author'), event('graded', 'author')] })).toEqual([]);
+    expect(plan({ events: [event('unfaded', 'sam'), event('graded', 'author')] })).toEqual([]);
   });
 
   it('keeps take wording away from accounts that may not read takes', () => {
@@ -288,5 +292,242 @@ describe('previewTake', () => {
     const long = 'x'.repeat(200);
     expect(previewTake(long)).toHaveLength(140);
     expect(previewTake(long).endsWith('…')).toBe(true);
+  });
+});
+
+describe('planTakeNotifications · edits', () => {
+  const NOW = new Date('2026-10-06T14:00:00Z');
+  const minutesAgo = (minutes) => new Date(NOW.getTime() - minutes * 60_000);
+  const edited = (id, minutes, extra = {}) => ({
+    id, takeId: 't1', seasonId: 's26', eventType: 'edited', subjectId: null, createdAt: minutesAgo(minutes), ...extra
+  });
+  const posted = (minutes) => ({
+    id: 'post', takeId: 't1', seasonId: 's26', eventType: 'posted', subjectId: null, createdAt: minutesAgo(minutes)
+  });
+  const takes = new Map([['t1', { id: 't1', authorId: 'author', body: 'Nobody goes 13-1 either', wager: '$20' }]]);
+  const subscriptions = [sub('author', [TOPICS.takesNew]), sub('member', [TOPICS.takesNew]), sub('quiet', [TOPICS.takesReactions])];
+  const base = { now: NOW, takes, subscriptions, displayNames: { author: 'Jo' } };
+
+  it("tells everybody with new takes on but the author, in the take's new wording", () => {
+    const [plan] = planTakeNotifications({ ...base, events: [edited('e1', 2)], claimed: new Set(['post:takes_new']) });
+
+    expect(plan.recipients.map((r) => r.userId)).toEqual(['member']);
+    expect(plan.payload.title).toBe('Jo edited a take');
+    expect(plan.payload.body).toBe('“Nobody goes 13-1 either” · $20 on it');
+  });
+
+  it('shares the post\'s tag, so the new wording replaces the old on a device', () => {
+    const [plan] = planTakeNotifications({ ...base, events: [edited('e1', 2)] });
+    expect(plan.payload.tag).toBe('take-t1');
+  });
+
+  it('says nothing about an admin correcting a take', () => {
+    expect(planTakeNotifications({ ...base, events: [edited('e1', 2, { actedAsAdmin: true })] })).toEqual([]);
+  });
+
+  it('sends one notification for several saves, and claims the rest with it', () => {
+    const plans = planTakeNotifications({ ...base, events: [edited('e1', 4), edited('e2', 3), edited('e3', 2)] });
+
+    expect(plans).toHaveLength(1);
+    expect(plans[0].eventId).toBe('e3');
+    expect(plans[0].absorbs).toEqual(['e1', 'e2']);
+  });
+
+  it('lets a post not yet announced speak for its edits', () => {
+    const plans = planTakeNotifications({ ...base, events: [posted(5), edited('e1', 2)] });
+
+    expect(plans).toHaveLength(1);
+    expect(plans[0].eventId).toBe('post');
+    expect(plans[0].absorbs).toEqual(['e1']);
+  });
+
+  it('still announces an edit once the post has gone out', () => {
+    const plans = planTakeNotifications({
+      ...base,
+      events: [posted(30), edited('e1', 2)],
+      claimed: new Set(['post:takes_new'])
+    });
+
+    expect(plans.map((plan) => plan.eventId)).toEqual(['e1']);
+  });
+
+  it('never repeats an edit already sent', () => {
+    expect(planTakeNotifications({ ...base, events: [edited('e1', 2)], claimed: new Set(['e1:takes_new']) })).toEqual([]);
+  });
+
+  it('lets an old edit age out', () => {
+    const stale = edited('e1', (TAKE_EVENT_MAX_AGE_HOURS + 1) * 60);
+    expect(planTakeNotifications({ ...base, events: [stale] })).toEqual([]);
+  });
+});
+
+describe('newestFinishedWeek', () => {
+  const game = (week, isCompleted, extra = {}) => ({ week, isCompleted, team2Id: 'b', type: 'regular', ...extra });
+
+  it('is the newest week every game of which is over', () => {
+    expect(newestFinishedWeek([game(7, true), game(7, true), game(8, true), game(8, false)])).toBe(7);
+  });
+
+  it('is not held up by a bye row, which is nobody\'s game', () => {
+    expect(newestFinishedWeek([game(15, true), game(15, false, { type: 'bye', team2Id: null })])).toBe(15);
+  });
+
+  it('is null before anything has finished', () => {
+    expect(newestFinishedWeek([game(1, false)])).toBeNull();
+    expect(newestFinishedWeek([])).toBeNull();
+  });
+});
+
+describe('planWinnerNotifications', () => {
+  const score = (userId, totalPoints, extra = {}) => ({
+    userId, totalPoints, correctPicks: totalPoints, decidedPicks: 7, ...extra
+  });
+  const wants = (userId) => sub(userId, [TOPICS.pickemsWins]);
+  const firstHalf = PICK_EM_TOURNEYS.find((tourney) => tourney.id === 'first-half');
+
+  describe('a week', () => {
+    const scores = [score('a', 6), score('b', 5)];
+
+    it('goes to the winner and nobody else', () => {
+      const [plan] = planWinnerNotifications({
+        weekly: { week: 8, scores },
+        subscriptions: [wants('a'), wants('b')]
+      });
+
+      expect(plan).toMatchObject({ kind: WIN_KINDS.week, week: 8, inbox: ['a'] });
+      expect(plan.recipients.map((r) => r.userId)).toEqual(['a']);
+      expect(plan.payload.title).toBe("You won week 8 pick'ems");
+      expect(plan.payload.body).toBe('6 of 7 right.');
+    });
+
+    it('tells everybody tied for first, and that it was a tie', () => {
+      const [plan] = planWinnerNotifications({
+        weekly: { week: 8, scores: [score('a', 6), score('b', 6), score('c', 6), score('d', 2)] },
+        subscriptions: [wants('a'), wants('b'), wants('c'), wants('d')]
+      });
+
+      expect(plan.inbox).toEqual(['a', 'b', 'c']);
+      expect(plan.payload.title).toBe('You tied for 1st in week 8');
+      expect(plan.payload.body).toBe('6 of 7 right. Tied with 2 others.');
+    });
+
+    it('has no winner when nobody scored', () => {
+      expect(planWinnerNotifications({ weekly: { week: 8, scores: [score('a', 0)] } })).toEqual([]);
+    });
+
+    it('keeps it for a winner with no device, and pushes to none', () => {
+      const [plan] = planWinnerNotifications({
+        weekly: { week: 8, scores },
+        subscriptions: [sub('a', [TOPICS.pickemsOpen])]
+      });
+
+      expect(plan.inbox).toEqual(['a']);
+      expect(plan.recipients).toEqual([]);
+    });
+
+    it('never tells an account that is no longer approved', () => {
+      const plans = planWinnerNotifications({
+        weekly: { week: 8, scores },
+        subscriptions: [wants('a')],
+        excludedUserIds: new Set(['a'])
+      });
+
+      expect(plans).toEqual([]);
+    });
+
+    it('sends once', () => {
+      const plans = planWinnerNotifications({
+        weekly: { week: 8, scores },
+        subscriptions: [wants('a')],
+        sent: new Set([`${WIN_KINDS.week}:8`])
+      });
+
+      expect(plans).toEqual([]);
+    });
+  });
+
+  describe('a tourney', () => {
+    const weeklyScores = Object.fromEntries(
+      [1, 2, 3, 4, 5, 6, 7, 8].map((week) => [week, [
+        score('steady', 5),
+        // The most points of anybody, in four weeks: under the five-week floor.
+        ...(week <= 4 ? [score('sprinter', 12)] : []),
+        // Exactly on the floor, and behind.
+        ...(week <= 5 ? [score('floor', 7)] : [])
+      ]])
+    );
+
+    it('goes to the top score over the participation floor', () => {
+      const [plan] = planWinnerNotifications({
+        tourney: { tourney: firstHalf, weeklyScores },
+        subscriptions: [wants('steady'), wants('sprinter'), wants('floor')]
+      });
+
+      expect(plan).toMatchObject({ kind: 'pickems_tourney_won:first-half', week: 8, inbox: ['steady'] });
+      expect(plan.payload.title).toBe('You won the weeks 1-8 tourney');
+      expect(plan.payload.body).toBe('40 points across 8 weeks. The prize is $20 FAAB for this year.');
+    });
+
+    it('ignores weeks outside its span', () => {
+      const [plan] = planWinnerNotifications({
+        tourney: { tourney: firstHalf, weeklyScores: { ...weeklyScores, 9: [score('floor', 100)] } },
+        subscriptions: [wants('steady')]
+      });
+
+      expect(plan.inbox).toEqual(['steady']);
+    });
+
+    it('ties for first like a week does', () => {
+      const tied = Object.fromEntries(
+        [1, 2, 3, 4, 5].map((week) => [week, [score('a', 5), score('b', 5)]])
+      );
+      const [plan] = planWinnerNotifications({ tourney: { tourney: firstHalf, weeklyScores: tied } });
+
+      expect(plan.inbox).toEqual(['a', 'b']);
+      expect(plan.payload.title).toBe('You tied for the 1-8 tourney');
+      expect(plan.payload.body).toBe('25 points across 5 weeks. Tied with one other. The prize is $20 FAAB for this year.');
+    });
+
+    it('has no winner when nobody cleared the floor', () => {
+      const plans = planWinnerNotifications({
+        tourney: { tourney: firstHalf, weeklyScores: { 1: [score('a', 7)], 2: [score('a', 7)] } }
+      });
+
+      expect(plans).toEqual([]);
+    });
+  });
+
+  describe('the playoff bracket', () => {
+    it('goes to the top of the standings', () => {
+      const [plan] = planWinnerNotifications({
+        bracket: { week: 17, standings: [score('a', 9), score('b', 7)] },
+        subscriptions: [wants('a'), wants('b')]
+      });
+
+      expect(plan).toMatchObject({ kind: WIN_KINDS.bracket, week: 17, inbox: ['a'] });
+      expect(plan.payload).toMatchObject({ title: 'You won the playoff bracket', url: '/playoffs' });
+    });
+
+    it('ties for first too', () => {
+      const [plan] = planWinnerNotifications({
+        bracket: { week: 17, standings: [score('a', 9), score('b', 9)] }
+      });
+
+      expect(plan.inbox).toEqual(['a', 'b']);
+      expect(plan.payload.title).toBe('You tied for the bracket win');
+    });
+  });
+
+  it('tells a week and the tourney it ended separately', () => {
+    const weeklyScores = Object.fromEntries(
+      [1, 2, 3, 4, 5, 6, 7, 8].map((week) => [week, [score('a', 5)]])
+    );
+    const plans = planWinnerNotifications({
+      weekly: { week: 8, scores: weeklyScores[8] },
+      tourney: { tourney: firstHalf, weeklyScores },
+      subscriptions: [wants('a')]
+    });
+
+    expect(plans.map((plan) => plan.kind)).toEqual([WIN_KINDS.week, 'pickems_tourney_won:first-half']);
   });
 });

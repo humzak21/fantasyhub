@@ -16,7 +16,11 @@
 import { DbErrorKind, throwDbError, toDbError, unwrap } from './errors.js';
 import { createLogger } from './logger.js';
 import { selectAll } from './paging.js';
+import { getPickEmWeeklyBreakdown, getWeeklyPickEmScores } from './pickems.js';
+import { getPlayoffBracketConfig, getPlayoffStandings } from './playoffs.js';
 import { getUserDisplayNames } from './users.js';
+import { WIN_KINDS, newestFinishedWeek } from '../notificationPlanner.js';
+import { PICK_EM_TOURNEYS } from '../../src/components/pickems/tourneys.js';
 import { ownerKey } from '../../utils/ownerAliases.js';
 
 const log = createLogger('db:notifications');
@@ -280,11 +284,101 @@ export async function getOpenPickEmWeek(ctx, now = new Date()) {
 }
 
 // ---------------------------------------------------------------------------
+// Winners (service role)
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything `planWinnerNotifications` needs: the result of the newest finished
+ * week, the tourney that week ended, the bracket challenge if the final is over
+ * and the admin has released it, and what notification_log already holds.
+ *
+ * A tourney ends with its last week whether or not that week had a pick'em,
+ * because the sync does not open one in the playoffs: the second half's picks
+ * can stop at week 14 and it is still decided when week 17 is.
+ */
+export async function getWinnerNotificationInputs(ctx) {
+  const season = unwrap(
+    await ctx.client.from('v_active_season').select('id, year').maybeSingle(),
+    'Get active season',
+    { allowMissing: true }
+  );
+  if (!season) return { season: null };
+
+  const games = await selectAll(() => ctx.client
+    .from('games')
+    .select('id, week, type, team2_id, is_completed')
+    .eq('season_id', season.id)
+    .order('id'))
+    .then((rows) => rows.map((row) => ({
+      week: row.week,
+      type: row.type,
+      team2Id: row.team2_id,
+      isCompleted: Boolean(row.is_completed)
+    })))
+    .catch((error) => throwDbError(error, 'Get games for winners'));
+
+  const week = newestFinishedWeek(games);
+  const unapproved = await ctx.client.from('member_approvals').select('user_id').neq('status', 'approved')
+    .then((result) => unwrap(result, 'Get unapproved members') ?? []);
+  const inputs = {
+    season,
+    week,
+    weekly: null,
+    tourney: null,
+    bracket: null,
+    sent: new Set(),
+    excludedUserIds: new Set(unapproved.map((row) => row.user_id))
+  };
+
+  const noteSent = async (weekNumber) => {
+    const kinds = await getSentNotificationKinds(ctx, season.id, weekNumber);
+    for (const kind of kinds) inputs.sent.add(`${kind}:${weekNumber}`);
+  };
+
+  if (week != null) {
+    await noteSent(week);
+
+    const pickEmWeek = unwrap(
+      await ctx.client
+        .from('pick_em_weeks')
+        .select('id')
+        .eq('season_id', season.id)
+        .eq('week_number', week)
+        .maybeSingle(),
+      'Get pick em week for winners',
+      { allowMissing: true }
+    );
+    if (pickEmWeek && !inputs.sent.has(`${WIN_KINDS.week}:${week}`)) {
+      inputs.weekly = { week, scores: await getWeeklyPickEmScores(ctx, pickEmWeek.id) };
+    }
+
+    const tourney = PICK_EM_TOURNEYS.find((candidate) => candidate.endWeek === week);
+    if (tourney && !inputs.sent.has(`${WIN_KINDS.tourney(tourney.id)}:${week}`)) {
+      inputs.tourney = { tourney, weeklyScores: await getPickEmWeeklyBreakdown(ctx, season.id) };
+    }
+  }
+
+  const final = games.find((game) => game.type === 'playoff_championship');
+  if (final?.isCompleted) {
+    await noteSent(final.week);
+    const config = await getPlayoffBracketConfig(ctx, season.id);
+    if (config?.resultsReleased && !inputs.sent.has(`${WIN_KINDS.bracket}:${final.week}`)) {
+      inputs.bracket = { week: final.week, standings: await getPlayoffStandings(ctx, season.id) };
+    }
+  }
+
+  return inputs;
+}
+
+// ---------------------------------------------------------------------------
 // Takes (service role)
 // ---------------------------------------------------------------------------
 
-/** The take events that can be announced. Withdrawals, edits and grades are not. */
-export const ANNOUNCED_TAKE_EVENTS = Object.freeze(['posted', 'faded', 'backed']);
+/**
+ * The take events that can be announced. Withdrawals and grades are not, and
+ * of edits only the author's own: `planTakeNotifications` reads `actedAsAdmin`.
+ */
+export const ANNOUNCED_TAKE_EVENTS = Object.freeze(['posted', 'edited', 'faded', 'backed']);
 
 /**
  * Everything `planTakeNotifications` needs, for events since `since`: the
@@ -303,7 +397,7 @@ export async function getTakeNotificationInputs(ctx, since) {
   const [eventRows, claimedRows] = await Promise.all([
     selectAll(() => ctx.client
       .from('take_events')
-      .select('id, seq, take_id, season_id, event_type, subject_id, created_at')
+      .select('id, seq, take_id, season_id, event_type, subject_id, acted_as_admin, created_at')
       .in('event_type', ANNOUNCED_TAKE_EVENTS)
       .gte('created_at', sinceIso)
       .order('seq')).catch((error) => throwDbError(error, 'Get take events')),
@@ -325,6 +419,7 @@ export async function getTakeNotificationInputs(ctx, since) {
       seasonId: row.season_id,
       eventType: row.event_type,
       subjectId: row.subject_id,
+      actedAsAdmin: Boolean(row.acted_as_admin),
       createdAt: new Date(row.created_at)
     }));
 

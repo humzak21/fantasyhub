@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   HOME_BRACKET_AFTER_WEEK,
+  boxScoreGame,
   flattenStandings,
   isBracketSet,
   lastScoredWeek,
@@ -177,5 +178,72 @@ describe('resolveUpperBracket', () => {
     expect([left.lost, right.won]).toEqual([true, true]);
     expect(right.score).toBe(110);
     expect(bracket.champion.id).toBe('t3');
+  });
+});
+
+describe('resolveUpperBracket · consolation', () => {
+  const game = (id, type, week, team1Id, team2Id) => ({
+    id, type, week, team1Id, team2Id, team1Score: null, team2Score: null
+  });
+  const teams = Array.from({ length: 14 }, (_, i) => ({
+    id: `t${i + 1}`,
+    name: `Team ${i + 1}`,
+    playoffSeed: i < 6 ? i + 1 : null,
+    winPercentage: (14 - i) / 14
+  }));
+
+  it('is every postseason game the bracket does not draw', () => {
+    const games = [
+      game('r', 'regular', 14, 't1', 't2'),
+      game('b1', 'bye', 15, 't1', null),
+      game('q1', 'playoff_first_round', 15, 't3', 't6'),
+      game('c1', 'playoff_consolation_quarterfinals', 15, 't7', 't8'),
+      game('p3', 'playoff', 17, 't3', 't4')
+    ];
+
+    const { consolation } = resolveUpperBracket({ games, teams });
+
+    expect(consolation.map((matchup) => [matchup.id, matchup.week])).toEqual([['c1', 15], ['p3', 17]]);
+    expect(consolation[0].sides[0].team.id).toBe('t7');
+    expect(consolation[0].game.id).toBe('c1');
+  });
+
+  it('is empty while the bracket is a projection', () => {
+    expect(resolveUpperBracket({ teams }).consolation).toEqual([]);
+  });
+});
+
+describe('boxScoreGame', () => {
+  const team = (id) => ({ id });
+
+  it('is the real game when there is one', () => {
+    const game = { id: 'g1', week: 15 };
+    expect(boxScoreGame({ id: 'r1', game, sides: [] }, 15)).toBe(game);
+  });
+
+  it('stands in for a projected matchup, with nothing to score', () => {
+    const stand = boxScoreGame({ id: 'r1-3v6', sides: [{ team: team('t3') }, { team: team('t6') }] }, 15);
+
+    expect(stand).toMatchObject({
+      id: 'r1-3v6',
+      week: 15,
+      team1Id: 't3',
+      team2Id: 't6',
+      team1Score: null,
+      isCompleted: false,
+      isProjected: true
+    });
+  });
+
+  it('puts the named team first, and says what the other slot waits for', () => {
+    const stand = boxScoreGame({ id: 'final', sides: [{ label: 'Semifinal 1 winner' }, { team: team('t2') }] }, 17);
+
+    expect(stand).toMatchObject({ type: 'bye', team1Id: 't2', team2Id: null, opponentLabel: 'Semifinal 1 winner' });
+  });
+
+  it('calls a bye a bye', () => {
+    const stand = boxScoreGame({ id: 'bye-1', bye: true, sides: [{ team: team('t1') }] }, 15);
+
+    expect(stand).toMatchObject({ type: 'bye', opponentLabel: 'First-round bye' });
   });
 });

@@ -20,6 +20,8 @@ import {
 import { moveUserTeamToFirst } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
+import { faabOf, formatFaab } from '../../utils/format';
+import { FaabBreakdown } from '../ui/faab-breakdown';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { toast } from 'sonner';
 import PageHeader from '../layout/PageHeader';
@@ -30,7 +32,7 @@ import { teamOf } from '../../../utils/playerImages.js';
 import { PlayerPoints } from '../ui/player-points';
 import { IndependentColumns } from '../ui/independent-columns';
 import { isUserTeam } from '../../utils/userTeamUtils';
-import { useActualWeek, useNflOpponentMap } from '../../../hooks/queries/index.js';
+import { useActualWeek, useFaabLedger, useNflOpponentMap } from '../../../hooks/queries/index.js';
 import { cn } from '../../lib/utils';
 import { TEAM_PARAM } from './teamLink.js';
 import { TeamIdentityLink } from '../ui/team-link';
@@ -72,6 +74,7 @@ const TeamsAndRosters = ({
   // and deliberately not awaited: a roster renders without its opponents
   // rather than the whole tab waiting on a second query.
   const { data: opponents = {} } = useNflOpponentMap(nflSeasonYear, actualWeek);
+  const { data: faabLedger } = useFaabLedger(season?.id);
 
   // `/teams?team=<id>` — a team name tapped on Rankings — scrolls that card
   // into view. It waits for the rosters as well as the teams: every card is
@@ -495,6 +498,13 @@ const TeamsAndRosters = ({
 
                     </div>
 
+                    {faabOf(team) != null && (
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs font-medium text-muted-foreground">FAAB left</p>
+                        <p className="text-sm font-semibold tabular">{formatFaab(faabOf(team))}</p>
+                      </div>
+                    )}
+
                     {/* Actions */}
                     {isAuthenticated && (
                       <div className="flex items-center gap-1 shrink-0 ml-2">
@@ -540,6 +550,8 @@ const TeamsAndRosters = ({
                       </div>
                     )}
                   </div>
+
+                  <FaabBreakdown ledger={faabLedger?.[team.id]} className="-mt-2 mb-3" />
 
                   {/* Compact Roster Section */}
                   <CompactTeamRoster team={team} roster={teamRoster} />

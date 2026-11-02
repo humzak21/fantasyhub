@@ -11,6 +11,7 @@ import { StreakChip } from '../../ui/streak-chip';
 import { TeamAvatar } from '../../ui/team-identity';
 import { cn } from '../../../lib/utils';
 import { getMaskedTeamName } from '../../../utils/displayNameUtils';
+import { faabOf, formatFaab } from '../../../utils/format';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useRankingsForWeek } from '../../../../hooks/queries/index.js';
 import { TeamLink } from '../../ui/team-link';
@@ -32,7 +33,8 @@ const COLUMNS = [
   { key: 'pf', label: 'PF', title: 'Points for', width: 'w-[4.25rem]', align: 'text-right' },
   { key: 'pa', label: 'PA', title: 'Points against', width: 'w-[4.25rem]', align: 'text-right' },
   { key: 'diff', label: 'Diff', title: 'Point differential', width: 'w-[4.25rem]', align: 'text-right' },
-  { key: 'streak', label: 'Streak', width: 'w-[3.75rem]', align: 'text-center' }
+  { key: 'streak', label: 'Streak', width: 'w-[3.75rem]', align: 'text-center' },
+  { key: 'faab', label: 'FAAB', title: 'FAAB left', width: 'w-14', align: 'text-right' }
 ];
 
 /**
@@ -40,11 +42,11 @@ const COLUMNS = [
  * columns shown by default (15.25rem) — so the default view is exactly those
  * — but never less than twelve letters of name (13ch, plus the cell's
  * padding, plus the team mark once the card is wide enough to show it). The
- * table is that plus every other column: 18.25rem shown, 20.25rem to the right.
+ * table is that plus every other column: 18.25rem shown, 23.75rem to the right.
  */
 const TEAM_WIDTH = 'w-[max(13ch_+_0.75rem,100cqw_-_18.25rem)] @md:w-[max(13ch_+_2.75rem,100cqw_-_18.25rem)]';
 const TABLE_WIDTH =
-  'w-[calc(max(13ch_+_0.75rem,100cqw_-_18.25rem)_+_38.5rem)] @md:w-[calc(max(13ch_+_2.75rem,100cqw_-_18.25rem)_+_38.5rem)]';
+  'w-[calc(max(13ch_+_0.75rem,100cqw_-_18.25rem)_+_42rem)] @md:w-[calc(max(13ch_+_2.75rem,100cqw_-_18.25rem)_+_42rem)]';
 
 /**
  * The whole power ranking, with the viewer in view.
@@ -53,8 +55,8 @@ const TABLE_WIDTH =
  * rows tall, and on load it scrolls itself so the viewer's row sits in the
  * middle — the rows either side of you are what the card is for, and the
  * rest of the league is a flick away. Rating, record, luck and playoff odds
- * fill the card by default; win %, points, differential and streak are to the
- * right. The rank stays put as it scrolls sideways, and the header as it
+ * fill the card by default; win %, points, differential, streak and FAAB are to
+ * the right. The rank stays put as it scrolls sideways, and the header as it
  * scrolls down; the team scrolls with its figures.
  *
  * Reads `useRankingsForWeek(seasonId, actualWeek, actualWeek)` — the key the
@@ -195,6 +197,9 @@ export default function RankingsSlice({ ctx }) {
                   </td>
                   <td className={cn(cell, 'px-1.5 text-center')}>
                     <StreakChip streak={row.currentStreak} />
+                  </td>
+                  <td className={cn(cell, 'px-1.5 text-right text-[13px] tabular text-muted-foreground')}>
+                    {formatFaab(faabOf(row))}
                   </td>
                 </tr>
               );

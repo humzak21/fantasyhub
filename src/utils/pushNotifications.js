@@ -41,6 +41,11 @@ export const PUSH_TOPIC_GROUPS = [
         id: 'pickems_closing',
         label: "Pick'ems close soon",
         description: "Thursday afternoon, only if you haven't picked yet."
+      },
+      {
+        id: 'pickems_wins',
+        label: 'Your wins',
+        description: "When you win a week, a tourney or the playoff bracket challenge, ties for first included."
       }
     ]
   },
@@ -51,7 +56,7 @@ export const PUSH_TOPIC_GROUPS = [
       {
         id: 'takes_new',
         label: 'New takes',
-        description: 'Whenever somebody else posts a take.'
+        description: 'Whenever somebody else posts a take or rewords one.'
       },
       {
         id: 'takes_reactions',

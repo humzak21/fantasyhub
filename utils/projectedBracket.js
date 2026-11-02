@@ -136,7 +136,11 @@ const winnerIdOf = (game) => {
  * @param {Array<Object>} input.games - the season's games
  * @param {Array<Object>} input.teams - standings rows (`seedOrder`'s input)
  * @param {number} [input.firstRoundWeek]
- * @returns {null | { drawn: boolean, weeks: number[], champion: Object|null, rounds: Array }}
+ * `consolation` is every other postseason game (placement games and the
+ * consolation bracket), in the same matchup shape, each with its `week`. Empty
+ * until ESPN draws them: nothing projects those.
+ *
+ * @returns {null | { drawn: boolean, weeks: number[], champion: Object|null, rounds: Array, consolation: Array }}
  */
 export function resolveUpperBracket({ games = [], teams = [], firstRoundWeek = 15 }) {
   const order = seedOrder(teams);
@@ -201,23 +205,60 @@ export function resolveUpperBracket({ games = [], teams = [], firstRoundWeek = 1
     ? { id: 'final', sides: bothSides(real.championship), game: real.championship }
     : { id: 'final', sides: [semiWinner(semis[0], 'Semifinal 1 winner'), semiWinner(semis[1], 'Semifinal 2 winner')] };
 
+  const rounds = [
+    {
+      id: 'round-1',
+      title: 'Round 1',
+      week: firstRoundWeek,
+      matchups: [
+        { id: 'bye-1', bye: true, sides: [byeSide(1)] },
+        { id: 'bye-2', bye: true, sides: [byeSide(2)] },
+        ...r1Games
+      ]
+    },
+    { id: 'semifinals', title: 'Semifinals', week: firstRoundWeek + 1, matchups: semis },
+    { id: 'championship', title: 'Championship', week: firstRoundWeek + 2, matchups: [final] }
+  ];
+
+  const inBracket = new Set(rounds.flatMap(({ matchups }) => matchups.map(({ game }) => game?.id)));
+  const consolation = games
+    .filter((game) => game.week >= firstRoundWeek && game.type !== 'bye' &&
+      teamIdInGame(game, 'team2') != null && !inBracket.has(game.id))
+    .sort((a, b) => a.week - b.week)
+    .map((game) => ({ id: game.id, week: game.week, sides: bothSides(game), game }));
+
   return {
     drawn,
     weeks: [firstRoundWeek, firstRoundWeek + 1, firstRoundWeek + 2],
     champion: final.sides.find((side) => side.won)?.team ?? null,
-    rounds: [
-      {
-        id: 'round-1',
-        title: 'Round 1',
-        week: firstRoundWeek,
-        matchups: [
-          { id: 'bye-1', bye: true, sides: [byeSide(1)] },
-          { id: 'bye-2', bye: true, sides: [byeSide(2)] },
-          ...r1Games
-        ]
-      },
-      { id: 'semifinals', title: 'Semifinals', week: firstRoundWeek + 1, matchups: semis },
-      { id: 'championship', title: 'Championship', week: firstRoundWeek + 2, matchups: [final] }
-    ]
+    rounds,
+    consolation
+  };
+}
+
+/**
+ * The game a matchup's box score is about: the real row, or for a slot with no
+ * game yet, a stand-in shaped like one. `isProjected` is how the box score
+ * knows there is nothing to edit and no result to wait for. The named team
+ * always comes first, and an empty slot's label travels as `opponentLabel`.
+ *
+ * @param {object} matchup - from `resolveUpperBracket`
+ * @param {number} week - the round's week
+ */
+export function boxScoreGame(matchup, week) {
+  if (matchup.game) return matchup.game;
+
+  const [first, second] = [...matchup.sides].sort((a, b) => Number(Boolean(b.team)) - Number(Boolean(a.team)));
+  return {
+    id: matchup.id,
+    week,
+    type: second?.team ? 'projected' : 'bye',
+    team1Id: teamIdOf(first?.team),
+    team2Id: teamIdOf(second?.team),
+    team1Score: null,
+    team2Score: null,
+    isCompleted: false,
+    isProjected: true,
+    opponentLabel: matchup.bye ? 'First-round bye' : second?.label ?? null
   };
 }

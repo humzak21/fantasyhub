@@ -6,6 +6,7 @@ import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { getMaskedTeamName, getMaskedOwnerName, getMaskedDivisionName } from '../../utils/displayNameUtils';
+import { faabOf, formatFaab } from '../../utils/format';
 import { computeSeeds, teamIdOf, usesSeededPlayoffs } from '../../../utils/playoffSeeding.js';
 import {
   AlertDialog,
@@ -621,6 +622,10 @@ const DrawerStandingsTable = ({
    * standing to show.
    */
   const franchiseIds = franchiseIdsByTeam(teams);
+  // The standings RPC has no FAAB, so it comes off the season's own teams. Only
+  // the season in progress has a figure: a past season gets no column.
+  const faabByTeam = new Map(teams.map((team) => [team.id, faabOf(team)]));
+  const hasFaab = [...faabByTeam.values()].some((value) => value != null);
   const standingsColumns = ({ withRank, moveTargets, moveLabel }) => [
     ...(withRank
       ? [{
@@ -735,6 +740,16 @@ const DrawerStandingsTable = ({
         </span>
       ),
     },
+    ...(hasFaab
+      ? [{
+          key: 'faab',
+          header: 'FAAB',
+          cardLabel: 'FAAB left',
+          headerClassName: 'w-16 px-2 py-2 text-center text-sm',
+          className: 'px-2 py-2 text-center tabular',
+          cell: (team) => formatFaab(faabByTeam.get(team.id ?? team.teamId)),
+        }]
+      : []),
     ...(isManaging
       ? [{
           key: 'move',

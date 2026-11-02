@@ -1299,6 +1299,29 @@ until real rows existed; the league asked for the projection instead.
   `showsHomeBracket`: every game of that week scored, or any postseason row. A
   part-scored week does not count. Pre-2026 seasons project nothing.
 
+**The Schedule tab draws the postseason as the bracket**
+(`schedule/PlayoffSchedule.jsx`), for a postseason week in the week view and in
+place of the playoff weeks in the full season. It has no opinion of its own
+about who is in a slot: it is `resolveUpperBracket` through `BracketView`, the
+component the home card and Path to the Playoffs draw, and it takes any season's
+bracket, which is what the History season bracket can build on.
+
+- **A matchup opens a box score.** `BracketView` takes `onOpenMatchup`, and
+  without it stays a picture, so the home card did not change. A matchup is a
+  `<button>`, which is why `BracketSide` is spans. The box score is the tab's own
+  `GameCard` with `boxScore`, in a bottom sheet at every width: a score the admin
+  edits and a lineup a member reads are the same ones as on a regular week, and
+  opened in place it would land a screen below the tap once the rounds stack.
+- **A slot with no game still opens.** `boxScoreGame` stands in for the row, with
+  `isProjected`, so the card offers no score to edit. `LineupPanel` then reads
+  the live branch of `useLineupsForWeek`: each roster today, against that week's
+  NFL games. A slot with nobody in it stays a card.
+- **Nothing that was on the schedule has gone.** `consolation` on the resolved
+  bracket is every postseason game the rounds do not draw, placement games
+  included, and they sit under it with the same card. Nothing projects those.
+- **`fallback` is the old list**, for a league with no full field. Pre-2026
+  seasons never reach this component.
+
 ### Path to the Playoffs is the odds model, asked "what if"
 
 `/playoffs?tab=path` (`src/components/playoffs/path/`) lets a member pick any
@@ -1496,10 +1519,18 @@ out from `lg`. History
   'espn'` means "this franchise's newest logo". So a logo change lands on its
   own, and the button only appears to work once a sync has run.
 - **The hero carries the current season's standing** (`SeasonFigures`, over the
-  pure `utils/profile/seasonStanding.js`): power rank, place in the division and
-  points for, off the actual week's rankings and the standings RPC, the keys
-  those tabs already hold. Present tense, so the week control does not move it.
-  A franchise with no team this season shows none.
+  pure `utils/profile/seasonStanding.js`): power rank, place in the division,
+  points for and FAAB left, off the actual week's rankings, the standings RPC and
+  the season's team, the keys those tabs already hold. Present tense, so the week
+  control does not move it. A franchise with no team this season shows none.
+- **Every trade is on the page, with a total per partner**
+  (`profile/FranchiseTrades.jsx`). `tradesForRow` and `tradePartnersOf` over the
+  record book's own query key, which the trophy case already holds, so it fetches
+  nothing and cannot disagree with Records: the list is what "Most trades" opens
+  to (`records/TradeList.jsx`, one component), and the totals are what "Most
+  frequent trade partners" counts. So "Most trades"'s note holds here too: the
+  commissioner's list is long for the reason that record says. A franchise that
+  has never traded has no section.
 - **`TeamAvatar` draws the avatar everywhere, through
   `FranchiseAvatarsContext`,** which also answers `useCanOpenProfiles()` for
   `TeamLink`. A context so both primitives stay plain with no provider. It hands
@@ -1830,6 +1861,56 @@ from the selection. Rules that are load-bearing:
   "No data", never drawn as zero.
 - **Live-only numbers are out by design.** Projections, FPI, playoff odds and
   the power rating have no history: `power_rankings_history` starts in 2025.
+
+### FAAB is a ledger, and bids alone do not add up
+
+A team's bids can run past the budget, because bids are not the whole story:
+teams trade FAAB, and the commissioner awards it for pick'ems, takes and the
+like. `utils/faabLedger.js` is the pure half, and each line has its own source:
+
+| Line | Source | Stored |
+|---|---|---|
+| Budget | `settings.acquisitionSettings.acquisitionBudget` | `transactions.faab_budget` |
+| Spent | winning bids, as ever | `transactions.faab_spent` |
+| Traded | ESPN's activity feed, message 290 | `transactions.faab_traded_in` / `_out` |
+| Awarded | what is left of ESPN's counter | `transactions.faab_awarded` |
+| Left | budget minus ESPN's counter | `teams.faab_remaining` |
+
+`counter = bids - tradedIn + tradedOut - awarded`, where the counter is
+`transactionCounter.acquisitionBudgetSpent`, the number ESPN enforces. So
+`budget + awarded + traded - spent` is ESPN's left by construction. `useFaabLedger`
+reads the ledger, and `ui/faab-breakdown.jsx` draws it on the Teams cards and the
+profile hero. The tables (Power Rankings on the live week, the standings drawer,
+both home tables) show `teams.faab_remaining`, which needs no join.
+
+- **The amounts are only in the feed.** A trade's transaction row has an
+  `ACQUISITION_BUDGET_TRADE` item saying who sent FAAB to whom, and no amount.
+  `fetchFaabTransfers` reads
+  `/communication/?view=kona_league_communication`, a different endpoint, cookied.
+  Only message 290 moved anything: 284 is an accepted proposal, 286 an offer and
+  289 a veto, and their amounts are right there to double-count. 290's `targetId`
+  is the dollars.
+- **Awarded is net and derived, because ESPN keeps no amounts.** The commissioner's
+  edit shows in the feed as message 167 under `ACTIVITY_SETTINGS`, naming the team
+  and nothing else, so it cannot be split into pick'em prizes and take payouts. A
+  take-back shows as a negative. Verified on 2026-11-02: the remainder was
+  non-negative for all 14 teams, zero for exactly the four teams with no 167, and
+  non-zero for the ten with one, including a team traded out of $30 that came to
+  $0.
+- **Both are written by the transactions step**, from `syncTransactions`' one
+  fetch plus one feed read. Not the rosters step, which skips the playoffs: FAAB
+  left would stop at week 14 while spending carried on. The daily refresh runs it,
+  so the figures follow each waiver run. `scripts/backfill-transactions.js` runs
+  the same path, so past seasons get a ledger by running it; none has yet.
+- **A failed feed costs the ledger's next update and nothing else.** The columns
+  are left out of the upsert rather than nulled, and FAAB left needs no feed.
+- **NULL is unknown, never 0**, and 0 is a real answer. A table with no figures
+  at all drops the column, which is what a past season in the drawer gets.
+- **Records keep meaning bids.** "Most FAAB spent" is `faab_spent`, unchanged.
+- **The standings RPC has no FAAB.** `StandingsMini` and the drawer read it off
+  the season's own teams. `faabOf` takes either shape.
+- **Left is a figure about today,** so `PowerRankingsTable` drops it for a past
+  week (`showFaab`).
 
 ### Lineups and transactions go back to 2020
 
@@ -2801,9 +2882,33 @@ Rules that are load-bearing:
   card's "Show a test notification" is local and only proves the app may
   display one.
 
+**You are told when you win** (`20261103150000_take_edits_and_pickem_wins_notified.sql`).
+Topic `pickems_wins`, on by default, and it goes to the winners and nobody else:
+a tie for first is everybody on it, each told it was a tie.
+`sendWinnerNotifications` runs in the default mode beside
+`sendDueNotifications`, so it needs no cron of its own: Tuesday 14:00 UTC is four
+hours after the weekly sync scores the week, and Thursday's slot is the retry.
+
+- **A week** is `weekWinners`, a **tourney** is `tourneyWinners` over
+  `tourneyStandings` (the top score over the five-week floor, so a member under
+  it cannot take the prize), and **the playoff bracket challenge** is the top of
+  `getPlayoffStandings`, once the championship is over *and* the admin has
+  released the results, since the page shows nothing before that. A bracket tie
+  stays a tie: `championship_point_total` is collected and nothing reads it.
+- **`newestFinishedWeek` is as far back as it looks.** An older result is old
+  news, which is also what stopped the first run announcing all season at once.
+- **A tourney ends with its last week whether or not that week had a pick'em,**
+  because the sync opens none in the playoffs: the second half is decided when
+  week 17 is.
+- **Every winner keeps it in Alerts, device or not** (`plan.inbox`, the taunts'
+  pattern): a member with notifications off still won.
+- Claimed as `pickems_week_won`, `pickems_tourney_won:<id>` and
+  `playoff_bracket_won`, per (season, week), like every weekly send.
+
 **Takes notify on the event, not on a clock**
 (`20261007120000_take_notifications.sql`). Two more topics, `takes_new`
-(every new take, to everyone with it on *except the author*) and
+(every new take, and an author's reword of one, to everyone with it on *except
+the author*) and
 `takes_reactions` (a Hell Yeah or Hell Nah on your take, to *the author
 only*), and since `20261010120000` a third, `takes_stakes` (a staked Hell Yeah
 on a take you said Hell Nah to, asking whether you accept it — see "A Hell
@@ -2833,9 +2938,16 @@ already subscribed.
 - **`planTakeNotifications` reads the take as it stands when the run happens.**
   Whose take it is comes from `takes.user_id`, not the event's actor (the
   admin may post for somebody). A Hell Nah withdrawn, or switched to a Hell
-  Yeah, before the run is not announced. Edits, grades and withdrawals are
+  Yeah, before the run is not announced. Grades and withdrawals are
   never announced. Accounts with a non-approved `member_approvals` row are
   dropped, because the take's wording is the notification.
+- **An author's reword is announced; an admin's correction is not.**
+  `take_events.acted_as_admin` already says which, because the author's edit
+  is only possible inside their 72 hours. Several saves are one notification:
+  the newest unsent edit speaks for the others, a post not yet announced speaks
+  for all of them, and the plan's `absorbs` claims what it spoke for. It shares
+  the post's tag, so on a device the new wording replaces the old. A reword
+  reopens the Hell Nah window for everybody, and this is how they hear of it.
 - **A take notification opens the take.** The URL is `/takes?take=<id>`, and
   `TakesManager` opens that take's sheet from the search param, dropping it on
   close.
