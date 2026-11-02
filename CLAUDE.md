@@ -2194,11 +2194,32 @@ promising something the league is not paying. Nothing enforces it: the prize is
 settled between people, and `totalWeeksParticipated` is the number the floor is
 read against.
 
+**The Standings tab has three views: Weeks 1–8, Weeks 9–17 and Season-long**
+(`STANDINGS_SCOPES` in `tourneys.js`). Each is the same two cards over fewer
+picks.
+
+- **One read, three views.** `getAllSeasonPicks` tags each pick with its
+  `weekNumber`, `picksInScope` filters it, and the pure
+  `buildPickEmStandings` (`pickEmStandings.js`) and the team popularity both run
+  over the result. So changing tab fetches nothing, and a card's standings and
+  popularity cannot be about different weeks. `getSeasonPickEmStandings` went:
+  it read every week twice to build the one view.
+- **It opens on the tourney in progress, then the season.**
+  `defaultStandingsScopeId` reads `useActualWeek()`, never the viewed week,
+  because "in progress" is present tense. That week stops at the season's last,
+  so it cannot say the season is over: the switch to Season-long is
+  `newestFinishedWeek` reaching week 17, or the finalized season. A choice lasts
+  until the member leaves the tab.
+- **The trophy follows points here and does not know the floor.** A member under
+  five weeks can top a tourney's table and still not be paid, which is what
+  `tourneyWinners`, and so the winners' push, says. Unlikely when the score is a
+  total, but the table is not the ruling.
+
 **A record is counted against the games played, never the picks entered.**
-`isDecided` in `services/db/pickems.js` is the single definition — a pick is
-decided once its game is `is_completed`, the same condition `isCorrect`
-already carries — and both `getWeeklyPickEmScores` and
-`getSeasonPickEmStandings` divide by `decidedPicks`/`totalDecidedPicks` rather
+`isDecided` in `src/components/pickems/pickEmStandings.js` is the single
+definition — a pick is decided once its game is `is_completed`, the same
+condition `isCorrect` already carries — and both `getWeeklyPickEmScores` and
+`buildPickEmStandings` divide by `decidedPicks`/`totalDecidedPicks` rather
 than `totalPicks`. A member who had gone 5-from-7 in week 1 and entered week 2
 before kickoff read as **5/14 at 35.7%**: a record they could not have had,
 which fell every Tuesday as the new week's picks landed and climbed back
@@ -2214,10 +2235,10 @@ other way round: `totalWeeksParticipated` counts weeks *entered*, because the
 tourney floor is about submitting, not about being scored.
 
 **The podium is one place wide, and everyone level on it has won.**
-`getSeasonPickEmStandings` numbers its rows by array position, exactly as
-`getWeeklyPickEmScores` does, so a rank-based read hands the trophy to
-whichever of two tied members the sort happened to put first —
-`rankSeasonStandings` (`seasonRanks.js`) re-ranks on points with competition
+`getWeeklyPickEmScores` numbers its rows by array position, so a rank-based
+read of a total hands the trophy to whichever of two tied members the sort
+happened to put first — `rankSeasonStandings` (`seasonRanks.js`) ranks each
+Standings view on points with competition
 ranking (1, 2, 2, 4) and marks the tie, which is the "T-1st" the table shows.
 It ranks on points alone: accuracy is the standings' *sort* tiebreak, not a
 tiebreak for the prize. A season with no points scored has no leader. Second

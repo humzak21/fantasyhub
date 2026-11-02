@@ -1,10 +1,11 @@
 /**
- * Season standings, ranked so that a tie is a tie.
+ * Standings, ranked so that a tie is a tie, on each of the Standings tab's
+ * views.
  *
- * `getSeasonPickEmStandings` numbers its rows by array position, so two
- * members on the same total come back ranked 1 and 2 and whichever the sort
- * happened to put first wears the trophy. That is the same bug `weekWinners`
- * exists to avoid, one grain up: everyone on the top score has won.
+ * Numbering rows by their position would rank two members on the same total 1
+ * and 2, and whichever the sort happened to put first would wear the trophy.
+ * That is the same bug `weekWinners` exists to avoid, one grain up: everyone on
+ * the top score has won.
  *
  * Competition ranking (1, 2, 2, 4), on total points alone — accuracy is the
  * standings' sort tiebreak, not a tiebreak for the prize, and using it here

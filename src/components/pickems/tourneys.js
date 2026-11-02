@@ -64,6 +64,73 @@ export function tourneyForWeek(week) {
 }
 
 /**
+ * The Standings tab's views: each tourney, then the whole season. `span` is how
+ * the view is written in the middle of a sentence.
+ *
+ * @typedef {object} StandingsScope
+ * @property {string} id
+ * @property {string} label
+ * @property {string} span
+ * @property {number} [startWeek] - a tourney's; the season has no bounds
+ * @property {number} [endWeek]
+ */
+
+export const SEASON_SCOPE_ID = 'season';
+
+/** @type {StandingsScope[]} */
+export const STANDINGS_SCOPES = [
+  ...PICK_EM_TOURNEYS.map(({ id, weeks, startWeek, endWeek }) => ({
+    id,
+    label: weeks,
+    span: weeks.toLowerCase(),
+    startWeek,
+    endWeek
+  })),
+  { id: SEASON_SCOPE_ID, label: 'Season-long', span: 'this season' }
+];
+
+/**
+ * @param {StandingsScope} scope
+ * @param {number} week
+ * @returns {boolean}
+ */
+export function scopeIncludesWeek(scope, week) {
+  if (scope.id === SEASON_SCOPE_ID) return true;
+  return week >= scope.startWeek && week <= scope.endWeek;
+}
+
+/**
+ * The picks a view counts, which is what keeps its standings and its team
+ * popularity about the same weeks.
+ *
+ * @param {Array<{ weekNumber: number }>} picks
+ * @param {StandingsScope} scope
+ */
+export function picksInScope(picks = [], scope) {
+  return picks.filter((pick) => scopeIncludesWeek(scope, pick.weekNumber));
+}
+
+/**
+ * The view the Standings tab opens on: the tourney in progress, then the season
+ * once the last tourney's final week is scored.
+ *
+ * The week is the league's, not the one being viewed, because "in progress" is
+ * present tense. It stops at the season's last week, so it cannot say on its own
+ * that the season is over: that takes the scored week or the finalized season.
+ *
+ * @param {object} input
+ * @param {number} input.actualWeek
+ * @param {number|null} [input.finishedWeek] - the newest fully scored week
+ * @param {boolean} [input.seasonCompleted]
+ * @returns {string} a `STANDINGS_SCOPES` id
+ */
+export function defaultStandingsScopeId({ actualWeek, finishedWeek = null, seasonCompleted = false }) {
+  const lastWeek = PICK_EM_TOURNEYS[PICK_EM_TOURNEYS.length - 1].endWeek;
+  if (seasonCompleted || (finishedWeek ?? 0) >= lastWeek) return SEASON_SCOPE_ID;
+  return tourneyForWeek(actualWeek)?.id ?? SEASON_SCOPE_ID;
+}
+
+/**
  * How many weeks of a tourney a member has entered, and whether that clears
  * the floor. `weeks` is the set of week numbers they submitted in — the
  * standings row only carries a count, so a caller that has the weeks passes
