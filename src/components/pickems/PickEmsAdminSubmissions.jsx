@@ -5,11 +5,12 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { EmptyState } from '../ui/empty-state';
 import { IndependentColumns } from '../ui/independent-columns';
 import { TeamAvatar } from '../ui/team-identity';
-import { UserCheck, AlertCircle } from 'lucide-react';
+import { UserCheck, AlertCircle, CheckCircle2, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { getMaskedTeamName, getMaskedOwnerName, getMaskedUserName } from '../../utils/displayNameUtils';
 import { getDb } from '../../../services/db/index.js';
 import { TeamLink } from '../ui/team-link';
+import { submissionMatchups, submissionScore } from './submissionBoard.js';
 
 /**
  * Who submitted what, for the admin.
@@ -21,14 +22,20 @@ import { TeamLink } from '../ui/team-link';
  * one question this tab exists for.
  *
  * It is a card per member in three columns now, the same shape as Teams, with
- * each pick on one line: the team they took, over the team they did not. The
- * information is the same — both teams, both owners, who was picked, the count
- * and the submission time — laid out for reading rather than for choosing.
- * Nothing here is a control, so nothing here needs to be a button.
+ * each matchup on one line. The information is the same — both teams, both
+ * owners, who was picked, the count and the submission time — laid out for
+ * reading rather than for choosing. Nothing here is a control, so nothing here
+ * needs to be a button.
+ *
+ * The cards are for comparing, so every one draws the same rows: the form's
+ * matchups in the form's order, team 1 on the left, and a row for a matchup the
+ * member did not pick. Once a game is scored its pick gets a mark and the card's
+ * count becomes the member's score.
  */
 const PickEmsAdminSubmissions = ({
   currentWeek,
   pickEmWeek,
+  games = [],
   loading = false,
   user = null,
   isAdmin = false,
@@ -75,6 +82,10 @@ const PickEmsAdminSubmissions = ({
   }, {});
 
   const users = Object.values(submissionsByUser);
+  const matchups = submissionMatchups(games, submissions);
+  // The result column is on every card or on none, or the team columns would
+  // not line up between a member with a scored pick and one without.
+  const showResults = submissions.some((submission) => submission.gameCompleted);
 
   if (!pickEmWeek) {
     return (
@@ -159,6 +170,8 @@ const PickEmsAdminSubmissions = ({
           {(entry) => (
             <MemberSubmissionCard
               entry={entry}
+              matchups={matchups}
+              showResults={showResults}
               currentWeek={currentWeek}
               user={user}
               isAdmin={isAdmin}
@@ -175,7 +188,15 @@ const PickEmsAdminSubmissions = ({
  * One member's week: who they are, when they submitted, and every pick on its
  * own line.
  */
-const MemberSubmissionCard = ({ entry, currentWeek, user, isAdmin, teamOwnerNames }) => {
+const MemberSubmissionCard = ({
+  entry,
+  matchups,
+  showResults,
+  currentWeek,
+  user,
+  isAdmin,
+  teamOwnerNames
+}) => {
   const name = getMaskedUserName(
     entry.userDetails?.displayName,
     entry.userId,
@@ -183,6 +204,8 @@ const MemberSubmissionCard = ({ entry, currentWeek, user, isAdmin, teamOwnerName
     isAdmin,
     teamOwnerNames
   );
+  const picksByGame = new Map(entry.submissions.map((pick) => [pick.gameId, pick]));
+  const { correct, decided } = submissionScore(entry.submissions);
 
   return (
     <Card>
@@ -201,7 +224,7 @@ const MemberSubmissionCard = ({ entry, currentWeek, user, isAdmin, teamOwnerName
             )}
           </div>
           <Badge variant="outline" className="shrink-0 tabular">
-            {entry.submissions.length}
+            {decided > 0 ? `${correct}/${decided} picks` : entry.submissions.length}
           </Badge>
         </div>
 
@@ -220,10 +243,12 @@ const MemberSubmissionCard = ({ entry, currentWeek, user, isAdmin, teamOwnerName
             their picks — a screen reader landing on "Gridiron Gang over
             Waiver Wire Wizards" needs to be told whose pick that is. */}
         <ul aria-label={`${name}'s picks`} className="mt-3 divide-y divide-border">
-          {entry.submissions.map((submission) => (
+          {matchups.map(({ gameId, game }) => (
             <PickRow
-              key={submission.gameId}
-              submission={submission}
+              key={gameId}
+              game={game}
+              pick={picksByGame.get(gameId)}
+              showResults={showResults}
               currentWeek={currentWeek}
               user={user}
               isAdmin={isAdmin}
@@ -237,75 +262,83 @@ const MemberSubmissionCard = ({ entry, currentWeek, user, isAdmin, teamOwnerName
 };
 
 /**
- * One pick: the team taken, over the team not taken.
+ * One matchup, with the member's pick marked on it.
  *
- * Which side was picked used to be a solid blue fill on a 15rem box — a
- * colour-only distinction, and an expensive one in space. Here the pick is the
- * line's subject and the other team follows "over", so the sentence carries it
- * with no colour at all; the tint on the picked name is reinforcement.
+ * Team 1 is always on the left, so a pick is a side of the card and two cards
+ * compare at a glance. The pick is the shaded side, and the chevron points at it
+ * so that which side it is survives without colour. The mark at the end of the
+ * row is the result, the same pair of icons the Results tab uses.
  */
-const PickRow = ({ submission, currentWeek, user, isAdmin, teamOwnerNames }) => {
-  const team1 = submission.games?.team1;
-  const team2 = submission.games?.team2;
-  const pickedTeamId = submission.predictedWinnerTeamId;
+const PickRow = ({ game, pick, showResults, currentWeek, user, isAdmin, teamOwnerNames }) => {
+  const team1 = game?.team1;
+  const team2 = game?.team2;
+  const pickedTeamId = pick?.predictedWinnerTeamId;
 
-  // A row with no stored winner is a real state — the picker cannot produce
-  // one, but a hand-rolled POST can — and it must not read as a vote for team
-  // 1. Both sides stay muted and the connector says so.
-  const hasPick = Boolean(pickedTeamId);
-  const pickedFirst = !hasPick || pickedTeamId === team1?.id;
-  const [taken, other] = pickedFirst ? [team1, team2] : [team2, team1];
+  // No pick is a real state — a member can miss a game that changed after they
+  // submitted, and a hand-rolled POST can store no winner — and it must not read
+  // as a vote for team 1. Both sides stay unshaded and the middle says so.
+  const pickedFirst = Boolean(pickedTeamId) && pickedTeamId === team1?.id;
+  const pickedSecond = Boolean(pickedTeamId) && pickedTeamId === team2?.id;
+  const hasPick = pickedFirst || pickedSecond;
 
-  const label = (team) => ({
-    name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
-    owner: getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)
-  });
-
-  const takenLabel = label(taken);
-  const otherLabel = label(other);
-  const week = submission.games?.week ?? currentWeek;
+  const week = game?.week ?? currentWeek;
+  const side = { user, isAdmin, teamOwnerNames };
 
   return (
-    <li className="flex items-baseline gap-2 py-1.5 text-xs">
-      <span className="min-w-0 flex-1">
-        <span
-          className={cn(
-            'block truncate',
-            hasPick ? 'font-medium text-foreground' : 'text-muted-foreground'
-          )}
-        >
-          <TeamLink team={taken}>{takenLabel.name}</TeamLink>
-        </span>
-        <span className="block truncate text-[10px] text-muted-foreground">
-          {takenLabel.owner}
-        </span>
-      </span>
+    <li
+      className={cn(
+        'grid items-center gap-x-1 py-1 text-xs',
+        showResults
+          ? 'grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)_1rem]'
+          : 'grid-cols-[minmax(0,1fr)_2rem_minmax(0,1fr)]'
+      )}
+    >
+      <PickSide team={team1} picked={pickedFirst} {...side} />
 
-      <span
-        className={cn(
-          'shrink-0 text-[10px] uppercase tracking-[0.06em]',
-          hasPick ? 'text-muted-foreground' : 'text-warning'
+      <span className="flex justify-center text-muted-foreground">
+        {pickedFirst && <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />}
+        {pickedSecond && <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />}
+        {!hasPick && (
+          <span className="text-center text-[10px] uppercase leading-none tracking-[0.06em] text-warning">
+            no pick
+          </span>
         )}
-      >
-        {hasPick ? 'over' : 'no pick'}
       </span>
 
-      <span className="min-w-0 flex-1 text-right">
-        <span className="block truncate text-muted-foreground">
-          <TeamLink team={other}>{otherLabel.name}</TeamLink>
+      <PickSide team={team2} picked={pickedSecond} align="right" {...side} />
+
+      {showResults && (
+        <span className="flex justify-end">
+          {hasPick && pick.gameCompleted && (
+            pick.isCorrect ? (
+              <CheckCircle2 className="h-4 w-4 text-success" aria-label="Hit" />
+            ) : (
+              <XCircle className="h-4 w-4 text-destructive" aria-label="Miss" />
+            )
+          )}
         </span>
-        <span className="block truncate text-[10px] text-muted-foreground/70">
-          {otherLabel.owner}
-        </span>
-      </span>
+      )}
 
       {/* The week is the same for every row in the tab, so it is only worth
           drawing where it disagrees with the week the page is showing. */}
       {week !== currentWeek && (
-        <span className="shrink-0 tabular text-[10px] text-muted-foreground">Wk {week}</span>
+        <span className="col-span-full tabular text-[10px] text-muted-foreground">Wk {week}</span>
       )}
     </li>
   );
 };
+
+/** One team of a matchup: its name over its owner. */
+const PickSide = ({ team, picked, align = 'left', user, isAdmin, teamOwnerNames }) => (
+  <span className={cn('min-w-0 rounded px-1.5 py-1', picked && 'bg-muted', align === 'right' && 'text-right')}>
+    <span className={cn('block truncate', picked ? 'font-medium text-foreground' : 'text-muted-foreground')}>
+      <TeamLink team={team}>{getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}</TeamLink>
+      {picked && <span className="sr-only"> (picked)</span>}
+    </span>
+    <span className={cn('block truncate text-[10px]', picked ? 'text-muted-foreground' : 'text-muted-foreground/70')}>
+      {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
+    </span>
+  </span>
+);
 
 export default PickEmsAdminSubmissions;

@@ -18,7 +18,11 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { getWeeklyPickEmScores, getSeasonPickEmStandings } from '../pickems.js';
+import {
+  getAdminSubmissionsForWeek,
+  getWeeklyPickEmScores,
+  getSeasonPickEmStandings
+} from '../pickems.js';
 import { makeCtx } from './fakeClient.js';
 
 const seasonId = 'season-2026';
@@ -168,5 +172,31 @@ describe('getSeasonPickEmStandings', () => {
 
     expect(standing.totalDecidedPicks).toBe(0);
     expect(standing.overallAccuracyPercentage).toBe(0);
+  });
+});
+
+describe('getAdminSubmissionsForWeek', () => {
+  const grade = async (rows) => {
+    const ctx = makeCtx({ 'pick_em_submissions.select': () => rows });
+    const graded = await getAdminSubmissionsForWeek(ctx, 'pew');
+    return Object.fromEntries(
+      graded.map((row) => [row.gameId, { isCorrect: row.isCorrect, gameCompleted: row.gameCompleted }])
+    );
+  };
+
+  it('grades a pick the way the Results tab does', async () => {
+    expect(
+      await grade([hit('u1', 'g1'), miss('u1', 'g2'), pending('u1', 'g3')])
+    ).toEqual({
+      g1: { isCorrect: true, gameCompleted: true },
+      g2: { isCorrect: false, gameCompleted: true },
+      g3: { isCorrect: false, gameCompleted: false }
+    });
+  });
+
+  it('does not read a row with no stored winner as calling a tie', async () => {
+    const tie = submission('u1', 'g1', { picked: null, winner: null, played: true });
+
+    expect(await grade([tie])).toEqual({ g1: { isCorrect: false, gameCompleted: true } });
   });
 });

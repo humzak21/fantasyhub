@@ -2228,9 +2228,22 @@ which said the league pays three places.
 `IndependentColumns` shape as Teams. It used to redraw the *picker* read-only,
 two 15rem team buttons per matchup down the page, which came to roughly 6,000px
 of scrolling to answer "who hasn't picked yet". Both teams and both owners are
-still on every line; the team taken is the line's subject and the other follows
-"over", so which was picked survives without colour. A row with no stored
-winner reads "no pick", never as a vote for team 1.
+still on every line.
+
+- **Every card draws the same rows, so two cards compare line by line.**
+  `submissionMatchups` (`submissionBoard.js`, pure and tested) is the form's
+  matchups in the form's order, and team 1 is always on the left. A matchup a
+  member has no pick for still gets its row, reading "no pick" and never as a
+  vote for team 1; a card that closed up around it would put every later row one
+  line out from its neighbours.
+- **The pick is a side, not a word.** The picked team is shaded and a chevron
+  points at it, so which side survives without colour.
+- **Once a game is scored its pick gets a mark and the card's count becomes
+  "5/7 picks"**: the Results tab's Hit and Miss icons, and `submissionScore`,
+  which is hits out of decided picks, the rule `getWeeklyPickEmScores` uses. So a
+  part-scored week shows a part score and leaves the rest unmarked. A tie is a
+  miss for everybody, as it is on Results. The result column is on every card or
+  on none, so the team columns line up.
 
 **How the league picked appears once the window closes.** Each matchup card shows
 its own split, the share of the week's picks each side got, either end of one bar.
