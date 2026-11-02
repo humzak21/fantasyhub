@@ -70,9 +70,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Pinned, because this job writes to production. `latest` picked up CLI
+      # v3 on 2026-11-02, where `db push` targets a local stack unless told
+      # otherwise: PR #147's migration failed to apply and held the site back.
+      # Move this on purpose, with a `dry_run` of this workflow from a branch.
       - uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: 2.116.0
 
       # A missing secret would otherwise surface as an interactive prompt that
       # hangs until the job times out. Say what is missing and stop.
@@ -90,19 +94,22 @@ jobs:
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
       # The plan goes in the job summary so a glance at the run says what moved.
+      # `shell: bash` is what turns on pipefail. Without it `tee` decides the
+      # exit status, and a dry run that failed to connect reports success.
       - name: List what is pending
+        shell: bash
         run: |
           {
             echo '## Pending migrations'
             echo
             echo '```'
-            supabase db push --include-all --dry-run 2>&1 | tee /dev/stderr
+            supabase db push --linked --include-all --dry-run 2>&1 | tee /dev/stderr
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Apply
         if: ${{ !inputs.dry_run }}
-        run: supabase db push --include-all --yes
+        run: supabase db push --linked --include-all --yes
 
       - name: Show the ledger
         if: always()
