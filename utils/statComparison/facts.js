@@ -127,8 +127,9 @@ export function buildComparisonFacts(source = {}) {
         madePlayoffs: Boolean(team.madePlayoffs),
         playoffFinish: team.playoffFinish ?? null,
         finalRank: Number.isFinite(team.finalRank) ? team.finalRank : null,
-        // The regular season's last place: the punishment, not the worst `finalRank`.
-        lastPlace: index === standing.length - 1,
+        // Regular-season standing, as the record book has it; a season still
+        // being played has no last place.
+        lastPlace: Boolean(season.isCompleted) && index === standing.length - 1,
         divisionTitle: divisionWinners.get(team.divisionId) === t.id,
         playoffGames: playoffs.length,
         playoffWins: playoffs.filter((side) => side.result === 'W').length,

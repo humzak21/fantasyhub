@@ -80,7 +80,7 @@ export const RECORDS = [
   career({ id: 'career-top-records', section: 'winning', data: 'topRecords', title: 'Best regular-season record', blurb: 'Seasons finished top of the standings.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-top-record-flops', section: 'winning', data: 'topRecordFlops', title: 'Regular-season merchant', blurb: 'Best record in the league, no finals appearance.', format: 'int', detail: 'seasons' }),
   career({ id: 'career-division-titles', section: 'winning', data: 'divisionTitles', title: 'Most division titles', blurb: 'Seasons with the best regular-season record in the division.', format: 'int', detail: 'seasons' }),
-  career({ id: 'career-last-places', section: 'winning', data: 'lastPlaces', title: 'Most punishments', blurb: 'Finished the regular season dead last. The punishee.', format: 'int', detail: 'seasons' }),
+  career({ id: 'career-last-places', section: 'winning', data: 'lastPlaces', title: 'Most punishments', blurb: 'Bottom of the regular-season standings, by record, then points for. The punishee.', format: 'int', detail: 'seasons' }),
 
   career({ id: 'career-points', section: 'scoring', data: 'pointsFor', title: 'Most points', blurb: 'Regular-season points for.', format: 'points', detail: 'seasons' }),
   career({ id: 'career-ppg', section: 'scoring', data: 'ppg', title: 'Points per game', blurb: 'Regular-season points for, per game.', format: 'points', detail: 'seasons' }),

@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { BarChart3, Calendar, Flame, History, House, Target, Users } from 'lucide-react';
 
-import { MobileTabBar } from '../ResponsiveNavigation.jsx';
+import { MobileTabBar, ProfileAvatarLink } from '../ResponsiveNavigation.jsx';
 
 const TABS = [
   { id: 'home', label: 'Home', icon: House, tabBarSlot: 0 },
@@ -156,7 +156,7 @@ describe('MobileTabBar', () => {
     await user.click(within(bar()).getByRole('button', { name: /^Menu/ }));
     await user.click(await screen.findByRole('button', { name: 'Log out' }));
 
-    const confirm = await screen.findByRole('alertdialog', { name: 'Log out?' });
+    const confirm = await screen.findByRole('alertdialog', { name: 'Are you sure you want to log out?' });
     await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
 
     expect(onSignOut).not.toHaveBeenCalled();
@@ -171,9 +171,23 @@ describe('MobileTabBar', () => {
     await user.click(within(bar()).getByRole('button', { name: /^Menu/ }));
     await user.click(await screen.findByRole('button', { name: 'Log out' }));
 
-    const confirm = await screen.findByRole('alertdialog', { name: 'Log out?' });
+    const confirm = await screen.findByRole('alertdialog', { name: 'Are you sure you want to log out?' });
     await user.click(within(confirm).getByRole('button', { name: 'Log out' }));
 
     expect(onSignOut).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ProfileAvatarLink', () => {
+  it('goes straight to the viewer\'s profile, showing their initial until a picture loads', () => {
+    render(
+      <MemoryRouter>
+        <ProfileAvatarLink user={USER} avatarUrl="https://cdn.test/a.webp" />
+      </MemoryRouter>
+    );
+
+    const link = screen.getByRole('link', { name: 'Your profile' });
+    expect(link).toHaveAttribute('href', '/profile');
+    expect(link).toHaveTextContent('J');
   });
 });

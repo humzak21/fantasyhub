@@ -18,6 +18,7 @@
  */
 
 import { canonicalOwnerName, ownerKey } from '../utils/ownerAliases.js';
+import { sortByStandings } from '../utils/playoffSeeding.js';
 import { getNFLTeamAbbreviation } from './db/espnMapping.js';
 
 /**
@@ -72,7 +73,8 @@ export const SNAPSHOT_TABLES = [
       ['made_playoffs', 'INTEGER', '1/0; NULL while the season is in progress'],
       ['playoff_seed', 'INTEGER', ''],
       ['playoff_finish', 'TEXT', "'champion', '2nd' … '6th', or 'none' (missed the bracket)"],
-      ['final_rank', 'INTEGER', '1 = champion … last place']
+      ['regular_season_rank', 'INTEGER', "1 = top of the regular-season standings, by record, then points for. The highest number is last place: 'last place' always means this unless the playoffs are mentioned"],
+      ['final_rank', 'INTEGER', '1 = champion. Placement after the playoffs and consolation games, not the regular-season standing']
     ]
   },
   {
@@ -343,10 +345,24 @@ export function buildSnapshotTables(sources, { now = new Date() } = {}) {
       made_playoffs: done ? bool(team.madePlayoffs) : null,
       playoff_seed: done ? team.playoffSeed ?? null : null,
       playoff_finish: done ? team.playoffFinish ?? null : null,
+      regular_season_rank: null,
       final_rank: done ? team.finalRank ?? null : null
     });
   }
   teamRows.sort((x, y) => (x.season - y.season) || x.owner.localeCompare(y.owner));
+
+  // By the sort the site's standings use. A season with no games has no rank.
+  const standingRow = (row) => ({
+    id: row.owner, wins: row.wins, losses: row.losses, ties: row.ties,
+    pointsFor: row.points_for, pointsAgainst: row.points_against
+  });
+  for (const year of new Set(teamRows.map((row) => row.season))) {
+    const played = teamRows.filter((row) => row.season === year && row.wins + row.losses + row.ties > 0);
+    const byOwner = new Map(played.map((row) => [row.owner, row]));
+    sortByStandings(played.map(standingRow)).forEach((row, index) => {
+      byOwner.get(row.id).regular_season_rank = index + 1;
+    });
+  }
 
   // -- members and seasons ---------------------------------------------------
   const spans = new Map();

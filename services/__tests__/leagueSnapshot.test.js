@@ -47,6 +47,12 @@ describe('buildSnapshotTables', () => {
       ['Cara Diaz', 1, 1, 220.04, 'none']
     ]);
     expect(q("select champion, runner_up from seasons where season = 2024")).toEqual([['Anna Park', 'Ben Cole']]);
+    // All level at 1-1, so points for decides: the highest number is last place.
+    expect(q("select owner, regular_season_rank from teams where season = 2024 order by regular_season_rank")).toEqual([
+      ['Cara Diaz', 1],
+      ['Anna Park', 2],
+      ['Ben Cole', 3]
+    ]);
     expect(q("select made_playoffs, playoff_finish from teams where season = 2025 and owner = 'Anna Park'")).toEqual([[null, null]]);
   });
 

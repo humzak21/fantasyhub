@@ -311,10 +311,13 @@ function aggregateTeamSeasons(sides, teamById, lineups) {
 }
 
 /**
- * Per completed season: the top record, the scoring title, the punishment, the
- * podium, the division titles. Last place is the regular season's: the worst
- * `final_rank` comes out of the consolation bracket and is a different team as
- * often as not.
+ * Per completed season: the top record, the scoring title, last place, the
+ * podium, the division titles.
+ *
+ * Last place is the bottom of the regular-season standings, by the same sort
+ * that names first: record, then points for. It is not the worst `final_rank`,
+ * which is decided by the consolation bracket. That called a 6-7 team last in
+ * 2020, and named the wrong team in four of the first six seasons.
  */
 function markSeasonHonours(aggregates) {
   const standing = (a) => ({

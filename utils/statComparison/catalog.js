@@ -205,7 +205,7 @@ export const STATS = [
     value: (t) => ratio(t.points, t.games) }),
   placement({ id: 'divisionTitles', label: 'Division titles', description: 'Seasons with the best regular-season record in the division.',
     components: (f) => ({ n: is(f.divisionTitle) }), value: (t) => t.n }),
-  placement({ id: 'lastPlaces', label: 'Punishments', better: 'lower', description: 'Seasons finishing last in the regular season.',
+  placement({ id: 'lastPlaces', label: 'Punishments', better: 'lower', description: 'Seasons finishing last in the regular season, by record, then points for.',
     components: (f) => ({ n: is(f.lastPlace) }), value: (t) => t.n }),
 
   // -------------------------------------------------------------------------

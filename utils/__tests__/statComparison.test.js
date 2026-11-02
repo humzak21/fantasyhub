@@ -92,6 +92,21 @@ const facts = buildComparisonFacts(SOURCE);
 const ALL = [2024, 2025];
 const value = (id, franchiseId, years = ALL, options) => statValue(facts, getStat(id), franchiseId, years, options).value;
 
+describe('last place', () => {
+  it('is the bottom of the regular season, whatever the final rank says', () => {
+    const swapped = buildComparisonFacts({
+      ...SOURCE,
+      teams: SOURCE.teams.map((t) =>
+        t.id === 's24-C' ? { ...t, finalRank: 3 } : t.id === 's24-D' ? { ...t, finalRank: 4 } : t
+      )
+    });
+    const lastPlaces = (id) => statValue(swapped, getStat('lastPlaces'), id, ALL).value;
+
+    expect(lastPlaces('fC')).toBe(1);
+    expect(lastPlaces('fD')).toBe(0);
+  });
+});
+
 describe('one definition: the record book agrees', () => {
   const statIds = new Set(STATS.map((stat) => stat.id));
 

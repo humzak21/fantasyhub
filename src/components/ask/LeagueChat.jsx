@@ -13,8 +13,8 @@ import { Composer, ConversationBody } from './ChatParts.jsx';
  * Ask og jits, mounted once at the app root (JITS-42).
  *
  * It is opened by one icon, the round orange chat button, for approved
- * members only: floating above the phone tab bar below `lg` (`ChatLauncher`),
- * and in the header from `lg` (`AskHeaderButton`). There is no text box to
+ * members only: `ChatLauncher`, floating above the phone tab bar below `lg` and
+ * in the bottom-right corner from it. There is no text box to
  * type into until the chat is open.
  *
  * Below `md` the chat is a vaul drawer drawn like the Menu; from `md` it is a
@@ -207,8 +207,11 @@ const LAUNCHER =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 /**
- * Below `lg`: the round launcher, floating in the bottom-left corner above the
- * tab bar. It opens the drawer, which rises over it exactly as the Menu does.
+ * The round launcher, the one way in at every width. On a phone it floats
+ * bottom-left above the tab bar and opens the drawer, which rises over it as
+ * the Menu does. From `lg` there is no tab bar, so it sits bottom-right, toggles
+ * the side panel, and wears a ring while the panel is open.
+ *
  * Rendered at the root, never inside the header (see above).
  */
 export const ChatLauncher = () => {
@@ -217,41 +220,19 @@ export const ChatLauncher = () => {
   return (
     <button
       type="button"
-      onClick={() => chat.open()}
-      aria-label="Ask og jits"
-      aria-haspopup="dialog"
-      aria-expanded={chat.isOpen}
-      title="Ask og jits"
-      className={cn(LAUNCHER, 'fixed left-4 z-40 h-12 w-12 lg:hidden', 'bottom-[calc(4.75rem+env(safe-area-inset-bottom))]')}
-    >
-      <MessagesSquare className="h-5 w-5" aria-hidden="true" />
-    </button>
-  );
-};
-
-/**
- * From `lg`: the same button, header-sized, beside the bell. It toggles the
- * side panel, and while the panel is open it wears a ring, the way the Menu
- * button is lit while its drawer is up.
- */
-export const AskHeaderButton = ({ className }) => {
-  const chat = useLeagueChat();
-  if (!chat.available) return null;
-  return (
-    <button
-      type="button"
       onClick={() => (chat.isOpen ? chat.close() : chat.open())}
       aria-label={chat.isOpen ? 'Close Ask og jits' : 'Ask og jits'}
+      aria-haspopup="dialog"
       aria-expanded={chat.isOpen}
       title="Ask og jits"
       className={cn(
         LAUNCHER,
-        'h-9 w-9',
-        chat.isOpen && 'ring-2 ring-primary/50 ring-offset-2 ring-offset-card',
-        className
+        'fixed left-4 z-40 h-12 w-12 lg:left-auto lg:right-6',
+        'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6',
+        chat.isOpen && 'ring-2 ring-primary/50 ring-offset-2 ring-offset-background'
       )}
     >
-      <MessagesSquare className="h-[18px] w-[18px]" aria-hidden="true" />
+      <MessagesSquare className="h-5 w-5" aria-hidden="true" />
     </button>
   );
 };
