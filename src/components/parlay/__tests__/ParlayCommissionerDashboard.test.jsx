@@ -173,7 +173,8 @@ describe('ParlayCommissionerDashboard', () => {
     const dawgs = await screen.findByRole('region', { name: 'The Dawg Pound' });
     const kennel = screen.getByRole('region', { name: 'The Kennel' });
 
-    expect(within(dawgs).getByText('Justin Jefferson')).toBeInTheDocument();
+    // The columns draw before the picks land.
+    expect(await within(dawgs).findByText('Justin Jefferson')).toBeInTheDocument();
     expect(within(kennel).getByText('Some Rookie')).toBeInTheDocument();
     expect(within(dawgs).queryByText('Some Rookie')).not.toBeInTheDocument();
   });

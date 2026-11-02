@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ListOrdered } from 'lucide-react';
 
 import {
@@ -17,9 +17,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { cn } from '../../lib/utils';
+import { Badge } from '../ui/badge';
+import { LiveDot } from '../ui/live-dot';
+import { cn, formatTime } from '../../lib/utils';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
+  useActualWeek,
+  useLiveWeek,
+  useSeasonConfig,
   useSeasons,
   useSeasonTeams,
   useSeasonGames,
@@ -27,7 +32,17 @@ import {
   useStandings,
   useLeagueMutations,
 } from '../../../hooks/queries/index.js';
+import { liveStandingsWeek } from '../../../utils/liveOverlay.js';
+import {
+  STANDINGS_VIEW,
+  gamesForView,
+  scoredWeeks,
+  standingsForView,
+} from '../../../utils/standings/standingsView.js';
+import { resolveViewerTeam } from '../../../utils/viewerTeam.js';
 import DrawerStandingsTable from './DrawerStandingsTable';
+import { StandingsBracket } from './StandingsBracket';
+import { StandingsViewToggle } from './StandingsViewToggle';
 
 /**
  * Standings, as an overlay.
@@ -58,6 +73,12 @@ import DrawerStandingsTable from './DrawerStandingsTable';
  * invalidations both land on the year being edited. The active season keeps
  * its prop-fed path: it is what everybody sees, and it should not gain a
  * second set of queries for the sake of a control only one person has.
+ *
+ * **The active season reads three ways: Live, Official, Week N.** Official is
+ * the RPC. The other two are `computeStandings` over the games, and Live opens
+ * by default while a game is on. It is computed here and nowhere else: nothing
+ * writes `games`, and Home's standings stay official. The bracket under the
+ * tables is drawn from whichever rows are showing. A past season has one table.
  */
 const StandingsDrawer = ({
   open,
@@ -79,6 +100,22 @@ const StandingsDrawer = ({
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
 
+  // `useActualWeek()` answers 1 while the season loads, and a 1 cannot be told
+  // from a real week 1. Null is what `useLiveWeek` waits on.
+  const seasonConfig = useSeasonConfig();
+  const derivedWeek = useActualWeek();
+  const actualWeek = seasonConfig?.startDate ? derivedWeek : null;
+
+  // `null` is "the default", so a table left alone follows the games: Live while
+  // one is on, Official otherwise. A choice lasts until the drawer closes.
+  const [pickedMode, setPickedMode] = useState(null);
+  const [pickedWeek, setPickedWeek] = useState(null);
+
+  const handleOpenChange = (next) => {
+    if (!next) setPickedMode(null);
+    onOpenChange(next);
+  };
+
   // `null` means "the active season", which is what the drawer opens on. Kept
   // across open/close so the admin does not lose their place mid-edit.
   const [pickedSeasonId, setPickedSeasonId] = useState(null);
@@ -93,14 +130,61 @@ const StandingsDrawer = ({
   const showSeasonPicker = isAdmin && seasons.length > 1;
   const pickerValue = String(editingSeasonId ?? seasonId ?? '');
 
+  const liveWeek = liveStandingsWeek({ actualWeek, games });
+  const { data: live } = useLiveWeek(seasonId, liveWeek, {
+    actualWeek,
+    enabled: open && !editingSeasonId
+  });
+
+  const weeks = useMemo(() => scoredWeeks(games), [games]);
+  const week = pickedWeek ?? weeks[0] ?? null;
+
+  const wanted = pickedMode ?? (live?.live ? STANDINGS_VIEW.LIVE : STANDINGS_VIEW.OFFICIAL);
+  // A choice that has gone away, the last game's score landing, falls back.
+  const mode =
+    (wanted === STANDINGS_VIEW.LIVE && !live) || (wanted === STANDINGS_VIEW.WEEK && week == null)
+      ? STANDINGS_VIEW.OFFICIAL
+      : wanted;
+
+  const shownStandings = useMemo(
+    () =>
+      standingsForView({ mode, week, official: standings, teams, games, divisions, live, year: seasonYear }),
+    [mode, week, standings, teams, games, divisions, live, seasonYear]
+  );
+  const shownGames = useMemo(() => gamesForView({ mode, week, games, live }), [mode, week, games, live]);
+
+  const asOf = mode === STANDINGS_VIEW.LIVE && live?.refreshedAt ? formatTime(live.refreshedAt) : null;
+
   let description;
   if (editingSeason) {
     description = editingSeason.isCompleted
       ? `${editingSeason.year} season · final`
       : `${editingSeason.year} season`;
+  } else if (asOf) {
+    description = `Live, if this week ended now, as of ${asOf}`;
+  } else if (mode === STANDINGS_VIEW.WEEK) {
+    description = `As of week ${week}`;
   } else {
     description = currentWeek ? `Through week ${currentWeek}` : 'Current league standings';
   }
+
+  let badge = null;
+  if (asOf) {
+    badge = (
+      <Badge variant="success" className="gap-1.5 text-xs">
+        <LiveDot done={!live?.live} />
+        As of {asOf}
+      </Badge>
+    );
+  } else if (mode === STANDINGS_VIEW.WEEK) {
+    badge = (
+      <Badge variant="outline" className="text-xs">
+        After week {week}
+      </Badge>
+    );
+  }
+
+  const viewerTeamId = resolveViewerTeam(teams, user, teamOwnerNames)?.id ?? null;
 
   // The admin's season picker. It renders inside the table's header row, in
   // the controls cluster next to Manage — the drawer used to carry a second
@@ -136,7 +220,7 @@ const StandingsDrawer = ({
   ) : null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent
         // From the left, the side the standings trigger sits on in the header,
         // so the panel slides out from under the control that opened it.
@@ -156,7 +240,7 @@ const StandingsDrawer = ({
           <SeasonStandings
             seasonId={editingSeasonId}
             season={editingSeason}
-            onClose={() => onOpenChange(false)}
+            onClose={() => handleOpenChange(false)}
             user={user}
             isAdmin={isAdmin}
             teamOwnerNames={teamOwnerNames}
@@ -166,7 +250,7 @@ const StandingsDrawer = ({
           <DrawerStandingsTable
             teams={teams}
             divisions={divisions}
-            standings={standings}
+            standings={shownStandings}
             currentWeek={currentWeek}
             seasonYear={seasonYear}
             loading={loading}
@@ -175,12 +259,38 @@ const StandingsDrawer = ({
             onTeamDivisionChange={onTeamDivisionChange}
             onCreateDivision={onCreateDivision}
             onDivisionDelete={onDivisionDelete}
-            onClose={() => onOpenChange(false)}
+            onClose={() => handleOpenChange(false)}
             games={games}
             user={user}
             isAdmin={isAdmin}
             teamOwnerNames={teamOwnerNames}
             seasonPicker={seasonPicker}
+            badge={badge}
+            viewerTeamId={viewerTeamId}
+            viewToggle={
+              <StandingsViewToggle
+                mode={mode}
+                onModeChange={setPickedMode}
+                hasLive={Boolean(live)}
+                gameOn={Boolean(live?.live)}
+                weeks={weeks}
+                week={week}
+                onWeekChange={setPickedWeek}
+              />
+            }
+            footer={
+              <StandingsBracket
+                standings={shownStandings}
+                games={shownGames}
+                teams={teams}
+                seasonYear={seasonYear}
+                firstRoundWeek={seasonConfig?.playoffStartWeek ?? undefined}
+                mode={mode}
+                week={week}
+                viewerTeamId={viewerTeamId}
+                viewer={{ user, isAdmin, teamOwnerNames }}
+              />
+            }
           />
         )}
       </SheetContent>

@@ -41,6 +41,39 @@ export const QualifierKey = () => (
   </dl>
 );
 
+/**
+ * A row's place against the official table, as a soccer table shows it. Colour
+ * is earned here: this number has a direction. `null` is a table with nothing
+ * to compare against, which draws nothing, not a dash.
+ */
+const RankMovement = ({ movement }) => {
+  if (movement == null) return null;
+
+  if (movement === 0) {
+    return (
+      <span className="text-xs font-normal text-muted-foreground">
+        <span aria-hidden="true">–</span>
+        <span className="sr-only">No change from the official standings</span>
+      </span>
+    );
+  }
+
+  const up = movement > 0;
+  const places = Math.abs(movement);
+
+  return (
+    <span className={`text-xs font-normal tabular ${up ? 'text-success' : 'text-destructive'}`}>
+      <span aria-hidden="true">
+        {up ? '▲' : '▼'}
+        {places}
+      </span>
+      <span className="sr-only">
+        {up ? 'Up' : 'Down'} {places} from the official standings
+      </span>
+    </span>
+  );
+};
+
 const DrawerStandingsTable = ({
   teams = [],
   divisions = [],
@@ -63,7 +96,13 @@ const DrawerStandingsTable = ({
   // The drawer's season picker, rendered in the header's control cluster
   // beside Manage. Owned by the drawer, because which seasons exist and which
   // one is being edited are its state, not the table's.
-  seasonPicker = null
+  seasonPicker = null,
+  // Which standings these are. The drawer owns the choice and hands over the
+  // rows; these say so, and `footer` is what they imply: the bracket.
+  viewToggle = null,
+  badge = null,
+  footer = null,
+  viewerTeamId = null
 }) => {
   const [isManaging, setIsManaging] = useState(false);
   const [newDivisionName, setNewDivisionName] = useState('');
@@ -626,6 +665,7 @@ const DrawerStandingsTable = ({
   // the season in progress has a figure: a past season gets no column.
   const faabByTeam = new Map(teams.map((team) => [team.id, faabOf(team)]));
   const hasFaab = [...faabByTeam.values()].some((value) => value != null);
+  const viewerRow = (team) => (viewerTeamId != null && (team.id ?? team.teamId) === viewerTeamId ? 'ff-viewer-row' : '');
   const standingsColumns = ({ withRank, moveTargets, moveLabel }) => [
     ...(withRank
       ? [{
@@ -634,7 +674,14 @@ const DrawerStandingsTable = ({
           priority: 'primary',
           headerClassName: 'w-12 px-3 py-2 text-sm',
           className: 'px-3 py-2 font-medium',
-          cell: (team) => <span className="font-medium">{team.divisionRank}</span>,
+          // Stacked, not side by side: this table is `table-fixed` and already
+          // tight, and a wider rank column pushes Owner into Record.
+          cell: (team) => (
+            <span className="inline-flex flex-col items-start leading-tight">
+              <span className="font-medium">{team.divisionRank}</span>
+              <RankMovement movement={team.movement} />
+            </span>
+          ),
         }]
       : []),
     {
@@ -781,11 +828,12 @@ const DrawerStandingsTable = ({
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-2 px-1 pb-4 border-b border-border">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-xl tracking-tight text-foreground">Standings</h2>
-          {currentWeek && (
-            <Badge variant="outline" className="text-xs">
-              Week {currentWeek}
-            </Badge>
-          )}
+          {badge ??
+            (currentWeek && (
+              <Badge variant="outline" className="text-xs">
+                Week {currentWeek}
+              </Badge>
+            ))}
         </div>
         <div className="flex items-center gap-2">
           {seasonPicker}
@@ -854,6 +902,8 @@ const DrawerStandingsTable = ({
           </Button>
         </div>
       </div>
+
+      {viewToggle}
 
       {/* Divisions stacked vertically */}
       <div
@@ -982,7 +1032,7 @@ const DrawerStandingsTable = ({
                   data={division.teams}
                   tableClassName="table-fixed"
                   rowClassName={(team) =>
-                    `text-sm transition-all duration-200 hover:bg-muted/50 ${qualifierTint(team)}`
+                    `text-sm transition-all duration-200 hover:bg-muted/50 ${qualifierTint(team)} ${viewerRow(team)}`
                   }
                 />
               </div>
@@ -1009,12 +1059,14 @@ const DrawerStandingsTable = ({
                 })}
                 data={unassigned}
                 tableClassName="table-fixed"
-                rowClassName={() => 'text-sm transition-all duration-200 hover:bg-muted/50'}
+                rowClassName={(team) => `text-sm transition-all duration-200 hover:bg-muted/50 ${viewerRow(team)}`}
               />
             </div>
           </div>
         )}
       </div>
+
+      {footer}
     </div>
   );
 };

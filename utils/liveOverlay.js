@@ -111,6 +111,36 @@ export function overlayGame(game, live) {
   return { ...game, live: live?.games?.[game.id] ?? null };
 }
 
+/**
+ * The week a live table is about: last week until its scores land, which is the
+ * small hours of Tuesday, and otherwise this one. Null with nothing left to play.
+ */
+export function liveStandingsWeek({ actualWeek, games }) {
+  if (actualWeek == null) return null;
+
+  return [actualWeek - 1, actualWeek].find((week) => canBeLive({ week, actualWeek, games })) ?? null;
+}
+
+/**
+ * The games as if the week ended now, for the standings drawer's Live view.
+ *
+ * The one place a live figure lands in `team1Score`, on a copy, and only the
+ * drawer reads it. Every other surface takes that field to mean a result, which
+ * is why `overlayGame` never touches it. `isCompleted` stays false, so a bracket
+ * drawn from these shows the score without calling a winner. A game still at 0-0
+ * has not started, and counting it would hand both teams a tie.
+ */
+export function applyLiveScores(games = [], live) {
+  return games.map((game) => {
+    const sides = live?.games?.[game.id];
+    const first = sides?.team1?.points;
+    const second = sides?.team2?.points;
+
+    if (first == null || second == null || (first === 0 && second === 0)) return game;
+    return { ...game, team1Score: first, team2Score: second };
+  });
+}
+
 /** A player's NFL game state. An empty slate is unknown, not a league of byes. */
 function nflStateOf(proTeamId, nflGames) {
   if (Object.keys(nflGames).length === 0) return null;

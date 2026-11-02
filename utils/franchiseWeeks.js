@@ -23,6 +23,7 @@
 
 import { getScoredTouchdownCount } from '../services/db/espnMapping.js';
 import { teamOf } from './playerImages.js';
+import { tallyRecords } from './standings/computeStandings.js';
 import { POWER_RANKING_COMPONENT_META } from '../types/index.js';
 import { getWeekLabel } from './weekLabelUtils.js';
 
@@ -275,24 +276,7 @@ function resultOf(game, teamId) {
  * @returns {Map<string, {wins, losses, ties, pointsFor, pointsAgainst, rank, of}>}
  */
 export function standingsThrough(index, week) {
-  const table = new Map(index.teams.map((team) => [team.id, { wins: 0, losses: 0, ties: 0, pointsFor: 0, pointsAgainst: 0, games: 0 }]));
-
-  for (const game of index.games) {
-    if (game.type !== 'regular' || !isScored(game) || isBye(game) || game.week > week) continue;
-    for (const [teamId, mine, theirs] of [
-      [game.team1Id, game.team1Score, game.team2Score],
-      [game.team2Id, game.team2Score, game.team1Score]
-    ]) {
-      const row = table.get(teamId);
-      if (!row) continue;
-      row.games += 1;
-      row.pointsFor += mine;
-      row.pointsAgainst += theirs;
-      if (mine > theirs) row.wins += 1;
-      else if (mine < theirs) row.losses += 1;
-      else row.ties += 1;
-    }
-  }
+  const table = tallyRecords(index.teams, index.games, { throughWeek: week });
 
   const pct = (row) => (row.games ? (row.wins + row.ties / 2) / row.games : 0);
   const sorted = [...table.entries()].sort(([, a], [, b]) =>
