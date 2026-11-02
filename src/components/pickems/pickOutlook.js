@@ -16,7 +16,7 @@
  * how far a starter's week lands from his projection, over weeks 1-7 of 2026.
  * Summed across a lineup they give a team 22.7 points of spread, against the
  * 22.0 its weeks actually missed by, so the width is right. The middle is
- * softer: pregame favourites won 22 of 48 games in the same stretch, so a chip
+ * softer: pregame favourites won 23 of 48 games in the same stretch, so a chip
  * early in a game is a weak signal and it sharpens as points replace
  * projections. The thresholds are a first guess, to be tuned after a live Sunday.
  */

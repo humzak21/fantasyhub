@@ -34,6 +34,7 @@
     "backfill-player-week-stats": "node scripts/backfill-player-week-stats.js",
     "backfill-power-rankings": "node scripts/backfill-power-rankings.js",
     "prune-player-week-stats": "node scripts/prune-player-week-stats.js",
+    "calibrate-outlook-spreads": "node scripts/calibrate-outlook-spreads.js",
     "check-bundle": "node scripts/check-bundle.js",
     "check-css-tokens": "node scripts/check-css-tokens.js",
     "test:e2e": "playwright test",
