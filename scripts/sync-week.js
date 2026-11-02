@@ -42,7 +42,7 @@ import {
   scheduleKey,
   statKey
 } from '../services/parlayGrader.js';
-import { mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
+import { diffNflSchedule, mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
 import { syncNflRatings } from './sync-nfl-ratings.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
@@ -427,9 +427,13 @@ async function syncNflSchedule(seasonYear) {
     return { upserted: 0, errors: warnings.map((warning) => ({ error: warning })) };
   }
 
+  // Read before the write: the upsert is what erases the old kickoff.
+  const stored = await getDb().nflSchedule.getNflScheduleForSeason(seasonYear);
+  const changes = diffNflSchedule(stored, rows);
+
   const result = await getDb().nflSchedule.upsertNflSchedule(seasonYear, rows);
 
-  return { upserted: result.upserted, weekSpan, errors: warnings.map((w) => ({ error: w })) };
+  return { upserted: result.upserted, weekSpan, changes, errors: warnings.map((w) => ({ error: w })) };
 }
 
 /**
@@ -840,6 +844,9 @@ export async function syncWeek(argv = []) {
       try {
         steps.nflSchedule = await syncNflSchedule(espn.seasonYear);
         console.log(`🗓️  nfl schedule: ${steps.nflSchedule.upserted} team-weeks`);
+        for (const change of steps.nflSchedule.changes ?? []) {
+          console.log(`🗓️  week ${change.week}: ${change.matchup} moved from ${change.from} to ${change.to}`);
+        }
         for (const miss of steps.nflSchedule.errors) {
           console.warn(`⚠️  nfl schedule: ${miss.error}`);
         }

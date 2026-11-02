@@ -963,6 +963,21 @@ export function buildSituations(source = {}) {
 }
 
 /**
+ * The current season and the one before it, newest first: the seasons a row
+ * can be new in (`newRecords.js`). From the season rows rather than the games,
+ * so a current season with no games yet still counts as current. Current is the
+ * active season, not the newest: next year's row is often created early, and
+ * that must not push last season out.
+ *
+ * @param {object[]} seasons oldest first
+ */
+function recentYearsOf(seasons) {
+  const active = seasons.findLastIndex((season) => season.isActive);
+  const end = active === -1 ? seasons.length : active + 1;
+  return seasons.slice(Math.max(0, end - 2), end).map((season) => season.year).reverse();
+}
+
+/**
  * @param {object} source from `getRecordBookSource`
  * @returns {{ years: {year: number, isCompleted: boolean}[], teams: object,
  *   career: Object<string, object[]>, season: Object<string, object[]> }}
@@ -1004,10 +1019,7 @@ export function buildRecordBook(source = {}) {
   const yearsPlayed = new Set(sides.map((side) => side.year));
 
   return {
-    // The current season and the one before it, newest first: a #1 set in
-    // either is a recently broken record. From the season rows rather than the
-    // games, so a current season with no games yet still counts as current.
-    recentYears: seasons.map((s) => s.year).slice(-2).reverse(),
+    recentYears: recentYearsOf(seasons),
     years: seasons
       .filter((s) => yearsPlayed.has(s.year))
       .map((s) => ({ year: s.year, isCompleted: Boolean(s.isCompleted) }))
@@ -1033,19 +1045,6 @@ export function buildRecordBook(source = {}) {
  */
 export function recordSetYear(row) {
   return row?.end?.year ?? row?.endYear ?? row?.year ?? null;
-}
-
-/**
- * Is this ranked row a record broken recently: #1, outright or tied, and set in
- * one of the book's recent seasons (the current season or the one before it)?
- *
- * @param {object} row a row from `rankRows`
- * @param {number[]} recentYears `book.recentYears`
- */
-export function isRecentRecord(row, recentYears = []) {
-  if (row?.rank !== 1) return false;
-  const year = recordSetYear(row);
-  return year != null && recentYears.includes(year);
 }
 
 /**
