@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeftRight, Dices, Flame, ListChecks, Medal, Sigma, Sparkles, Target, Trophy, Zap } from 'lucide-react';
+import { ArrowLeftRight, Dices, Flag, Flame, Gauge, ListChecks, Medal, Sigma, Sparkles, Target, Trophy, Zap } from 'lucide-react';
 import { Card } from '../../ui/card';
 import { EmptyState } from '../../ui/empty-state';
 import { SectionHeading } from '../../ui/section-heading';
@@ -14,8 +14,10 @@ import { RECORDS, SECTIONS, hidesZero } from './recordCatalog';
 const SECTION_ICONS = {
   winning: Trophy,
   scoring: Zap,
+  bands: Gauge,
   games: Target,
   league: Sigma,
+  races: Flag,
   playoffs: Medal,
   luck: Dices,
   lineups: ListChecks,

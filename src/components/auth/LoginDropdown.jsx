@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../../../src/contexts/AuthContext.jsx'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
@@ -8,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Avatar, AvatarFallback } from '../ui/avatar'
-import { User, UserRound, LogIn, LogOut, Mail, Lock, CheckCircle, Wand2 } from 'lucide-react'
+import { User, LogIn, LogOut, Mail, Lock, CheckCircle, Wand2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 /**
@@ -82,7 +81,7 @@ const SentPanel = ({ title, children, onDone, accent = 'text-warning' }) => (
   </div>
 )
 
-export const LoginDropdown = ({ showProfile = false }) => {
+export const LoginDropdown = () => {
   const {
     user, signIn, signUp, signOut, resetPassword,
     signInWithMagicLink, authLinkError, clearAuthLinkError,
@@ -377,17 +376,11 @@ export const LoginDropdown = ({ showProfile = false }) => {
                 avatar (`SettingsLink`), on screen at all times rather than
                 behind a click.
 
-                The shell renders this avatar from lg only. Below lg the
-                account — profile, Settings, the newsletter, Log out — is in
-                the phone tab bar's Menu (`TabBarMenu`). */}
-            {showProfile && (
-              <DropdownMenuItem asChild>
-                <Link to="/profile">
-                  <UserRound className="mr-2 h-4 w-4" />
-                  <span>Your profile</span>
-                </Link>
-              </DropdownMenuItem>
-            )}
+                The shell renders this avatar from lg only, and only for an
+                account with no profile to open: an approved member's avatar
+                is a link to it (`ProfileAvatarLink`), with Log out on the page.
+                Below lg the account — profile, Settings, the newsletter, Log
+                out — is in the phone tab bar's Menu (`TabBarMenu`). */}
             <DropdownMenuItem onClick={signOut}>
               <LogOut className="mr-2 h-4 w-4" />
               <span>Log out</span>

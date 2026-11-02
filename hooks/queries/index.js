@@ -138,6 +138,7 @@ export {
   useHomeRecordBooks,
   useFranchiseProfile,
   useDivisionTitles,
+  useSituations,
   useTransactionLeaderboard,
   useFranchiseTransactions,
   useSeasonWeeks,

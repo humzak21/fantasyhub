@@ -198,6 +198,7 @@ const LeaguePicks = ({ groups, unassigned, total, showGrades, liveStatus, viewer
                 viewer.teamOwnerNames
               )}
               picks={group.picks}
+              waiting={group.waiting}
               showGrades={showGrades}
               liveStatus={liveStatus}
               viewer={viewer}
@@ -231,17 +232,19 @@ const LeaguePicks = ({ groups, unassigned, total, showGrades, liveStatus, viewer
  * it belongs to, which is the only thing the two-column layout conveys and the
  * one thing a linear read of a flat list would lose.
  */
-const DivisionColumn = ({ className, title, picks, showGrades, liveStatus, viewer, emptyText }) => (
+const DivisionColumn = ({ className, title, picks, waiting = EMPTY, showGrades, liveStatus, viewer, emptyText }) => (
   <section
     aria-label={title}
     className={cn('rounded-lg border border-border bg-muted/20 p-3', className)}
   >
     <div className="mb-1 flex items-baseline justify-between gap-2">
       <h5 className="truncate text-sm font-semibold text-foreground">{title}</h5>
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{picks.length}</span>
+      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+        {waiting.length > 0 ? `${picks.length} of ${picks.length + waiting.length}` : picks.length}
+      </span>
     </div>
 
-    {picks.length === 0 ? (
+    {picks.length + waiting.length === 0 ? (
       <p className="py-2 text-sm text-muted-foreground">{emptyText}</p>
     ) : (
       <ul className="divide-y divide-border">
@@ -303,6 +306,16 @@ const DivisionColumn = ({ className, title, picks, showGrades, liveStatus, viewe
           </li>
           );
         })}
+        {waiting.map((team) => (
+          <li key={team.id} className="flex items-center gap-3 py-2 text-sm opacity-50">
+            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+              {getMaskedUserName(team.owner, team.id, viewer.user, viewer.isAdmin, viewer.teamOwnerNames)}
+            </span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {showGrades ? 'No pick' : 'No pick yet'}
+            </span>
+          </li>
+        ))}
       </ul>
     )}
   </section>

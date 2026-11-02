@@ -178,6 +178,24 @@ describe('ParlayCommissionerDashboard', () => {
     expect(within(dawgs).queryByText('Some Rookie')).not.toBeInTheDocument();
   });
 
+  it('keeps a team with no pick on the board, greyed out, and on the season grid', async () => {
+    teams.getTeamsForSeason.mockResolvedValueOnce([
+      { id: 't1', name: 'Team Arya', owner: 'Arya Shah', division_id: 'd1' },
+      { id: 't2', name: 'Team Rohit', owner: 'Rohit Ramki', division_id: 'd2' },
+      { id: 't3', name: 'Team Aaron', owner: 'Aaron Wadhwa', division_id: 'd2' }
+    ]);
+
+    renderWithProviders(<ParlayCommissionerDashboard season={SEASON} />);
+
+    const kennel = await screen.findByRole('region', { name: 'The Kennel' });
+    const absent = await within(kennel).findByText('Aaron Wadhwa');
+
+    expect(absent.closest('li')).toHaveClass('opacity-50');
+    expect(within(kennel).getByText('No pick')).toBeInTheDocument();
+    expect(within(kennel).getByText('1 of 2')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('Aaron Wadhwa')).toBeInTheDocument();
+  });
+
   it('reports a TD hit rate over graded picks only', async () => {
     renderWithProviders(<ParlayCommissionerDashboard season={SEASON} />);
 

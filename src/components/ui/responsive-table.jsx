@@ -1,7 +1,16 @@
 import * as React from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
 import { cn } from '../../lib/utils'
+import { ariaSortOf, nextSort } from '../../utils/tableSort'
+import { Button } from './button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './select'
 import {
   Table,
   TableBody,
@@ -58,6 +67,8 @@ import {
  * @property {string} [cardLabel]     label on the card when `header` is an icon
  * @property {string} [cardClassName] applied to the stat block on the card,
  *   e.g. `col-span-2` for a value that needs more than one grid cell
+ * @property {(row: any) => any} [sortValue] what this column sorts by. Having
+ *   one is what makes the column sortable, once the table has `onSortChange`.
  */
 
 /**
@@ -72,6 +83,13 @@ import {
  *   Per-row classes, applied to the table row *and* to the card, so
  *   row-level emphasis — highlighting the viewer's own team, say — survives
  *   the switch between layouts.
+ * @param {{ key: string, direction: 'asc'|'desc' }|null} [props.sort]
+ *   The current order, `null` for the default. The caller owns it and passes
+ *   `data` already sorted (`sortRows` in `src/utils/tableSort.js`).
+ * @param {(sort: object|null) => void} [props.onSortChange]
+ *   Makes every column with a `sortValue` sortable: a button in its header
+ *   that cycles default → descending → ascending, and, because a card stack
+ *   has no headers, a compact control above the cards.
  */
 export function ResponsiveDataTable({
   columns,
@@ -84,7 +102,10 @@ export function ResponsiveDataTable({
   className,
   cardClassName,
   tableClassName,
+  sort = null,
+  onSortChange,
 }) {
+  const sortable = onSortChange ? columns.filter((c) => c.sortValue) : []
   const primary = columns.filter((c) => c.priority === 'primary')
   const secondary = columns.filter((c) => (c.priority ?? 'secondary') === 'secondary')
   const detail = columns.filter((c) => c.priority === 'detail')
@@ -101,6 +122,9 @@ export function ResponsiveDataTable({
     <div className={cn('min-w-0', className)}>
       {/* ---------- Card stack: below md ---------- */}
       <div className="space-y-2 md:hidden">
+        {sortable.length > 0 && (
+          <SortControl columns={sortable} sort={sort} onSortChange={onSortChange} />
+        )}
         {data.map((row, i) => (
           <DataCard
             key={rowKey(row, i)}
@@ -124,17 +148,25 @@ export function ResponsiveDataTable({
         <Table className={tableClassName}>
           <TableHeader>
             <TableRow>
-              {columns.map((c) => (
-                <TableHead
-                  key={c.key}
-                  className={cn(
-                    c.sticky && 'sticky left-0 z-10 bg-muted',
-                    c.headerClassName
-                  )}
-                >
-                  {c.header}
-                </TableHead>
-              ))}
+              {columns.map((c) => {
+                const canSort = onSortChange && c.sortValue
+                return (
+                  <TableHead
+                    key={c.key}
+                    aria-sort={canSort ? ariaSortOf(sort, c.key) : undefined}
+                    className={cn(
+                      c.sticky && 'sticky left-0 z-10 bg-muted',
+                      c.headerClassName
+                    )}
+                  >
+                    {canSort ? (
+                      <SortHeader column={c} sort={sort} onSortChange={onSortChange} />
+                    ) : (
+                      c.header
+                    )}
+                  </TableHead>
+                )
+              })}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -160,6 +192,91 @@ export function ResponsiveDataTable({
           </TableBody>
         </Table>
       </div>
+    </div>
+  )
+}
+
+/**
+ * A column header that sorts. The icon is the state: a faint up-down pair at
+ * rest, one arrow while the column holds the sort.
+ */
+function SortHeader({ column, sort, onSortChange }) {
+  const active = sort?.key === column.key
+  const Icon = !active
+    ? ChevronsUpDown
+    : sort.direction === 'asc'
+      ? ArrowUp
+      : ArrowDown
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSortChange(nextSort(sort, column.key))}
+      className={cn(
+        '-mx-1 inline-flex items-center gap-1 whitespace-nowrap rounded px-1 py-0.5 outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-9',
+        active && 'text-foreground'
+      )}
+    >
+      {column.header}
+      <Icon
+        className={cn('h-3.5 w-3.5 shrink-0', !active && 'opacity-50')}
+        aria-hidden="true"
+      />
+    </button>
+  )
+}
+
+const DEFAULT_SORT = 'default'
+
+/**
+ * The card stack's stand-in for its missing headers: which column, and which
+ * way. Choosing a column starts it descending, the way a first press of its
+ * header does, and "Default" puts the table's own order back.
+ */
+function SortControl({ columns, sort, onSortChange }) {
+  const active = columns.find((c) => c.key === sort?.key)
+  const ascending = sort?.direction === 'asc'
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 text-[13px] font-medium text-muted-foreground">
+        Sort by
+      </span>
+      <Select
+        value={active?.key ?? DEFAULT_SORT}
+        onValueChange={(key) =>
+          onSortChange(key === DEFAULT_SORT ? null : { key, direction: 'desc' })
+        }
+      >
+        <SelectTrigger aria-label="Sort by" className="h-9 min-w-0 flex-1">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={DEFAULT_SORT}>Default</SelectItem>
+          {columns.map((c) => (
+            <SelectItem key={c.key} value={c.key}>
+              {c.cardLabel ?? c.header}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        disabled={!active}
+        aria-label={ascending ? 'Sorted ascending. Sort descending' : 'Sorted descending. Sort ascending'}
+        onClick={() =>
+          onSortChange({ key: active.key, direction: ascending ? 'desc' : 'asc' })
+        }
+        className="h-9 w-9 shrink-0"
+      >
+        {ascending ? (
+          <ArrowUp className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <ArrowDown className="h-4 w-4" aria-hidden="true" />
+        )}
+      </Button>
     </div>
   )
 }

@@ -14,6 +14,10 @@
 export const phaseOf = (game) =>
   game.isPlayoff ? 'playoff' : game.isConsolation ? 'consolation' : 'regular';
 
+/** Who won a meeting: 0 for franchise 1, 1 for franchise 2, null for a tie. */
+export const meetingWinner = (game) =>
+  game.team1Score > game.team2Score ? 0 : game.team2Score > game.team1Score ? 1 : null;
+
 const emptyRecord = () => ({ wins: 0, losses: 0, ties: 0 });
 
 const emptySide = () => ({
@@ -56,7 +60,7 @@ export function summarizeMatchup(games = []) {
   for (const game of played) {
     const scores = [game.team1Score, game.team2Score];
     const phase = phaseOf(game);
-    const winner = scores[0] > scores[1] ? 0 : scores[1] > scores[0] ? 1 : null;
+    const winner = meetingWinner(game);
     const combined = scores[0] + scores[1];
     const margin = Math.abs(scores[0] - scores[1]);
 

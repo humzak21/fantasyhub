@@ -67,6 +67,8 @@ export function rowIdentity(record, row) {
       return `lw:${row.year}:${row.week}`;
     case 'leagueSeason':
       return `ls:${row.year}`;
+    case 'lock':
+      return `l:${record.data}:${row.year}`;
     default:
       return `x:${row.franchiseId ?? ''}:${row.teamId ?? ''}:${row.year ?? ''}:${row.week ?? ''}`;
   }

@@ -5,6 +5,7 @@ import HomeWidget from '../HomeWidget';
 import { MatchupHistory } from './MatchupHistory';
 import LineupPanel from '../../schedule/LineupPanel';
 import { Badge } from '../../ui/badge';
+import { FieldBackdrop, ShareBar } from '../../ui/field-backdrop';
 import { PlayerPoints } from '../../ui/player-points';
 import { RecordText } from '../../ui/number-text';
 import { Skeleton } from '../../ui/skeleton';
@@ -24,7 +25,6 @@ import {
   nextMatchup,
   orientScores
 } from '../../../../utils/home/matchup.js';
-import { getTeamColor } from '../../../utils/teamColors';
 import { useCountUp } from '../../../hooks/use-count-up.js';
 import { headToHeadPath } from '../../history/headtohead/headToHeadLink.js';
 import { TeamLink } from '../../ui/team-link';
@@ -230,56 +230,6 @@ function ViewerMatchup({ ctx, matchup }) {
         </Disclosure>
       </div>
     </HomeWidget>
-  );
-}
-
-/**
- * The field behind the scoreboard: each side washed in its franchise colour,
- * brightest at the outer edge and gone by the centre, over faint yard lines
- * every tenth with a brighter midfield. The one decorative element on the
- * page, in the one place that is a field. Inline gradients over the team's
- * `var(--team-N)` — no class names built at runtime.
- */
-function FieldBackdrop({ left, right }) {
-  const wash = (team, direction) =>
-    team
-      ? `linear-gradient(${direction}, color-mix(in oklab, ${getTeamColor(team).value} 16%, transparent), transparent 48%)`
-      : 'none';
-
-  return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-      <div className="absolute inset-0" style={{ backgroundImage: `${wash(left, '90deg')}, ${wash(right, '270deg')}` }} />
-      <div
-        className="absolute inset-0 opacity-70"
-        style={{
-          backgroundImage:
-            'linear-gradient(90deg, transparent calc(50% - 1px), color-mix(in oklab, var(--foreground) 14%, transparent) calc(50% - 1px), color-mix(in oklab, var(--foreground) 14%, transparent) calc(50% + 1px), transparent calc(50% + 1px)), repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), var(--border) calc(10% - 1px), var(--border) 10%)',
-          maskImage: 'linear-gradient(180deg, transparent, black 25%, black 75%, transparent)',
-          WebkitMaskImage: 'linear-gradient(180deg, transparent, black 25%, black 75%, transparent)'
-        }}
-      />
-    </div>
-  );
-}
-
-/**
- * The two totals as one bar: each side's share of the combined points, in
- * its franchise colour. A tug of war, not a probability — it says who is
- * ahead and by how much at a glance, and the line under it says it in words.
- */
-function ShareBar({ share, left, right }) {
-  if (share == null) return <div className="mt-4 h-1.5 rounded-full bg-muted" aria-hidden="true" />;
-  return (
-    <div className="mt-4 flex h-1.5 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
-      <div
-        className="h-full rounded-l-full transition-[width] duration-700 ease-out"
-        style={{ width: `${share}%`, background: left ? getTeamColor(left).value : 'var(--muted)' }}
-      />
-      <div
-        className="h-full flex-1 rounded-r-full opacity-70"
-        style={{ background: right ? getTeamColor(right).value : 'var(--muted)' }}
-      />
-    </div>
   );
 }
 

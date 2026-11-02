@@ -22,6 +22,15 @@ export function describeRow(record, row, identity) {
       if (record.detail === 'record' && row.record) parts.push(formatRecord(row.record));
       return { name: franchise, meta: parts.filter(Boolean).join(' · ') };
     }
+    case 'lock': {
+      const timing = row.weeksLeft > 0
+        ? `${row.weeksLeft} to play`
+        : row.onPoints ? 'final week, on points' : 'final week';
+      return {
+        name: franchise,
+        meta: [identity.teamName(row.teamId), row.year, `${formatRecord(row.record)}, ${timing}`].filter(Boolean).join(' · ')
+      };
+    }
     case 'game': {
       const [pf, pa] = row.score ?? [];
       return {

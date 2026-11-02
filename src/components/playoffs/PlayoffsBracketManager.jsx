@@ -7,11 +7,15 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Trophy, Target, Settings, AlertCircle, Clock, Users } from 'lucide-react';
+import { Trophy, Target, Settings, AlertCircle, Clock, Users, Route } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 
 import PlayoffsBracket from './PlayoffsBracket';
 import PlayoffsBracketAdmin from './PlayoffsBracketAdmin';
+import PathToPlayoffs from './path/PathToPlayoffs';
 import { getSeasonConfig } from '../../../utils/seasonConfig.js';
+import { usesSeededPlayoffs } from '../../../utils/playoffSeeding.js';
+import { flattenStandings, lastScoredWeek } from '../../../utils/projectedBracket.js';
 import { getDb } from '../../../services/db/index.js';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 
@@ -22,7 +26,14 @@ const PlayoffsBracketManager = ({
     isAuthenticated = false,
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
-    const [activeTab, setActiveTab] = useState('bracket');
+    // The tab is in the URL: a Path to the Playoffs scenario is a link people
+    // send each other, and a home-page link has to land on the right tab.
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = searchParams.get('tab') ?? 'bracket';
+    const setActiveTab = useCallback((tab) => {
+        // Moving tabs leaves a scenario behind: its params mean nothing elsewhere.
+        setSearchParams(tab === 'bracket' ? {} : { tab }, { replace: true });
+    }, [setSearchParams]);
     const [bracketStatus, setBracketStatus] = useState(null);
     const [userPicks, setUserPicks] = useState([]);
     const [allPicks, setAllPicks] = useState([]);
@@ -31,6 +42,8 @@ const PlayoffsBracketManager = ({
     // teamId -> playoff seed, for the 2026+ bracket. Projected while the
     // regular season runs and settled once it ends; the two agree by then.
     const [seedByTeamId, setSeedByTeamId] = useState(() => new Map());
+    // The same rows, whole: they fill the bracket until the postseason is drawn.
+    const [standingsRows, setStandingsRows] = useState([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -54,13 +67,11 @@ const PlayoffsBracketManager = ({
             setBracketStatus(statusData);
             setPlayoffGames(gamesData || []);
 
-            const standingsRows = [
-                ...(divisionStandings?.divisions || []).flatMap((division) => division.teams || []),
-                ...(divisionStandings?.unassigned || [])
-            ];
+            const rows = flattenStandings(divisionStandings);
+            setStandingsRows(rows);
             setSeedByTeamId(
                 new Map(
-                    standingsRows
+                    rows
                         .filter((row) => row.playoffSeed != null)
                         .map((row) => [row.id, row.playoffSeed])
                 )
@@ -207,6 +218,11 @@ const PlayoffsBracketManager = ({
                     <TabsTrigger value="bracket" icon={<Target className="h-4 w-4" />}>
                         Bracket
                     </TabsTrigger>
+                    {usesSeededPlayoffs(season?.year) && (
+                        <TabsTrigger value="path" icon={<Route className="h-4 w-4" />}>
+                            Path to the Playoffs
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="standings" icon={<Trophy className="h-4 w-4" />}>
                         Standings
                     </TabsTrigger>
@@ -233,8 +249,16 @@ const PlayoffsBracketManager = ({
                         isAdmin={isAdmin}
                         teamOwnerNames={teamOwnerNames}
                         seedByTeamId={seedByTeamId}
+                        standingsRows={standingsRows}
+                        throughWeek={lastScoredWeek(season?.schedule) || null}
                     />
                 </TabsContent>
+
+                {usesSeededPlayoffs(season?.year) && (
+                    <TabsContent value="path">
+                        <PathToPlayoffs season={season} standingsRows={standingsRows} />
+                    </TabsContent>
+                )}
 
                 <TabsContent value="standings">
                     <Card>

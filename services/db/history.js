@@ -643,7 +643,7 @@ export async function getRecordBookSource(ctx) {
       getFranchises(ctx),
       selectAll(() => client
         .from('teams')
-        .select('id, season_id, franchise_id, name, owner, made_playoffs, playoff_finish, final_rank')
+        .select('id, season_id, franchise_id, division_id, name, owner, made_playoffs, playoff_finish, final_rank')
         .order('id')),
       selectAll(() => client
         .from('games')
@@ -690,6 +690,7 @@ export async function getRecordBookSource(ctx) {
         id: row.id,
         seasonId: row.season_id,
         franchiseId: row.franchise_id,
+        divisionId: row.division_id,
         name: row.name,
         owner: row.owner,
         madePlayoffs: Boolean(row.made_playoffs),

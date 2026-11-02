@@ -376,6 +376,13 @@ button the live bundle did not have.
   account exists. The first configured run creates the Pages project if it is
   missing. The build reads the same `VITE_SUPABASE_URL` /
   `VITE_SUPABASE_ANON_KEY` secrets CI uses.
+- **A successful deploy can still serve the old build.** On 2026-11-02
+  `56c5e5d4` was live by the Pages API and at its own URL, with `ogjits.com` and
+  `ogjits.pages.dev` still on the previous build through two deploys and a
+  rollback, until **Purge Everything** under the zone's Caching settings fixed
+  it, though `cf-cache-status` read DYNAMIC and cache-busted requests were stale
+  too. So compare the `assets/index-*.js` in the live page against the
+  deployment's own URL before believing a run's green tick.
 - **Undo is Pages' rollback**: Deployments → an earlier one → Rollback,
   instantly, without a build. A merge that never deployed is fixed by running
   the workflow by hand.
@@ -1055,10 +1062,11 @@ then the design pass.
 - **Present tense only.** Home reads `useActualWeek()`, never the viewed
   week, and passes `actualWeek: null` until the season config has a start
   date. The tab carries `weekAware: 'desktop'`: the shell renders
-  `InlineWeekNavigator` from `lg` and hides it below (`false` hides it at
-  every width, as Profile does) — a flag on the definition, not an
-  `activeTab === 'home'` literal. On desktop the control is the way into a
-  week on the other tabs and changes nothing on this page. Links into a
+  `InlineWeekNavigator` from `lg` and hides it below (`false` would hide it at
+  every width) — a flag on the definition, not an `activeTab === 'home'`
+  literal. On desktop the control is the way into a week on the other tabs and
+  changes nothing on this page. Profile keeps it at every width, and it changes
+  nothing there either. Links into a
   week-aware tab call `ctx.openTab()`, which resets the viewed week to the
   actual week first.
 - **Widgets are registered, not placed.** `src/components/home/homeWidgets.js`
@@ -1266,6 +1274,59 @@ table. The view is in the URL so the phone's back button walks through it, and
 `/statistics` is a static redirect in `App.jsx` to
 `/rankings?view=statistics`.
 
+### The bracket is projected until it is drawn
+
+From the first week of 2026 the playoff page fills its bracket from the
+standings, and the home page shows the upper bracket once week 10 is scored.
+Both, and the Path to the Playoffs scenario, go through
+`utils/projectedBracket.js`. It used to be a rule here that a bracket showed TBD
+until real rows existed; the league asked for the projection instead.
+
+- **`resolveUpperBracket` is the one answer to who is in a slot.** Real rows win
+  slot by slot (`organizeSeededBracket`), so the same call covers a projection,
+  a half-drawn postseason and a finished one. `BracketView` draws it. Seeds are
+  the RPC's `playoffSeed`, so the bracket cannot disagree with the standings;
+  `seedOrder` numbers everyone else on from 7 for the consolation pairs (7v8,
+  9v10, 11v12, 13v14, which is how 2025 drew them).
+- **A projection is read-only.** `PlayoffsBracket` disables every slot while
+  `isProjected`: a pick is stored against a real game, and a pick on a team that
+  later slips out of the field would point at one that never happens. Say
+  "Projected" wherever it renders.
+- **The semifinals are not guessed.** They re-seed, so seed 1's opponent is
+  "Lowest seed left" until both round-1 games are played.
+- **`HOME_BRACKET_AFTER_WEEK` (10) is the home card's gate**, read by
+  `showsHomeBracket`: every game of that week scored, or any postseason row. A
+  part-scored week does not count. Pre-2026 seasons project nothing.
+
+### Path to the Playoffs is the odds model, asked "what if"
+
+`/playoffs?tab=path` (`src/components/playoffs/path/`) lets a member pick any
+team, decide any game left, and see the odds, bye chance, seed chances, the
+record it takes, the first-round opponent, the games that matter most, the league
+and the bracket under that scenario. `services/playoffPathCalculator.js` is the
+model and `PathToPlayoffs.jsx` renders it.
+
+- **It is the same simulation, not a second one.** `simulatePath` draws from
+  `createSimulationNormal` in the same order as `simulateMadeField`, with
+  `fieldSeeds` agreeing with `computeSeeds`, so with nothing decided it reads
+  exactly the Rankings tab's Playoff%. A test holds that. Change the model in
+  `playoffOddsCalculator.js`, or the two will drift.
+- **A decided game is still played.** Its scores are drawn and swapped if the
+  wrong side led, so its points still reach the tiebreak and every other draw
+  stays where it was. One press moves the odds by that game alone.
+- **100 and 0 stay `mathematicalStatus`'s**, over the records with the decided
+  games applied, at a lower `exactLimit` because this runs on every press.
+- **One pass answers everything.** Every simulated season already played every
+  game, so a game's swing and a record's chance are tallies inside the loop, not
+  further simulations. It runs on the main thread behind `useDeferredValue`.
+- **The URL is the scenario, and the only state.** `team` and `s`
+  (`encodeScenario`): `8c1` is week 8, the third game by id, team 1 wins. The
+  index runs over every game of the week, so a link survives that week being
+  scored; a token for a played game is dropped, because the real result won.
+  Nothing is stored, so there is no save and no migration.
+- **Its bracket is seeded on each team's average finish** (`scenarioStandings`),
+  through the league's own rule, because one simulated season is one roll.
+
 ### The automation dashboard watches; it cannot run anything
 
 **Settings → Automations** (`src/components/admin/AutomationsDashboard.jsx`)
@@ -1396,7 +1457,11 @@ every profile); several teams wear their franchise hue, older seasons fainter.
 `/profile/<franchise id>` is what every team name on the site opens: what a
 franchise says about itself, what it has won, and the whole of its history.
 `/profile` alone is the viewer's own. It is a tab with `inNav: false`, reached
-by the names, the avatar's dropdown and the phone Menu's account card. History
+by the names, the header avatar (`ProfileAvatarLink`, the viewer's picture) and
+the phone Menu's account card. Log out is on the member's own profile, under
+Roster, behind `LogOutDialog`, the one confirmation the Menu shares; an account
+with no profile to open keeps `LoginDropdown`, which is what still holds its Log
+out from `lg`. History
 → Franchises is the leaderboards now, and a row navigates here;
 `LeagueHistoryManager` no longer holds a selected franchise. The page
 (`src/components/profile/ProfilePage.jsx`) is the hero, `TrophyCase`, then
@@ -1429,6 +1494,11 @@ by the names, the avatar's dropdown and the phone Menu's account card. History
   `teams.espn_logo_url` through `upsertTeamsFromESPN`, and `avatar_source =
   'espn'` means "this franchise's newest logo". So a logo change lands on its
   own, and the button only appears to work once a sync has run.
+- **The hero carries the current season's standing** (`SeasonFigures`, over the
+  pure `utils/profile/seasonStanding.js`): power rank, place in the division and
+  points for, off the actual week's rankings and the standings RPC, the keys
+  those tabs already hold. Present tense, so the week control does not move it.
+  A franchise with no team this season shows none.
 - **`TeamAvatar` draws the avatar everywhere, through
   `FranchiseAvatarsContext`,** which also answers `useCanOpenProfiles()` for
   `TeamLink`. A context so both primitives stay plain with no provider. It hands
@@ -1441,7 +1511,9 @@ by the names, the avatar's dropdown and the phone Menu's account card. History
   form labels and whole-row links (recent form, record cards) stay as they are.
 - **Division titles are worked out, not stored**
   (`utils/profile/trophyCase.js::deriveDivisionTitles`): the best regular-season
-  record in each division of a completed season, by the canonical sort.
+  record in each division of a completed season, by the canonical sort. The
+  shelf counts them, and below it the franchise's 1 seeds and punishments, each
+  with the week it was locked (`locksHeldBy`).
 - **Records held are every #1, good or bad**, ties included, regular season for
   game records: `recordsHeldBy` over the record book's own query key. A row
   links to its card only for a viewer who can open History.
@@ -1589,6 +1661,12 @@ Rules that are load-bearing:
 - **Luck** is wins minus all-play expected wins (all-play win share × games);
   **schedule strength** is the opponents' season PPG; a streak across seasons
   breaks on a season the franchise sat out.
+- **Last place is the bottom of the regular-season standings**, by the sort
+  that names first: record, then points for (`compareStandings`). Never the
+  worst `final_rank`, which the consolation bracket decides: that named the wrong
+  team in four of the first six seasons, and a 6-7 team in 2020. The stat
+  comparison, the matchup facts and the chat's `regular_season_rank` read the
+  same rule. Playoffs count only where a record says so.
 - **Rivalry Week is week 14 every season, and week 4 as well from 2025**
   (`isRivalryWeek`), counted over regular-season games only — 2020's regular
   season ended at week 13, so its week 14 was the first playoff round and 2020
@@ -1610,11 +1688,60 @@ decided. The admin's hand-entered stat awards (`category = 'non-voted'`, e.g.
 now. Three have no data to become one: injuries ("INOVA"), and the Monday-night
 comeback and collapse awards, which need intra-week scoring.
 
+**History's season detail** carries the season's division winners, 1 seed and
+punishment above its standings. Both come from the season's own teams, so they
+mask as the standings do.
+
 **Head-to-head detail** is `headtohead/matchupSummary.js` (pure, tested) over
 `getMatchupHistory`, which now reports `isRegular`/`isConsolation`: series,
 record by phase, win %, points, average and highest scores, biggest win,
 longest win streak, the notable games, the last five meetings and every
-meeting.
+meeting. `MatchupDetail.jsx` draws it on the home page's field
+(`ui/field-backdrop.jsx`). **The names stick under the app header for the whole
+page and every section keeps their two columns** (`SIDES_GRID`), so a score's
+column says whose it is and no caption has to. The bar must stay a direct child
+of the page's column, because a sticky element stops at the end of its parent,
+and its `top` is the app header's height. The page is held to `max-w-3xl`: at
+desktop width the two columns are too far apart to compare.
+
+### How seasons were decided
+
+The Statistics view of the Statistics tab has **How seasons were decided**
+(`src/components/statistics/situations/LeagueSituations.jsx`) above Compare
+stats: who locked the 1 seed and the punishment and when, how seasons ended by
+starting record, each punishee's path, and the score bands by season. It is
+league history, so like Compare stats it is in place before the season's first
+game. `utils/recordBook/situations.js` is the pure half. `buildRecordBook` turns
+it into rows and `useSituations` reads it on the record book's own query key.
+
+- **Punishment is last place in the regular season**, by the canonical sort.
+  It is not the worst `final_rank`, which the consolation bracket settles: over
+  2020-25 those named different teams in four seasons of six. `lastPlaces` (the
+  record and the comparison stat) reads the standings for that reason, and
+  `final_rank` stays what it was.
+- **The 1 seed is first in the regular season.** Every stored `playoff_seed = 1`
+  is that team, under both seeding rules.
+- **`lockedEnds` is exact and needs no schedule.** First place is lost only if
+  a rival catches the leader, and the worst case against any one rival (the
+  leader loses out, the rival wins out) is always a possible outcome, so each
+  rival is checked alone. `mathematicalStatus` cannot answer this. It asks who
+  makes a six-team field, which is why it tries outcomes and why its fallback
+  bound can be late. Last place is the mirror.
+- **A level record is not a lock while games remain.** The tiebreak is points
+  for, which is still to be scored, the same reasoning as
+  `mathematicalStatus`. So a season that comes down to points locks in its final
+  week and says so (`onPoints`). With nothing left, `compareStandings` decides.
+- **`oneSeedLock` / `punishmentLock` rows include a season in progress once it
+  has locked.** A lock is a result, like a game. Nothing else about that season
+  counts: starts and team-season bands are completed seasons only.
+- **Division titles have two definitions that must agree:**
+  `deriveDivisionTitles` (the trophy case and season detail, from
+  `v_team_standings`) and `markSeasonHonours` / `buildComparisonFacts` (the
+  record and the stat, from the games). Both are the canonical sort within a
+  season's own divisions.
+- **`SCORE_BANDS` is the one list of bands.** Regular-season games; sub-100 is
+  under 100 and each upper band is that score or more, so 130+ includes 160+.
+  Add a band there and the records, comparison stat and table all gain it.
 
 ### The stat comparison is the record book's facts, re-cut
 
@@ -1851,7 +1978,10 @@ somebody in the wrong division rather than fail. A pick that matches no owner
 lands in `unassigned` and renders under its own heading — a member's display
 name is theirs to type, and filing them under a guessed division would
 misreport who is competing with whom. Empty divisions still render, so the
-board's shape does not change as picks arrive. Display names come attached to
+board's shape does not change as picks arrive, and **a team with no pick is on
+the board, greyed out**: each group carries `waiting`, the division's teams with
+no pick that week, on both the Make Picks board and the TD Parlay tab. A
+masked viewer's row is keyed on the team id, never the owner's name. Display names come attached to
 the rows: `getParlayPicksForWeek` resolves them through `getUserDisplayNames`,
 the way `getTakes` and the pick'ems submissions do, because a component
 fetching them separately would paint once with every pick in the wrong column.
@@ -1889,7 +2019,7 @@ again; the page no longer waits on `isParlayCommissionerLoading` either.
 PickEmsManager lazy-loads it and passes `embedded`, which drops its
 `PageHeader` so the page is not titled twice.
 
-**Its week board is division columns too**, through the same
+**Its week board is division columns too**, greyed teams and all, through the same
 `groupPicksByDivision` the members' board uses — the league runs one parlay per
 division, so seven picks in a column is the unit that hits or does not, and a
 flat table sorted by name put two competitions in one list. The grouping matches
@@ -2208,6 +2338,12 @@ was pasted.
 renders a real table at `md:`+ and a card stack below it, from one set of
 column definitions. Do not solve a wide table by scrolling it sideways: the
 reader loses their row the moment the first column leaves the viewport.
+**To sort one, give columns a `sortValue` and pass `sort` / `onSortChange`**:
+headers cycle default → descending → ascending with `aria-sort`, and the card
+stack gets a compact control, since it has no headers. The caller owns the state
+and sorts with `sortRows` (`src/utils/tableSort.js`). Default is `null`, the rows
+as they arrived. On History → Franchises the rank is the franchise's place on the
+default board and stays with it, so sorting never renumbers.
 
 **Charts use `ChartContainer` and `useMobileAxis()`** (`ui/chart.jsx`). Never
 an inline pixel height — 520px is 139% of an iPhone SE viewport, and an inline
@@ -2932,11 +3068,10 @@ like a right "8-2", so a sentence that cannot be checked is never shown.
   chevron (`ChatParts.jsx`). `LeagueChatProvider` in the shell holds the
   conversation, so it survives changing tabs, and is enabled for approved
   members only; everything else renders nothing without it. **One icon
-  opens it, and there is no text box until it is open:** the round orange
-  chat button, floating bottom-left above the phone tab bar below `lg`
-  (`ChatLauncher`, at the root like the tab bar) and header-sized beside the
-  bell from `lg` (`AskHeaderButton`, which toggles the panel and wears a ring
-  while it is open, the way Menu is lit while its drawer is up). Below `md`
+  opens it, and there is no text box until it is open:** `ChatLauncher`, the
+  round orange chat button at the root like the tab bar, floating bottom-left
+  above the tab bar below `lg` and bottom-right from `lg`, where it toggles
+  the panel and wears a ring while it is open. Below `md`
   the chat is a vaul drawer with no autofocus (the keyboard would cover the
   topics); from `md` a panel down the left side, closed by Escape, and from
   `lg` `LeagueChatOffset` moves the page over beside it.
