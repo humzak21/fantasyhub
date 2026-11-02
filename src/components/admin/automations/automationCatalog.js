@@ -11,7 +11,7 @@
  *
  *   * **Both scheduled ESPN jobs run the same script.** `sync-week.yml` and
  *     `daily-refresh.yml` each invoke `scripts/sync-week.js`; the daily one
- *     adds six `--skip-*` flags. A `sync_runs` row does not say which
+ *     adds five `--skip-*` flags. A `sync_runs` row does not say which
  *     workflow wrote it, so `classifyRun` reads the flags back out of the
  *     step results — `skipped: 'flag'` on the result-writing steps is the
  *     daily refresh's signature.
@@ -164,8 +164,9 @@ export const STEPS = {
     reads: [],
     writes: ['nfl_schedule (two rows per game, one per bye, keyed by season_year)'],
     description:
-      "Re-imports the whole NFL season so flexed kickoffs stay right. Feeds the 'vs BUF / @ KC / " +
-      "BYE' chips, the nflSos ranking component and the parlay grader's stats_official gate."
+      "Re-imports the whole NFL season every day, so a flexed kickoff lands the same day, and lists " +
+      "any game that moved. Feeds the 'vs BUF / @ KC / BYE' chips, when each autosub locks and is " +
+      "watched, the nflSos ranking component and the parlay grader's stats_official gate."
   },
   nflRatings: {
     label: 'Snapshot NFL power index',
@@ -227,6 +228,17 @@ export const STEPS = {
  * workflow passes `--skip-*` for, which is also the signature `classifyRun`
  * looks for.
  */
+/** How many moved games a run summary names before it just counts the rest. */
+const SCHEDULE_CHANGES_SHOWN = 3;
+
+/** " · moved: week 12 DAL @ NYG", or nothing when the calendar held still. */
+function describeScheduleChanges(changes = []) {
+  if (!changes.length) return '';
+  const named = changes.slice(0, SCHEDULE_CHANGES_SHOWN).map((change) => `week ${change.week} ${change.matchup}`);
+  const rest = changes.length - named.length;
+  return ` · moved: ${named.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`;
+}
+
 export const AUTOMATIONS = [
   {
     id: 'weekly-sync',
@@ -266,7 +278,7 @@ export const AUTOMATIONS = [
     workflowFile: 'daily-refresh.yml',
     command:
       'npm run sync-week -- --skip-scores --skip-player-stats --skip-finalize-prev ' +
-      '--skip-nfl-schedule --skip-nfl-ratings --skip-snapshot',
+      '--skip-nfl-ratings --skip-snapshot',
     evidence: 'sync_runs',
     schedule: {
       cron: '40 16 * * *',
@@ -278,15 +290,16 @@ export const AUTOMATIONS = [
     timeoutMinutes: 10,
     concurrency: 'espn-write',
     secrets: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ESPN_S2', 'ESPN_SWID'],
-    steps: ['pickEmWeek', 'rosters', 'postseasonGames', 'parlayGrades', 'transactions'],
-    skips: ['scores', 'playerStats', 'finalizePrev', 'nflSchedule', 'nflRatings', 'snapshot'],
+    steps: ['pickEmWeek', 'rosters', 'postseasonGames', 'nflSchedule', 'parlayGrades', 'transactions'],
+    skips: ['scores', 'playerStats', 'finalizePrev', 'nflRatings', 'snapshot'],
     summary:
-      "The present-tense half. Managers change lineups up to kickoff and waivers clear on " +
-      "Wednesday, so rosters and transaction counts are refreshed daily — and in the postseason, " +
+      "The present-tense half. Managers change lineups up to kickoff, waivers clear on Wednesday " +
+      "and the NFL flexes games, so rosters, transaction counts and the NFL calendar are refreshed " +
+      "daily — and in the postseason, " +
       "the week's bracket rows as ESPN draws them. It never writes a " +
       "result: scores, player stats and the ranking snapshot move once a week, on Tuesday.",
     notes: [
-      'Same script as the weekly sync with six --skip flags, so a sync_runs row is attributed to this job by those flags.',
+      'Same script as the weekly sync with five --skip flags, so a sync_runs row is attributed to this job by those flags.',
       'Timed to land twenty minutes before the early Sunday kickoffs. Supabase dispatches it on the minute; GitHub\'s own cron started it two to five hours late, which is why it no longer has one.',
       'Also re-runs the pick\'em-week check and the parlay grader, so a Tuesday miss on either is caught the same day.'
     ]
@@ -786,6 +799,7 @@ export function summarizeStep(name, result) {
       break;
     case 'nflSchedule':
       text = `${result.upserted ?? 0} team-weeks` + (result.weekSpan ? ` over ${result.weekSpan} weeks` : '');
+      text += describeScheduleChanges(result.changes);
       issues.push(...errorIssues(result.errors, ''));
       break;
     case 'nflRatings':

@@ -23,7 +23,7 @@ import {
   useMyAutosubs,
   useNflOpponentMap
 } from '../../../hooks/queries/index.js';
-import { atWeeklyLimit, autosubState, benchOptions, coverableStarters } from './autosubChoices.js';
+import { atWeeklyLimit, autosubState, benchOptions, coverableStarters, isAutosubLocked } from './autosubChoices.js';
 
 const playerLabel = (row) => `${row.player?.name ?? 'Unknown'} (${row.rosterSlot === 'BE' ? row.position : row.rosterSlot})`;
 
@@ -63,7 +63,8 @@ const AutosubDialog = ({ open, onOpenChange, rows, autosubs, opponents, onSave, 
           <DialogTitle>Add an autosub</DialogTitle>
           <DialogDescription>
             If your starter is ruled out this week, your bench player goes in. The commissioner and
-            vice commissioner are told, and they make the change if ESPN has already locked it.
+            vice commissioner are told, and they make the change if ESPN has already locked it. It
+            locks once either player&rsquo;s game starts.
           </DialogDescription>
         </DialogHeader>
 
@@ -127,8 +128,9 @@ const AutosubDialog = ({ open, onOpenChange, rows, autosubs, opponents, onSave, 
   );
 };
 
-const AutosubRow = ({ autosub, onRemove, removing }) => {
-  const state = autosubState(autosub);
+const AutosubRow = ({ autosub, opponents, onRemove, removing }) => {
+  const locked = isAutosubLocked(autosub, opponents);
+  const state = autosubState(autosub, { locked });
   const starter = autosub.starter?.name ?? 'Unknown';
   const bench = autosub.bench?.name ?? 'Unknown';
 
@@ -142,7 +144,7 @@ const AutosubRow = ({ autosub, onRemove, removing }) => {
       <Badge variant={state.variant} className="shrink-0">
         {state.label}
       </Badge>
-      {autosub.status === 'armed' && (
+      {autosub.status === 'armed' && !locked && (
         <Button
           variant="ghost"
           size="icon"
@@ -212,6 +214,7 @@ const AutosubPanel = ({ access, framed, className }) => {
             <AutosubRow
               key={autosub.id}
               autosub={autosub}
+              opponents={opponents}
               onRemove={handleRemove}
               removing={removeAutosub.isPending}
             />

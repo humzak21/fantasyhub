@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders, screen, waitFor } from '../../../test/renderWithProviders.jsx';
-import { atWeeklyLimit, benchOptions, coverableStarters, autosubState } from '../autosubChoices.js';
+import { atWeeklyLimit, benchOptions, coverableStarters, autosubState, isAutosubLocked } from '../autosubChoices.js';
 
 const FUTURE = '2099-01-01T18:00:00Z';
 const PAST = '2001-01-01T18:00:00Z';
@@ -49,8 +49,8 @@ const SET_AUTOSUB = {
   status: 'armed',
   starterPlayerId: 'p-rb',
   benchPlayerId: 'p-be-rb',
-  starter: { name: 'Bijan Robinson' },
-  bench: { name: 'Jaylen Warren' }
+  starter: { name: 'Bijan Robinson', proTeamId: 1 },
+  bench: { name: 'Jaylen Warren', proTeamId: 3 }
 };
 
 const db = {
@@ -184,6 +184,18 @@ describe('AutosubSection', () => {
     expect(screen.queryByRole('button', { name: 'Add' })).not.toBeInTheDocument();
   });
 
+  it('locks a row once a game in it has started, and takes away the way to remove it', async () => {
+    db.autosubs.getMyAutosubs.mockResolvedValue([SET_AUTOSUB]);
+    db.nflSchedule.getNflScheduleForSeason.mockImplementation(async () =>
+      Array.from({ length: 18 }, (_, i) => calendar(i + 1)).flat()
+        .map((game) => (game.proTeamId === 3 ? { ...game, gameTime: PAST } : game)));
+
+    renderWithProviders(<AutosubSection teamId="team-mine" />);
+
+    expect(await screen.findByText('Locked')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /remove the autosub/i })).not.toBeInTheDocument();
+  });
+
   it('sets one through the picker, for the viewer\'s team and the current week', async () => {
     const user = userEvent.setup();
     renderWithProviders(<AutosubSection teamId="team-mine" />);
@@ -300,9 +312,36 @@ describe('atWeeklyLimit', () => {
   });
 });
 
+describe('isAutosubLocked', () => {
+  const autosub = { starter: { proTeamId: 1 }, bench: { proTeamId: 3 } };
+
+  it('stays open while both games are to come', () => {
+    expect(isAutosubLocked(autosub, OPPONENTS)).toBe(false);
+  });
+
+  it('locks on the starter\'s game', () => {
+    expect(isAutosubLocked(autosub, { ...OPPONENTS, 1: { gameTime: PAST } })).toBe(true);
+  });
+
+  it('locks on the bench player\'s game, even with the starter\'s still to come', () => {
+    expect(isAutosubLocked(autosub, { ...OPPONENTS, 3: { gameTime: PAST } })).toBe(true);
+  });
+
+  it('is per autosub, so another row is untouched', () => {
+    const other = { starter: { proTeamId: 2 }, bench: { proTeamId: 4 } };
+    expect(isAutosubLocked(other, { ...OPPONENTS, 3: { gameTime: PAST } })).toBe(false);
+  });
+
+  it('does not lock on a game with no known time', () => {
+    expect(isAutosubLocked(autosub, {})).toBe(false);
+  });
+});
+
 describe('autosubState', () => {
   it('says what happened in the member\'s words', () => {
     expect(autosubState({ status: 'armed' }).label).toBe('Set');
+    expect(autosubState({ status: 'armed' }, { locked: true }).label).toBe('Locked');
+    expect(autosubState({ status: 'swapped' }, { locked: true }).label).toBe('Subbed in');
     expect(autosubState({ status: 'swapped' }).label).toBe('Subbed in');
     expect(autosubState({ status: 'manual' }).label).toBe('Commissioner told');
   });

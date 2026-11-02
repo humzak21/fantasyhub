@@ -50,7 +50,7 @@ clock, GitHub's runners".
   The start-of-season job; zero arguments, `--dry-run` to plan without writing.
 - `npm run sync-nfl-schedule` - Import the NFL calendar (`nfl_schedule`) from
   ESPN's public `proTeamSchedules_wl`. `[year]`, `--backfill` for 2020 onward,
-  `--dry-run`. The weekly sync re-runs it for the active season, so this is for
+  `--dry-run`. Both ESPN crons re-run it for the active season, so this is for
   a first import or a repair.
 - `npm run sync-nfl-ratings` - Snapshot ESPN's Football Power Index into
   `nfl_team_ratings` for the current week. `[week]`, `--dry-run`. No
@@ -663,8 +663,8 @@ writes `rosters` once, Tuesday 05:00 ET, but managers change lineups right up
 to kickoff and waivers clear on Wednesday, so a present-tense refresh runs
 **every day at 16:40 UTC** — 12:40 PM ET under daylight time, 11:40 AM ET
 after, never later than twenty minutes before the early Sunday kickoffs. It
-runs `pickEmWeek`, rosters, `parlayGrades` and **transactions**, and passes
-`--skip-scores --skip-player-stats --skip-finalize-prev --skip-nfl-schedule
+runs `pickEmWeek`, rosters, nflSchedule, `parlayGrades` and **transactions**, and passes
+`--skip-scores --skip-player-stats --skip-finalize-prev
 --skip-nfl-ratings --skip-snapshot`, which skips the matchup fetch entirely.
 **It never writes a result**: scores, the finished week's player stats and
 the ranking snapshot are weekly facts that standings, rankings and the parlay
@@ -1343,7 +1343,7 @@ Rules that are load-bearing:
   invalidate; the hooks refetch on focus and once a minute.
 - **Which workflow wrote a `sync_runs` row is derived from its steps.**
   Both scheduled jobs run `scripts/sync-week.js`; the daily refresh is the
-  same script with six `--skip-*` flags, so `classifyRun` attributes a row
+  same script with five `--skip-*` flags, so `classifyRun` attributes a row
   to the daily refresh when `scores` *and* `snapshot` read `skipped: 'flag'`.
   A row with no steps yet is attributed by proximity to a cron slot. Adding
   a skip flag to `daily-refresh.yml` means updating `skips` in
@@ -2077,9 +2077,15 @@ no cookies, unlike every other ESPN call here) through the pure
   ~576 rows. `useNflWeekSchedule` and `useNflOpponentMap` share
   `useNflSeasonSchedule`'s single cache entry so two chips on one page cannot
   disagree about the same week. There are no mutations — the cron writes it.
-- The weekly sync re-imports the **whole** active season, non-fatally. The NFL
-  flexes late-season kickoffs, so a calendar imported once in September would
-  have the wrong times by December.
+- Both ESPN crons re-import the **whole** active season, non-fatally, so a flexed
+  kickoff lands within a day. It was weekly until the autosub lock came to depend
+  on it: a game flexed on a Wednesday would have kept its old time until the next
+  Tuesday, and a lock on the wrong time is the member's deadline moved.
+- **What moved is reported, not just overwritten.** `diffNflSchedule` compares
+  the stored rows with the fresh import before the upsert erases them, and the
+  moved games land in `changes` on the step's `sync_runs` entry, one per game,
+  which the Automations dashboard names in the run summary. Times compare as
+  instants: Postgres returns `+00:00` where the mapper writes `.000Z`.
 
 **`nfl_team_ratings` is the calendar's companion: how good each NFL team is.**
 ESPN's Football Power Index, snapshotted per fantasy week because ESPN serves
@@ -3193,6 +3199,21 @@ and the commissioner and vice commissioner hear either way.
   display name, for the reason franchise profiles use it: this one ends in a
   write to somebody's lineup. **An admin is not folded in.** An autosub is the
   manager's, so the admin sees only their own team's, and RLS holds that.
+- **An autosub locks when either player's game starts, per autosub**
+  (`20261103130000_autosub_kickoff_lock.sql`). There is no weekly deadline: a
+  Thursday pairing locks on Thursday and a Sunday one stays open until Sunday.
+  Either player, not only the starter, because otherwise a member could name a
+  Thursday bench player, watch the game, and keep or drop the autosub knowing
+  how it went. `private.autosub_locks_at()` is the one definition, and both RPCs
+  read it; `isAutosubLocked` is the mirror. A lock stops the member and not the
+  autosub: an armed row still fires, and after kickoff it goes to the
+  commissioners.
+- **A player's schedule is `nfl_schedule`, joined on `players.pro_team_id`.**
+  There is no per-player copy, deliberately: every player on a team shares one
+  kickoff, a copy is a second thing to drift, and the join follows a real NFL
+  trade the day the roster sync sees it. Nothing stores a kickoff on an autosub
+  row either, so a flexed game moves the lock, the picker and the watcher's
+  window by itself. The daily refresh is what makes that true.
 - **`set_autosub()` is the only member write**, and it holds the rules: your
   team, active season, switch on, under the weekly limit, starter in a starting
   slot, bench player on the bench and eligible for the slot, both with a game
