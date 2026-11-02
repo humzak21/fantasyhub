@@ -17,9 +17,10 @@ import FranchiseWeekByWeek from './weeks/FranchiseWeekByWeek';
 
 /**
  * The stats half of a franchise's profile: career figures, every season, the
- * week-by-week view, the record trend, its transactions, its rivalries and its
- * awards. `ProfilePage` owns the data and the head of the page.
+ * week-by-week view, the record trend, its transactions, its trades, its
+ * rivalries and its awards. `ProfilePage` owns the data and the head of the page.
  *
+ * @param {React.ReactNode} props.trades - rendered under the transactions chart
  * @param {React.ReactNode} props.rivalries - rendered between the charts and the awards
  */
 const FranchiseProfile = ({
@@ -30,6 +31,7 @@ const FranchiseProfile = ({
   user = null,
   isAdmin = false,
   teamOwnerNames = [],
+  trades = null,
   rivalries = null
 }) => {
   const { data: transactionHistory = [] } = useFranchiseTransactions(franchiseId);
@@ -366,6 +368,8 @@ const FranchiseProfile = ({
           </div>
         </section>
       )}
+
+      {trades}
 
       {rivalries}
 

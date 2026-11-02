@@ -11,6 +11,7 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
   useActualWeek,
   useAutosubAccess,
+  useFaabLedger,
   useFranchiseProfile,
   useFranchiseProfiles,
   useHistoryFranchises,
@@ -20,6 +21,7 @@ import {
   useSeasonConfig,
   useStandings
 } from '../../../hooks/queries/index.js';
+import { faabOf } from '../../utils/format';
 import { currentSeasonStanding } from '../../../utils/profile/seasonStanding.js';
 import { franchiseIdOf } from '../../../utils/viewerTeam.js';
 import { LogOutButton } from '../auth/LogOutButton.jsx';
@@ -30,6 +32,7 @@ import {
 } from '../history/utils/privacyHelpers';
 import FranchiseProfile from '../history/franchises/FranchiseProfile';
 import { FranchiseRivalries } from './FranchiseRivalries';
+import { FranchiseTrades } from './FranchiseTrades';
 import { AutosubSection } from '../autosub/AutosubSection';
 import { ProfileHero } from './ProfileHero';
 import { TrophyCase } from './TrophyCase';
@@ -87,6 +90,7 @@ export function ProfilePage() {
   const seasonId = currentTeam ? activeSeason.id : null;
   const rankings = useRankingsForWeek(seasonId, actualWeek, actualWeek);
   const standings = useStandings(seasonId);
+  const { data: faabLedger } = useFaabLedger(seasonId);
 
   const viewer = useMemo(() => ({ user, isAdmin, teamOwnerNames }), [user, isAdmin, teamOwnerNames]);
   const fullData = canViewFullData(user, isAdmin, teamOwnerNames);
@@ -192,6 +196,8 @@ export function ProfilePage() {
                   rankings: rankings.data,
                   standings: standings.data
                 }),
+                faabRemaining: faabOf(currentTeam),
+                faabLedger: faabLedger?.[currentTeam.id] ?? null,
                 loading: rankings.isLoading || standings.isLoading
               }
             : null
@@ -221,6 +227,7 @@ export function ProfilePage() {
         user={user}
         isAdmin={isAdmin}
         teamOwnerNames={teamOwnerNames}
+        trades={<FranchiseTrades franchiseId={franchiseId} franchises={franchises} />}
         rivalries={
           <FranchiseRivalries
             franchiseId={franchiseId}

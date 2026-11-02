@@ -8,6 +8,7 @@ import { SkeletonTable } from '../../ui/skeleton';
 import { TeamAvatar } from '../../ui/team-identity';
 import { cn } from '../../../lib/utils';
 import { getMaskedDivisionName, getMaskedTeamName } from '../../../utils/displayNameUtils';
+import { faabOf, formatFaab } from '../../../utils/format';
 import { StreakChip } from '../../ui/streak-chip';
 import { ScrollTable } from '../ScrollTable';
 import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../tableTones';
@@ -26,12 +27,12 @@ const sameId = (a, b) => a != null && b != null && String(a) === String(b);
  * The table's width: the team column (whatever the card has after the 9.25rem
  * of rank, record and points for, but never under twelve letters of name —
  * 11ch, since `ch` is a digit and letters run narrower) plus every other
- * column: 9.25rem shown by default, 15.5rem to the right, and the seed's 3rem
+ * column: 9.25rem shown by default, 19rem to the right, and the seed's 3rem
  * from 2026. Literal strings, so Tailwind generates them.
  */
 const TABLE_WIDTH = {
-  seeded: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_27.75rem)]',
-  plain: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_24.75rem)]'
+  seeded: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_31.25rem)]',
+  plain: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_28.25rem)]'
 };
 
 /**
@@ -44,8 +45,9 @@ const TABLE_WIDTH = {
  *
  * Every column the drawer has, in a table wider than the card: rank, team,
  * record and points for fill the card by default, and points against,
- * differential, win %, streak and seed are a swipe (or a scrollbar) to the
- * right, with the rank held in place (`ScrollTable`). Divisions stack in
+ * differential, win %, streak, seed and FAAB are a swipe (or a scrollbar) to the
+ * right, with the rank held in place (`ScrollTable`). The RPC has no FAAB, so
+ * that one comes off the season's own teams. Divisions stack in
  * a narrow card and sit side by side in a wide one (a container query, `@xl`).
  * The whole row opens the team's roster.
  */
@@ -53,6 +55,7 @@ export default function StandingsMini({ ctx }) {
   const { seasonId, season, viewerTeam, onOpenStandings } = ctx;
   const { isApproved } = useViewer();
   const franchiseIds = franchiseIdsByTeam(season?.teams);
+  const faabByTeam = new Map((season?.teams ?? []).map((team) => [team.id, faabOf(team)]));
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const navigate = useNavigate();
   const standings = useStandings(seasonId);
@@ -124,6 +127,7 @@ export default function StandingsMini({ ctx }) {
                     <col className="w-[3.75rem]" />
                     <col className="w-14" />
                     {seeded && <col className="w-12" />}
+                    <col className="w-14" />
                   </colgroup>
                   <thead className="text-xs text-muted-foreground">
                     <tr>
@@ -133,7 +137,7 @@ export default function StandingsMini({ ctx }) {
                       <th scope="col" className={cn(STICKY_HEAD, 'border-b border-border/60 px-1.5 py-1.5 text-left font-medium')}>
                         Team
                       </th>
-                      {['W-L', 'PF', 'PA', 'Diff', 'Win%', 'Streak', ...(seeded ? ['Seed'] : [])].map((label) => (
+                      {['W-L', 'PF', 'PA', 'Diff', 'Win%', 'Streak', ...(seeded ? ['Seed'] : []), 'FAAB'].map((label) => (
                         <th
                           key={label}
                           scope="col"
@@ -202,6 +206,9 @@ export default function StandingsMini({ ctx }) {
                               {team.playoffSeed ?? '—'}
                             </td>
                           )}
+                          <td className={cn(cell, 'px-1.5 text-right text-[13px] tabular text-muted-foreground')}>
+                            {formatFaab(faabByTeam.get(team.id))}
+                          </td>
                         </tr>
                       );
                     })}

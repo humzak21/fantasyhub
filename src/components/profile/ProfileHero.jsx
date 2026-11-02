@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
+import { FaabBreakdown } from '../ui/faab-breakdown';
 import { NflTeamLogo } from '../ui/nfl-team-logo';
 import { PlayerAvatar } from '../ui/player-avatar';
 import { Skeleton } from '../ui/skeleton';
@@ -11,7 +12,7 @@ import { LogOutButton } from '../auth/LogOutButton.jsx';
 import { teamRosterPath } from '../teams/teamLink';
 import { formatYearRange } from '../history/utils/statFormatters';
 import { getTeamColor } from '../../utils/teamColors';
-import { EMPTY, formatOrdinal, formatPoints } from '../../utils/format';
+import { EMPTY, formatFaab, formatOrdinal, formatPoints } from '../../utils/format';
 import { NFL_TEAM_NAMES, teamOf } from '../../../utils/playerImages.js';
 import { accentColor } from '../../../utils/profile/profileTheme.js';
 
@@ -62,13 +63,13 @@ function SeasonFigure({ label, value, loading }) {
   );
 }
 
-/** Where the team stands right now: power rank, division place, points for. */
-function SeasonFigures({ year, standing, loading, showDivision }) {
+/** Where the team stands right now: power rank, division place, points for, FAAB left. */
+function SeasonFigures({ year, standing, faabRemaining, faabLedger, loading, showDivision }) {
   const divisionLabel = showDivision && standing?.divisionName ? `${standing.divisionName} rank` : 'Division rank';
   return (
     <div>
       <p className="mb-2 text-xs font-medium text-muted-foreground">{year} season</p>
-      <dl className="grid max-w-md grid-cols-3 gap-3">
+      <dl className="grid max-w-xl grid-cols-2 gap-3 sm:grid-cols-4">
         <SeasonFigure label="Power rank" value={standing?.powerRank ? `#${standing.powerRank}` : null} loading={loading} />
         <SeasonFigure
           label={divisionLabel}
@@ -80,7 +81,9 @@ function SeasonFigures({ year, standing, loading, showDivision }) {
           value={standing?.pointsFor != null ? formatPoints(standing.pointsFor) : null}
           loading={loading}
         />
+        <SeasonFigure label="FAAB left" value={faabRemaining != null ? formatFaab(faabRemaining) : null} loading={loading} />
       </dl>
+      <FaabBreakdown ledger={faabLedger} className="mt-3" />
     </div>
   );
 }
@@ -98,7 +101,7 @@ function SeasonFigures({ year, standing, loading, showDivision }) {
  * @param {object} props.franchise
  * @param {object|null} props.profile - null for a viewer who sees masked names
  * @param {string|number|null} props.rosterTeamId - this season's team, for its roster link
- * @param {{ year: number, standing: object|null, loading: boolean }|null} props.season -
+ * @param {{ year: number, standing: object|null, faabRemaining: number|null, faabLedger: object|null, loading: boolean }|null} props.season -
  *   the current season's figures; null for a franchise not playing in it
  * @param {boolean} props.showDivision - may this viewer see the division's name
  * @param {'own'|'admin'|null} props.editing - what the Edit button says, if shown
@@ -178,6 +181,8 @@ export function ProfileHero({
           <SeasonFigures
             year={season.year}
             standing={season.standing}
+            faabRemaining={season.faabRemaining}
+            faabLedger={season.faabLedger}
             loading={season.loading}
             showDivision={showDivision}
           />

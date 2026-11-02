@@ -11,7 +11,7 @@
  *
  *   * **Both scheduled ESPN jobs run the same script.** `sync-week.yml` and
  *     `daily-refresh.yml` each invoke `scripts/sync-week.js`; the daily one
- *     adds six `--skip-*` flags. A `sync_runs` row does not say which
+ *     adds five `--skip-*` flags. A `sync_runs` row does not say which
  *     workflow wrote it, so `classifyRun` reads the flags back out of the
  *     step results — `skipped: 'flag'` on the result-writing steps is the
  *     daily refresh's signature.
@@ -164,8 +164,9 @@ export const STEPS = {
     reads: [],
     writes: ['nfl_schedule (two rows per game, one per bye, keyed by season_year)'],
     description:
-      "Re-imports the whole NFL season so flexed kickoffs stay right. Feeds the 'vs BUF / @ KC / " +
-      "BYE' chips, the nflSos ranking component and the parlay grader's stats_official gate."
+      "Re-imports the whole NFL season every day, so a flexed kickoff lands the same day, and lists " +
+      "any game that moved. Feeds the 'vs BUF / @ KC / BYE' chips, when each autosub locks and is " +
+      "watched, the nflSos ranking component and the parlay grader's stats_official gate."
   },
   nflRatings: {
     label: 'Snapshot NFL power index',
@@ -191,10 +192,11 @@ export const STEPS = {
   transactions: {
     label: 'Refresh transaction counts',
     fatal: false,
-    espn: 'mTransactions2 season summary (league-private)',
+    espn: 'mTransactions2 season summary and the league activity feed (league-private)',
     reads: ['teams (franchise_id)'],
     writes: [
-      'transactions (adds, waivers, trades, drops, FAAB per franchise)',
+      'transactions (adds, waivers, trades, drops, and the FAAB ledger per franchise)',
+      'teams (faab_remaining)',
       'transaction_events (each executed add, claim and trade, with bids and trade partners)'
     ],
     description:
@@ -227,6 +229,17 @@ export const STEPS = {
  * workflow passes `--skip-*` for, which is also the signature `classifyRun`
  * looks for.
  */
+/** How many moved games a run summary names before it just counts the rest. */
+const SCHEDULE_CHANGES_SHOWN = 3;
+
+/** " · moved: week 12 DAL @ NYG", or nothing when the calendar held still. */
+function describeScheduleChanges(changes = []) {
+  if (!changes.length) return '';
+  const named = changes.slice(0, SCHEDULE_CHANGES_SHOWN).map((change) => `week ${change.week} ${change.matchup}`);
+  const rest = changes.length - named.length;
+  return ` · moved: ${named.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`;
+}
+
 export const AUTOMATIONS = [
   {
     id: 'weekly-sync',
@@ -266,7 +279,7 @@ export const AUTOMATIONS = [
     workflowFile: 'daily-refresh.yml',
     command:
       'npm run sync-week -- --skip-scores --skip-player-stats --skip-finalize-prev ' +
-      '--skip-nfl-schedule --skip-nfl-ratings --skip-snapshot',
+      '--skip-nfl-ratings --skip-snapshot',
     evidence: 'sync_runs',
     schedule: {
       cron: '40 16 * * *',
@@ -278,15 +291,16 @@ export const AUTOMATIONS = [
     timeoutMinutes: 10,
     concurrency: 'espn-write',
     secrets: ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ESPN_S2', 'ESPN_SWID'],
-    steps: ['pickEmWeek', 'rosters', 'postseasonGames', 'parlayGrades', 'transactions'],
-    skips: ['scores', 'playerStats', 'finalizePrev', 'nflSchedule', 'nflRatings', 'snapshot'],
+    steps: ['pickEmWeek', 'rosters', 'postseasonGames', 'nflSchedule', 'parlayGrades', 'transactions'],
+    skips: ['scores', 'playerStats', 'finalizePrev', 'nflRatings', 'snapshot'],
     summary:
-      "The present-tense half. Managers change lineups up to kickoff and waivers clear on " +
-      "Wednesday, so rosters and transaction counts are refreshed daily — and in the postseason, " +
+      "The present-tense half. Managers change lineups up to kickoff, waivers clear on Wednesday " +
+      "and the NFL flexes games, so rosters, transaction counts and the NFL calendar are refreshed " +
+      "daily — and in the postseason, " +
       "the week's bracket rows as ESPN draws them. It never writes a " +
       "result: scores, player stats and the ranking snapshot move once a week, on Tuesday.",
     notes: [
-      'Same script as the weekly sync with six --skip flags, so a sync_runs row is attributed to this job by those flags.',
+      'Same script as the weekly sync with five --skip flags, so a sync_runs row is attributed to this job by those flags.',
       'Timed to land twenty minutes before the early Sunday kickoffs. Supabase dispatches it on the minute; GitHub\'s own cron started it two to five hours late, which is why it no longer has one.',
       'Also re-runs the pick\'em-week check and the parlay grader, so a Tuesday miss on either is caught the same day.'
     ]
@@ -413,8 +427,10 @@ export const PASSIVE_AUTOMATIONS = [
     fires: 'Tuesdays 14:00 UTC and Thursdays 21:30 UTC (pg_cron jobs notify-pickems-open / notify-pickems-closing)',
     does:
       "Sends push notifications to members' phones: \"pick'ems are open\" once the week's window opens, and " +
-      "\"pick'ems close soon\" in the six hours before the deadline to members who have not picked. The script " +
-      'decides what is due from the open pick_em_weeks row, so a slot with nothing due sends nothing; each send is ' +
+      "\"pick'ems close soon\" in the six hours before the deadline to members who have not picked. The same slots " +
+      'tell the winners of the newest finished week, of a tourney when that week ended one, and of the playoff ' +
+      'bracket challenge once its results are released, ties for first included. The script decides what is due ' +
+      'from the pick_em_weeks and games rows, so a slot with nothing due sends nothing; each send is ' +
       'claimed in notification_log first, so a re-run never repeats one. Every send is also kept, one row per ' +
       'member, in notification_inbox for the Alerts page (the bell). Needs the VAPID_PUBLIC_KEY, ' +
       'VAPID_PRIVATE_KEY and VAPID_SUBJECT secrets.',
@@ -427,9 +443,9 @@ export const PASSIVE_AUTOMATIONS = [
     id: 'take-notifications',
     name: 'Take notifications',
     where: 'GitHub Actions · notify-takes.yml, dispatched by a trigger on take_events',
-    fires: 'When a take is posted, or gets a Hell Yeah or Hell Nah (trigger take_events_dispatch_notifications)',
+    fires: 'When a take is posted, reworded by its author, or gets a Hell Yeah or Hell Nah (trigger take_events_dispatch_notifications)',
     does:
-      'Sends "new take from …" to every member with it on except the author, and "… said Hell Yeah / Hell Nah ' +
+      'Sends "new take from …" and "… edited a take" to every member with it on except the author, and "… said Hell Yeah / Hell Nah ' +
       'to your take" to the author only. The trigger dispatches the workflow through the same ' +
       'private.dispatch_github_workflow as the crons and never refuses the take if the dispatch fails. The ' +
       'script announces events up to six hours old that are not yet in notification_log, claiming each by its ' +
@@ -802,6 +818,7 @@ export function summarizeStep(name, result) {
       break;
     case 'nflSchedule':
       text = `${result.upserted ?? 0} team-weeks` + (result.weekSpan ? ` over ${result.weekSpan} weeks` : '');
+      text += describeScheduleChanges(result.changes);
       issues.push(...errorIssues(result.errors, ''));
       break;
     case 'nflRatings':

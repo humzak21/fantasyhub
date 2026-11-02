@@ -4,10 +4,10 @@ import { Flag, Gauge, Skull, Sprout } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { ResponsiveDataTable } from '../../ui/responsive-table';
 import { SectionHeading } from '../../ui/section-heading';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../ui/select';
 import { Skeleton } from '../../ui/skeleton';
 import { TeamAvatar } from '../../ui/team-identity';
 import { TeamLink } from '../../ui/team-link';
-import { Tabs, TabsList, TabsTrigger } from '../../ui/tabs';
 import { cn } from '../../../lib/utils';
 import { formatRecord } from '../../../utils/format';
 import { useNearViewport } from '../../../hooks/use-near-viewport';
@@ -113,15 +113,18 @@ function StartOutcomes({ starts, identity }) {
           </div>
           <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
             <span aria-hidden="true">After</span>
-            <Tabs value={String(games)} onValueChange={(value) => setGames(Number(value))}>
-              <TabsList aria-label="Length of the start">
+            <Select value={String(games)} onValueChange={(value) => setGames(Number(value))}>
+              <SelectTrigger aria-label="Length of the start" className="h-9 w-[4.5rem] tabular text-foreground">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
                 {START_LENGTHS.map((length) => (
-                  <TabsTrigger key={length} value={String(length)} aria-label={`${length} games`}>
+                  <SelectItem key={length} value={String(length)}>
                     {length}
-                  </TabsTrigger>
+                  </SelectItem>
                 ))}
-              </TabsList>
-            </Tabs>
+              </SelectContent>
+            </Select>
             <span aria-hidden="true">games</span>
           </div>
         </div>

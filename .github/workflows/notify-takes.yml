@@ -1,10 +1,11 @@
 name: Take notifications
 
-# Push notifications for takes: "new take from …" to every member with it on,
-# and "… said Hell Yeah / Hell Nah to your take" to the take's author.
+# Push notifications for takes: "new take from …" and "… edited a take" to every
+# member with it on, and "… said Hell Yeah / Hell Nah to your take" to the take's
+# author.
 #
 # No `schedule:` and no pg_cron job: a statement trigger on `take_events`
-# dispatches this the moment a take is posted, faded or backed, through the
+# dispatches this the moment a take is posted, reworded, faded or backed, through the
 # same private.dispatch_github_workflow the crons use (so it arrives with
 # trigger = cron, which here means "the database", not a person). The script
 # reads every recent event not yet in notification_log, so a burst of

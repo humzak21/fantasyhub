@@ -23,6 +23,8 @@
  *     invent.
  */
 
+import { getNFLTeamAbbreviation } from './db/espnMapping.js';
+
 /** ESPN's free-agent pseudo-team. It has no games and is not a team. */
 const FREE_AGENT_PRO_TEAM_ID = 0;
 
@@ -183,6 +185,52 @@ export function mapProTeamSchedules(proTeams = [], seasonYear) {
   }
 
   return { rows: [...rows.values()], warnings, weekSpan, teamCount: teams.length };
+}
+
+const instant = (time) => (time ? new Date(time).getTime() : null);
+
+/**
+ * What moved, comparing the stored calendar with a fresh import. One entry per
+ * game, though each game is two rows. A flex is the usual cause; a game moved to
+ * another week shows up as a changed opponent on both weeks.
+ *
+ * Times are compared as instants, because Postgres hands back `+00:00` where the
+ * mapper writes `.000Z`, and as text every row would read as changed. A team-week
+ * with no stored row is a first import, not a change.
+ *
+ * @param {Array} stored rows as `getNflScheduleForSeason` returns them, camelCased
+ * @param {Array} rows   rows as `mapProTeamSchedules` returns them
+ * @returns {Array<{ week: number, matchup: string, from: string|null, to: string|null }>}
+ */
+export function diffNflSchedule(stored = [], rows = []) {
+  const before = new Map(stored.map((row) => [`${row.week}:${row.proTeamId}`, row]));
+  const seen = new Set();
+  const changes = [];
+
+  for (const row of rows) {
+    const previous = before.get(`${row.week}:${row.pro_team_id}`);
+    if (!previous) continue;
+
+    const sameGame =
+      instant(previous.gameTime) === instant(row.game_time) &&
+      (previous.opponentProTeamId ?? null) === row.opponent_pro_team_id;
+    if (sameGame) continue;
+
+    const pair = [row.pro_team_id, row.opponent_pro_team_id].sort().join('-');
+    const gameKey = `${row.week}:${pair}`;
+    if (seen.has(gameKey)) continue;
+    seen.add(gameKey);
+
+    const team = getNFLTeamAbbreviation(row.pro_team_id) ?? row.pro_team_id;
+    const opponent = getNFLTeamAbbreviation(row.opponent_pro_team_id) ?? row.opponent_pro_team_id;
+    const matchup = row.opponent_pro_team_id == null
+      ? `${team} bye`
+      : row.is_home ? `${opponent} @ ${team}` : `${team} @ ${opponent}`;
+
+    changes.push({ week: row.week, matchup, from: previous.gameTime ?? null, to: row.game_time });
+  }
+
+  return changes;
 }
 
 export default mapProTeamSchedules;

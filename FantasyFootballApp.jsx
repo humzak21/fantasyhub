@@ -633,6 +633,7 @@ const FantasyFootballApp = () => {
                       <PowerRankingsTable
                         rankings={weeklyRankings}
                         currentWeek={viewedWeek}
+                        showFaab={viewedWeek === actualWeek}
                         loading={rankingsLoading}
                         initializing={isLoading}
                       />

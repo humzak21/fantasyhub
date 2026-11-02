@@ -93,6 +93,15 @@ export function useDivisions(seasonId) {
   });
 }
 
+/** Each team's FAAB for the season, by team id. The sync writes it; nothing here does. */
+export function useFaabLedger(seasonId) {
+  return useQuery({
+    queryKey: qk.teams.faabLedger(seasonId),
+    queryFn: () => db().transactions.getSeasonFaabLedger(seasonId),
+    enabled: Boolean(seasonId)
+  });
+}
+
 export function useStandings(seasonId) {
   return useQuery({
     queryKey: qk.divisions.standings(seasonId),

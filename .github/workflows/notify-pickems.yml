@@ -1,11 +1,12 @@
 name: Pick'em notifications
 
-# Push notifications to members' phones: "pick'ems are open" and "pick'ems
-# close in a few hours and you haven't picked".
+# Push notifications to members' phones: "pick'ems are open", "pick'ems
+# close in a few hours and you haven't picked", and to the winners of a week, a
+# tourney or the playoff bracket challenge.
 #
 # No `schedule:`, like the ESPN jobs: Supabase's pg_cron dispatches this at
 # two fixed slots (Tuesdays 14:00 UTC, Thursdays 21:30 UTC), and the script
-# decides from the open pick'em week what, if anything, is due. A slot with
+# decides from the pick'em weeks and the games what, if anything, is due. A slot with
 # nothing due sends nothing, and a re-run sends nothing twice — every send is
 # claimed in `notification_log` first. See
 # supabase/migrations/20261002120000_push_notifications.sql.

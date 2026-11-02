@@ -7,8 +7,6 @@ import {
   latestScoredWeek,
   newRecords,
   recordOfTheDay,
-  rowIdentity,
-  topFiveEntries,
   withoutWeek,
   yourRecord
 } from '../records.js';
@@ -94,6 +92,26 @@ describe('newRecords', () => {
     expect(fresh.every((entry) => entry.row.year === 2026 && entry.row.week === 2)).toBe(true);
   });
 
+  it('finds a row that ties its way in behind five older ones', () => {
+    // Six franchises, five games on 150 in 2025; a sixth in week 2 of 2026 lists last.
+    const keys = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const tied = {
+      ...SOURCE,
+      teams: keys.flatMap((k) => [team(k, 's25'), team(k, 's26')]),
+      games: [
+        game('s25', 1, 'A', 150, 'B', 90), game('s25', 2, 'B', 150, 'A', 90),
+        game('s25', 3, 'C', 150, 'A', 90), game('s25', 4, 'D', 150, 'A', 90),
+        game('s25', 5, 'E', 150, 'A', 90),
+        game('s26', 1, 'A', 80, 'B', 70),
+        game('s26', 2, 'F', 150, 'A', 90)
+      ]
+    };
+    const books = buildHomeRecordBooks(tied);
+    const entry = newRecords(books.book, books.before).find((e) => e.record.id === 'game-high-score');
+
+    expect(entry).toMatchObject({ rank: 1, row: { teamId: 's26-F', week: 2, value: 150 } });
+  });
+
   it('never offers a record built on season transaction counts', () => {
     expect(newRecords(book, before).some((entry) => !canBeNew(entry.record))).toBe(false);
     expect(canBeNew(RECORDS.find((r) => r.id === 'season-trades'))).toBe(false);
@@ -149,19 +167,7 @@ describe('homeRecordCards', () => {
   });
 });
 
-describe('topFiveEntries / rowIdentity', () => {
-  it('caps every record at five places', () => {
-    const { book } = buildHomeRecordBooks(SOURCE);
-    expect(topFiveEntries(book).every((entry) => entry.rank <= 5)).toBe(true);
-  });
-
-  it('keys a streak on where it began, so a running one keeps its identity', () => {
-    const streak = { kind: 'streak' };
-    expect(rowIdentity(streak, { franchiseId: 'f', start: { year: 2026, week: 1 }, end: { year: 2026, week: 2 } })).toBe(
-      rowIdentity(streak, { franchiseId: 'f', start: { year: 2026, week: 1 }, end: { year: 2026, week: 5 } })
-    );
-  });
-
+describe('dateKeyOf', () => {
   it('keys the date in local time', () => {
     expect(dateKeyOf(new Date(2026, 9, 3))).toBe('2026-10-03');
   });

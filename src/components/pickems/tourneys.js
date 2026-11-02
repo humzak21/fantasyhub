@@ -15,7 +15,9 @@
  *
  * Nothing here is enforced anywhere: the prize is settled between people, and
  * `totalWeeksParticipated` on the standings row is the number the floor is
- * read against. This module is the statement of the rule, not a gate.
+ * read against. This module is the statement of the rule, not a gate. The one
+ * thing that acts on it is the winners' push notification, which reads
+ * `tourneyWinners` so that it names who this module says won.
  */
 
 /**
@@ -78,4 +80,42 @@ export function tourneyParticipation(tourney, weeks = []) {
     if (n >= tourney.startWeek && n <= tourney.endWeek) entered += 1;
   }
   return { entered, eligible: entered >= tourney.minWeeks };
+}
+
+/**
+ * Each member's score in a tourney, from the week-by-week scores
+ * (`getPickEmWeeklyBreakdown`), best first. `weeklyScores` holds only weeks that
+ * have a pick'em, and a member's row in one is them having entered it.
+ *
+ * @param {PickEmTourney} tourney
+ * @param {Record<number, Array<{ userId: string, totalPoints?: number }>>} weeklyScores
+ * @returns {Array<{ userId: string, totalPoints: number, entered: number, eligible: boolean }>}
+ */
+export function tourneyStandings(tourney, weeklyScores = {}) {
+  const totals = new Map();
+  for (const [week, scores] of Object.entries(weeklyScores)) {
+    if (Number(week) < tourney.startWeek || Number(week) > tourney.endWeek) continue;
+    for (const score of scores ?? []) {
+      const total = totals.get(score.userId) ?? { userId: score.userId, totalPoints: 0, weeks: [] };
+      total.totalPoints += score.totalPoints ?? 0;
+      total.weeks.push(week);
+      totals.set(score.userId, total);
+    }
+  }
+  return [...totals.values()]
+    .map(({ userId, totalPoints, weeks }) => ({ userId, totalPoints, ...tourneyParticipation(tourney, weeks) }))
+    .sort((a, b) => b.totalPoints - a.totalPoints);
+}
+
+/**
+ * Who won a tourney: every eligible member on the top score, so a tie for
+ * first is everybody on it, and a member under the floor cannot take it from
+ * somebody who played. Nobody over the floor means no winner.
+ *
+ * @param {ReturnType<typeof tourneyStandings>} standings
+ */
+export function tourneyWinners(standings = []) {
+  const eligible = standings.filter((row) => row.eligible);
+  const top = Math.max(0, ...eligible.map((row) => row.totalPoints));
+  return top > 0 ? eligible.filter((row) => row.totalPoints === top) : [];
 }

@@ -17,12 +17,12 @@ import { describe, it, expect } from 'vitest';
 
 import {
   buildRecordBook,
-  isRecentRecord,
   isRivalryWeek,
   rankRows,
   recordRows,
   recordSetYear,
   streakRuns,
+  tradePartnersOf,
   tradesForRow
 } from '../recordBook/index.js';
 
@@ -322,29 +322,37 @@ describe('buildRecordBook', () => {
 
     // The rows that are not trades make no partners either.
     expect(recordRows(tradeBook, 'career', 'tradePartners')).toHaveLength(2);
+
+    // A franchise's partners are the same trades, totalled per partner.
+    expect(tradePartnersOf(tradeBook, 'fA')).toEqual([
+      { franchiseId: 'fC', trades: 1, lastYear: 2025 },
+      { franchiseId: 'fB', trades: 1, lastYear: 2024 }
+    ]);
+    expect(tradePartnersOf(tradeBook, 'fB')).toEqual([{ franchiseId: 'fA', trades: 1, lastYear: 2024 }]);
+    expect(tradePartnersOf(tradeBook, 'nobody')).toEqual([]);
   });
 
   it('calls the current season and the one before it recent', () => {
     expect(book.recentYears).toEqual([2025, 2024]);
   });
 
-  it('marks a #1 as recently broken by the season it was set in', () => {
-    const recent = [2025, 2024];
+  it('calls the active season current, not a newer row created early', () => {
+    const seasons = [{ ...S24, isActive: true }, S25, { id: 's26', year: 2026, isCompleted: false }];
+    expect(buildRecordBook({ seasons }).recentYears).toEqual([2024]);
 
-    // Outright and tied #1s both count; second place never does.
-    expect(isRecentRecord({ rank: 1, year: 2024, value: 130 }, recent)).toBe(true);
-    expect(isRecentRecord({ rank: 1, tied: true, year: 2025, value: 130 }, recent)).toBe(true);
-    expect(isRecentRecord({ rank: 2, year: 2025, value: 120 }, recent)).toBe(false);
-    expect(isRecentRecord({ rank: 1, year: 2023, value: 150 }, recent)).toBe(false);
+    const next = [S24, { ...S25, isActive: true }, { id: 's26', year: 2026, isCompleted: false }];
+    expect(buildRecordBook({ seasons: next }).recentYears).toEqual([2025, 2024]);
+  });
+
+  it('dates a row by the season it was set in', () => {
+    expect(recordSetYear({ year: 2024, value: 130 })).toBe(2024);
 
     // A streak is set when it ends, however long ago it began.
-    const streak = { rank: 1, year: 2022, start: { year: 2022, week: 9 }, end: { year: 2024, week: 2 } };
-    expect(recordSetYear(streak)).toBe(2024);
-    expect(isRecentRecord(streak, recent)).toBe(true);
-    expect(isRecentRecord({ rank: 1, startYear: 2021, endYear: 2024 }, recent)).toBe(true);
+    expect(recordSetYear({ year: 2022, start: { year: 2022, week: 9 }, end: { year: 2024, week: 2 } })).toBe(2024);
+    expect(recordSetYear({ startYear: 2021, endYear: 2024 })).toBe(2024);
 
     // A career total has no moment it was set.
-    expect(isRecentRecord({ rank: 1, franchiseId: 'fA', value: 50 }, recent)).toBe(false);
+    expect(recordSetYear({ franchiseId: 'fA', value: 50 })).toBeNull();
   });
 
   it('lists the seasons that have games, newest first', () => {

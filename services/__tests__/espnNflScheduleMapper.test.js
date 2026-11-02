@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { deriveWeekSpan, mapProTeamSchedules } from '../espnNflScheduleMapper.js';
+import { deriveWeekSpan, diffNflSchedule, mapProTeamSchedules } from '../espnNflScheduleMapper.js';
 
 const SEASON_YEAR = 2025;
 
@@ -256,5 +256,51 @@ describe('deriveWeekSpan', () => {
   it('ignores the free-agent pseudo-team and an empty league', () => {
     expect(deriveWeekSpan([{ id: 0, proGamesByScoringPeriod: { 40: [GAME_BUF_KC] } }])).toBe(0);
     expect(deriveWeekSpan([])).toBe(0);
+  });
+});
+
+describe('diffNflSchedule', () => {
+  const stored = (proTeamId, opponentProTeamId, gameTime, week = 12) => ({ week, proTeamId, opponentProTeamId, gameTime });
+  const fresh = (proTeamId, opponent, gameTime, isHome, week = 12) => ({
+    week, pro_team_id: proTeamId, opponent_pro_team_id: opponent, game_time: gameTime, is_home: isHome
+  });
+
+  // BUF is 2 and KC is 12 in ESPN's fantasy proTeamId space.
+  const STORED_GAME = [
+    stored(2, 12, '2026-11-29T18:00:00+00:00'),
+    stored(12, 2, '2026-11-29T18:00:00+00:00')
+  ];
+
+  it('reads the same kickoff in the two formats as no change', () => {
+    const rows = [fresh(2, 12, '2026-11-29T18:00:00.000Z', false), fresh(12, 2, '2026-11-29T18:00:00.000Z', true)];
+
+    expect(diffNflSchedule(STORED_GAME, rows)).toEqual([]);
+  });
+
+  it('reports a flexed game once, from the home team\'s point of view', () => {
+    const rows = [fresh(2, 12, '2026-11-30T01:20:00.000Z', false), fresh(12, 2, '2026-11-30T01:20:00.000Z', true)];
+
+    expect(diffNflSchedule(STORED_GAME, rows)).toEqual([{
+      week: 12,
+      matchup: 'BUF @ KC',
+      from: '2026-11-29T18:00:00+00:00',
+      to: '2026-11-30T01:20:00.000Z'
+    }]);
+  });
+
+  it('reports a game moved to another week', () => {
+    const rows = [fresh(2, null, null, null), fresh(12, null, null, null)];
+
+    expect(diffNflSchedule(STORED_GAME, rows).map((change) => change.matchup)).toEqual(['BUF bye', 'KC bye']);
+  });
+
+  it('treats a stored time gaining a value as a change', () => {
+    const rows = [fresh(2, 12, '2026-11-29T18:00:00.000Z', false)];
+
+    expect(diffNflSchedule([stored(2, 12, null)], rows)).toHaveLength(1);
+  });
+
+  it('does not call a first import a change', () => {
+    expect(diffNflSchedule([], [fresh(2, 12, '2026-11-29T18:00:00.000Z', false)])).toEqual([]);
   });
 });

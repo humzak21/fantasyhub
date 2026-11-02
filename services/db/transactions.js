@@ -16,6 +16,7 @@
  * as its first argument; see `./context.js`.
  */
 
+import { faabBalance } from '../../utils/faabLedger.js';
 import { formatFromDatabase } from './caseMap.js';
 import { throwDbError, unwrap } from './errors.js';
 import { createLogger } from './logger.js';
@@ -34,6 +35,34 @@ const TRANSACTION_COLUMNS =
 const totalFor = (row) =>
   row.total_transactions ??
   (row.free_agent_adds || 0) + (row.waiver_claims || 0) + (row.trades || 0) + (row.drops || 0);
+
+/**
+ * Each team's FAAB for a season, keyed by team id: budget, awarded, traded, had,
+ * spent and left (`faabBalance`). A team the sync has not read a ledger for has
+ * no entry, rather than a row of zeros.
+ */
+export async function getSeasonFaabLedger(ctx, seasonId) {
+  const rows = unwrap(
+    await ctx.client
+      .from('transactions')
+      .select('team_id, faab_spent, faab_budget, faab_awarded, faab_traded_in, faab_traded_out')
+      .eq('season_id', seasonId),
+    'Get FAAB ledger'
+  ) ?? [];
+
+  const ledger = {};
+  for (const row of rows) {
+    const balance = faabBalance({
+      budget: row.faab_budget,
+      awarded: row.faab_awarded,
+      tradedIn: row.faab_traded_in,
+      tradedOut: row.faab_traded_out,
+      spent: row.faab_spent
+    });
+    if (row.team_id && balance) ledger[row.team_id] = balance;
+  }
+  return ledger;
+}
 
 /**
  * Career transaction totals, every season included.

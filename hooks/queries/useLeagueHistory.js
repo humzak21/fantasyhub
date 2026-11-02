@@ -21,6 +21,7 @@ import { deriveDivisionTitles } from '../../utils/profile/trophyCase.js';
 import { buildSeasonIndex } from '../../utils/franchiseWeeks.js';
 import { buildComparisonFacts } from '../../utils/statComparison/index.js';
 import { buildHomeRecordBooks } from '../../utils/home/records.js';
+import { buildRecordBooks } from '../../utils/recordBook/newRecords.js';
 import { qk } from './keys.js';
 
 const db = () => getDb();
@@ -117,6 +118,23 @@ export function useRecordBook() {
     queryKey: qk.history.recordBook(),
     queryFn: () => db().history.getRecordBookSource(),
     select: buildRecordBook,
+    ...STABLE
+  });
+}
+
+/**
+ * The Records tab's two books: the book as it stands and the book going into
+ * the league's recent seasons, from one source.
+ *
+ * The record book's own query again. The second book is what a career total's
+ * "new to the top five" is a diff against; the trophy case has no use for it,
+ * so `useRecordBook` does not pay for it.
+ */
+export function useRecordBooks() {
+  return useQuery({
+    queryKey: qk.history.recordBook(),
+    queryFn: () => db().history.getRecordBookSource(),
+    select: buildRecordBooks,
     ...STABLE
   });
 }

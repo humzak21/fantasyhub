@@ -42,7 +42,7 @@ import {
   scheduleKey,
   statKey
 } from '../services/parlayGrader.js';
-import { mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
+import { diffNflSchedule, mapProTeamSchedules } from '../services/espnNflScheduleMapper.js';
 import { syncNflRatings } from './sync-nfl-ratings.js';
 import { createScheduleFetcher } from '../services/espnScheduleFetcher.js';
 import { getDb, getContext } from '../services/db/index.js';
@@ -50,6 +50,7 @@ import { ESPNTransactionFetcher } from '../services/espnTransactionFetcher.js';
 import { ESPN_CONFIG } from '../config/espn-config.js';
 import { deriveCurrentWeek, deriveWeekStart, toSeasonConfig } from '../utils/seasonConfig.js';
 import { canonicalOwnerName } from '../utils/ownerAliases.js';
+import { buildFaabLedger, espnFaabRemaining } from '../utils/faabLedger.js';
 
 /**
  * Reasons to do nothing, and the one reason to shout.
@@ -426,9 +427,13 @@ async function syncNflSchedule(seasonYear) {
     return { upserted: 0, errors: warnings.map((warning) => ({ error: warning })) };
   }
 
+  // Read before the write: the upsert is what erases the old kickoff.
+  const stored = await getDb().nflSchedule.getNflScheduleForSeason(seasonYear);
+  const changes = diffNflSchedule(stored, rows);
+
   const result = await getDb().nflSchedule.upsertNflSchedule(seasonYear, rows);
 
-  return { upserted: result.upserted, weekSpan, errors: warnings.map((w) => ({ error: w })) };
+  return { upserted: result.upserted, weekSpan, changes, errors: warnings.map((w) => ({ error: w })) };
 }
 
 /**
@@ -440,6 +445,11 @@ async function syncNflSchedule(seasonYear) {
  * the counts and the detail describe the same moves. Exported for
  * `scripts/backfill-transactions.js`, which runs this exact path over past
  * seasons.
+ *
+ * The FAAB ledger rides along, from the counters in the same fetch plus one
+ * read of ESPN's activity feed for the traded amounts (`utils/faabLedger.js`).
+ * A feed that fails costs the ledger's next update and nothing else: the bids,
+ * the counts and each team's FAAB left all come from the main fetch.
  */
 export async function syncTransactions(seasonId, espn) {
   const db = getDb();
@@ -460,6 +470,19 @@ export async function syncTransactions(seasonId, espn) {
   const rows = [];
   const errors = [];
 
+  let ledger = new Map();
+  try {
+    ledger = buildFaabLedger({
+      teams: leagueData.teams,
+      settings: leagueData.settings,
+      bids: new Map(summary.map((entry) => [entry.espnTeamId, entry.faab_spent])),
+      transfers: await fetcher.fetchFaabTransfers(espn.seasonYear)
+    });
+  } catch (error) {
+    errors.push({ error: `FAAB ledger not updated: ${error.message}` });
+  }
+  const espnTeams = new Map((leagueData.teams ?? []).map((team) => [team.id, team]));
+
   for (const entry of summary) {
     const team = teams.find(entry.espnTeamId, entry.ownerName);
     if (!team) {
@@ -473,6 +496,7 @@ export async function syncTransactions(seasonId, espn) {
       continue;
     }
 
+    const faab = ledger.get(entry.espnTeamId);
     rows.push({
       season_id: seasonId,
       franchise_id: franchiseId,
@@ -484,8 +508,22 @@ export async function syncTransactions(seasonId, espn) {
       trades: entry.trades,
       drops: entry.drops,
       faab_spent: entry.faab_spent,
+      // Left out rather than nulled, so a run whose feed failed does not wipe
+      // the ledger the last one wrote.
+      ...(ledger.size > 0 && {
+        faab_budget: faab?.budget ?? null,
+        faab_traded_in: faab?.tradedIn ?? null,
+        faab_traded_out: faab?.tradedOut ?? null,
+        faab_awarded: faab?.awarded ?? null
+      }),
       last_synced_at: new Date().toISOString()
     });
+
+    const remaining = espnFaabRemaining(espnTeams.get(entry.espnTeamId), leagueData.settings);
+    if (remaining != null && remaining !== team.faabRemaining) {
+      await db.teams.updateTeam(seasonId, team.id, { faabRemaining: remaining })
+        .catch((error) => errors.push({ team: entry.ownerName, error: `FAAB left: ${error.message}` }));
+    }
   }
 
   if (rows.length === 0) return { updated: 0, errors };
@@ -806,6 +844,9 @@ export async function syncWeek(argv = []) {
       try {
         steps.nflSchedule = await syncNflSchedule(espn.seasonYear);
         console.log(`🗓️  nfl schedule: ${steps.nflSchedule.upserted} team-weeks`);
+        for (const change of steps.nflSchedule.changes ?? []) {
+          console.log(`🗓️  week ${change.week}: ${change.matchup} moved from ${change.from} to ${change.to}`);
+        }
         for (const miss of steps.nflSchedule.errors) {
           console.warn(`⚠️  nfl schedule: ${miss.error}`);
         }

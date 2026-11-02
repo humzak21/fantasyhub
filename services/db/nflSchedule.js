@@ -7,7 +7,7 @@
  * have no fantasy season row for, and tying it to one would mean re-importing
  * it per season for no gain. See the migration comment on the table.
  *
- * Written by `scripts/sync-nfl-schedule.js` and by the weekly sync's
+ * Written by `scripts/sync-nfl-schedule.js` and by both ESPN crons'
  * `nflSchedule` step; read by `hooks/queries/useNflSchedule.js`. The planning
  * is pure and lives in `services/espnNflScheduleMapper.js` — this module only
  * moves rows.
@@ -51,7 +51,7 @@ const SCHEDULE_COLUMNS = `
  *
  * Idempotent: the unique key is (season_year, week, pro_team_id), so re-running
  * rewrites the same rows rather than doubling them. That is what makes the
- * weekly re-upsert safe, and the weekly re-upsert is what picks up flex
+ * daily re-upsert safe, and the daily re-upsert is what picks up flex
  * scheduling — the NFL moves late-season kickoffs, and a schedule imported in
  * September and never revisited would show the wrong time for them.
  *

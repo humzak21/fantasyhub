@@ -2,7 +2,7 @@
 /**
  * Send the league's push notifications that are due right now.
  *
- *   node scripts/send-notifications.js              # send what is due
+ *   node scripts/send-notifications.js              # send what is due, pick'ems and winners
  *   node scripts/send-notifications.js --dry-run    # say what would be sent
  *   node scripts/send-notifications.js --takes      # announce new takes, Hell Yeahs and Hell Nahs,
  *                                                   # and ask Hell Nahs to accept a staked Hell Yeah
@@ -21,9 +21,15 @@
  * cleans up devices the push service reports gone. Re-running is safe: a
  * claimed (kind, season, week) is never sent again.
  *
+ * The same slots tell the winners: of the week's pick'ems, of a tourney, of the
+ * playoff bracket challenge. Tuesday's lands four hours after the weekly sync
+ * scores the week, and Thursday's is the retry if that sync failed. Winning
+ * does not depend on a pick'em window being open, which it is not in the
+ * playoffs, so it is its own function and not a branch of the other.
+ *
  * `--takes` is the other half, run by .github/workflows/notify-takes.yml,
  * which a trigger on `take_events` dispatches the moment a take is posted,
- * faded or backed (20261007120000_take_notifications.sql). It never sends a
+ * reworded, faded or backed (20261007120000_take_notifications.sql). It never sends a
  * pick'em notification, and the default mode never sends a take one: the
  * pick'em slots were chosen for a civil hour, and a take posted at 5 AM must
  * not be the thing that sends "pick'ems are open".
@@ -59,7 +65,8 @@ import {
   isGoneStatus,
   planPickemNotifications,
   planTakeNotifications,
-  planTauntNotifications
+  planTauntNotifications,
+  planWinnerNotifications
 } from '../services/notificationPlanner.js';
 
 const HOUR_S = 60 * 60;
@@ -260,8 +267,62 @@ export async function sendDueNotifications({ db = getDb(getContext()), now = new
 }
 
 /**
+ * Tell the winners. Claimed by (kind, season, week) like every other weekly
+ * send. Every winner keeps it in Alerts, device or not: a member with
+ * notifications off still won.
+ */
+export async function sendWinnerNotifications({ db = getDb(getContext()), now = new Date(), dryRun = false, send } = {}) {
+  const inputs = await db.notifications.getWinnerNotificationInputs();
+  if (!inputs.season) return { reason: 'no active season', sent: [] };
+
+  const subscriptions = await db.notifications.getPushSubscriptions();
+  const plans = planWinnerNotifications({ ...inputs, subscriptions });
+  if (!plans.length) return { reason: 'no winners to tell', week: inputs.week, sent: [] };
+
+  const report = [];
+  for (const plan of plans) {
+    if (dryRun) {
+      report.push({ kind: plan.kind, week: plan.week, winners: plan.inbox.length, recipients: plan.recipients.length, payload: plan.payload, dryRun: true });
+      continue;
+    }
+
+    const logId = await db.notifications.claimNotification({
+      kind: plan.kind,
+      seasonId: inputs.season.id,
+      week: plan.week,
+      recipients: plan.recipients.length
+    });
+    if (!logId) continue;
+
+    const { delivered, gone, failures } = await deliver(plan, { send, ttlSeconds: 48 * HOUR_S });
+    await db.notifications.deletePushSubscriptions(gone);
+    await db.notifications.markPushSubscriptionsSent(delivered, now);
+    await db.notifications.finishNotification(logId, {
+      delivered: delivered.length,
+      failed: failures.length,
+      removed: gone.length
+    });
+    const inboxed = await keepInInbox(db, plan, plan.inbox.map((userId) => ({ userId })));
+
+    report.push({
+      kind: plan.kind,
+      week: plan.week,
+      winners: plan.inbox.length,
+      recipients: plan.recipients.length,
+      delivered: delivered.length,
+      removed: gone.length,
+      inboxed,
+      failures
+    });
+  }
+
+  return { week: inputs.week, sent: report };
+}
+
+/**
  * Announce the take events nobody has been told about yet. Each event is
- * claimed in notification_log by its id before it is sent.
+ * claimed in notification_log by its id before it is sent, and so are the edits
+ * a plan speaks for, which would otherwise be announced by the next run.
  */
 export async function sendTakeNotifications({ db = getDb(getContext()), now = new Date(), dryRun = false, send } = {}) {
   const since = new Date(now.getTime() - TAKE_EVENT_MAX_AGE_HOURS * HOUR_S * 1000);
@@ -289,6 +350,10 @@ export async function sendTakeNotifications({ db = getDb(getContext()), now = ne
       recipients: recipients.length
     });
     if (!logId) continue;
+
+    for (const takeEventId of plan.absorbs ?? []) {
+      await db.notifications.claimTakeNotification({ kind: plan.kind, seasonId: plan.seasonId, takeEventId, recipients: 0 });
+    }
 
     const result = await deliver({ ...plan, recipients }, { send, ttlSeconds: TAKE_EVENT_MAX_AGE_HOURS * HOUR_S });
     result.gone.forEach((endpoint) => gone.add(endpoint));
@@ -566,7 +631,11 @@ async function main(argv = process.argv.slice(2)) {
   }
   else if (takes) result = await sendTakeNotifications({ dryRun });
   else if (taunts) result = await sendTauntNotifications({ dryRun });
-  else result = await sendDueNotifications({ dryRun });
+  else {
+    const pickems = await sendDueNotifications({ dryRun });
+    const winners = await sendWinnerNotifications({ dryRun });
+    result = { ...pickems, winners, sent: [...pickems.sent, ...winners.sent] };
+  }
 
   console.log(JSON.stringify(result, null, 2));
 

@@ -4,13 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
 import { RankBadge } from '../../ui/rank-badge';
 import { TeamAvatar } from '../../ui/team-identity';
-import { PlayerAvatar } from '../../ui/player-avatar';
-import { cn, formatDate } from '../../../lib/utils';
+import { cn } from '../../../lib/utils';
 import { formatOrdinal } from '../../../utils/format';
-import { isRecentRecord, rankRows, recordRows, tradesForRow } from '../../../../utils/recordBook/index.js';
+import { rankRows, recordRows, tradesForRow } from '../../../../utils/recordBook/index.js';
+import { newRowIds, rowIdentity } from '../../../../utils/recordBook/newRecords.js';
 import { expandsTrades, formatRecordValue, hidesZero } from './recordCatalog';
 import { describeRow } from './describeRow';
-import { TeamLink } from '../../ui/team-link';
+import { TradeList } from './TradeList';
 
 /** Rows a card shows before it is opened. */
 export const COLLAPSED_ROWS = 5;
@@ -20,112 +20,7 @@ const PHASES = [
   { id: 'playoff', label: 'Playoffs' }
 ];
 
-const playerName = (player) => player.name ?? 'Unknown player';
-
-/** "Wk 6 · Oct 14, 2021", or "Wk 6, 2021" for a trade with no processed date. */
-function tradeWhen(trade) {
-  const week = trade.week != null ? `Wk ${trade.week}` : null;
-  if (trade.processedAt) return [week, formatDate(trade.processedAt)].filter(Boolean).join(' · ');
-  return [week, trade.year].filter(Boolean).join(', ');
-}
-
-function PlayerLine({ player }) {
-  // No team badge: the only team on file is where he plays now, not at the trade.
-  return (
-    <li className="flex min-w-0 items-center gap-1.5 text-xs">
-      <PlayerAvatar name={player.name} espnPlayerId={player.espnPlayerId} position={player.position} size={18} />
-      <span className="min-w-0 break-words text-foreground">{playerName(player)}</span>
-      {player.position && (
-        <span className="shrink-0 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-          {player.position}
-        </span>
-      )}
-    </li>
-  );
-}
-
-/**
- * The trades behind a trade record's row, newest first: when, and who received
- * which players. Franchise names come through `identity`, so they mask exactly
- * as the row does.
- *
- * `count` is the row's figure. For "Most trades" that is `transactions.trades`,
- * a different table from the trades listed; where it runs past them — a season
- * the sync has counted but not yet stored move by move — the difference is
- * stated rather than left to look like a missing trade.
- */
-function TradeList({ id, trades, count, identity }) {
-  const unlisted = Math.max(0, Math.round(count) - trades.length);
-
-  return (
-    <div id={id} className="mt-2 space-y-2">
-      {trades.length > 0 && (
-        <ol aria-label="Trades" className="space-y-2">
-          {trades.map((trade, index) => (
-            <li key={trade.id ?? index} className="rounded-md bg-muted/40 px-3 py-2.5">
-              <p className="text-xs font-medium text-muted-foreground">
-                {tradeWhen(trade)}
-              </p>
-
-              {trade.directed ? (
-                <div className="mt-2 space-y-2.5">
-                  {trade.sides.map((side) => {
-                    const name = identity.franchiseName(side.franchiseId);
-                    return (
-                      <div key={side.franchiseId} className="min-w-0">
-                        <p className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
-                          <TeamAvatar team={identity.avatar(side.franchiseId)} size="xs" />
-                          <TeamLink franchiseId={side.franchiseId} className="break-words">{name}</TeamLink>
-                          <span className="shrink-0 text-[10px] font-normal uppercase tracking-[0.06em] text-muted-foreground">
-                            received
-                          </span>
-                        </p>
-                        <ul aria-label={`${name} received`} className="mt-1 space-y-0.5 pl-7">
-                          {side.received.length > 0 ? (
-                            side.received.map((player, playerIndex) => (
-                              <PlayerLine key={player.espnPlayerId ?? playerIndex} player={player} />
-                            ))
-                          ) : (
-                            <li className="text-xs text-muted-foreground">No players</li>
-                          )}
-                        </ul>
-                        {side.dropped.length > 0 && (
-                          <p className="mt-1 pl-7 text-[11px] text-muted-foreground">
-                            Dropped {side.dropped.map(playerName).join(', ')}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                // Stored before direction was: the players, without guessing a side.
-                <div className="mt-2 min-w-0">
-                  <p className="break-words text-xs font-medium">
-                    {trade.sides.map((side) => identity.franchiseName(side.franchiseId)).join(' & ')}
-                  </p>
-                  <ul aria-label="Players moved" className="mt-1 space-y-0.5">
-                    {trade.players.map((player, playerIndex) => (
-                      <PlayerLine key={player.espnPlayerId ?? playerIndex} player={player} />
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {unlisted > 0 && (
-        <p className="text-[11px] leading-snug text-muted-foreground">
-          {unlisted} more counted {unlisted === 1 ? 'trade has' : 'trades have'} no detail on record.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function RecordRow({ record, row, book, identity, onViewFranchise, detailId, recent = false }) {
+function RecordRow({ record, row, book, identity, onViewFranchise, detailId, isNew = false }) {
   const { name, meta, active } = describeRow(record, row, identity);
   const opensTrades = expandsTrades(record);
   // A league-wide row is no franchise's: there is nothing for it to open.
@@ -139,7 +34,7 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, rec
   );
 
   return (
-    <li className={cn('py-2', recent && '-mx-2 rounded-md bg-warning/[0.06] px-2')}>
+    <li className={cn('py-2', isNew && '-mx-2 rounded-md bg-warning/15 px-2 ring-1 ring-inset ring-warning/30')}>
       <div className="flex items-center gap-3">
         <RankBadge
           rank={row.rank}
@@ -171,10 +66,10 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, rec
               {name}
               {row.tied && <span className="sr-only"> (tied)</span>}
             </span>
-            {(meta || active || recent) && (
+            {(meta || active || isNew) && (
               <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-snug text-muted-foreground">
-                {recent && (
-                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-warning/12 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-warning">
+                {isNew && (
+                  <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-warning/15 px-1.5 text-[10px] font-medium uppercase tracking-[0.06em] text-warning">
                     <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
                     New record
                   </span>
@@ -221,8 +116,13 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, rec
  * record and its opposite and the season filter costs no refetch. Game records
  * carry a Regular / Playoffs toggle; the record proper is the regular season.
  * A trade record's row opens to its trades rather than linking to the franchise.
+ *
+ * A row new to the record's top five (`newRowIds`) is highlighted, and is always
+ * listed: within a tie the earlier achievement comes first, so the rows the
+ * league most wants to see would otherwise sit below the fold, or past the top
+ * twenty on a record where a lot of rows tie.
  */
-export function RecordCard({ record, book, year = null, identity, onViewFranchise = () => {}, focused = false }) {
+export function RecordCard({ record, book, before = null, year = null, identity, onViewFranchise = () => {}, focused = false }) {
   // A card opened from a link starts expanded, and is ringed so the eye finds
   // the one the link was about.
   const [expanded, setExpanded] = useState(focused);
@@ -233,19 +133,19 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
   const rows = useMemo(
     () => rankRows(
       recordRows(book, record.scope, record.data, { year, phase: record.phases ? phase : null }),
-      { direction: record.direction, hideZero: hidesZero(record), limit: expandedLimit }
+      { direction: record.direction, hideZero: hidesZero(record) }
     ),
-    [book, record, year, phase, expandedLimit]
+    [book, record, year, phase]
   );
 
-  const visible = expanded ? rows : rows.slice(0, COLLAPSED_ROWS);
+  const newIds = useMemo(() => newRowIds(record, { book, before, phase }), [record, book, before, phase]);
+  const isNew = (row) => newIds.has(rowIdentity(record, row));
+  const listed = (limit) => rows.filter((row, index) => index < limit || isNew(row));
 
-  // A recently broken record is a league record — the #1 across every season.
-  // With one season picked, a card's #1 is only that season's best, so nothing
-  // is marked.
-  const recentYears = book?.recentYears ?? [];
-  const isRecent = (row) => year == null && isRecentRecord(row, recentYears);
-  const hasRecent = rows.some(isRecent);
+  const shut = listed(COLLAPSED_ROWS);
+  const opened = listed(expandedLimit);
+  const visible = expanded ? opened : shut;
+  const hasNew = rows.some(isNew);
 
   return (
     <Card
@@ -259,10 +159,10 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
             <CardTitle id={titleId} className="text-base">
               {record.title}
             </CardTitle>
-            {hasRecent && (
-              <span className="inline-flex shrink-0 text-warning" title="Broken in the last two seasons">
+            {hasNew && (
+              <span className="inline-flex shrink-0 text-warning" title="New to the top 5 in the last two seasons">
                 <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="sr-only">Broken recently</span>
+                <span className="sr-only">New to the top 5</span>
               </span>
             )}
           </div>
@@ -305,20 +205,22 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
           <ol className="divide-y divide-border/60">
             {visible.map((row, index) => (
               <RecordRow
-                key={`${record.id}-${index}`}
+                // Its place in the full list, so opening the card does not hand
+                // a row's open trades to the row that takes its index.
+                key={rows.indexOf(row)}
                 record={record}
                 row={row}
                 book={book}
                 identity={identity}
                 onViewFranchise={onViewFranchise}
                 detailId={`${titleId}-row-${index}`}
-                recent={isRecent(row)}
+                isNew={isNew(row)}
               />
             ))}
           </ol>
         )}
 
-        {rows.length > COLLAPSED_ROWS && (
+        {opened.length > shut.length && (
           <Button
             type="button"
             variant="ghost"
@@ -328,7 +230,7 @@ export function RecordCard({ record, book, year = null, identity, onViewFranchis
             onClick={() => setExpanded((open) => !open)}
             className="mt-2 w-full text-xs text-muted-foreground"
           >
-            {expanded ? `Show top ${COLLAPSED_ROWS}` : `Show top ${rows.length}`}
+            {expanded ? `Show top ${COLLAPSED_ROWS}` : `Show top ${Math.min(rows.length, expandedLimit)}`}
             {expanded ? (
               <ChevronUp className="ml-1 h-3.5 w-3.5" aria-hidden="true" />
             ) : (

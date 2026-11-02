@@ -50,7 +50,7 @@ clock, GitHub's runners".
   The start-of-season job; zero arguments, `--dry-run` to plan without writing.
 - `npm run sync-nfl-schedule` - Import the NFL calendar (`nfl_schedule`) from
   ESPN's public `proTeamSchedules_wl`. `[year]`, `--backfill` for 2020 onward,
-  `--dry-run`. The weekly sync re-runs it for the active season, so this is for
+  `--dry-run`. Both ESPN crons re-run it for the active season, so this is for
   a first import or a repair.
 - `npm run sync-nfl-ratings` - Snapshot ESPN's Football Power Index into
   `nfl_team_ratings` for the current week. `[week]`, `--dry-run`. No
@@ -663,8 +663,8 @@ writes `rosters` once, Tuesday 05:00 ET, but managers change lineups right up
 to kickoff and waivers clear on Wednesday, so a present-tense refresh runs
 **every day at 16:40 UTC** — 12:40 PM ET under daylight time, 11:40 AM ET
 after, never later than twenty minutes before the early Sunday kickoffs. It
-runs `pickEmWeek`, rosters, `parlayGrades` and **transactions**, and passes
-`--skip-scores --skip-player-stats --skip-finalize-prev --skip-nfl-schedule
+runs `pickEmWeek`, rosters, nflSchedule, `parlayGrades` and **transactions**, and passes
+`--skip-scores --skip-player-stats --skip-finalize-prev
 --skip-nfl-ratings --skip-snapshot`, which skips the matchup fetch entirely.
 **It never writes a result**: scores, the finished week's player stats and
 the ranking snapshot are weekly facts that standings, rankings and the parlay
@@ -1169,7 +1169,8 @@ surfaces cannot drift:
   books by row identity (`rowIdentity`: a streak keyed on where it began):
   the book now, and the book built from the same source without the latest
   scored week (`withoutWeek`). Records built on season transaction counts are
-  left out of that slot, because a count cannot be rolled back a week.
+  left out of that slot, because a count cannot be rolled back a week. A top
+  five is a place, not five rows (see "A row new to a top five is highlighted").
   *Record of the day* is a #1 picked by an FNV hash of the local date over
   the sorted #1s, the same for everyone and stored nowhere. *Yours* is the
   viewer's best top-five place. `useHomeRecordBooks` is the record book's
@@ -1298,6 +1299,29 @@ until real rows existed; the league asked for the projection instead.
   `showsHomeBracket`: every game of that week scored, or any postseason row. A
   part-scored week does not count. Pre-2026 seasons project nothing.
 
+**The Schedule tab draws the postseason as the bracket**
+(`schedule/PlayoffSchedule.jsx`), for a postseason week in the week view and in
+place of the playoff weeks in the full season. It has no opinion of its own
+about who is in a slot: it is `resolveUpperBracket` through `BracketView`, the
+component the home card and Path to the Playoffs draw, and it takes any season's
+bracket, which is what the History season bracket can build on.
+
+- **A matchup opens a box score.** `BracketView` takes `onOpenMatchup`, and
+  without it stays a picture, so the home card did not change. A matchup is a
+  `<button>`, which is why `BracketSide` is spans. The box score is the tab's own
+  `GameCard` with `boxScore`, in a bottom sheet at every width: a score the admin
+  edits and a lineup a member reads are the same ones as on a regular week, and
+  opened in place it would land a screen below the tap once the rounds stack.
+- **A slot with no game still opens.** `boxScoreGame` stands in for the row, with
+  `isProjected`, so the card offers no score to edit. `LineupPanel` then reads
+  the live branch of `useLineupsForWeek`: each roster today, against that week's
+  NFL games. A slot with nobody in it stays a card.
+- **Nothing that was on the schedule has gone.** `consolation` on the resolved
+  bracket is every postseason game the rounds do not draw, placement games
+  included, and they sit under it with the same card. Nothing projects those.
+- **`fallback` is the old list**, for a league with no full field. Pre-2026
+  seasons never reach this component.
+
 ### Path to the Playoffs is the odds model, asked "what if"
 
 `/playoffs?tab=path` (`src/components/playoffs/path/`) lets a member pick any
@@ -1343,7 +1367,7 @@ Rules that are load-bearing:
   invalidate; the hooks refetch on focus and once a minute.
 - **Which workflow wrote a `sync_runs` row is derived from its steps.**
   Both scheduled jobs run `scripts/sync-week.js`; the daily refresh is the
-  same script with six `--skip-*` flags, so `classifyRun` attributes a row
+  same script with five `--skip-*` flags, so `classifyRun` attributes a row
   to the daily refresh when `scores` *and* `snapshot` read `skipped: 'flag'`.
   A row with no steps yet is attributed by proximity to a cron slot. Adding
   a skip flag to `daily-refresh.yml` means updating `skips` in
@@ -1495,10 +1519,18 @@ out from `lg`. History
   'espn'` means "this franchise's newest logo". So a logo change lands on its
   own, and the button only appears to work once a sync has run.
 - **The hero carries the current season's standing** (`SeasonFigures`, over the
-  pure `utils/profile/seasonStanding.js`): power rank, place in the division and
-  points for, off the actual week's rankings and the standings RPC, the keys
-  those tabs already hold. Present tense, so the week control does not move it.
-  A franchise with no team this season shows none.
+  pure `utils/profile/seasonStanding.js`): power rank, place in the division,
+  points for and FAAB left, off the actual week's rankings, the standings RPC and
+  the season's team, the keys those tabs already hold. Present tense, so the week
+  control does not move it. A franchise with no team this season shows none.
+- **Every trade is on the page, with a total per partner**
+  (`profile/FranchiseTrades.jsx`). `tradesForRow` and `tradePartnersOf` over the
+  record book's own query key, which the trophy case already holds, so it fetches
+  nothing and cannot disagree with Records: the list is what "Most trades" opens
+  to (`records/TradeList.jsx`, one component), and the totals are what "Most
+  frequent trade partners" counts. So "Most trades"'s note holds here too: the
+  commissioner's list is long for the reason that record says. A franchise that
+  has never traded has no section.
 - **`TeamAvatar` draws the avatar everywhere, through
   `FranchiseAvatarsContext`,** which also answers `useCanOpenProfiles()` for
   `TeamLink`. A context so both primitives stay plain with no provider. It hands
@@ -1680,6 +1712,39 @@ Rules that are load-bearing:
 - Masking goes through `getMaskedFranchiseName`/`canViewFullData`, and a masked
   viewer's avatar is keyed on the masked name, since initials come from owners.
 
+**A row new to a top five is highlighted**, yellow (`warning`), on both tabs.
+`utils/recordBook/newRecords.js` is the one definition, shared with the home
+carousel's *New this week*: `topFive` and `rowIdentity` for both, and
+`newRowIds` for this page.
+
+- **A top five is a place, not five rows.** Competition ranking means more than
+  five rows can hold a place in it, and a tie lists the earlier achievement
+  first, so the row cut off at five is always the newest. Until 2026-11-02 the
+  home widget cut there, and missed any new row that tied its way in.
+- **The window is `book.recentYears`**: the active season and the one before
+  it, from the season rows, never a hardcoded year. It reads `is_active` rather
+  than taking the two newest rows, because next year's row is often created
+  early.
+- **A row with a moment is new by its year; a row without one is new by entry.**
+  `recordSetYear` dates a team-season, game, bid, week or lock, and a streak by
+  the season it ended in. A career total and an all-time trade pair only grow,
+  so they have no year. They are new if they are in the top five now and were
+  not going into the window, which is the book built by `beforeSeason`. Climbing
+  inside the top five does not count, or every leader would be marked every
+  week. Whole seasons can be subtracted from transaction counts, so unlike the
+  home slot, those records are included. With no season before the window there
+  is no `before` book, and no career row is new.
+- **Season totals are completed seasons only, so a 2026 season-total row cannot
+  appear yet.** That is the rule above, not a miss: 2026 shows up on games,
+  streaks, league weeks and career rows until `finalize_season` runs.
+- **Measured on the whole board, always.** With a season picked a card ranks
+  that season alone, but a row keeps its mark from the all-time board, and a
+  game card's Regular / Playoffs toggle measures the phase it shows.
+- **A marked row is always listed.** It stays on the card past the five a shut
+  card shows and past the twenty an open one does, so a record with many ties
+  can run long. `useRecordBooks` runs `buildRecordBooks` in `select`, and
+  `useRecordBook` stays one book, since the trophy case has no use for the second.
+
 **History → Awards is league-voted awards only.** `shapeAwards` keeps
 `source = 'ballot' and category = 'voted'`, so the gallery, a season and a
 franchise profile agree, and "Most decorated" counts only what a ballot
@@ -1796,6 +1861,56 @@ from the selection. Rules that are load-bearing:
   "No data", never drawn as zero.
 - **Live-only numbers are out by design.** Projections, FPI, playoff odds and
   the power rating have no history: `power_rankings_history` starts in 2025.
+
+### FAAB is a ledger, and bids alone do not add up
+
+A team's bids can run past the budget, because bids are not the whole story:
+teams trade FAAB, and the commissioner awards it for pick'ems, takes and the
+like. `utils/faabLedger.js` is the pure half, and each line has its own source:
+
+| Line | Source | Stored |
+|---|---|---|
+| Budget | `settings.acquisitionSettings.acquisitionBudget` | `transactions.faab_budget` |
+| Spent | winning bids, as ever | `transactions.faab_spent` |
+| Traded | ESPN's activity feed, message 290 | `transactions.faab_traded_in` / `_out` |
+| Awarded | what is left of ESPN's counter | `transactions.faab_awarded` |
+| Left | budget minus ESPN's counter | `teams.faab_remaining` |
+
+`counter = bids - tradedIn + tradedOut - awarded`, where the counter is
+`transactionCounter.acquisitionBudgetSpent`, the number ESPN enforces. So
+`budget + awarded + traded - spent` is ESPN's left by construction. `useFaabLedger`
+reads the ledger, and `ui/faab-breakdown.jsx` draws it on the Teams cards and the
+profile hero. The tables (Power Rankings on the live week, the standings drawer,
+both home tables) show `teams.faab_remaining`, which needs no join.
+
+- **The amounts are only in the feed.** A trade's transaction row has an
+  `ACQUISITION_BUDGET_TRADE` item saying who sent FAAB to whom, and no amount.
+  `fetchFaabTransfers` reads
+  `/communication/?view=kona_league_communication`, a different endpoint, cookied.
+  Only message 290 moved anything: 284 is an accepted proposal, 286 an offer and
+  289 a veto, and their amounts are right there to double-count. 290's `targetId`
+  is the dollars.
+- **Awarded is net and derived, because ESPN keeps no amounts.** The commissioner's
+  edit shows in the feed as message 167 under `ACTIVITY_SETTINGS`, naming the team
+  and nothing else, so it cannot be split into pick'em prizes and take payouts. A
+  take-back shows as a negative. Verified on 2026-11-02: the remainder was
+  non-negative for all 14 teams, zero for exactly the four teams with no 167, and
+  non-zero for the ten with one, including a team traded out of $30 that came to
+  $0.
+- **Both are written by the transactions step**, from `syncTransactions`' one
+  fetch plus one feed read. Not the rosters step, which skips the playoffs: FAAB
+  left would stop at week 14 while spending carried on. The daily refresh runs it,
+  so the figures follow each waiver run. `scripts/backfill-transactions.js` runs
+  the same path, so past seasons get a ledger by running it; none has yet.
+- **A failed feed costs the ledger's next update and nothing else.** The columns
+  are left out of the upsert rather than nulled, and FAAB left needs no feed.
+- **NULL is unknown, never 0**, and 0 is a real answer. A table with no figures
+  at all drops the column, which is what a past season in the drawer gets.
+- **Records keep meaning bids.** "Most FAAB spent" is `faab_spent`, unchanged.
+- **The standings RPC has no FAAB.** `StandingsMini` and the drawer read it off
+  the season's own teams. `faabOf` takes either shape.
+- **Left is a figure about today,** so `PowerRankingsTable` drops it for a past
+  week (`showFaab`).
 
 ### Lineups and transactions go back to 2020
 
@@ -2077,9 +2192,15 @@ no cookies, unlike every other ESPN call here) through the pure
   ~576 rows. `useNflWeekSchedule` and `useNflOpponentMap` share
   `useNflSeasonSchedule`'s single cache entry so two chips on one page cannot
   disagree about the same week. There are no mutations — the cron writes it.
-- The weekly sync re-imports the **whole** active season, non-fatally. The NFL
-  flexes late-season kickoffs, so a calendar imported once in September would
-  have the wrong times by December.
+- Both ESPN crons re-import the **whole** active season, non-fatally, so a flexed
+  kickoff lands within a day. It was weekly until the autosub lock came to depend
+  on it: a game flexed on a Wednesday would have kept its old time until the next
+  Tuesday, and a lock on the wrong time is the member's deadline moved.
+- **What moved is reported, not just overwritten.** `diffNflSchedule` compares
+  the stored rows with the fresh import before the upsert erases them, and the
+  moved games land in `changes` on the step's `sync_runs` entry, one per game,
+  which the Automations dashboard names in the run summary. Times compare as
+  instants: Postgres returns `+00:00` where the mapper writes `.000Z`.
 
 **`nfl_team_ratings` is the calendar's companion: how good each NFL team is.**
 ESPN's Football Power Index, snapshotted per fantasy week because ESPN serves
@@ -2761,9 +2882,33 @@ Rules that are load-bearing:
   card's "Show a test notification" is local and only proves the app may
   display one.
 
+**You are told when you win** (`20261103150000_take_edits_and_pickem_wins_notified.sql`).
+Topic `pickems_wins`, on by default, and it goes to the winners and nobody else:
+a tie for first is everybody on it, each told it was a tie.
+`sendWinnerNotifications` runs in the default mode beside
+`sendDueNotifications`, so it needs no cron of its own: Tuesday 14:00 UTC is four
+hours after the weekly sync scores the week, and Thursday's slot is the retry.
+
+- **A week** is `weekWinners`, a **tourney** is `tourneyWinners` over
+  `tourneyStandings` (the top score over the five-week floor, so a member under
+  it cannot take the prize), and **the playoff bracket challenge** is the top of
+  `getPlayoffStandings`, once the championship is over *and* the admin has
+  released the results, since the page shows nothing before that. A bracket tie
+  stays a tie: `championship_point_total` is collected and nothing reads it.
+- **`newestFinishedWeek` is as far back as it looks.** An older result is old
+  news, which is also what stopped the first run announcing all season at once.
+- **A tourney ends with its last week whether or not that week had a pick'em,**
+  because the sync opens none in the playoffs: the second half is decided when
+  week 17 is.
+- **Every winner keeps it in Alerts, device or not** (`plan.inbox`, the taunts'
+  pattern): a member with notifications off still won.
+- Claimed as `pickems_week_won`, `pickems_tourney_won:<id>` and
+  `playoff_bracket_won`, per (season, week), like every weekly send.
+
 **Takes notify on the event, not on a clock**
 (`20261007120000_take_notifications.sql`). Two more topics, `takes_new`
-(every new take, to everyone with it on *except the author*) and
+(every new take, and an author's reword of one, to everyone with it on *except
+the author*) and
 `takes_reactions` (a Hell Yeah or Hell Nah on your take, to *the author
 only*), and since `20261010120000` a third, `takes_stakes` (a staked Hell Yeah
 on a take you said Hell Nah to, asking whether you accept it — see "A Hell
@@ -2793,9 +2938,16 @@ already subscribed.
 - **`planTakeNotifications` reads the take as it stands when the run happens.**
   Whose take it is comes from `takes.user_id`, not the event's actor (the
   admin may post for somebody). A Hell Nah withdrawn, or switched to a Hell
-  Yeah, before the run is not announced. Edits, grades and withdrawals are
+  Yeah, before the run is not announced. Grades and withdrawals are
   never announced. Accounts with a non-approved `member_approvals` row are
   dropped, because the take's wording is the notification.
+- **An author's reword is announced; an admin's correction is not.**
+  `take_events.acted_as_admin` already says which, because the author's edit
+  is only possible inside their 72 hours. Several saves are one notification:
+  the newest unsent edit speaks for the others, a post not yet announced speaks
+  for all of them, and the plan's `absorbs` claims what it spoke for. It shares
+  the post's tag, so on a device the new wording replaces the old. A reword
+  reopens the Hell Nah window for everybody, and this is how they hear of it.
 - **A take notification opens the take.** The URL is `/takes?take=<id>`, and
   `TakesManager` opens that take's sheet from the search param, dropping it on
   close.
@@ -3193,6 +3345,21 @@ and the commissioner and vice commissioner hear either way.
   display name, for the reason franchise profiles use it: this one ends in a
   write to somebody's lineup. **An admin is not folded in.** An autosub is the
   manager's, so the admin sees only their own team's, and RLS holds that.
+- **An autosub locks when either player's game starts, per autosub**
+  (`20261103130000_autosub_kickoff_lock.sql`). There is no weekly deadline: a
+  Thursday pairing locks on Thursday and a Sunday one stays open until Sunday.
+  Either player, not only the starter, because otherwise a member could name a
+  Thursday bench player, watch the game, and keep or drop the autosub knowing
+  how it went. `private.autosub_locks_at()` is the one definition, and both RPCs
+  read it; `isAutosubLocked` is the mirror. A lock stops the member and not the
+  autosub: an armed row still fires, and after kickoff it goes to the
+  commissioners.
+- **A player's schedule is `nfl_schedule`, joined on `players.pro_team_id`.**
+  There is no per-player copy, deliberately: every player on a team shares one
+  kickoff, a copy is a second thing to drift, and the join follows a real NFL
+  trade the day the roster sync sees it. Nothing stores a kickoff on an autosub
+  row either, so a flexed game moves the lock, the picker and the watcher's
+  window by itself. The daily refresh is what makes that true.
 - **`set_autosub()` is the only member write**, and it holds the rules: your
   team, active season, switch on, under the weekly limit, starter in a starting
   slot, bench player on the bench and eligible for the slot, both with a game

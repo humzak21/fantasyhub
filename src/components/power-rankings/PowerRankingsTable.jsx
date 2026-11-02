@@ -11,6 +11,7 @@ import { RankBadge } from '../ui/rank-badge';
 import { StreakChip } from '../ui/streak-chip';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
+import { faabOf, formatFaab } from '../../utils/format';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../types/index.js';
 import { teamRosterPath } from '../teams/teamLink.js';
@@ -40,6 +41,8 @@ const PowerRankingsTable = ({
   currentWeek = 1,
   loading = false,
   initializing = false,
+  // FAAB left is a figure about today, so a past week has no such column.
+  showFaab = true,
 }) => {
   const { user, isAdmin, teamOwnerNames } = useViewer();
 
@@ -238,6 +241,17 @@ const PowerRankingsTable = ({
         );
       },
     },
+    // Not a column of dashes before the first sync has read a budget.
+    ...(showFaab && rankings.some((team) => faabOf(team) != null)
+      ? [{
+          key: 'faab',
+          header: 'FAAB',
+          cardLabel: 'FAAB left',
+          className: 'text-right',
+          headerClassName: 'text-right',
+          cell: (team) => <span className="tabular text-muted-foreground">{formatFaab(faabOf(team))}</span>,
+        }]
+      : []),
     {
       key: 'form',
       header: 'Form',
