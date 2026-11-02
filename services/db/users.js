@@ -84,8 +84,10 @@ export async function isParlayCommissioner(ctx) {
   }
 }
 
-/** The one role the app grants. `league_roles.role` is CHECK-constrained to it. */
+/** The roles the app grants. `league_roles_role_check` holds the same list. */
 export const PARLAY_COMMISSIONER = 'parlay_commissioner';
+export const COMMISSIONER = 'commissioner';
+export const VICE_COMMISSIONER = 'vice_commissioner';
 
 /**
  * Every account, for the admin's role picker.
@@ -111,19 +113,19 @@ export async function listLeagueMembers(ctx) {
 }
 
 /**
- * Who currently holds the parlay commissioner role.
+ * Who currently holds a role.
  *
  * A plain read of `league_roles`, not an RPC: the SELECT policy already says
  * "your own row, or everything if you are the admin", so a non-admin asking
  * this gets their own grant and nothing else — which is a true answer, not a
  * leak, and is what the settings page needs anyway.
  */
-export async function getParlayCommissioners(ctx) {
+export async function getRoleHolders(ctx, role) {
   try {
     const { data, error } = await ctx.client
       .from('league_roles')
       .select('id, user_id, role, created_at')
-      .eq('role', PARLAY_COMMISSIONER);
+      .eq('role', role);
 
     if (error) throw error;
 
@@ -134,12 +136,12 @@ export async function getParlayCommissioners(ctx) {
       createdAt: row.created_at
     }));
   } catch (error) {
-    throwDbError(error, 'Get parlay commissioners');
+    throwDbError(error, `Get ${role} holders`);
   }
 }
 
 /**
- * Make the set of commissioners exactly `userIds`.
+ * Make the holders of a role exactly `userIds`.
  *
  * A diff rather than delete-everything-then-reinsert. Two reasons: the wipe
  * leaves a window in which nobody holds the role, and re-inserting an unchanged
@@ -149,10 +151,10 @@ export async function getParlayCommissioners(ctx) {
  * this writes nothing — the delete matches no rows and the insert is refused.
  * The count returned is what actually changed.
  */
-export async function setParlayCommissioners(ctx, userIds = []) {
+export async function setRoleHolders(ctx, role, userIds = []) {
   try {
     const wanted = new Set(userIds.filter(Boolean));
-    const current = await getParlayCommissioners(ctx);
+    const current = await getRoleHolders(ctx, role);
     const held = new Set(current.map((row) => row.userId));
 
     const toRevoke = current.filter((row) => !wanted.has(row.userId)).map((row) => row.id);
@@ -166,17 +168,17 @@ export async function setParlayCommissioners(ctx, userIds = []) {
     if (toGrant.length > 0) {
       const { error } = await ctx.client
         .from('league_roles')
-        .insert(toGrant.map((userId) => ({ user_id: userId, role: PARLAY_COMMISSIONER })));
+        .insert(toGrant.map((userId) => ({ user_id: userId, role })));
       if (error) throw error;
     }
 
     if (toGrant.length || toRevoke.length) {
-      log.info(`parlay commissioners: +${toGrant.length} -${toRevoke.length}`);
+      log.info(`${role}: +${toGrant.length} -${toRevoke.length}`);
     }
 
     return { granted: toGrant.length, revoked: toRevoke.length };
   } catch (error) {
-    throwDbError(error, 'Set parlay commissioners');
+    throwDbError(error, `Set ${role} holders`);
   }
 }
 

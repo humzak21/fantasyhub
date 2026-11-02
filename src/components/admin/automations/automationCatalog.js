@@ -396,7 +396,7 @@ export const PASSIVE_AUTOMATIONS = [
     id: 'cron-dispatch',
     name: 'pg_cron → workflow dispatch',
     where: 'Database · cron.job, private.dispatch_github_workflow',
-    fires: 'At each job\'s slot (weekly-sync, daily-refresh, notify-pickems-open, notify-pickems-closing, notify-matchup-facts), in UTC',
+    fires: 'At each job\'s slot (weekly-sync, daily-refresh, notify-pickems-open, notify-pickems-closing, notify-matchup-facts, autosub-watch), in UTC',
     does:
       'Keeps the clock for the two ESPN workflows. Each pg_cron job calls GitHub\'s workflow_dispatch API ' +
       'with trigger = cron, so the run starts within seconds and logs as a cron run. GitHub\'s own schedule ' +
@@ -470,6 +470,23 @@ export const PASSIVE_AUTOMATIONS = [
     verify:
       'matchup_taunts rows with sent_at but no delivered_at are waiting. Older than a few minutes: ' +
       'net._http_response for the dispatch, then the workflow run. Run it by hand to deliver them.'
+  },
+  {
+    id: 'autosub-watch',
+    name: 'Autosub watch',
+    where: 'GitHub Actions · autosub-watch.yml, dispatched by pg_cron',
+    fires: 'pg_cron job autosub-watch checks every ten minutes, and starts the workflow only when an autosub is within two hours before its starter\'s kickoff or one hour after',
+    does:
+      'Reads ESPN\'s live lineup for the autosubs members have set. If a starter is ruled out it either makes the ' +
+      'swap on ESPN or leaves it to the commissioners, and tells the commissioner and vice commissioner either ' +
+      'way, by push and in Alerts (the admins if nobody holds those roles). The swap happens only when the ' +
+      '"Make the swap on ESPN" setting is on, neither player\'s game has started and ESPN confirms it on a fresh ' +
+      'read; everything else goes to a person with the reason. Each row is claimed before it is acted on, so it ' +
+      'cannot fire twice.',
+    verify:
+      'autosubs rows: status swapped or manual, with reason and detail saying why. A fired row with no notified_at ' +
+      'has not reached anybody yet, and the next run tries again. Run the workflow with dry_run to see what would ' +
+      'be done without changing anything. A red run usually means the ESPN cookies have expired.'
   },
   {
     id: 'deploy-migrations',

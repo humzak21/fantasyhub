@@ -12,10 +12,11 @@ import { Label } from '../ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Badge } from '../ui/badge'
-import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow, Crown, Link2 } from 'lucide-react'
+import { User, Save, CheckCircle, AlertCircle, Settings as SettingsIcon, Database, Download, Wrench, AlertTriangle, ShieldCheck, UserCheck, KeyRound, Workflow, Crown, Link2, Repeat2 } from 'lucide-react'
 import SeasonManager from '../admin/SeasonManager.jsx'
 import LeagueRolesManager from '../admin/LeagueRolesManager.jsx'
 import LeagueAdminsManager from '../admin/LeagueAdminsManager.jsx'
+import AutosubSettings from '../admin/AutosubSettings.jsx'
 import FranchiseAccountsManager from '../admin/FranchiseAccountsManager.jsx'
 import MemberApprovalsManager from '../admin/MemberApprovalsManager.jsx'
 import AutomationsDashboard, { ColourKey } from '../admin/AutomationsDashboard.jsx'
@@ -265,6 +266,15 @@ export const UserSettingsPage = () => {
                     </Button>
 
                     <Button
+                      variant={activeSettingsTab === 'autosubs' ? 'default' : 'ghost'}
+                      className="w-full justify-start"
+                      onClick={() => setActiveSettingsTab('autosubs')}
+                    >
+                      <Repeat2 className="mr-2 h-4 w-4" />
+                      Autosubs
+                    </Button>
+
+                    <Button
                       variant={activeSettingsTab === 'franchises' ? 'default' : 'ghost'}
                       className="w-full justify-start"
                       onClick={() => setActiveSettingsTab('franchises')}
@@ -501,6 +511,12 @@ export const UserSettingsPage = () => {
                 `list_league_members()`. */}
             {activeSettingsTab === 'roles' && isAdmin && (
               <LeagueRolesManager />
+            )}
+
+            {/* The season's autosub switches. `isAdmin` is the affordance;
+                `seasons` is `is_admin()`-write. */}
+            {activeSettingsTab === 'autosubs' && isAdmin && (
+              <AutosubSettings />
             )}
 
             {/* Who the admins are. `isAdmin` is the affordance; the boundary

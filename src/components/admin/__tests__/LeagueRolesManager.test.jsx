@@ -14,8 +14,8 @@ import { renderWithProviders, screen, waitFor } from '../../../test/renderWithPr
 
 const users = {
   listLeagueMembers: vi.fn(async () => MEMBERS),
-  getParlayCommissioners: vi.fn(async () => []),
-  setParlayCommissioners: vi.fn(async () => ({ granted: 0, revoked: 0 })),
+  getRoleHolders: vi.fn(async () => []),
+  setRoleHolders: vi.fn(async () => ({ granted: 0, revoked: 0 })),
   isParlayCommissioner: vi.fn(async () => false),
   isApprovedMember: vi.fn(async () => true),
   isLeagueAdmin: vi.fn(async () => true)
@@ -47,8 +47,8 @@ const { default: LeagueRolesManager } = await import('../LeagueRolesManager.jsx'
 beforeEach(() => {
   vi.clearAllMocks();
   users.listLeagueMembers.mockResolvedValue(MEMBERS);
-  users.getParlayCommissioners.mockResolvedValue([]);
-  users.setParlayCommissioners.mockResolvedValue({ granted: 0, revoked: 0 });
+  users.getRoleHolders.mockResolvedValue([]);
+  users.setRoleHolders.mockResolvedValue({ granted: 0, revoked: 0 });
 });
 
 describe('LeagueRolesManager', () => {
@@ -60,8 +60,8 @@ describe('LeagueRolesManager', () => {
   });
 
   it('pre-ticks whoever already holds the role', async () => {
-    users.getParlayCommissioners.mockResolvedValue([
-      { id: 'role-1', userId: 'u2', role: 'parlay_commissioner' }
+    users.getRoleHolders.mockResolvedValue([
+      { id: 'role-1', userId: 'u2', role: 'commissioner' }
     ]);
 
     renderWithProviders(<LeagueRolesManager />);
@@ -79,10 +79,10 @@ describe('LeagueRolesManager', () => {
     renderWithProviders(<LeagueRolesManager />);
 
     await user.click(await screen.findByRole('checkbox', { name: /arya shah/i }));
-    expect(users.setParlayCommissioners).not.toHaveBeenCalled();
+    expect(users.setRoleHolders).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: /save roles/i }));
-    await waitFor(() => expect(users.setParlayCommissioners).toHaveBeenCalledWith(['u1']));
+    await waitFor(() => expect(users.setRoleHolders).toHaveBeenCalledWith('commissioner', ['u1']));
   });
 
   it('keeps Save disabled while nothing has changed', async () => {
@@ -101,14 +101,14 @@ describe('LeagueRolesManager', () => {
     await user.click(screen.getByRole('button', { name: /save roles/i }));
 
     await waitFor(() =>
-      expect(users.setParlayCommissioners).toHaveBeenCalledWith(['u1', 'u2'])
+      expect(users.setRoleHolders).toHaveBeenCalledWith('commissioner', ['u1', 'u2'])
     );
   });
 
   it('sends an empty list when the last commissioner is unticked', async () => {
     const user = userEvent.setup();
-    users.getParlayCommissioners.mockResolvedValue([
-      { id: 'role-1', userId: 'u2', role: 'parlay_commissioner' }
+    users.getRoleHolders.mockResolvedValue([
+      { id: 'role-1', userId: 'u2', role: 'commissioner' }
     ]);
 
     renderWithProviders(<LeagueRolesManager />);
@@ -119,8 +119,35 @@ describe('LeagueRolesManager', () => {
     await user.click(rohit);
     await user.click(screen.getByRole('button', { name: /save roles/i }));
 
-    await waitFor(() => expect(users.setParlayCommissioners).toHaveBeenCalledWith([]));
-    expect(screen.getByText(/only you can open the td parlay tab/i)).toBeInTheDocument();
+    await waitFor(() => expect(users.setRoleHolders).toHaveBeenCalledWith('commissioner', []));
+    expect(screen.getByText(/autosub alerts go to the admins/i)).toBeInTheDocument();
+  });
+
+  it('keeps each role apart, and an unsaved tick does not follow to another', async () => {
+    const user = userEvent.setup();
+    users.getRoleHolders.mockImplementation(async (role) =>
+      role === 'vice_commissioner' ? [{ id: 'role-2', userId: 'u1', role }] : []
+    );
+
+    renderWithProviders(<LeagueRolesManager />);
+
+    await user.click(await screen.findByRole('checkbox', { name: /rohit ramki/i }));
+    await user.click(screen.getByRole('tab', { name: /vice commissioner/i }));
+
+    const arya = await screen.findByRole('checkbox', { name: /arya shah/i });
+    await waitFor(() => expect(arya).toHaveAttribute('aria-checked', 'true'));
+    expect(screen.getByRole('checkbox', { name: /rohit ramki/i })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('still grants the parlay role', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<LeagueRolesManager />);
+
+    await user.click(await screen.findByRole('tab', { name: /parlay/i }));
+    await user.click(await screen.findByRole('checkbox', { name: /arya shah/i }));
+    await user.click(screen.getByRole('button', { name: /save roles/i }));
+
+    await waitFor(() => expect(users.setRoleHolders).toHaveBeenCalledWith('parlay_commissioner', ['u1']));
   });
 
   it('filters by name or email', async () => {

@@ -327,6 +327,12 @@ export function useLeagueMutations(seasonId) {
     onSuccess: invalidators.seasons
   });
 
+  /** The autosub settings. Takes `{ seasonId, autosubsEnabled?, autosubEspnWrites?, autosubWeeklyLimit? }`. */
+  const setAutosubSettings = useMutation({
+    mutationFn: ({ seasonId: id, ...settings }) => db().seasons.setAutosubSettings(id, settings),
+    onSuccess: invalidators.seasons
+  });
+
   const addTeam = useMutation({
     mutationFn: ({ name, owner = '' }) => db().teams.addTeamToSeason(seasonId, name, owner),
     onSuccess: () => invalidators.teams(seasonId)
@@ -410,6 +416,7 @@ export function useLeagueMutations(seasonId) {
     finalizeSeason,
     deleteSeason,
     setLeagueSize,
+    setAutosubSettings,
     addTeam,
     updateTeam,
     removeTeam,

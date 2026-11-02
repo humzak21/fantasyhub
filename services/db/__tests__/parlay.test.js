@@ -23,8 +23,8 @@ import {
 import { getPlayersByNames, searchPlayers } from '../players.js';
 import {
   listLeagueMembers,
-  getParlayCommissioners,
-  setParlayCommissioners
+  getRoleHolders,
+  setRoleHolders
 } from '../users.js';
 import { getPlayerWeekStatsForWeek } from '../playerWeekStats.js';
 
@@ -252,7 +252,7 @@ describe('league roles', () => {
     });
 
     // Keep A, drop B, add USER_ID.
-    const result = await setParlayCommissioners(ctx, [COMMISH_A, USER_ID]);
+    const result = await setRoleHolders(ctx, 'parlay_commissioner', [COMMISH_A, USER_ID]);
 
     const [remove] = ctx.client.callsFor('league_roles', 'delete');
     expect(remove.filters['in:id']).toEqual(['role-b']);
@@ -272,7 +272,7 @@ describe('league roles', () => {
       ]
     });
 
-    const result = await setParlayCommissioners(ctx, [COMMISH_A]);
+    const result = await setRoleHolders(ctx, 'parlay_commissioner', [COMMISH_A]);
 
     expect(ctx.client.callsFor('league_roles', 'delete')).toHaveLength(0);
     expect(ctx.client.callsFor('league_roles', 'insert')).toHaveLength(0);
@@ -287,16 +287,16 @@ describe('league roles', () => {
       'league_roles.delete': () => []
     });
 
-    const result = await setParlayCommissioners(ctx, []);
+    const result = await setRoleHolders(ctx, 'parlay_commissioner', []);
 
     expect(ctx.client.callsFor('league_roles', 'delete')[0].filters['in:id']).toEqual(['role-a']);
     expect(result).toEqual({ granted: 0, revoked: 1 });
   });
 
-  it('reads only the parlay role, not every grant', async () => {
+  it('reads only the role it was asked about, not every grant', async () => {
     const ctx = makeCtx({ 'league_roles.select': () => [] });
 
-    await getParlayCommissioners(ctx);
+    await getRoleHolders(ctx, 'parlay_commissioner');
 
     expect(ctx.client.callsFor('league_roles', 'select')[0].filters).toEqual({
       role: 'parlay_commissioner'

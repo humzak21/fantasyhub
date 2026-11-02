@@ -189,7 +189,16 @@ export const qk = {
   roles: {
     all: ['roles'],
     members: () => ['roles', 'members'],
-    parlayCommissioners: () => ['roles', 'parlayCommissioners']
+    holders: (role) => ['roles', 'holders', role]
+  },
+
+  /**
+   * The viewer's own autosubs. Under its own domain, keyed general to specific,
+   * so a set or a remove invalidates the week it changed and nothing else.
+   */
+  autosubs: {
+    ...scope('autosubs'),
+    forWeek: (seasonId, week) => ['autosubs', seasonId, 'week', week]
   },
 
   /**

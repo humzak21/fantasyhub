@@ -69,7 +69,7 @@ export function useMemberApprovals({ enabled = true } = {}) {
 /**
  * Invalidate everything a decision touches: the queue, the member list the
  * roles picker draws from, and the viewer domain — the admin's own entry is
- * unaffected, but the pattern matches `useSetParlayCommissioners` and costs
+ * unaffected, but the pattern matches `useSetRoleHolders` and costs
  * nothing.
  */
 function invalidateApprovals(queryClient) {

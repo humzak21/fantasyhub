@@ -10,6 +10,7 @@ import { Skeleton } from '../ui/skeleton';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import {
   useActualWeek,
+  useAutosubAccess,
   useFranchiseProfile,
   useFranchiseProfiles,
   useHistoryFranchises,
@@ -29,6 +30,7 @@ import {
 } from '../history/utils/privacyHelpers';
 import FranchiseProfile from '../history/franchises/FranchiseProfile';
 import { FranchiseRivalries } from './FranchiseRivalries';
+import { AutosubSection } from '../autosub/AutosubSection';
 import { ProfileHero } from './ProfileHero';
 import { TrophyCase } from './TrophyCase';
 import { profilePath } from './profileLink';
@@ -65,6 +67,7 @@ export function ProfilePage() {
   const franchisesQuery = useHistoryFranchises();
   const { data: profiles } = useFranchiseProfiles();
   const { data: myFranchiseId, isPending: myFranchisePending } = useMyFranchiseId();
+  const { teamId: myTeamId } = useAutosubAccess();
 
   const franchiseId = routeId ?? null;
   const franchises = useMemo(() => franchisesQuery.data ?? [], [franchisesQuery.data]);
@@ -198,6 +201,8 @@ export function ProfilePage() {
         showLogOut={isOwn}
         onEdit={() => setEditing(true)}
       />
+
+      {isOwn && <AutosubSection teamId={myTeamId} framed />}
 
       <TrophyCase
         franchiseId={franchiseId}

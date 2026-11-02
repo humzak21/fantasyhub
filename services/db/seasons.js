@@ -14,6 +14,7 @@ import { throwDbError } from './errors.js';
 import { createLogger } from './logger.js';
 import { copyDivisionsToSeason } from './divisions.js';
 import { copyTeamsToSeason } from './teams.js';
+import { AUTOSUB_LIMIT_MAX, AUTOSUB_LIMIT_MIN } from '../autosubPlanner.js';
 
 const log = createLogger('db:seasons');
 
@@ -33,7 +34,10 @@ const INHERITED_CONFIG_COLUMNS = [
   'pickem_close_offset_days',
   'pickem_close_time',
   'pickem_reveal_offset_days',
-  'pickem_reveal_time'
+  'pickem_reveal_time',
+  'autosubs_enabled',
+  'autosub_espn_writes',
+  'autosub_weekly_limit'
 ];
 
 /** What `getPreviousSeason`/`getSeasonSummary` read: identity plus config. */
@@ -491,6 +495,43 @@ export async function setLeagueSize(ctx, seasonId, leagueSize) {
     return formatFromDatabase(data);
   } catch (error) {
     throwDbError(error, 'Set league size');
+  }
+}
+
+/**
+ * The season's autosub settings. Takes any of `{ autosubsEnabled,
+ * autosubEspnWrites, autosubWeeklyLimit }`, and sends only what it was given.
+ * `seasons` is `is_admin()`-write, so RLS is the rule, and the limit's own check
+ * is the database's floor; this one says why in words.
+ */
+export async function setAutosubSettings(ctx, seasonId, { autosubsEnabled, autosubEspnWrites, autosubWeeklyLimit }) {
+  const patch = {};
+  if (autosubsEnabled !== undefined) patch.autosubs_enabled = Boolean(autosubsEnabled);
+  if (autosubEspnWrites !== undefined) patch.autosub_espn_writes = Boolean(autosubEspnWrites);
+  if (autosubWeeklyLimit !== undefined) {
+    const limit = Number(autosubWeeklyLimit);
+    if (!Number.isInteger(limit) || limit < AUTOSUB_LIMIT_MIN || limit > AUTOSUB_LIMIT_MAX) {
+      throw new Error(`The weekly limit must be a whole number from ${AUTOSUB_LIMIT_MIN} to ${AUTOSUB_LIMIT_MAX}`);
+    }
+    patch.autosub_weekly_limit = limit;
+  }
+
+  try {
+    const { data, error } = await ctx.client
+      .from('seasons')
+      .update(patch)
+      .eq('id', seasonId)
+      .select('id, autosubs_enabled, autosub_espn_writes, autosub_weekly_limit')
+      .single();
+
+    if (error) throw error;
+
+    ctx.seasonsCache.delete(seasonId);
+    log.info(`season ${seasonId} autosub settings:`, patch);
+
+    return formatFromDatabase(data);
+  } catch (error) {
+    throwDbError(error, 'Set autosub settings');
   }
 }
 
