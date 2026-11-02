@@ -33,6 +33,7 @@
  */
 
 import { ownerKey } from '../utils/ownerAliases.js';
+import { sortByStandings } from '../utils/playoffSeeding.js';
 
 export const MATCHUP_FACTS_TOPIC = 'matchup_facts';
 
@@ -211,8 +212,26 @@ export function indexLeague({
     names.set(key, (firstCounts.get(first) ?? 0) > 1 ? owner : first);
   }
 
-  const teamsInSeason = new Map();
-  for (const team of teams) teamsInSeason.set(team.seasonId, (teamsInSeason.get(team.seasonId) ?? 0) + 1);
+  // Last in each season's regular-season standings, by record, then points for,
+  // which is the sort that names first.
+  const standingsBySeason = new Map();
+  for (const [key, games] of gamesByFranchise) {
+    for (const game of games) {
+      if (game.phase !== 'regular') continue;
+      if (!standingsBySeason.has(game.seasonId)) standingsBySeason.set(game.seasonId, new Map());
+      const season = standingsBySeason.get(game.seasonId);
+      if (!season.has(key)) season.set(key, { id: key, wins: 0, losses: 0, ties: 0, pointsFor: 0, pointsAgainst: 0 });
+      const row = season.get(key);
+      if (game.result === 'W') row.wins += 1;
+      else if (game.result === 'L') row.losses += 1;
+      else if (game.result === 'T') row.ties += 1;
+      row.pointsFor += game.pf ?? 0;
+      row.pointsAgainst += game.pa ?? 0;
+    }
+  }
+  const lastPlaceBySeason = new Map(
+    [...standingsBySeason].map(([seasonId, rows]) => [seasonId, sortByStandings([...rows.values()]).at(-1).id])
+  );
 
   // Lineups: `${seasonId}|${franchise}` → week → row.
   const lineupsByTeamSeason = new Map();
@@ -256,7 +275,7 @@ export function indexLeague({
     regularScores,
     playedWeek,
     names,
-    teamsInSeason,
+    lastPlaceBySeason,
     lineupsByTeamSeason,
     hasLineups: lineups.length > 0,
     startersByFranchise,
@@ -725,7 +744,7 @@ function careerFacts(index, them, me, v = voiceOf(index, them, false), meRef = '
     }
 
     const lastPlace = completed
-      .filter((s) => Number.isFinite(s.finalRank) && s.finalRank === index.teamsInSeason.get(s.seasonId))
+      .filter((s) => index.lastPlaceBySeason.get(s.seasonId) === them)
       .map((s) => s.year);
     if (lastPlace.length) add('last-place', 85, `${v.Name} finished dead last in ${listYears(lastPlace)}.`);
   }

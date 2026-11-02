@@ -306,22 +306,24 @@ function aggregateTeamSeasons(sides, teamById, lineups) {
   return [...byTeam.values()].filter((a) => a.games > 0);
 }
 
-/** Per completed season: the top record, the scoring title, last place, the podium. */
-function markSeasonHonours(aggregates, teamById) {
-  const lastRankBySeason = new Map();
-  for (const team of teamById.values()) {
-    if (Number.isFinite(team.finalRank)) {
-      lastRankBySeason.set(team.seasonId, Math.max(lastRankBySeason.get(team.seasonId) ?? 0, team.finalRank));
-    }
-  }
-
-  for (const [seasonId, list] of groupBy(aggregates.filter((a) => a.completed), (a) => a.seasonId)) {
+/**
+ * Per completed season: the top record, the scoring title, last place, the
+ * podium.
+ *
+ * Last place is the bottom of the regular-season standings, by the same sort
+ * that names first: record, then points for. It is not the worst `final_rank`,
+ * which is decided by the consolation bracket. That called a 6-7 team last in
+ * 2020, and named the wrong team in four of the first six seasons.
+ */
+function markSeasonHonours(aggregates) {
+  for (const [, list] of groupBy(aggregates.filter((a) => a.completed), (a) => a.seasonId)) {
     const standing = (a) => ({
       id: a.teamId, wins: a.wins, losses: a.losses, ties: a.ties, pointsFor: a.pf, pointsAgainst: a.pa
     });
-    const leader = [...list].sort((x, y) => compareStandings(standing(x), standing(y)))[0];
+    const standings = [...list].sort((x, y) => compareStandings(standing(x), standing(y)));
+    const [leader] = standings;
+    const last = standings[standings.length - 1];
     const highPf = Math.max(...list.map((a) => a.pf));
-    const lastRank = lastRankBySeason.get(seasonId) ?? 0;
 
     for (const a of list) {
       a.madePlayoffs = Boolean(a.team.madePlayoffs);
@@ -330,7 +332,7 @@ function markSeasonHonours(aggregates, teamById) {
       a.topRecord = a === leader;
       a.topRecordFlop = a.topRecord && !a.finalist;
       a.scoringTitle = Math.abs(a.pf - highPf) < EPSILON;
-      a.lastPlace = lastRank > 0 && a.team.finalRank === lastRank;
+      a.lastPlace = a === last;
     }
   }
 }
@@ -879,7 +881,7 @@ export function buildRecordBook(source = {}) {
   markWeeks(sides);
 
   const aggregates = aggregateTeamSeasons(sides, teamById, source.lineups ?? []);
-  markSeasonHonours(aggregates, teamById);
+  markSeasonHonours(aggregates);
 
   const career = {};
   const season = {};

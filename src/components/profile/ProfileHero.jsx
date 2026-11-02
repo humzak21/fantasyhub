@@ -5,10 +5,13 @@ import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { NflTeamLogo } from '../ui/nfl-team-logo';
 import { PlayerAvatar } from '../ui/player-avatar';
+import { Skeleton } from '../ui/skeleton';
 import { TeamAvatar } from '../ui/team-identity';
+import { LogOutButton } from '../auth/LogOutButton.jsx';
 import { teamRosterPath } from '../teams/teamLink';
 import { formatYearRange } from '../history/utils/statFormatters';
 import { getTeamColor } from '../../utils/teamColors';
+import { EMPTY, formatOrdinal, formatPoints } from '../../utils/format';
 import { NFL_TEAM_NAMES, teamOf } from '../../../utils/playerImages.js';
 import { accentColor } from '../../../utils/profile/profileTheme.js';
 
@@ -47,6 +50,41 @@ function Favourite({ label, image, children }) {
   );
 }
 
+/** One figure of the season so far. A figure not known yet is the em dash. */
+function SeasonFigure({ label, value, loading }) {
+  return (
+    <div className="min-w-0">
+      <dt className="truncate text-xs text-muted-foreground">{label}</dt>
+      <dd className="mt-1 font-display text-2xl font-semibold leading-none tracking-[-0.01em] tabular sm:text-[28px]">
+        {loading ? <Skeleton className="h-7 w-14" /> : value ?? EMPTY}
+      </dd>
+    </div>
+  );
+}
+
+/** Where the team stands right now: power rank, division place, points for. */
+function SeasonFigures({ year, standing, loading, showDivision }) {
+  const divisionLabel = showDivision && standing?.divisionName ? `${standing.divisionName} rank` : 'Division rank';
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium text-muted-foreground">{year} season</p>
+      <dl className="grid max-w-md grid-cols-3 gap-3">
+        <SeasonFigure label="Power rank" value={standing?.powerRank ? `#${standing.powerRank}` : null} loading={loading} />
+        <SeasonFigure
+          label={divisionLabel}
+          value={standing?.divisionRank ? formatOrdinal(standing.divisionRank) : null}
+          loading={loading}
+        />
+        <SeasonFigure
+          label="Points for"
+          value={standing?.pointsFor != null ? formatPoints(standing.pointsFor) : null}
+          loading={loading}
+        />
+      </dl>
+    </div>
+  );
+}
+
 /**
  * The head of a profile: who this is, in their own words.
  *
@@ -60,10 +98,27 @@ function Favourite({ label, image, children }) {
  * @param {object} props.franchise
  * @param {object|null} props.profile - null for a viewer who sees masked names
  * @param {string|number|null} props.rosterTeamId - this season's team, for its roster link
+ * @param {{ year: number, standing: object|null, loading: boolean }|null} props.season -
+ *   the current season's figures; null for a franchise not playing in it
+ * @param {boolean} props.showDivision - may this viewer see the division's name
  * @param {'own'|'admin'|null} props.editing - what the Edit button says, if shown
+ * @param {boolean} props.showLogOut - this is the viewer's own profile
  * @param {Function} props.onEdit
  */
-export function ProfileHero({ team, name, teamName, franchise, profile, seasons, rosterTeamId, editing, onEdit }) {
+export function ProfileHero({
+  team,
+  name,
+  teamName,
+  franchise,
+  profile,
+  seasons,
+  rosterTeamId,
+  season = null,
+  showDivision = false,
+  editing,
+  showLogOut = false,
+  onEdit
+}) {
   const accent = accentColor(profile?.accentHue) ?? getTeamColor(team).value;
   const nflTeam = profile?.favoriteNflTeam;
   const player = profile?.favoritePlayerName;
@@ -98,7 +153,7 @@ export function ProfileHero({ team, name, teamName, franchise, profile, seasons,
             </div>
           </div>
 
-          {(editing || rosterTeamId) && (
+          {(editing || rosterTeamId || showLogOut) && (
             <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-stretch">
               {editing && (
                 <Button size="sm" onClick={onEdit}>
@@ -114,9 +169,19 @@ export function ProfileHero({ team, name, teamName, franchise, profile, seasons,
                   </Link>
                 </Button>
               )}
+              {showLogOut && <LogOutButton />}
             </div>
           )}
         </div>
+
+        {season && (
+          <SeasonFigures
+            year={season.year}
+            standing={season.standing}
+            loading={season.loading}
+            showDivision={showDivision}
+          />
+        )}
 
         {profile?.bio && (
           <p className="max-w-3xl whitespace-pre-line text-[15px] leading-relaxed text-foreground/90">

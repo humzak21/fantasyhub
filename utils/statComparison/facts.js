@@ -105,7 +105,6 @@ export function buildComparisonFacts(source = {}) {
     const season = seasonById.get(seasonId);
     const standing = [...list].sort(compareStandings);
     const highPf = Math.max(...list.map((t) => t.pointsFor));
-    const lastRank = Math.max(0, ...list.map((t) => teamById.get(t.id).finalRank).filter(Number.isFinite));
 
     standing.forEach((t, index) => {
       const team = teamById.get(t.id);
@@ -122,7 +121,9 @@ export function buildComparisonFacts(source = {}) {
         madePlayoffs: Boolean(team.madePlayoffs),
         playoffFinish: team.playoffFinish ?? null,
         finalRank: Number.isFinite(team.finalRank) ? team.finalRank : null,
-        lastPlace: lastRank > 0 && team.finalRank === lastRank,
+        // Regular-season standing, as the record book has it; a season still
+        // being played has no last place.
+        lastPlace: Boolean(season.isCompleted) && index === standing.length - 1,
         playoffGames: playoffs.length,
         playoffWins: playoffs.filter((side) => side.result === 'W').length,
         playoffLosses: playoffs.filter((side) => side.result === 'L').length,

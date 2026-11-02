@@ -207,6 +207,35 @@ describe('buildRecordBook', () => {
     expect(career('finals', 'fB')).toBe(1);
   });
 
+  // The consolation bracket decides final_rank, and last place is not its call.
+  it('calls the bottom of the regular season last, whatever the final rank says', () => {
+    const swapped = buildRecordBook({
+      ...SOURCE,
+      teams: SOURCE.teams.map((t) =>
+        t.id === 's24-C' ? { ...t, finalRank: 3 } : t.id === 's24-D' ? { ...t, finalRank: 4 } : t
+      )
+    });
+    const career = (key, id) => valueOf(recordRows(swapped, 'career', key), id);
+
+    expect(career('lastPlaces', 'fC')).toBe(1);
+    expect(career('lastPlaces', 'fD') ?? 0).toBe(0);
+  });
+
+  it('breaks a level record for last place on points for, as for first', () => {
+    const level = buildRecordBook({
+      ...SOURCE,
+      games: [
+        game(S24, 1, 'A', 120, 'C', 90), game(S24, 1, 'B', 120, 'D', 95),
+        game(S24, 2, 'A', 120, 'D', 80), game(S24, 2, 'B', 120, 'C', 92)
+      ]
+    });
+    const career = (key, id) => valueOf(recordRows(level, 'career', key), id);
+
+    // Both 0-2: C scored 182, D scored 175.
+    expect(career('lastPlaces', 'fD')).toBe(1);
+    expect(career('lastPlaces', 'fC') ?? 0).toBe(0);
+  });
+
   it('ranks every franchise on a rate, however few games or weeks it has', () => {
     // A: 2-0-1 in 2024 and a loss in 2025 — four games, no minimum to clear.
     expect(recordRows(book, 'career', 'winPct')).toHaveLength(4);

@@ -14,7 +14,7 @@ let ask;
 vi.mock('../../../../hooks/queries/index.js', () => ({ useAskLeague: () => ask, usePlayersByName: () => ({ data: undefined }) }));
 
 const { LeagueChatProvider, useLeagueChat, historyOf, UNHINGED_KEY } = await import('../LeagueChatContext.jsx');
-const { default: LeagueChat, AskHeaderButton, ChatLauncher, LeagueChatOffset } = await import('../LeagueChat.jsx');
+const { default: LeagueChat, ChatLauncher, LeagueChatOffset } = await import('../LeagueChat.jsx');
 
 const RECORD = {
   sql: 'select wins, losses from x',
@@ -45,7 +45,6 @@ const OpenWith = ({ question }) => {
 const renderChat = ({ enabled = true, extra = null } = {}) => render(
   <LeagueChatProvider enabled={enabled}>
     <LeagueChatOffset>
-      <AskHeaderButton />
       <ChatLauncher />
       {extra}
     </LeagueChatOffset>
@@ -79,15 +78,12 @@ describe('LeagueChat', () => {
     expect(screen.queryByRole('button', { name: /Ask og jits/ })).toBeNull();
     unmount();
     renderChat();
-    // The header button and the launcher: the round orange chat icon, and no
-    // text box anywhere until the chat is open.
-    const entries = screen.getAllByRole('button', { name: /Ask og jits/ });
-    expect(entries).toHaveLength(2);
-    for (const entry of entries) {
-      expect(entry).toHaveClass('rounded-full', 'bg-primary');
-      expect(entry.querySelector('svg.lucide-messages-square')).not.toBeNull();
-      expect(entry).toHaveAttribute('aria-expanded', 'false');
-    }
+    // One way in: the round orange chat icon, and no text box anywhere until
+    // the chat is open.
+    const launcher = screen.getByRole('button', { name: /Ask og jits/ });
+    expect(launcher).toHaveClass('rounded-full', 'bg-primary');
+    expect(launcher.querySelector('svg.lucide-messages-square')).not.toBeNull();
+    expect(launcher).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByRole('textbox')).toBeNull();
   });
 
@@ -99,7 +95,7 @@ describe('LeagueChat', () => {
       asOf: '2026 week 6'
     }]);
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     const topics = within(panel()).getByRole('group', { name: 'Topics' });
     expect(within(topics).getAllByRole('button').map((b) => b.textContent))
       .toEqual(['Rivalries', 'Records', 'Seasons', "Pick'ems", 'Trades', 'Takes']);
@@ -118,7 +114,7 @@ describe('LeagueChat', () => {
   it('keeps the data one tap away for an answer, with the week it is as of', async () => {
     ask = askWith([{ kind: 'answer', text: "You're 5-3.", queries: [RECORD], asOf: '2026 week 6' }]);
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     await userEvent.type(screen.getByLabelText('Your question'), 'my record?{Enter}');
     const toggle = within(panel()).getByRole('button', { name: /Show the data/ });
     expect(toggle).toHaveTextContent('As of 2026 week 6');
@@ -132,7 +128,7 @@ describe('LeagueChat', () => {
   it('shows the data outright when the chat could not word a checked answer', async () => {
     ask = askWith([{ kind: 'data', text: "Here's what the league's data says:", queries: [RECORD], asOf: null }]);
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     await userEvent.type(screen.getByLabelText('Your question'), 'my record?{Enter}');
     expect(within(panel()).queryByRole('button', { name: /Show the data/ })).toBeNull();
     expect(within(panel()).getByRole('table')).toBeInTheDocument();
@@ -144,7 +140,7 @@ describe('LeagueChat', () => {
       new Error("That's 30 questions today. Ask again tomorrow.")
     ]);
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     const box = screen.getByLabelText('Your question');
     expect(screen.getByRole('button', { name: 'Ask' })).toBeDisabled();
     await userEvent.type(box, 'my record vs Humza?{Enter}');
@@ -163,7 +159,7 @@ describe('LeagueChat', () => {
   it('starts over, and closes with the button or Escape', async () => {
     ask = askWith([{ kind: 'none', text: "I couldn't find that.", queries: [], asOf: null }]);
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     expect(screen.getByRole('button', { name: 'New conversation' })).toBeDisabled();
     await userEvent.type(screen.getByLabelText('Your question'), 'best QB?{Enter}');
     await userEvent.click(screen.getByRole('button', { name: 'New conversation' }));
@@ -172,7 +168,7 @@ describe('LeagueChat', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Close the chat' }));
     expect(screen.queryByRole('complementary')).toBeNull();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('complementary')).toBeNull();
   });
@@ -186,7 +182,7 @@ describe('LeagueChat', () => {
     expect(aside).toHaveClass('-translate-x-full', 'invisible', 'duration-500');
     expect(screen.queryByRole('complementary')).toBeNull();
 
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     expect(aside).toHaveAttribute('data-state', 'open');
     expect(aside).not.toHaveAttribute('inert');
     expect(aside).toHaveClass('translate-x-0', 'visible');
@@ -195,23 +191,23 @@ describe('LeagueChat', () => {
     expect(container.firstChild).toHaveClass('lg:pl-[400px]', 'transition-[padding]', 'duration-500');
   });
 
-  it('opens from the launcher too, and the header button toggles it with a ring while open', async () => {
+  it('the launcher toggles the panel, with a ring while open', async () => {
     renderChat();
-    const [header, launcher] = screen.getAllByRole('button', { name: /Ask og jits/ });
+    const launcher = screen.getByRole('button', { name: /Ask og jits/ });
     await userEvent.click(launcher);
     expect(panel()).toBeInTheDocument();
     expect(launcher).toHaveAttribute('aria-expanded', 'true');
-    expect(header).toHaveAccessibleName('Close Ask og jits');
-    expect(header).toHaveClass('ring-2');
-    await userEvent.click(header);
+    expect(launcher).toHaveAccessibleName('Close Ask og jits');
+    expect(launcher).toHaveClass('ring-2');
+    await userEvent.click(launcher);
     expect(screen.queryByRole('complementary')).toBeNull();
-    expect(header).not.toHaveClass('ring-2');
+    expect(launcher).not.toHaveClass('ring-2');
   });
 
   it('is a drawer on a phone, without raising the keyboard', async () => {
     window.innerWidth = 375;
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     const drawer = await screen.findByRole('dialog', { name: 'Ask og jits' });
     expect(within(drawer).getByRole('group', { name: 'Topics' })).toBeInTheDocument();
     expect(within(drawer).getByLabelText('Your question')).not.toHaveFocus();
@@ -221,7 +217,7 @@ describe('LeagueChat', () => {
   it('shows three typing dots while an answer is being worked out', async () => {
     ask = { isPending: true, mutate: vi.fn() };
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     const typing = within(panel()).getByRole('status', { name: 'og jits is typing' });
     expect(typing.querySelectorAll('.typing-dot')).toHaveLength(3);
   });
@@ -229,7 +225,7 @@ describe('LeagueChat', () => {
   it('on a phone, a swipe on the messages or the field never drags the drawer closed', async () => {
     window.innerWidth = 375;
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[1]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     const drawer = await screen.findByRole('dialog', { name: 'Ask og jits' });
     // A swipe on the messages or the field (putting the keyboard away) never closes it.
     expect(within(drawer).getByLabelText('Your question').closest('[data-vaul-no-drag]')).not.toBeNull();
@@ -245,7 +241,7 @@ describe('LeagueChat', () => {
     window.innerHeight = 667;
     try {
       renderChat();
-      await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[1]);
+      await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
       const drawer = await screen.findByRole('dialog', { name: 'Ask og jits' });
       expect(drawer.style.bottom).toBe('');
 
@@ -282,7 +278,7 @@ describe('the voice switch', () => {
       { kind: 'answer', text: 'Savage.', queries: [RECORD], asOf: null }
     ]);
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     const toggle = within(panel()).getByRole('switch', { name: /Unhinged/ });
     expect(toggle).toHaveAttribute('aria-checked', 'false');
 
@@ -299,13 +295,13 @@ describe('the voice switch', () => {
 
   it('remembers the choice in this browser, and opens unhinged next time', async () => {
     const { unmount } = renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     await userEvent.click(within(panel()).getByRole('switch', { name: /Unhinged/ }));
     expect(localStorage.getItem(UNHINGED_KEY)).toBe('1');
     unmount();
 
     renderChat();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Ask og jits' })[0]);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask og jits' }));
     const toggle = within(panel()).getByRole('switch', { name: /Unhinged/ });
     expect(toggle).toHaveAttribute('aria-checked', 'true');
     await userEvent.click(toggle);

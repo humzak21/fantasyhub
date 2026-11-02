@@ -15,7 +15,9 @@ import {
   useNotificationInbox,
   countUnread,
   useTakesBoard,
-  useTakesSeen
+  useTakesSeen,
+  useFranchiseProfiles,
+  useMyFranchiseId
 } from './hooks/queries/index.js';
 import { arePickEmsOpen, areAwardsReleased } from './utils/seasonConfig.js';
 import { useViewer } from './src/contexts/ViewerContext.jsx';
@@ -41,9 +43,9 @@ import PowerRankingsTable from './src/components/power-rankings/PowerRankingsTab
 import InlineWeekNavigator from './src/components/week-controls/InlineWeekNavigator.jsx';
 
 import StandingsDrawer, { StandingsTrigger } from './src/components/standings/StandingsDrawer.jsx';
-import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
+import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, ProfileAvatarLink, SettingsLink } from './src/components/navigation/ResponsiveNavigation.jsx';
 import PageContainer from './src/components/layout/PageContainer.jsx';
-import LeagueChat, { AskHeaderButton, ChatLauncher, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
+import LeagueChat, { ChatLauncher, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
 import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
@@ -204,6 +206,9 @@ const FantasyFootballApp = () => {
   // and no tab could be linked to or survive a refresh.
   const navigate = useNavigate();
   const { tab, franchiseId: profileFranchiseId } = useParams();
+  const { data: franchiseProfiles } = useFranchiseProfiles();
+  const { data: myFranchiseId } = useMyFranchiseId();
+  const viewerAvatarUrl = franchiseProfiles?.[myFranchiseId]?.avatarUrl ?? null;
   const activeTab = tab || (profileFranchiseId ? PROFILE_TAB : DEFAULT_TAB);
   const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
 
@@ -309,8 +314,10 @@ const FantasyFootballApp = () => {
       // never one tap further away inside the phone tab bar's Menu.
       { id: 'alerts', label: 'Alerts', icon: Bell, requiresSeason: false, requiresAuth: false, customAccess: isAuthenticated, inNav: false },
       // A franchise's page, opened by every team name and by the Menu. Members
-      // only, like Takes. It carries its own season and week pickers.
-      { id: PROFILE_TAB, label: 'Profile', icon: UserRound, requiresSeason: false, requiresAuth: false, customAccess: isApproved, inNav: false, weekAware: false }
+      // only, like Takes. The header's week control stays, as on Home, and
+      // changes nothing here: the page is present tense, and its week-by-week
+      // section has its own pickers.
+      { id: PROFILE_TAB, label: 'Profile', icon: UserRound, requiresSeason: false, requiresAuth: false, customAccess: isApproved, inNav: false }
     ];
   }, [isApproved, isAdmin, awardsUnlockStatus, user, isTeamOwner, seasonConfig, hasViewableAwardResults, isAuthenticated]);
 
@@ -529,9 +536,6 @@ const FantasyFootballApp = () => {
                   tabs. */}
               <div className="flex shrink-0 items-center gap-1">
                 {isApproved && <NewsletterLink className="hidden lg:flex" />}
-                {/* Ask og jits, from lg. Below lg it is the round launcher
-                    above the tab bar. */}
-                <AskHeaderButton className="hidden lg:flex" />
                 {isAuthenticated && (
                   <AlertsLink active={activeTab === 'alerts'} badgeCount={unreadAlerts} />
                 )}
@@ -544,7 +548,18 @@ const FantasyFootballApp = () => {
                   />
                 )}
                 <div className={cn(user && 'hidden lg:block')}>
-                  <LoginDropdown showProfile={isApproved} />
+                  {/* A member's avatar goes straight to their profile, which
+                      is where Log out lives. Anyone else has no profile, so
+                      they keep the dropdown. */}
+                  {isApproved ? (
+                    <ProfileAvatarLink
+                      user={user}
+                      avatarUrl={viewerAvatarUrl}
+                      active={activeTab === PROFILE_TAB && profileFranchiseId === myFranchiseId}
+                    />
+                  ) : (
+                    <LoginDropdown />
+                  )}
                 </div>
               </div>
             </div>
@@ -787,6 +802,7 @@ const FantasyFootballApp = () => {
             user: isAuthenticated ? user : null,
             showNewsletter: isApproved,
             showProfile: isApproved,
+            avatarUrl: viewerAvatarUrl,
             settingsBadgeCount: pendingApprovals,
             settingsBadgeLabel,
             onSignOut: signOut

@@ -4,18 +4,9 @@ import { ChevronRight, ExternalLink, LogOut, Newspaper, Settings, UserRound } fr
 
 import { cn } from '../../lib/utils';
 import { getUserDisplayName } from '../../utils/displayNameUtils.js';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Drawer, DrawerBody, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '../ui/drawer';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../ui/alert-dialog';
-import { buttonVariants } from '../ui/button';
+import { LogOutDialog } from '../auth/LogOutButton.jsx';
 import { NEWSLETTER_URL } from './navConstants.js';
 
 const ACCOUNT_CARD =
@@ -97,6 +88,7 @@ const ROW_IDLE = 'text-foreground hover:bg-accent/50 active:bg-accent/60';
  * @param {object|null} user - the signed-in account, or null
  * @param {boolean} showNewsletter - approved members only, like the members-only tabs
  * @param {boolean} showProfile - approved members only: profiles are theirs
+ * @param {string|null} avatarUrl - the viewer's picture, in place of their initial
  * @param {number} settingsBadgeCount - the admin's pending approvals
  * @param {string} [settingsBadgeLabel]
  * @param {Function} [onSignOut]
@@ -109,6 +101,7 @@ export function TabBarMenu({
   user = null,
   showNewsletter = false,
   showProfile = false,
+  avatarUrl = null,
   settingsBadgeCount = 0,
   settingsBadgeLabel,
   onSignOut,
@@ -136,12 +129,10 @@ export function TabBarMenu({
                 anyone else has no profile to open, so it is only who they are. */}
             {user && (
               <AccountCard to={showProfile ? '/profile' : null} onClick={close}>
-                <span
-                  aria-hidden="true"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold text-foreground"
-                >
-                  {initial}
-                </span>
+                <Avatar aria-hidden="true" className="h-10 w-10">
+                  {avatarUrl && <AvatarImage src={avatarUrl} alt="" referrerPolicy="no-referrer" className="object-cover" />}
+                  <AvatarFallback className="text-sm font-semibold text-foreground">{initial}</AvatarFallback>
+                </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-foreground">{name}</p>
                   {user.email && <p className="truncate text-xs text-muted-foreground">{user.email}</p>}
@@ -241,25 +232,7 @@ export function TabBarMenu({
         </DrawerContent>
       </Drawer>
 
-      <AlertDialog open={confirmLogout} onOpenChange={setConfirmLogout}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Log out?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You will need to sign in again to make your picks and see the members-only tabs.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={buttonVariants({ variant: 'destructive' })}
-              onClick={() => onSignOut?.()}
-            >
-              Log out
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <LogOutDialog open={confirmLogout} onOpenChange={setConfirmLogout} onConfirm={() => onSignOut?.()} />
     </>
   );
 }
