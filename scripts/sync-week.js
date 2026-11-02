@@ -248,6 +248,7 @@ export async function syncPlayerStats(seasonId, weekNumber, espnMatchups) {
   return {
     upserted: result.upserted,
     playersCreated: result.playersCreated,
+    removed: result.removed ?? 0,
     errors: result.skipped
   };
 }
@@ -268,7 +269,8 @@ export async function syncPlayerStats(seasonId, weekNumber, espnMatchups) {
  * One extra ESPN fetch, on Tuesdays only, and both writes are the same
  * idempotent upserts the current week uses — so a re-run replaces rather than
  * duplicates, and the projections are overwritten by the results they were
- * guesses at.
+ * guesses at. A player dropped since the projection was written is not in this
+ * payload, so his row is removed here (`findLeftBehindRows`).
  *
  * Only when the week was derived: an explicit `node sync-week.js 5` means week
  * 5, and quietly rewriting week 4 as well would be a surprise.
@@ -796,7 +798,8 @@ export async function syncWeek(argv = []) {
         steps.playerStats = await syncPlayerStats(seasonId, weekNumber, weekData.matchups);
         console.log(
           `🧍 player stats: ${steps.playerStats.upserted} rows, ` +
-          `${steps.playerStats.playersCreated} players created`
+          `${steps.playerStats.playersCreated} players created, ` +
+          `${steps.playerStats.removed} left-behind rows removed`
         );
         for (const miss of steps.playerStats.errors) {
           console.warn(`⚠️  player ${miss.espnPlayerId ?? '?'}: ${miss.reason ?? miss.error}`);
@@ -825,7 +828,8 @@ export async function syncWeek(argv = []) {
         console.log(
           `⏪ week ${steps.finalizePrev.week}: ` +
           `${steps.finalizePrev.scores.updated} scores updated, ` +
-          `${steps.finalizePrev.playerStats.upserted} player rows`
+          `${steps.finalizePrev.playerStats.upserted} player rows, ` +
+          `${steps.finalizePrev.playerStats.removed} left-behind rows removed`
         );
       } catch (error) {
         steps.finalizePrev = { failed: error.message };

@@ -8,7 +8,8 @@
  * calculator's roster components are guesses about the present applied to the
  * past.
  *
- * Written only by `scripts/sync-week.js`. Read by `services/db/rankings.js`.
+ * Written only by `scripts/sync-week.js`, which leaves each week holding exactly
+ * the rows ESPN reports for it. Read by `services/db/rankings.js`.
  *
  * Every function takes the shared `ctx` ({ client, seasonsCache, activeSeasonId })
  * as its first argument; see `./context.js`.
@@ -148,11 +149,104 @@ function teamWeekLineups(seasonId, week, mappedRows, teamIndex) {
 }
 
 /**
- * Write one week of roster scoring.
+ * The stored rows of a week that ESPN's payload for it no longer reports.
+ *
+ * The sync writes a week twice: its rosters and projections on the Tuesday it
+ * opens, then its results on the Tuesday after. An upsert can only touch the
+ * players it names, so a player dropped between the two kept Tuesday's row, a
+ * starter with a projection and no result in a lineup ESPN says he was never
+ * in. Through week 7 of 2026 that was 190 rows, and 56 finished team-weeks read
+ * as projections because of them.
+ *
+ * Decided from everything ESPN reported, not from what the upsert accepted, so
+ * a row skipped for its own reasons is never mistaken for one ESPN dropped. The
+ * players are compared across the whole payload: one reported on another team
+ * has been moved by the upsert, not left behind. Only a team the payload covers
+ * can lose a row, because a side with no roster is ESPN not knowing, and a
+ * stored row with no ESPN id cannot be compared, so it stays.
+ *
+ * Reads only, so the repair script can ask the same question without a write.
+ *
+ * @returns {Promise<object[]>} the rows, camelCased, each with `.player`
+ */
+export async function findLeftBehindRows(ctx, seasonId, week, mappedRows = [], teams = []) {
+  try {
+    const teamIndex = buildTeamIndex(teams);
+    const reportedTeams = new Set();
+    const reportedPlayers = new Set();
+
+    for (const row of mappedRows) {
+      const team = teamIndex.find(row.espnTeamId, null);
+      if (!team) continue;
+      reportedTeams.add(team.id);
+      reportedPlayers.add(row.espnPlayerId);
+    }
+
+    if (reportedTeams.size === 0) return [];
+
+    const { data, error } = await ctx.client
+      .from('player_week_stats')
+      .select(`
+        id,
+        week,
+        team_id,
+        espn_player_id,
+        roster_slot,
+        started,
+        actual_points,
+        projected_points,
+        updated_at,
+        player:players ( name )
+      `)
+      .eq('season_id', seasonId)
+      .eq('week', week);
+
+    if (error) throw error;
+
+    return (data || [])
+      .filter(
+        (row) =>
+          reportedTeams.has(row.team_id) &&
+          row.espn_player_id != null &&
+          !reportedPlayers.has(row.espn_player_id)
+      )
+      .map(formatFromDatabase);
+  } catch (error) {
+    throwDbError(error, 'Find left-behind player week rows');
+  }
+}
+
+/**
+ * Delete rows by id, and report how many actually went: a delete that RLS
+ * refuses matches no rows and reports success, so `ids.length` would be a guess.
+ */
+export async function deletePlayerWeekRows(ctx, ids = []) {
+  try {
+    if (ids.length === 0) return 0;
+
+    const { data, error } = await ctx.client
+      .from('player_week_stats')
+      .delete()
+      .in('id', ids)
+      .select('id');
+
+    if (error) throw error;
+
+    return (data || []).length;
+  } catch (error) {
+    throwDbError(error, 'Delete player week rows');
+  }
+}
+
+/**
+ * Write one week of roster scoring, leaving exactly the rows ESPN reports.
  *
  * Idempotent: the unique key is (season, week, player), so re-running a week
- * rewrites the same rows rather than doubling them. That is what makes a failed
- * sync fixable by running it again, the promise every other step here makes.
+ * rewrites the same rows rather than doubling them, and a row ESPN no longer
+ * reports is removed (`findLeftBehindRows`). That is what makes a failed sync
+ * fixable by running it again, the promise every other step here makes. The
+ * removal comes last, and a payload that somehow lost a player costs one row
+ * until the next run writes it back.
  *
  * Also writes the week's `team_week_lineups` — starter against optimal points,
  * per team — in the same call, for every team whose week is settled. They are
@@ -163,7 +257,7 @@ function teamWeekLineups(seasonId, week, mappedRows, teamIndex) {
  * @param {number} week
  * @param {Array}  mappedRows from `services/espnPlayerStatsMapper.js`
  * @param {Array}  teams      the season's teams, for ESPN id → team id
- * @returns {Promise<{upserted: number, playersCreated: number, skipped: Array}>}
+ * @returns {Promise<{upserted: number, playersCreated: number, skipped: Array, removed?: number}>}
  */
 export async function upsertPlayerWeekStats(ctx, seasonId, week, mappedRows = [], teams = []) {
   try {
@@ -251,12 +345,15 @@ export async function upsertPlayerWeekStats(ctx, seasonId, week, mappedRows = []
       if (lineupError) throw lineupError;
     }
 
+    const leftBehind = await findLeftBehindRows(ctx, seasonId, week, mappedRows, teams);
+    const removed = await deletePlayerWeekRows(ctx, leftBehind.map((row) => row.id));
+
     log.info(
       `week ${week}: ${rows.length} player rows, ${created} players created, ` +
-      `${lineups.length} settled lineups`
+      `${lineups.length} settled lineups, ${removed} left-behind rows removed`
     );
 
-    return { upserted: rows.length, playersCreated: created, skipped, lineups: lineups.length };
+    return { upserted: rows.length, playersCreated: created, skipped, lineups: lineups.length, removed };
   } catch (error) {
     throwDbError(error, 'Upsert player week stats');
   }
