@@ -23,6 +23,7 @@ import {
   recordRows,
   recordSetYear,
   streakRuns,
+  tradePartnersOf,
   tradesForRow
 } from '../recordBook/index.js';
 
@@ -322,6 +323,14 @@ describe('buildRecordBook', () => {
 
     // The rows that are not trades make no partners either.
     expect(recordRows(tradeBook, 'career', 'tradePartners')).toHaveLength(2);
+
+    // A franchise's partners are the same trades, totalled per partner.
+    expect(tradePartnersOf(tradeBook, 'fA')).toEqual([
+      { franchiseId: 'fC', trades: 1, lastYear: 2025 },
+      { franchiseId: 'fB', trades: 1, lastYear: 2024 }
+    ]);
+    expect(tradePartnersOf(tradeBook, 'fB')).toEqual([{ franchiseId: 'fA', trades: 1, lastYear: 2024 }]);
+    expect(tradePartnersOf(tradeBook, 'nobody')).toEqual([]);
   });
 
   it('calls the current season and the one before it recent', () => {

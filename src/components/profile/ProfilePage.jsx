@@ -19,6 +19,7 @@ import {
   useSeasonConfig,
   useStandings
 } from '../../../hooks/queries/index.js';
+import { faabOf } from '../../utils/format';
 import { currentSeasonStanding } from '../../../utils/profile/seasonStanding.js';
 import { franchiseIdOf } from '../../../utils/viewerTeam.js';
 import { LogOutButton } from '../auth/LogOutButton.jsx';
@@ -29,6 +30,7 @@ import {
 } from '../history/utils/privacyHelpers';
 import FranchiseProfile from '../history/franchises/FranchiseProfile';
 import { FranchiseRivalries } from './FranchiseRivalries';
+import { FranchiseTrades } from './FranchiseTrades';
 import { ProfileHero } from './ProfileHero';
 import { TrophyCase } from './TrophyCase';
 import { profilePath } from './profileLink';
@@ -189,6 +191,7 @@ export function ProfilePage() {
                   rankings: rankings.data,
                   standings: standings.data
                 }),
+                faabRemaining: faabOf(currentTeam),
                 loading: rankings.isLoading || standings.isLoading
               }
             : null
@@ -216,6 +219,7 @@ export function ProfilePage() {
         user={user}
         isAdmin={isAdmin}
         teamOwnerNames={teamOwnerNames}
+        trades={<FranchiseTrades franchiseId={franchiseId} franchises={franchises} />}
         rivalries={
           <FranchiseRivalries
             franchiseId={franchiseId}

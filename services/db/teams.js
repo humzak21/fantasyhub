@@ -171,6 +171,8 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
       // Only the rosters step reads the logo. The schedule import's teams carry
       // none, and a run that did not look must not clear what one that did found.
       const logoUrl = espnTeam.logoUrl ?? null;
+      // The same: only the rosters step knows the budget.
+      const faabRemaining = espnTeam.faabRemaining ?? null;
 
       if (!name) {
         errors.push({ espnTeamId: espnTeam.teamId, error: 'ESPN returned no team name' });
@@ -186,7 +188,8 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
           owner,
           espn_team_id: espnTeam.teamId,
           abbreviation,
-          ...(logoUrl ? { espn_logo_url: logoUrl } : {})
+          ...(logoUrl ? { espn_logo_url: logoUrl } : {}),
+          ...(faabRemaining != null ? { faab_remaining: faabRemaining } : {})
         });
 
         if (error) {
@@ -202,6 +205,7 @@ export async function upsertTeamsFromESPN(ctx, seasonId, espnTeams = []) {
       if (abbreviation !== (match.abbreviation ?? null)) patch.abbreviation = abbreviation;
       if (match.espn_team_id == null) patch.espn_team_id = espnTeam.teamId;
       if (logoUrl && logoUrl !== match.espn_logo_url) patch.espn_logo_url = logoUrl;
+      if (faabRemaining != null && faabRemaining !== match.faab_remaining) patch.faab_remaining = faabRemaining;
 
       // Filling a blank is not overwriting a value.
       if (owner && !match.owner?.trim()) {

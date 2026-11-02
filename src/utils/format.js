@@ -41,6 +41,16 @@ export function formatPoints(value, decimals = 1) {
   });
 }
 
+/** A team's FAAB left, in either of the shapes a team row arrives in. */
+export function faabOf(team) {
+  return team?.faabRemaining ?? team?.faab_remaining ?? null;
+}
+
+/** FAAB is whole dollars: "$13". Unknown is the em dash, and $0 is a real figure. */
+export function formatFaab(value) {
+  return isMissing(value) ? EMPTY : `$${Number(value)}`;
+}
+
 /** Decimal places a fantasy score is recorded to. */
 export const SCORE_DECIMALS = 2;
 

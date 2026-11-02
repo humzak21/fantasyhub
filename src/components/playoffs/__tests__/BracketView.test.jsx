@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 
 import { BracketView } from '../BracketView.jsx';
 import { resolveUpperBracket } from '../../../../utils/projectedBracket.js';
@@ -54,5 +54,28 @@ describe('BracketView', () => {
     render(<BracketView bracket={resolveUpperBracket({ games, teams })} nameOf={nameOf} />);
     expect(screen.getByText('110.00')).toBeInTheDocument();
     expect(screen.getAllByText('Masked t1').length).toBeGreaterThan(2);
+  });
+
+  it('stays a picture unless it is told what opening does', () => {
+    render(<BracketView bracket={resolveUpperBracket({ teams })} nameOf={nameOf} />);
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('opens a matchup with its round', () => {
+    const onOpenMatchup = vi.fn();
+    render(<BracketView bracket={resolveUpperBracket({ teams })} nameOf={nameOf} onOpenMatchup={onOpenMatchup} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Box score: Masked t3 vs Masked t6' }));
+
+    const [matchup, round] = onOpenMatchup.mock.calls[0];
+    expect(matchup.id).toBe('r1-3v6');
+    expect(round.week).toBe(15);
+  });
+
+  it('opens a side with one team, and not a slot with none', () => {
+    render(<BracketView bracket={resolveUpperBracket({ teams })} nameOf={nameOf} onOpenMatchup={vi.fn()} />);
+
+    expect(screen.getAllByRole('button', { name: 'Box score: Masked t1' })).toHaveLength(2); // the bye, the semifinal
+    expect(screen.getByText('Semifinal 1 winner').closest('button')).toBeNull();
   });
 });

@@ -2742,6 +2742,7 @@ export type Database = {
           division_id: number | null
           draft_picks: Json | null
           espn_logo_url: string | null
+          faab_remaining: number | null
           espn_team_id: number | null
           final_rank: number | null
           franchise_id: string | null
@@ -2794,6 +2795,7 @@ export type Database = {
           division_id?: number | null
           draft_picks?: Json | null
           espn_logo_url?: string | null
+          faab_remaining?: number | null
           espn_team_id?: number | null
           final_rank?: number | null
           franchise_id?: string | null
@@ -2846,6 +2848,7 @@ export type Database = {
           division_id?: number | null
           draft_picks?: Json | null
           espn_logo_url?: string | null
+          faab_remaining?: number | null
           espn_team_id?: number | null
           final_rank?: number | null
           franchise_id?: string | null

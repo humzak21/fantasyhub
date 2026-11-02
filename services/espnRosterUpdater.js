@@ -15,6 +15,26 @@ export function espnLogoUrl(logo) {
   return url.startsWith('https://') ? url : null;
 }
 
+/**
+ * What a team has left of its FAAB budget, or null when the league has none.
+ *
+ * ESPN's own two figures, not the budget minus `transactions.faab_spent`. That
+ * column sums the winning bids, and ESPN's `transactionCounter` nets out
+ * something the transaction feed does not show: on 2026-11-02 the bids put a
+ * team at $114 of $100 while ESPN had them at $87 and was still accepting their
+ * bids. `acquisitionBudgetSpent` is the number ESPN enforces, so it is the one
+ * a member can actually bid against. The two are compared in
+ * 20261103140000_faab_ledger.sql.
+ */
+export function espnFaabRemaining(team, settings) {
+  const acquisition = settings?.acquisitionSettings;
+  if (!acquisition?.isUsingAcquisitionBudget) return null;
+  const budget = acquisition.acquisitionBudget;
+  const spent = team?.transactionCounter?.acquisitionBudgetSpent;
+  if (!Number.isFinite(budget) || !Number.isFinite(spent)) return null;
+  return budget - spent;
+}
+
 export class ESPNRosterUpdater {
   constructor(leagueId, seasonYear, espnS2 = null, swid = null) {
     this.leagueId = leagueId;
@@ -106,7 +126,8 @@ export class ESPNRosterUpdater {
       teamName: espnTeamName(team, team.id),
       abbreviation: team.abbrev ?? null,
       ownerName: extractOwnerInfo(team, members).ownerName,
-      logoUrl: espnLogoUrl(team.logo)
+      logoUrl: espnLogoUrl(team.logo),
+      faabRemaining: espnFaabRemaining(team, leagueData?.settings)
     }));
   }
 

@@ -20,6 +20,7 @@ import {
 import { moveUserTeamToFirst } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getPositionColor } from '../../utils/positionColors';
+import { faabOf, formatFaab } from '../../utils/format';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { toast } from 'sonner';
 import PageHeader from '../layout/PageHeader';
@@ -493,6 +494,13 @@ const TeamsAndRosters = ({
                       />
 
                     </div>
+
+                    {faabOf(team) != null && (
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs font-medium text-muted-foreground">FAAB left</p>
+                        <p className="text-sm font-semibold tabular">{formatFaab(faabOf(team))}</p>
+                      </div>
+                    )}
 
                     {/* Actions */}
                     {isAuthenticated && (

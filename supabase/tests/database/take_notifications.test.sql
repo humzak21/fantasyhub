@@ -1,8 +1,9 @@
 -- Take notifications: what `20261007120000_take_notifications.sql` makes true.
 --
 --   * the two take topics are accepted, and nothing else is;
---   * a post, a Hell Yeah and a Hell Nah each dispatch notify-takes.yml —
---     once per statement — and an edit or a withdrawal does not;
+--   * a post, an author's reword, a Hell Yeah and a Hell Nah each dispatch
+--     notify-takes.yml — once per statement — and a withdrawal or an admin's
+--     correction does not;
 --   * a dispatch that fails never refuses the take;
 --   * notification_log claims a take event once, and every row is keyed;
 --   * no member can call the dispatcher.
@@ -14,7 +15,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(13);
+select plan(15);
 
 create temp table dispatches (workflow text) on commit drop;
 
@@ -30,7 +31,10 @@ $$;
 
 insert into auth.users (id, email)
 values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'author@example.com'),
-       ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'backer@example.com');
+       ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'backer@example.com'),
+       ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'admin@example.com');
+
+insert into public.league_admins (user_id) values ('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
 
 insert into public.member_approvals (user_id, status)
 values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'approved'),
@@ -59,6 +63,12 @@ select throws_ok(
   '23514',
   null,
   'an unknown take topic is refused'
+);
+
+select is(
+  public.save_push_subscription('https://web.push.apple.com/backer', 'key', 'secret', array['pickems_wins']),
+  array['pickems_wins']::text[],
+  'a member can ask to hear about their wins'
 );
 
 reset role;
@@ -124,7 +134,18 @@ where id = '22222222-2222-4222-8222-222222222222';
 
 reset role;
 
-select is((select count(*)::int from pg_temp.dispatches), 3, 'rewording a take does not');
+select is((select count(*)::int from pg_temp.dispatches), 4, 'the author rewording a take dispatches it');
+
+set local request.jwt.claims to
+  '{"role":"authenticated","sub":"dddddddd-dddd-4ddd-8ddd-dddddddddddd","email":"admin@example.com"}';
+set local role authenticated;
+
+update public.takes set body = 'Nobody goes 13-1, either'
+where id = '22222222-2222-4222-8222-222222222222';
+
+reset role;
+
+select is((select count(*)::int from pg_temp.dispatches), 4, 'an admin correcting it does not');
 
 -- A missing token, a pg_net outage: the take must still post.
 create or replace function private.dispatch_github_workflow(p_workflow text)

@@ -59,14 +59,14 @@ describe('NotificationsCard', () => {
     withState('off');
     render(<NotificationsCard />);
     await userEvent.click(screen.getByRole('button', { name: 'Turn on notifications' }));
-    expect(hook.turnOn.mutate).toHaveBeenCalledWith(['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
+    expect(hook.turnOn.mutate).toHaveBeenCalledWith(['pickems_open', 'pickems_closing', 'pickems_wins', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
   });
 
   it('toggles one topic and keeps the others', async () => {
-    withState('on', ['pickems_open', 'pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
+    withState('on', ['pickems_open', 'pickems_closing', 'pickems_wins', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
     render(<NotificationsCard />);
     await userEvent.click(screen.getByRole('switch', { name: "Pick'ems are open" }));
-    expect(hook.setTopics.mutate).toHaveBeenCalledWith(['pickems_closing', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
+    expect(hook.setTopics.mutate).toHaveBeenCalledWith(['pickems_closing', 'pickems_wins', 'takes_new', 'takes_reactions', 'takes_stakes', 'matchup_facts', 'taunts']);
   });
 
   it('switches daily matchup facts off on their own', async () => {
@@ -82,7 +82,7 @@ describe('NotificationsCard', () => {
     render(<NotificationsCard />);
     const takes = screen.getByRole('region', { name: 'Takes' });
     expect(within(takes).getAllByRole('switch')).toHaveLength(3);
-    expect(within(screen.getByRole('region', { name: "Pick'ems" })).getAllByRole('switch')).toHaveLength(2);
+    expect(within(screen.getByRole('region', { name: "Pick'ems" })).getAllByRole('switch')).toHaveLength(3);
 
     await userEvent.click(within(takes).getByRole('switch', { name: 'Hell Yeahs and Hell Nahs on your takes' }));
     expect(hook.setTopics.mutate).toHaveBeenCalledWith(['pickems_open', 'takes_new']);

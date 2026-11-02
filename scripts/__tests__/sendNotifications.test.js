@@ -6,8 +6,8 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-import { deliver, inboxRows, sendDueNotifications, sendMatchupFacts, sendTakeNotifications, sendTauntNotifications, testPayload, TITLE_FITS } from '../send-notifications.js';
-import { TOPICS } from '../../services/notificationPlanner.js';
+import { deliver, inboxRows, sendDueNotifications, sendMatchupFacts, sendTakeNotifications, sendTauntNotifications, sendWinnerNotifications, testPayload, TITLE_FITS } from '../send-notifications.js';
+import { TOPICS, WIN_KINDS } from '../../services/notificationPlanner.js';
 
 const WEEK = {
   id: 'w5',
@@ -117,6 +117,22 @@ describe('sendTakeNotifications', () => {
     return { db, calls };
   }
 
+  it('claims the edits a plan speaks for, so the next run does not repeat them', async () => {
+    const { db, calls } = takeDb({
+      events: [event('e1', 'edited', 'author'), event('e2', 'edited', 'author')],
+      devices: [takeDevice('author'), takeDevice('sam')]
+    });
+    const send = vi.fn(async () => ({ ok: true }));
+
+    await sendTakeNotifications({ db, now: NOW, send });
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(calls.claimed.map((row) => [row.takeEventId, row.kind])).toEqual([
+      ['e2', TOPICS.takesNew],
+      ['e1', TOPICS.takesNew]
+    ]);
+  });
+
   it('claims each event by its id and sends it to the right people', async () => {
     const { db, calls } = takeDb({
       events: [event('e1', 'posted', 'author'), event('e2', 'backed', 'sam')],
@@ -176,6 +192,69 @@ describe('sendTakeNotifications', () => {
     const result = await sendTakeNotifications({ db, now: NOW, dryRun: true, send: vi.fn() });
     expect(calls.claimed).toEqual([]);
     expect(result.sent[0]).toMatchObject({ kind: TOPICS.takesNew, recipients: 1, dryRun: true });
+  });
+});
+
+describe('sendWinnerNotifications', () => {
+  const winDevice = (userId) => ({ ...device(userId), topics: [TOPICS.pickemsWins] });
+  const score = (userId, totalPoints) => ({ userId, totalPoints, correctPicks: totalPoints, decidedPicks: 7 });
+
+  function winnerDb({ scores, devices = [], claim, inputs = {} }) {
+    const { db, calls } = fakeDb({ devices, claim });
+    db.notifications.getWinnerNotificationInputs = vi.fn(async () => ({
+      season: { id: 's26', year: 2026 },
+      week: 8,
+      weekly: { week: 8, scores },
+      tourney: null,
+      bracket: null,
+      sent: new Set(),
+      excludedUserIds: new Set(),
+      ...inputs
+    }));
+    return { db, calls };
+  }
+
+  it('claims the week, pushes to the winners and keeps it in their Alerts', async () => {
+    const { db, calls } = winnerDb({
+      scores: [score('a', 6), score('b', 6), score('c', 2)],
+      devices: [winDevice('a'), winDevice('c')]
+    });
+    const send = vi.fn(async () => ({ ok: true, statusCode: 201 }));
+
+    const result = await sendWinnerNotifications({ db, send });
+
+    expect(calls.claimed).toEqual([expect.objectContaining({ kind: WIN_KINDS.week, seasonId: 's26', week: 8, recipients: 1 })]);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0][0].userId).toBe('a');
+    // `b` has no device and still won.
+    expect(calls.inboxed.map((row) => row.userId)).toEqual(['a', 'b']);
+    expect(result.sent[0]).toMatchObject({ winners: 2, delivered: 1 });
+  });
+
+  it('sends nothing another run claimed first', async () => {
+    const { db, calls } = winnerDb({ scores: [score('a', 6)], devices: [winDevice('a')], claim: null });
+    const send = vi.fn();
+
+    await sendWinnerNotifications({ db, send });
+
+    expect(send).not.toHaveBeenCalled();
+    expect(calls.inboxed).toEqual([]);
+  });
+
+  it('claims and sends nothing on a dry run', async () => {
+    const { db, calls } = winnerDb({ scores: [score('a', 6)], devices: [winDevice('a')] });
+    const send = vi.fn();
+
+    const result = await sendWinnerNotifications({ db, dryRun: true, send });
+
+    expect(calls.claimed).toEqual([]);
+    expect(send).not.toHaveBeenCalled();
+    expect(result.sent[0]).toMatchObject({ dryRun: true, winners: 1 });
+  });
+
+  it('says so when there is nobody to tell', async () => {
+    const { db } = winnerDb({ scores: [], inputs: { weekly: null } });
+    expect(await sendWinnerNotifications({ db })).toMatchObject({ reason: 'no winners to tell', sent: [] });
   });
 });
 

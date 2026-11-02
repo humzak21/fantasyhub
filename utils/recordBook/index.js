@@ -745,6 +745,29 @@ export function tradesForRow(book, row) {
     .map((trade) => ({ ...trade, sides: [...trade.sides].sort((a, b) => place(a) - place(b)) }));
 }
 
+/**
+ * Everyone a franchise has traded with, and how often, most first. Counted off
+ * the same `book.trades` the partner record is, so a three-team trade is one
+ * trade with each of the two others there too.
+ *
+ * @param {object} book from `buildRecordBook`
+ * @param {string} franchiseId
+ * @returns {Array<{ franchiseId: string, trades: number, lastYear: number }>}
+ */
+export function tradePartnersOf(book, franchiseId) {
+  const partners = new Map();
+  for (const trade of tradesForRow(book, { franchiseId })) {
+    for (const side of trade.sides) {
+      if (side.franchiseId === franchiseId) continue;
+      const partner = partners.get(side.franchiseId) ?? { franchiseId: side.franchiseId, trades: 0, lastYear: trade.year };
+      partner.trades += 1;
+      partner.lastYear = Math.max(partner.lastYear, trade.year);
+      partners.set(side.franchiseId, partner);
+    }
+  }
+  return [...partners.values()].sort((a, b) => b.trades - a.trades || b.lastYear - a.lastYear);
+}
+
 /** How often each pair of franchises has traded, overall and per season. */
 function addTradeRows(career, season, trades) {
   const overall = new Map();

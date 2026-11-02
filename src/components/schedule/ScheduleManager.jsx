@@ -21,7 +21,9 @@ import {
 import { starterTotal, totalAsPoints } from '../../../utils/lineupTotals.js';
 // Shared with the home page's matchup hero, so both render one lineup.
 import LineupPanel from './LineupPanel.jsx';
+import PlayoffSchedule from './PlayoffSchedule.jsx';
 import { TeamIdentityLink, TeamLink } from '../ui/team-link';
+import { usesSeededPlayoffs } from '../../../utils/playoffSeeding.js';
 
 const ScheduleManager = ({
   season = null,
@@ -119,6 +121,68 @@ const ScheduleManager = ({
     }
   };
 
+  // The postseason is a bracket wherever there is one to draw. From 2026, which
+  // is when seeds begin; `PlayoffSchedule` falls back to the flat list when the
+  // league has no field yet.
+  const regularWeeks = season.regularSeasonWeeks ?? 0;
+  const firstRoundWeek = seasonConfig?.playoffStartWeek ?? regularWeeks + 1;
+  const hasBracket = usesSeededPlayoffs(season.year);
+
+  const renderBoxScore = (game) => (
+    <BoxScoreGame
+      game={game}
+      teams={season.teams}
+      seasonId={seasonId}
+      nflSeasonYear={nflSeasonYear}
+      actualWeek={actualWeek}
+      onUpdateGame={onUpdateGame}
+      isAuthenticated={isAuthenticated}
+      user={user}
+      powerRankings={powerRankings}
+      isAdmin={isAdmin}
+      teamOwnerNames={teamOwnerNames}
+    />
+  );
+
+  const weekView = (
+    <div className="space-y-4">
+      {/* Week games */}
+      <WeekScheduleView
+        week={currentWeek}
+        games={getGamesForWeek(currentWeek)}
+        teams={season.teams}
+        seasonId={seasonId}
+        nflSeasonYear={nflSeasonYear}
+        actualWeek={actualWeek}
+        onUpdateGame={onUpdateGame}
+        onDeleteGame={onDeleteGame}
+        isAuthenticated={isAuthenticated}
+        user={user}
+        powerRankings={powerRankings}
+        rosters={rosters}
+        isAdmin={isAdmin}
+        teamOwnerNames={teamOwnerNames}
+      />
+    </div>
+  );
+
+  const fullView = (weeks) => (
+    <FullScheduleView
+      schedule={schedule}
+      teams={season.teams}
+      weeks={weeks}
+      regularSeasonWeeks={season.regularSeasonWeeks}
+      getWeekStatus={getWeekStatus}
+      getStatusIcon={getStatusIcon}
+      getStatusColor={getStatusColor}
+      user={user}
+      isAdmin={isAdmin}
+      teamOwnerNames={teamOwnerNames}
+    />
+  );
+
+  const allWeeks = Array.from({ length: season.totalWeeks || 0 }, (_, i) => i + 1);
+
   return (
     <div>
       <PageHeader
@@ -153,46 +217,64 @@ const ScheduleManager = ({
         <>
           {/* View Mode: Week */}
           {viewMode === 'week' && (
-            <div className="space-y-4">
-              {/* Week games */}
-              <WeekScheduleView
+            hasBracket && currentWeek >= firstRoundWeek ? (
+              <PlayoffSchedule
+                season={season}
+                schedule={schedule}
+                firstRoundWeek={firstRoundWeek}
                 week={currentWeek}
-                games={getGamesForWeek(currentWeek)}
-                teams={season.teams}
-                seasonId={seasonId}
-                nflSeasonYear={nflSeasonYear}
-                actualWeek={actualWeek}
-                onUpdateGame={onUpdateGame}
-                onDeleteGame={onDeleteGame}
-                isAuthenticated={isAuthenticated}
-                user={user}
-                powerRankings={powerRankings}
-                rosters={rosters}
-                isAdmin={isAdmin}
-                teamOwnerNames={teamOwnerNames}
+                renderBoxScore={renderBoxScore}
+                fallback={weekView}
               />
-            </div>
+            ) : (
+              weekView
+            )
           )}
 
           {/* View Mode: Full Schedule */}
           {viewMode === 'full' && (
-            <FullScheduleView
-              schedule={schedule}
-              teams={season.teams}
-              totalWeeks={season.totalWeeks}
-              regularSeasonWeeks={season.regularSeasonWeeks}
-              getWeekStatus={getWeekStatus}
-              getStatusIcon={getStatusIcon}
-              getStatusColor={getStatusColor}
-              user={user}
-              isAdmin={isAdmin}
-              teamOwnerNames={teamOwnerNames}
-            />
+            hasBracket ? (
+              <div className="space-y-6">
+                {fullView(allWeeks.filter((week) => week < firstRoundWeek))}
+                <PlayoffSchedule
+                  season={season}
+                  schedule={schedule}
+                  firstRoundWeek={firstRoundWeek}
+                  renderBoxScore={renderBoxScore}
+                  fallback={fullView(allWeeks.filter((week) => week >= firstRoundWeek))}
+                />
+              </div>
+            ) : (
+              fullView(allWeeks)
+            )
           )}
         </>
       )}
 
     </div>
+  );
+};
+
+/**
+ * One game's box score: the tab's own game card with its lineups open, reading
+ * the same week's lineups for its projected totals so they add up to the rows
+ * under them.
+ */
+const BoxScoreGame = ({ game, seasonId, actualWeek, ...card }) => {
+  const { data: lineupsByTeam } = useLineupsForWeek(seasonId, game.week, { actualWeek });
+
+  return (
+    <GameCard
+      {...card}
+      game={game}
+      seasonId={seasonId}
+      actualWeek={actualWeek}
+      projectedTotals={{
+        [game.team1Id]: starterTotal(lineupsByTeam?.[game.team1Id] ?? []),
+        [game.team2Id]: starterTotal(lineupsByTeam?.[game.team2Id] ?? [])
+      }}
+      boxScore
+    />
   );
 };
 
@@ -279,7 +361,7 @@ const WeekScheduleView = ({
 const FullScheduleView = ({
   schedule,
   teams,
-  totalWeeks,
+  weeks = [],
   regularSeasonWeeks,
   getWeekStatus,
   getStatusIcon,
@@ -303,7 +385,7 @@ const FullScheduleView = ({
 
   return (
     <div className="space-y-6">
-      {Array.from({ length: totalWeeks }, (_, i) => i + 1).map(week => {
+      {weeks.map(week => {
         const weekGames = getGamesForWeek(week);
         const status = getWeekStatus(week);
         const isPlayoff = week > regularSeasonWeeks;
@@ -428,6 +510,9 @@ const GameCard = ({
   teamOwnerNames = [],
   isLineupOpen = false,
   onToggleLineup,
+  // The card as a box score: the lineups are the point, so they are open and
+  // there is no disclosure, and they show whatever `rosters` says.
+  boxScore = false,
 }) => {
   const [editing, setEditing] = useState(false);
   const [scores, setScores] = useState({
@@ -500,7 +585,7 @@ const GameCard = ({
     if (isByeSlot) {
       return (
         <div className="flex items-center justify-between gap-3 px-3 py-2.5 text-sm text-muted-foreground">
-          Bye week
+          {game.opponentLabel ?? 'Bye week'}
         </div>
       );
     }
@@ -601,10 +686,13 @@ const GameCard = ({
           </span>
           {game.isCompleted && game.isBlowout && <Badge variant="warning">Blowout</Badge>}
           {game.isCompleted && game.isClose && <Badge variant="info">Close</Badge>}
-          {!game.isCompleted && <Badge variant="secondary">Scheduled</Badge>}
+          {!game.isCompleted && (
+            <Badge variant="secondary">{game.isProjected ? 'Projected' : 'Scheduled'}</Badge>
+          )}
         </div>
 
-        {isAuthenticated && (
+        {/* A projected matchup has no game to put a score on. */}
+        {isAuthenticated && !game.isProjected && (
           <div className="flex items-center gap-1">
             {editing ? (
               <>
@@ -663,7 +751,20 @@ const GameCard = ({
         />
       </div>
 
-      {!isBye && hasRosters && (
+      {boxScore && (
+        <LineupPanel
+          seasonId={seasonId}
+          nflSeasonYear={nflSeasonYear}
+          week={game.week}
+          actualWeek={actualWeek}
+          sides={[
+            { teamId: game.team1Id, team: team1, teamName: team1 ? getMaskedTeamName(team1, user, isAdmin, teamOwnerNames) : '' },
+            { teamId: game.team2Id, team: team2, teamName: team2 ? getMaskedTeamName(team2, user, isAdmin, teamOwnerNames) : '' }
+          ].filter((side) => side.team)}
+        />
+      )}
+
+      {!boxScore && !isBye && hasRosters && (
         <div className="border-t border-border/60">
           <button
             type="button"

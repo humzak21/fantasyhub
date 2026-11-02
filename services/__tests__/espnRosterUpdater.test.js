@@ -19,7 +19,7 @@ const db = {
 
 vi.mock('../db/index.js', () => ({ getDb: () => db }));
 
-const { ESPNRosterUpdater, espnLogoUrl } = await import('../espnRosterUpdater.js');
+const { ESPNRosterUpdater, espnFaabRemaining, espnLogoUrl } = await import('../espnRosterUpdater.js');
 
 const SEASON = { id: 'season-2026', teams: [] };
 
@@ -74,7 +74,7 @@ describe('ESPNRosterUpdater · team identity', () => {
     const updater = new ESPNRosterUpdater('1', 2026);
 
     expect(updater.parseTeamIdentities(leaguePayload)).toEqual([
-      { teamId: 7, teamName: 'Renamed Mid-Season', abbreviation: 'RMS', ownerName: 'Humza Khalil', logoUrl: null }
+      { teamId: 7, teamName: 'Renamed Mid-Season', abbreviation: 'RMS', ownerName: 'Humza Khalil', logoUrl: null, faabRemaining: null }
     ]);
     // `parseTeamData` used to report the abbreviation as the team's name.
     expect(updater.parseTeamData(leaguePayload.teams[0], leaguePayload.members).teamName)
@@ -87,7 +87,7 @@ describe('ESPNRosterUpdater · team identity', () => {
     const result = await updater.updateTeamRosters('season-2026');
 
     expect(db.teams.upsertTeamsFromESPN).toHaveBeenCalledWith('season-2026', [
-      { teamId: 7, teamName: 'Renamed Mid-Season', abbreviation: 'RMS', ownerName: 'Humza Khalil', logoUrl: null }
+      { teamId: 7, teamName: 'Renamed Mid-Season', abbreviation: 'RMS', ownerName: 'Humza Khalil', logoUrl: null, faabRemaining: null }
     ]);
     // Identity, then a re-read, then the roster — the match must see the new name.
     expect(calls).toEqual(['identity', 'reread', 'roster']);
@@ -111,6 +111,28 @@ describe('ESPNRosterUpdater · team identity', () => {
     expect(db.teams.updateTeam).toHaveBeenCalledWith(
       'season-2026', 'team-7', expect.objectContaining({ espnTeamId: 7 })
     );
+  });
+});
+
+describe('espnFaabRemaining', () => {
+  const settings = { acquisitionSettings: { isUsingAcquisitionBudget: true, acquisitionBudget: 100 } };
+
+  it('is the budget less what ESPN says was spent', () => {
+    expect(espnFaabRemaining({ transactionCounter: { acquisitionBudgetSpent: 87 } }, settings)).toBe(13);
+  });
+
+  it('keeps a real zero', () => {
+    expect(espnFaabRemaining({ transactionCounter: { acquisitionBudgetSpent: 100 } }, settings)).toBe(0);
+  });
+
+  it('is unknown, not the whole budget, when ESPN gives no counter', () => {
+    expect(espnFaabRemaining({}, settings)).toBeNull();
+  });
+
+  it('is unknown in a league with no budget', () => {
+    const none = { acquisitionSettings: { isUsingAcquisitionBudget: false, acquisitionBudget: 100 } };
+    expect(espnFaabRemaining({ transactionCounter: { acquisitionBudgetSpent: 0 } }, none)).toBeNull();
+    expect(espnFaabRemaining({ transactionCounter: { acquisitionBudgetSpent: 0 } }, undefined)).toBeNull();
   });
 });
 

@@ -413,8 +413,10 @@ export const PASSIVE_AUTOMATIONS = [
     fires: 'Tuesdays 14:00 UTC and Thursdays 21:30 UTC (pg_cron jobs notify-pickems-open / notify-pickems-closing)',
     does:
       "Sends push notifications to members' phones: \"pick'ems are open\" once the week's window opens, and " +
-      "\"pick'ems close soon\" in the six hours before the deadline to members who have not picked. The script " +
-      'decides what is due from the open pick_em_weeks row, so a slot with nothing due sends nothing; each send is ' +
+      "\"pick'ems close soon\" in the six hours before the deadline to members who have not picked. The same slots " +
+      'tell the winners of the newest finished week, of a tourney when that week ended one, and of the playoff ' +
+      'bracket challenge once its results are released, ties for first included. The script decides what is due ' +
+      'from the pick_em_weeks and games rows, so a slot with nothing due sends nothing; each send is ' +
       'claimed in notification_log first, so a re-run never repeats one. Every send is also kept, one row per ' +
       'member, in notification_inbox for the Alerts page (the bell). Needs the VAPID_PUBLIC_KEY, ' +
       'VAPID_PRIVATE_KEY and VAPID_SUBJECT secrets.',
@@ -427,9 +429,9 @@ export const PASSIVE_AUTOMATIONS = [
     id: 'take-notifications',
     name: 'Take notifications',
     where: 'GitHub Actions · notify-takes.yml, dispatched by a trigger on take_events',
-    fires: 'When a take is posted, or gets a Hell Yeah or Hell Nah (trigger take_events_dispatch_notifications)',
+    fires: 'When a take is posted, reworded by its author, or gets a Hell Yeah or Hell Nah (trigger take_events_dispatch_notifications)',
     does:
-      'Sends "new take from …" to every member with it on except the author, and "… said Hell Yeah / Hell Nah ' +
+      'Sends "new take from …" and "… edited a take" to every member with it on except the author, and "… said Hell Yeah / Hell Nah ' +
       'to your take" to the author only. The trigger dispatches the workflow through the same ' +
       'private.dispatch_github_workflow as the crons and never refuses the take if the dispatch fails. The ' +
       'script announces events up to six hours old that are not yet in notification_log, claiming each by its ' +

@@ -1,3 +1,6 @@
+import { tourneyStandings, tourneyWinners } from '../src/components/pickems/tourneys.js';
+import { weekWinners } from '../src/components/pickems/weekWinners.js';
+
 /**
  * What push notifications are due, and to whom. Pure: the sender
  * (`scripts/send-notifications.js`) reads the inputs, calls this, and sends
@@ -16,6 +19,7 @@
 export const TOPICS = Object.freeze({
   pickemsOpen: 'pickems_open',
   pickemsClosing: 'pickems_closing',
+  pickemsWins: 'pickems_wins',
   takesNew: 'takes_new',
   takesReactions: 'takes_reactions',
   takesStakes: 'takes_stakes',
@@ -27,6 +31,7 @@ export const TOPICS = Object.freeze({
 export const ALL_TOPICS = Object.freeze([
   TOPICS.pickemsOpen,
   TOPICS.pickemsClosing,
+  TOPICS.pickemsWins,
   TOPICS.takesNew,
   TOPICS.takesReactions,
   TOPICS.takesStakes,
@@ -173,6 +178,12 @@ export function previewTake(body, max = TAKE_PREVIEW_LENGTH) {
  * - **posted** goes to every device with `takes_new`, except the author's.
  *   Whose take it is reads `takes.user_id`, not the event's actor, so a take
  *   the admin posts for somebody is not announced back to them.
+ * - **edited** goes to the same audience, but only the author's own reword:
+ *   `actedAsAdmin` is false exactly when it was made inside their 72 hours, and
+ *   an admin correcting a take is not news. One save after another is one
+ *   notification: a run reads the take as it stands, so the newest unsent edit
+ *   speaks for the rest, and a post not yet announced speaks for all of them.
+ *   They travel in the plan's `absorbs`, which the sender claims with it.
  * - **faded** / **backed** go to the take's author's devices with
  *   `takes_reactions`, and to nobody else. Only while the Hell Nah or Hell
  *   Yeah still stands: one withdrawn before the sender ran is not news, and
@@ -181,7 +192,7 @@ export function previewTake(body, max = TAKE_PREVIEW_LENGTH) {
  *   Nah on the take who has not answered it yet: "Do you accept this Hell
  *   Yeah?" A staked Hell Yeah is an offer each of them takes on or not
  *   (20261010120000_take_stake_responses.sql), and this is how they hear of it.
- * - Withdrawals, edits, grades and answers are not announced.
+ * - Withdrawals, grades and answers are not announced.
  *
  * Each plan is one audience for one event, claimed by `(event id, kind)`, so
  * a staked Hell Yeah can tell the author and the Hell Nahs once each. A plan
@@ -189,7 +200,7 @@ export function previewTake(body, max = TAKE_PREVIEW_LENGTH) {
  *
  * @param {object} input
  * @param {Date} input.now
- * @param {Array<{ id: string, takeId: string, seasonId: string, eventType: string, subjectId: string|null, createdAt: Date }>} input.events
+ * @param {Array<{ id: string, takeId: string, seasonId: string, eventType: string, subjectId: string|null, actedAsAdmin?: boolean, createdAt: Date }>} input.events
  *   recent announceable events
  * @param {Set<string>} [input.claimed] `${eventId}:${kind}` already in notification_log
  * @param {Map<string, { id: string, authorId: string, body: string, wager: string|null }>} input.takes by id
@@ -221,9 +232,21 @@ export function planTakeNotifications({
   const plans = [];
   const due = (event, kind) => !claimed.has(`${event.id}:${kind}`);
   const ordered = [...events].sort((a, b) => a.createdAt - b.createdAt);
+  const fresh = (event) => event.createdAt instanceof Date && event.createdAt.getTime() >= oldest;
+
+  // What this run has yet to say about each take's wording.
+  const unsentPosts = new Set();
+  const unsentEdits = new Map();
+  for (const event of ordered) {
+    if (!fresh(event) || !due(event, TOPICS.takesNew)) continue;
+    if (event.eventType === 'posted') unsentPosts.add(event.takeId);
+    if (event.eventType === 'edited' && !event.actedAsAdmin) {
+      unsentEdits.set(event.takeId, [...(unsentEdits.get(event.takeId) ?? []), event.id]);
+    }
+  }
 
   for (const event of ordered) {
-    if (!(event.createdAt instanceof Date) || event.createdAt.getTime() < oldest) continue;
+    if (!fresh(event)) continue;
     const take = takes.get(event.takeId);
     if (!take) continue;
 
@@ -239,8 +262,31 @@ export function planTakeNotifications({
         eventId: event.id,
         seasonId: event.seasonId,
         recipients,
+        absorbs: unsentEdits.get(take.id) ?? [],
         payload: {
           title: `New take from ${nameOf(take.authorId)}`,
+          body: take.wager ? `${quoted} · ${take.wager} on it` : quoted,
+          url,
+          tag: `take-${take.id}`
+        }
+      });
+      continue;
+    }
+
+    if (event.eventType === 'edited') {
+      const edits = unsentEdits.get(take.id) ?? [];
+      if (unsentPosts.has(take.id) || edits[edits.length - 1] !== event.id) continue;
+      const recipients = readers.filter((sub) => sub.topics.includes(TOPICS.takesNew) && sub.userId !== take.authorId);
+      if (!recipients.length) continue;
+      plans.push({
+        kind: TOPICS.takesNew,
+        eventId: event.id,
+        seasonId: event.seasonId,
+        recipients,
+        absorbs: edits.slice(0, -1),
+        // The post's tag: on a device the new wording replaces the old.
+        payload: {
+          title: `${nameOf(take.authorId)} edited a take`,
           body: take.wager ? `${quoted} · ${take.wager} on it` : quoted,
           url,
           tag: `take-${take.id}`
@@ -311,6 +357,140 @@ export function planTakeNotifications({
         body: `${who} put ${participant.wager} on ${quoted}. Accepting means you'll have to pay out to ${who} as well if it hits. It's your call.`,
         url,
         tag: `take-stake-${event.id}`
+      }
+    });
+  }
+
+  return plans;
+}
+
+/** The `notification_log` kinds for winning, each claimed per (season, week). */
+export const WIN_KINDS = Object.freeze({
+  week: 'pickems_week_won',
+  tourney: (id) => `pickems_tourney_won:${id}`,
+  bracket: 'playoff_bracket_won'
+});
+
+/**
+ * The newest week every game of which is over, or null. A bye row is nobody's
+ * game. Scores land as a week on Tuesday, so a week with a game still to come
+ * is not over, and the sender looks no further back than this: an older result
+ * is old news, which is also what stops the first run after this shipped from
+ * announcing every week of the season at once.
+ *
+ * @param {Array<{ week: number, type?: string, team2Id?: string|null, isCompleted: boolean }>} games
+ */
+export function newestFinishedWeek(games = []) {
+  const weeks = new Map();
+  for (const game of games) {
+    if (game.type === 'bye' || game.team2Id == null) continue;
+    weeks.set(game.week, (weeks.get(game.week) ?? true) && Boolean(game.isCompleted));
+  }
+  const finished = [...weeks].filter(([, done]) => done).map(([week]) => week);
+  return finished.length ? Math.max(...finished) : null;
+}
+
+/**
+ * The winners due. Each goes to the winners and nobody else, and a tie for
+ * first is every member on it: each is told, and told it was a tie.
+ *
+ * - **week** — the top score of a pick'em week (`weekWinners`).
+ * - **tourney** — the top score across a tourney's weeks among members over its
+ *   participation floor (`tourneyWinners`).
+ * - **bracket** — the top score in the playoff bracket challenge, once the
+ *   admin has released the results.
+ *
+ * A plan's `inbox` is every winner, device or not, because a member with no
+ * notifications on still won; `recipients` is the devices that asked to hear.
+ * A week nobody scored in has no winner, and so no plan.
+ *
+ * @param {object} input
+ * @param {{ week: number, scores: Array }} [input.weekly]
+ * @param {{ tourney: object, weeklyScores: Record<number, Array> }} [input.tourney]
+ * @param {{ week: number, standings: Array }} [input.bracket]
+ * @param {Set<string>} [input.sent] `${kind}:${week}` already in notification_log
+ * @param {Array<{ endpoint: string, userId: string, topics: string[] }>} input.subscriptions
+ * @param {Set<string>} [input.excludedUserIds] accounts no longer approved
+ */
+export function planWinnerNotifications({
+  weekly = null,
+  tourney = null,
+  bracket = null,
+  sent = new Set(),
+  subscriptions = [],
+  excludedUserIds = new Set()
+}) {
+  const plans = [];
+
+  const plan = ({ kind, week, winners, payload }) => {
+    if (sent.has(`${kind}:${week}`)) return;
+    const inbox = winners.map((winner) => winner.userId).filter((id) => !excludedUserIds.has(id));
+    if (!inbox.length) return;
+    plans.push({
+      kind,
+      week,
+      inbox,
+      recipients: subscriptions.filter((sub) =>
+        inbox.includes(sub.userId) && Array.isArray(sub.topics) && sub.topics.includes(TOPICS.pickemsWins)),
+      payload
+    });
+  };
+
+  const withOthers = (winners) => {
+    const others = winners.length - 1;
+    return others === 1 ? ' Tied with one other.' : ` Tied with ${others} others.`;
+  };
+
+  if (weekly) {
+    const winners = weekWinners(weekly.scores);
+    const [top] = winners;
+    const tied = winners.length > 1;
+    plan({
+      kind: WIN_KINDS.week,
+      week: weekly.week,
+      winners,
+      payload: top && {
+        title: tied ? `You tied for 1st in week ${weekly.week}` : `You won week ${weekly.week} pick'ems`,
+        body: `${top.correctPicks} of ${top.decidedPicks} right.${tied ? withOthers(winners) : ''}`,
+        url: '/pickems',
+        tag: `pickems-won-${weekly.week}`
+      }
+    });
+  }
+
+  if (tourney) {
+    const { tourney: rules, weeklyScores } = tourney;
+    const winners = tourneyWinners(tourneyStandings(rules, weeklyScores));
+    const [top] = winners;
+    const tied = winners.length > 1;
+    // Plain figures, and short: a lock screen shows one line of a title.
+    const span = `${rules.startWeek}-${rules.endWeek}`;
+    plan({
+      kind: WIN_KINDS.tourney(rules.id),
+      week: rules.endWeek,
+      winners,
+      payload: top && {
+        title: tied ? `You tied for the ${span} tourney` : `You won the weeks ${span} tourney`,
+        body: `${top.totalPoints} points across ${top.entered} weeks.${tied ? withOthers(winners) : ''} The prize is ${rules.prize}.`,
+        url: '/pickems',
+        tag: `pickems-tourney-won-${rules.id}`
+      }
+    });
+  }
+
+  if (bracket) {
+    const winners = weekWinners(bracket.standings);
+    const [top] = winners;
+    const tied = winners.length > 1;
+    plan({
+      kind: WIN_KINDS.bracket,
+      week: bracket.week,
+      winners,
+      payload: top && {
+        title: tied ? 'You tied for the bracket win' : 'You won the playoff bracket',
+        body: `${top.totalPoints} ${top.totalPoints === 1 ? 'point' : 'points'} in the bracket challenge.${tied ? withOthers(winners) : ''}`,
+        url: '/playoffs',
+        tag: 'playoff-bracket-won'
       }
     });
   }
