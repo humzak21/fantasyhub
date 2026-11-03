@@ -1,9 +1,9 @@
 /**
  * The standings table, in both playoff formats — and its admin controls.
  *
- * `ResponsiveDataTable` renders a card stack and a real table and hides one
- * with CSS, which jsdom does not apply; both are visible to Testing Library.
- * Assertions are scoped to `role="table"` so a match is one match.
+ * `ResponsiveDataTable` renders the phone's scrolling table and the wide one and
+ * hides one with CSS, which jsdom does not apply; both are visible to Testing
+ * Library. Assertions are scoped to a layout so a match is one match.
  */
 
 import { render, screen, within } from '../../../test/renderWithProviders.jsx';
@@ -55,14 +55,17 @@ const baseProps = {
   isAdmin: true
 };
 
-/** Every table on the page, merged — the two divisions render one each. */
-const rowFor = (name) => {
-  const cells = screen
-    .getAllByRole('table')
-    .flatMap((table) => within(table).queryAllByText(name));
+/** Every table of a layout, merged — the two divisions render one each. */
+const tablesIn = (layout) =>
+  screen.getAllByRole('table').filter((table) => table.closest(`[data-layout="${layout}"]`));
+
+const rowIn = (layout, name) => {
+  const cells = tablesIn(layout).flatMap((table) => within(table).queryAllByText(name));
   expect(cells.length).toBeGreaterThan(0);
   return cells[0].closest('tr');
 };
+
+const rowFor = (name) => rowIn('wide', name);
 
 describe('DrawerStandingsTable, 2026 and later', () => {
   it('seeds the two division winners and marks them as byes', () => {
@@ -118,7 +121,7 @@ describe('DrawerStandingsTable, 2026 and later', () => {
   it('puts the seed in its own column after Win %, not on the name', () => {
     render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
 
-    const headers = within(screen.getAllByRole('table')[0])
+    const headers = within(tablesIn('wide')[0])
       .getAllByRole('columnheader')
       .map((th) => th.textContent.trim());
     expect(headers.indexOf('Seed')).toBe(headers.indexOf('Win %') + 1);
@@ -189,6 +192,64 @@ describe('DrawerStandingsTable, 2025 and earlier', () => {
     render(<DrawerStandingsTable {...baseProps} />);
     expect(screen.queryByText('First-round bye')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Key')).not.toBeInTheDocument();
+  });
+});
+
+describe('DrawerStandingsTable on a phone', () => {
+  const headersOf = (table) =>
+    within(table).getAllByRole('columnheader').map((th) => th.textContent.trim());
+
+  it('gives each team one row, not a card', () => {
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
+
+    const [north, south] = tablesIn('scroll');
+    expect(within(north).getAllByRole('row')).toHaveLength(6);
+    expect(within(south).getAllByRole('row')).toHaveLength(5);
+    expect(document.querySelector('[data-layout="cards"]')).not.toBeInTheDocument();
+  });
+
+  it('leads with the record and points for, as the home card does, and keeps the rest to the right', () => {
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
+
+    const headers = headersOf(tablesIn('scroll')[0]);
+    expect(headers.slice(1, 4)).toEqual(['Team', 'W-L', 'PF']);
+    for (const detail of ['PA', 'Diff', 'Win %', 'Streak', 'Seed', 'Owner']) {
+      expect(headers).toContain(detail);
+    }
+  });
+
+  it('tints a row with an opaque tone, because the pinned rank inherits it', () => {
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
+
+    expect(rowIn('scroll', 'Alpha').className).toContain('var(--warning)');
+    expect(rowIn('scroll', 'Bravo').className).toContain('var(--success)');
+    expect(rowIn('scroll', 'Alpha')).not.toHaveClass('bg-warning/15');
+    expect(rowIn('scroll', 'Hotel')).toHaveClass('bg-card');
+  });
+
+  it('says which row is a bye or a wild card to a screen reader', () => {
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
+
+    expect(within(rowIn('scroll', 'Alpha')).getByText('First-round bye')).toHaveClass('sr-only');
+    expect(within(rowIn('scroll', 'Bravo')).getByText('Wild card')).toHaveClass('sr-only');
+  });
+
+  it('marks the row of the viewer over its tint', () => {
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} viewerTeamId="a1" />);
+    expect(rowIn('scroll', 'Alpha').className).toContain('var(--primary)');
+  });
+
+  it('keeps the streak to the phone, where there is room for it', () => {
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} />);
+    expect(headersOf(tablesIn('wide')[0])).not.toContain('Streak');
+  });
+
+  it('puts Move beside the name while managing', async () => {
+    const user = userEvent.setup();
+    render(<DrawerStandingsTable {...baseProps} seasonYear={2026} isAuthenticated />);
+    await user.click(screen.getByRole('button', { name: /manage/i }));
+
+    expect(headersOf(tablesIn('scroll')[0]).slice(1, 3)).toEqual(['Team', 'Move']);
   });
 });
 

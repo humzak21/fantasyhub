@@ -44,6 +44,7 @@ const PlayoffsBracketManager = ({
     const [seedByTeamId, setSeedByTeamId] = useState(() => new Map());
     // The same rows, whole: they fill the bracket until the postseason is drawn.
     const [standingsRows, setStandingsRows] = useState([]);
+    const [standingsDivisions, setStandingsDivisions] = useState([]);
     const [dataLoading, setDataLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -69,6 +70,12 @@ const PlayoffsBracketManager = ({
 
             const rows = flattenStandings(divisionStandings);
             setStandingsRows(rows);
+            setStandingsDivisions(
+                (divisionStandings?.divisions ?? []).map((division) => ({
+                    id: division.divisionId,
+                    name: division.divisionName
+                }))
+            );
             setSeedByTeamId(
                 new Map(
                     rows
@@ -256,7 +263,7 @@ const PlayoffsBracketManager = ({
 
                 {usesSeededPlayoffs(season?.year) && (
                     <TabsContent value="path">
-                        <PathToPlayoffs season={season} standingsRows={standingsRows} />
+                        <PathToPlayoffs season={season} standingsRows={standingsRows} divisions={standingsDivisions} />
                     </TabsContent>
                 )}
 

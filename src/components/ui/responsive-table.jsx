@@ -1,10 +1,10 @@
 import * as React from 'react'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
-
 import { cn } from '../../lib/utils'
 import { ariaSortOf, nextSort } from '../../utils/tableSort'
 import { Button } from './button'
+import { CHEVRON_GUTTER, ScrollTable } from './scroll-table'
 import {
   Select,
   SelectContent,
@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from './table'
+import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from './table-tones'
 
 /** Stat blocks per row in a card: as many as there are, up to four. */
 const STAT_GRID = {
@@ -33,11 +34,18 @@ const STAT_GRID = {
  * One column definition, two layouts.
  *
  * A table with eleven columns does not become usable on a 375px screen by
- * scrolling — the reader loses the row they were on the moment the first
- * column leaves the viewport. The card stack below `md` is a different *shape*
- * for the same data: the identifying columns become the card's header, the
- * numbers people actually scan become a small grid, and the long tail folds
- * away behind a disclosure.
+ * squeezing it, so below `md` it takes a different *shape* for the same data,
+ * and there are two to choose from:
+ *
+ *   - **Cards**, the default, for a list a reader takes one item at a time: the
+ *     identifying columns become the card's header, the numbers people actually
+ *     scan become a small grid, and the long tail folds away behind a
+ *     disclosure.
+ *   - **`scroll`**, for a table a reader compares down: every item keeps one
+ *     row, so vertical space goes on seeing the whole list, and the details are
+ *     a swipe to the right. A leading column stays pinned, so the row is not
+ *     lost as the rest moves. A league table is this shape: on cards a 375px
+ *     screen held one team and a third of the next.
  *
  * The switch is at `md` (768px), not `sm`. Two "mobile" widths used to coexist
  * in this codebase — `useIsMobile()` and `useMobileAxis()` break at 768 while
@@ -78,6 +86,32 @@ const STAT_GRID = {
  *   e.g. `col-span-2` for a value that needs more than one grid cell
  * @property {(row: any) => any} [sortValue] what this column sorts by. Having
  *   one is what makes the column sortable, once the table has `onSortChange`.
+ * @property {ScrollColumn} [scroll] how this column sits in the `scroll` layout
+ *
+ * @typedef {object} ScrollColumn
+ * @property {number} [width]    in rem, 4 by default. A number, because the
+ *   table's width is the sum of them.
+ * @property {boolean} [pin]     the leading column, held in place
+ * @property {string} [fluid]    the name column: it takes what the card has
+ *   left after the `pin` and `shown` columns, never less than this CSS length
+ *   (`'13ch + 0.75rem'`). So the default view lands on exactly those columns.
+ * @property {boolean} [shown]   in the default view; the rest are to the right
+ * @property {boolean} [only]    in this layout alone: a detail the wide layout
+ *   carries some other way
+ * @property {React.ReactNode} [header]  a shorter header than the wide layout's
+ * @property {string} [title]    what a shortened header stands for
+ * @property {(row: any, index: number) => React.ReactNode} [cell]  a smaller
+ *   cell than the wide layout's. One line: a row that wraps stops being a row.
+ * @property {string} [className]  applied to the <th> and the <td>
+ *
+ * @typedef {object} ScrollLayout
+ * @property {string} label        names the scrolling region
+ * @property {string[]} [order]    reading order, by key. Unlisted columns follow.
+ * @property {(row: any, index: number) => string} [tone]  the row's background,
+ *   from `ROW_TONE`: it has to be opaque, or the columns scrolled under the
+ *   pinned one show through. `ROW_TONE.base` by default.
+ * @property {(row: any, index: number) => boolean} [isViewer]  the viewer's own
+ *   row, which takes the viewer's tone and rail over `tone`
  */
 
 /**
@@ -99,6 +133,9 @@ const STAT_GRID = {
  *   Makes every column with a `sortValue` sortable: a button in its header
  *   that cycles default → descending → ascending, and, because a card stack
  *   has no headers, a compact control above the cards.
+ * @param {ScrollLayout} [props.scroll]
+ *   Below `md`, one row per item in a table wider than the screen, in place of
+ *   the cards.
  */
 export function ResponsiveDataTable({
   columns,
@@ -113,8 +150,10 @@ export function ResponsiveDataTable({
   tableClassName,
   sort = null,
   onSortChange,
+  scroll,
 }) {
   const sortable = onSortChange ? columns.filter((c) => c.sortValue) : []
+  const wideColumns = columns.filter((c) => !c.scroll?.only)
   const primary = columns.filter((c) => c.priority === 'primary')
   const secondary = columns.filter((c) => (c.priority ?? 'secondary') === 'secondary')
   const detail = columns.filter((c) => c.priority === 'detail')
@@ -129,29 +168,42 @@ export function ResponsiveDataTable({
 
   return (
     <div className={cn('min-w-0', className)}>
-      {/* ---------- Card stack: below md ----------
-          Rows separated by hairlines, not a bordered card each. Every table
-          on the site sits inside a card already (a stat section, a profile,
-          the leaderboards), so a card per row was a box in a box: the
-          per-season blocks on Statistics and the profile read as fourteen
-          little panels, each 40px narrower than the screen. The tint a
-          caller passes through `rowClassName` still lands on the row. */}
-      <div className="divide-y divide-border/60 md:hidden">
+      {/* ---------- Cards, or one row each: below md ----------
+          The card stack is rows separated by hairlines, not a bordered card
+          each. Every table on the site sits inside a card already (a stat
+          section, a profile, the leaderboards), so a card per row was a box
+          in a box: the per-season blocks on Statistics and the profile read
+          as fourteen little panels, each 40px narrower than the screen. The
+          tint a caller passes through `rowClassName` still lands on the row. */}
+      <div
+        data-layout={scroll ? 'scroll' : 'cards'}
+        className={cn(scroll ? 'space-y-2' : 'divide-y divide-border/60', 'md:hidden')}
+      >
         {sortable.length > 0 && (
           <SortControl columns={sortable} sort={sort} onSortChange={onSortChange} />
         )}
-        {data.map((row, i) => (
-          <DataCard
-            key={rowKey(row, i)}
-            row={row}
-            index={i}
-            primary={primary}
-            secondary={secondary}
-            detail={detail}
-            onClick={onRowClick}
-            className={cn(cardClassName, rowClassName?.(row, i))}
+        {scroll ? (
+          <ScrollRows
+            columns={columns}
+            data={data}
+            rowKey={rowKey}
+            onRowClick={onRowClick}
+            scroll={scroll}
           />
-        ))}
+        ) : (
+          data.map((row, i) => (
+            <DataCard
+              key={rowKey(row, i)}
+              row={row}
+              index={i}
+              primary={primary}
+              secondary={secondary}
+              detail={detail}
+              onClick={onRowClick}
+              className={cn(cardClassName, rowClassName?.(row, i))}
+            />
+          ))
+        )}
       </div>
 
       {/* ---------- Real table: md and up ----------
@@ -159,11 +211,11 @@ export function ResponsiveDataTable({
           the ground; the same table inside a bordered, rounded surface is an
           object with edges, which is what lets the header strip and the row
           dividers read as structure rather than as more lines. */}
-      <div className="hidden overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] md:block">
+      <div data-layout="wide" className={cn('hidden md:block', TABLE_SURFACE)}>
         <Table className={tableClassName}>
           <TableHeader>
             <TableRow>
-              {columns.map((c) => {
+              {wideColumns.map((c) => {
                 const canSort = onSortChange && c.sortValue
                 return (
                   <TableHead
@@ -191,7 +243,7 @@ export function ResponsiveDataTable({
                 onClick={onRowClick ? () => onRowClick(row, i) : undefined}
                 className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row, i))}
               >
-                {columns.map((c) => (
+                {wideColumns.map((c) => (
                   <TableCell
                     key={c.key}
                     className={cn(
@@ -208,6 +260,100 @@ export function ResponsiveDataTable({
         </Table>
       </div>
     </div>
+  )
+}
+
+const TABLE_SURFACE =
+  'overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]'
+
+const DEFAULT_SCROLL_WIDTH = 4
+const scrollWidthOf = (c) => c.scroll?.width ?? DEFAULT_SCROLL_WIDTH
+const remsOf = (columns) => columns.reduce((sum, c) => sum + scrollWidthOf(c), 0)
+
+/** Columns in reading order: the listed ones first, then the rest as declared. */
+function inScrollOrder(columns, order = []) {
+  const place = (c) => {
+    const index = order.indexOf(c.key)
+    return index === -1 ? order.length : index
+  }
+  return [...columns].sort((a, b) => place(a) - place(b))
+}
+
+/**
+ * The `scroll` layout: one row per item, wider than the screen.
+ *
+ * The widths are numbers rather than classes so the table's width can be worked
+ * out from them and cannot drift from its columns. `cqw` is the viewport's width
+ * (`ScrollTable` is a container), so the fluid column is what lands the default
+ * view on the columns it should, at any phone width.
+ */
+function ScrollRows({ columns, data, rowKey, onRowClick, scroll }) {
+  const ordered = inScrollOrder(columns, scroll.order)
+  const fluid = ordered.find((c) => c.scroll?.fluid)
+  const fixed = ordered.filter((c) => c !== fluid)
+  const inView = fixed.filter((c) => c.scroll?.pin || c.scroll?.shown)
+
+  const fluidWidth = fluid && `max(${fluid.scroll.fluid}, 100cqw - ${remsOf(inView) + CHEVRON_GUTTER}rem)`
+  const tableWidth = fluid ? `calc(${fluidWidth} + ${remsOf(fixed)}rem)` : `${remsOf(fixed)}rem`
+
+  return (
+    <ScrollTable label={scroll.label} className={TABLE_SURFACE}>
+      <table
+        className="table-fixed border-separate border-spacing-0 text-[13px]"
+        style={{ width: tableWidth }}
+      >
+        <colgroup>
+          {ordered.map((c) => (
+            <col key={c.key} style={{ width: c === fluid ? fluidWidth : `${scrollWidthOf(c)}rem` }} />
+          ))}
+        </colgroup>
+        <thead className="text-xs text-muted-foreground">
+          <tr>
+            {ordered.map((c) => (
+              <th
+                key={c.key}
+                scope="col"
+                title={c.scroll?.title}
+                className={cn(
+                  STICKY_HEAD,
+                  'whitespace-nowrap border-b border-border/60 px-1.5 py-1.5 text-left font-medium',
+                  c.scroll?.pin && 'left-0 z-[3] border-r pl-2',
+                  c.scroll?.className
+                )}
+              >
+                {c.scroll?.header ?? c.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, i) => {
+            const isViewer = Boolean(scroll.isViewer?.(row, i))
+            const tone = isViewer ? ROW_TONE.viewer : (scroll.tone?.(row, i) ?? ROW_TONE.base)
+            return (
+              <tr
+                key={rowKey(row, i)}
+                onClick={onRowClick ? () => onRowClick(row, i) : undefined}
+                className={cn('group', onRowClick && 'cursor-pointer', tone)}
+              >
+                {ordered.map((c) => (
+                  <td
+                    key={c.key}
+                    className={cn(
+                      'h-10 whitespace-nowrap border-b border-border/40 px-1.5 group-last:border-0',
+                      c.scroll?.pin && [STICKY_CELL, 'left-0 pl-2 pr-1', isViewer && VIEWER_RAIL],
+                      c.scroll?.className
+                    )}
+                  >
+                    {(c.scroll?.cell ?? c.cell)(row, i)}
+                  </td>
+                ))}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </ScrollTable>
   )
 }
 

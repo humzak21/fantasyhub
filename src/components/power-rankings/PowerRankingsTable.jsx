@@ -9,6 +9,7 @@ import RouteLoading from '../layout/RouteLoading';
 import { NumberText, RecordText } from '../ui/number-text';
 import { RankBadge } from '../ui/rank-badge';
 import { StreakChip } from '../ui/streak-chip';
+import { TeamAvatar } from '../ui/team-identity';
 import { isUserTeam, getUserTeamHighlightClasses } from '../../utils/userTeamUtils';
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { faabOf, formatFaab } from '../../utils/format';
@@ -16,6 +17,31 @@ import { useViewer } from '../../contexts/ViewerContext.jsx';
 import { POWER_RANKING_WEIGHTS, POWER_RANKING_COMPONENT_META } from '../../../types/index.js';
 import { teamRosterPath } from '../teams/teamLink.js';
 import { TeamIdentityLink, TeamLink } from '../ui/team-link';
+import { OddsCell, RankCell } from './rankingCells';
+
+/**
+ * The phone's reading order. Rating, record and playoff odds fill the screen by
+ * default; everything else is a swipe to the right.
+ */
+const SCROLL_ORDER = [
+  'rank',
+  'team',
+  'powerRating',
+  'record',
+  'playoffOdds',
+  'luck',
+  'winPct',
+  'pointsFor',
+  'pointsAgainst',
+  'pointDiff',
+  'streak',
+  'form',
+  'quality',
+  'projected',
+  'nextMatchup',
+  'faab',
+  'owner',
+];
 
 /**
  * The components, in weight order, built from the weights themselves.
@@ -90,19 +116,26 @@ const PowerRankingsTable = ({
   }
 
 
+  const opponentOf = (team) => {
+    const opponentId = team.powerRatingComponents?.nextOpponentTeamId ?? null;
+    return opponentId != null ? rankings.find((r) => (r.teamId ?? r.id) === opponentId) ?? null : null;
+  };
+
   /*
    * One column list, two layouts — see ui/responsive-table.jsx.
    *
    * This was eleven `<TableHead>`s and a matching pile of `<TableCell>`s. At
    * 375px it forced the document 132px wider than the viewport (the Playwright
-   * smoke job measures exactly this), and scrolling it sideways is useless
-   * anyway: the team name leaves the screen before the numbers arrive, so
-   * every cell becomes an unlabelled figure.
+   * smoke job measures exactly this).
    *
-   * `priority` is the whole design decision. Rank, team and the power rating
-   * are what the page is *for*, so they are the card header. Every other stat
-   * is shown in full — there is no advanced-stats toggle and no "More"
-   * disclosure on the card — so each is plain `secondary`.
+   * Below `md` it is the `scroll` layout, not cards. A power ranking is read
+   * down the list, and a card apiece put one team and a third of the next on an
+   * iPhone SE. Each team is one row now, so the whole league is on one screen,
+   * with the rank pinned, and every other stat is a swipe away: there is no
+   * advanced-stats toggle and no "More" disclosure. `SCROLL_ORDER` above is the
+   * order they come in, and `scroll` on a column is what it gives up for the
+   * narrower row: the owner line, the bar under the odds, the display-size
+   * rating.
    */
   const columns = [
     {
@@ -111,6 +144,16 @@ const PowerRankingsTable = ({
       priority: 'primary',
       headerClassName: 'w-[88px]',
       cell: (team, index) => <RankBadge rank={index + 1} delta={team.rankChange} />,
+      scroll: {
+        pin: true,
+        width: 3.25,
+        header: (
+          <>
+            <span className="sr-only">Rank</span>#
+          </>
+        ),
+        cell: (team, index) => <RankCell rank={index + 1} delta={team.rankChange} />,
+      },
     },
     {
       key: 'team',
@@ -133,6 +176,26 @@ const PowerRankingsTable = ({
           isViewer={isUserTeam(team, user)}
         />
       ),
+      scroll: {
+        // Twelve letters of name (`ch` is a digit, and letters run narrower),
+        // which the mark gives way to on a narrow row.
+        fluid: '11ch + 0.75rem',
+        cell: (team) => {
+          const name = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
+          return (
+            <TeamLink
+              team={team}
+              fallbackTo={teamRosterPath(team.teamId ?? team.id)}
+              title={name}
+              className="flex min-w-0 items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <TeamAvatar team={team} size="xs" className="hidden @md:inline-flex" />
+              <span className="truncate text-sm font-medium">{name}</span>
+              {isUserTeam(team, user) && <span className="sr-only">(your team)</span>}
+            </TeamLink>
+          );
+        },
+      },
     },
     {
       key: 'powerRating',
@@ -147,6 +210,14 @@ const PowerRankingsTable = ({
       cell: (team) => (
         <NumberText value={team.powerRating} display className="text-[22px] leading-none" />
       ),
+      scroll: {
+        shown: true,
+        width: 3,
+        header: 'Rtg',
+        title: 'Power rating',
+        className: 'text-right',
+        cell: (team) => <NumberText value={team.powerRating} className="text-sm font-semibold" />,
+      },
     },
     {
       key: 'record',
@@ -156,6 +227,7 @@ const PowerRankingsTable = ({
       cell: (team) => (
         <RecordText wins={team.wins} losses={team.losses} ties={team.ties} className="font-medium" />
       ),
+      scroll: { shown: true, width: 3.25, header: 'W-L', title: 'Record', className: 'text-center' },
     },
     {
       key: 'winPct',
@@ -168,6 +240,7 @@ const PowerRankingsTable = ({
       cell: (team) => (
         <NumberText value={(team.winPercentage || 0) * 100} variant="percent" className="text-muted-foreground" />
       ),
+      scroll: { width: 3.75, className: 'text-right' },
     },
     {
       key: 'pointsFor',
@@ -176,6 +249,7 @@ const PowerRankingsTable = ({
       className: 'text-right',
       headerClassName: 'text-right',
       cell: (team) => <NumberText value={team.pointsFor} className="text-muted-foreground" />,
+      scroll: { width: 4.25, title: 'Points for', className: 'text-right' },
     },
     {
       key: 'pointsAgainst',
@@ -184,6 +258,7 @@ const PowerRankingsTable = ({
       className: 'text-right',
       headerClassName: 'text-right',
       cell: (team) => <NumberText value={team.pointsAgainst} className="text-muted-foreground" />,
+      scroll: { width: 4.25, title: 'Points against', className: 'text-right' },
     },
     {
       key: 'pointDiff',
@@ -194,6 +269,7 @@ const PowerRankingsTable = ({
       cell: (team) => (
         <NumberText value={team.pointDifferential} variant="delta" emphasis="signed" className="font-semibold" />
       ),
+      scroll: { width: 4.25, title: 'Point differential', className: 'text-right' },
     },
     {
       key: 'luck',
@@ -207,6 +283,7 @@ const PowerRankingsTable = ({
           emphasis="signed"
         />
       ),
+      scroll: { width: 3.75, className: 'text-right' },
     },
     {
       key: 'streak',
@@ -214,6 +291,7 @@ const PowerRankingsTable = ({
       className: 'text-center',
       headerClassName: 'text-center',
       cell: (team) => <StreakChip streak={team.currentStreak} />,
+      scroll: { width: 3.75, className: 'text-center' },
     },
     {
       key: 'playoffOdds',
@@ -240,6 +318,14 @@ const PowerRankingsTable = ({
           </div>
         );
       },
+      scroll: {
+        shown: true,
+        width: 4.25,
+        header: 'Playoff%',
+        title: 'Playoff odds',
+        className: 'text-right',
+        cell: (team) => <OddsCell odds={team.playoffOdds} />,
+      },
     },
     // Not a column of dashes before the first sync has read a budget.
     ...(showFaab && rankings.some((team) => faabOf(team) != null)
@@ -250,6 +336,7 @@ const PowerRankingsTable = ({
           className: 'text-right',
           headerClassName: 'text-right',
           cell: (team) => <span className="tabular text-muted-foreground">{formatFaab(faabOf(team))}</span>,
+          scroll: { width: 3.5, title: 'FAAB left', className: 'text-right' },
         }]
       : []),
     {
@@ -261,6 +348,7 @@ const PowerRankingsTable = ({
         const form = formBadge(team.recentForm);
         return <Badge variant={form.variant}>{form.label}</Badge>;
       },
+      scroll: { width: 4.75, className: 'text-center' },
     },
     {
       key: 'quality',
@@ -277,6 +365,7 @@ const PowerRankingsTable = ({
           <span className="text-destructive">{team.badLosses || 0}</span>
         </span>
       ),
+      scroll: { width: 4.5, title: 'Quality wins / bad losses', className: 'text-center' },
     },
     {
       key: 'projected',
@@ -293,6 +382,7 @@ const PowerRankingsTable = ({
           className="font-medium"
         />
       ),
+      scroll: { width: 3.75, title: 'Projected total', className: 'text-right' },
     },
     {
       key: 'nextMatchup',
@@ -302,10 +392,7 @@ const PowerRankingsTable = ({
       className: 'text-right',
       headerClassName: 'text-right',
       cell: (team) => {
-        const opponentId = team.powerRatingComponents?.nextOpponentTeamId ?? null;
-        const opponent = opponentId != null
-          ? rankings.find((r) => (r.teamId ?? r.id) === opponentId)
-          : null;
+        const opponent = opponentOf(team);
         if (!opponent) return <span className="text-muted-foreground">—</span>;
 
         // Wraps rather than widening the table: a long opponent name used to
@@ -325,6 +412,34 @@ const PowerRankingsTable = ({
           </span>
         );
       },
+      scroll: {
+        width: 11,
+        title: 'Next matchup',
+        className: 'text-right',
+        // One line: the name gives way, and the projection stays whole.
+        cell: (team) => {
+          const opponent = opponentOf(team);
+          if (!opponent) return <span className="text-muted-foreground">—</span>;
+          return (
+            <span className="flex min-w-0 items-baseline justify-end gap-1">
+              <TeamLink team={opponent} className="truncate">
+                {getMaskedTeamName(opponent, user, isAdmin, teamOwnerNames)}
+              </TeamLink>
+              <NumberText
+                value={team.powerRatingComponents?.nextOpponentProjected}
+                className="shrink-0 text-muted-foreground"
+              />
+            </span>
+          );
+        },
+      },
+    },
+    // The wide layout has this under the team's name.
+    {
+      key: 'owner',
+      header: 'Owner',
+      cell: (team) => getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
+      scroll: { only: true, width: 10, className: 'truncate text-muted-foreground' },
     },
     ...(onEditTeam ? [
       {
@@ -338,6 +453,7 @@ const PowerRankingsTable = ({
             <Edit3 className="h-4 w-4" />
           </Button>
         ),
+        scroll: { className: 'text-center' },
       },
     ] : []),
   ];
@@ -349,6 +465,11 @@ const PowerRankingsTable = ({
         data={rankings}
         rowKey={(team, i) => team.teamId || team.id || i}
         rowClassName={(team) => getUserTeamHighlightClasses(isUserTeam(team, user))}
+        scroll={{
+          label: `Week ${currentWeek} Power Rankings table`,
+          order: SCROLL_ORDER,
+          isViewer: (team) => isUserTeam(team, user),
+        }}
       />
 
       <Card>

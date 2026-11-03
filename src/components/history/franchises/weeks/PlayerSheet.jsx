@@ -116,7 +116,7 @@ const PlayerSheet = ({ player, week, index, viewer, open, onOpenChange }) => {
               <RankByWeek weeks={season.weeks} selectedWeek={week} position={position} />
             )}
 
-            <Career seasons={careerSeasons} loading={open && !career} viewer={viewer} />
+            <Career seasons={careerSeasons} loading={open && !career} viewer={viewer} onOpenChange={onOpenChange} />
           </div>
         )}
       </SheetContent>
@@ -240,7 +240,7 @@ function RankByWeek({ weeks, selectedWeek, position }) {
   );
 }
 
-function Career({ seasons, loading, viewer }) {
+function Career({ seasons, loading, viewer, onOpenChange }) {
   return (
     <div>
       <h4 className="mb-2 text-sm font-semibold">In this league</h4>

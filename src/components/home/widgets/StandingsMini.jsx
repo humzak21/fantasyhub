@@ -10,29 +10,32 @@ import { cn } from '../../../lib/utils';
 import { getMaskedDivisionName, getMaskedTeamName } from '../../../utils/displayNameUtils';
 import { faabOf, formatFaab } from '../../../utils/format';
 import { StreakChip } from '../../ui/streak-chip';
-import { ScrollTable } from '../ScrollTable';
-import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../tableTones';
+import { ScrollTable } from '../../ui/scroll-table';
+import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../../ui/table-tones';
 import { teamRosterPath } from '../../teams/teamLink';
 import { profilePath } from '../../profile/profileLink';
+import { PathToPlayoffsButton } from '../../playoffs/path/PathToPlayoffsButton';
 import { QualifierKey } from '../../standings/DrawerStandingsTable';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useDivisions, useStandings } from '../../../../hooks/queries/index.js';
 import { franchiseIdsByTeam } from '../../../../utils/viewerTeam.js';
 import { usesSeededPlayoffs } from '../../../../utils/playoffSeeding.js';
+import { showsPathToPlayoffs } from '../../../../utils/projectedBracket.js';
 import { streakOf } from '../../../../utils/home/streak.js';
 
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 
 /**
  * The table's width: the team column (whatever the card has after the 9.25rem
- * of rank, record and points for, but never under twelve letters of name —
- * 11ch, since `ch` is a digit and letters run narrower) plus every other
- * column: 9.25rem shown by default, 19rem to the right, and the seed's 3rem
- * from 2026. Literal strings, so Tailwind generates them.
+ * of rank, record and points for and the chevron's 1.5rem, but never under
+ * twelve letters of name — 11ch, since `ch` is a digit and letters run
+ * narrower) plus every other column: 9.25rem shown by default, 19rem to the
+ * right, and the seed's 3rem from 2026. Literal strings, so Tailwind generates
+ * them.
  */
 const TABLE_WIDTH = {
-  seeded: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_31.25rem)]',
-  plain: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_28.25rem)]'
+  seeded: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_10.75rem)_+_31.25rem)]',
+  plain: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_10.75rem)_+_28.25rem)]'
 };
 
 /**
@@ -52,7 +55,7 @@ const TABLE_WIDTH = {
  * The whole row opens the team's roster.
  */
 export default function StandingsMini({ ctx }) {
-  const { seasonId, season, viewerTeam, onOpenStandings } = ctx;
+  const { seasonId, season, config, viewerTeam, onOpenStandings, openTab, canOpenTab } = ctx;
   const { isApproved } = useViewer();
   const franchiseIds = franchiseIdsByTeam(season?.teams);
   const faabByTeam = new Map((season?.teams ?? []).map((team) => [team.id, faabOf(team)]));
@@ -62,6 +65,13 @@ export default function StandingsMini({ ctx }) {
   const divisionsQuery = useDivisions(seasonId);
 
   const seeded = usesSeededPlayoffs(season?.year);
+  const showPath =
+    canOpenTab?.('playoffs') &&
+    showsPathToPlayoffs({
+      year: season?.year,
+      games: season?.schedule,
+      regularSeasonWeeks: config?.regularSeasonWeeks || undefined
+    });
   const divisions = (divisionsQuery.data ?? [])
     .map((division, index) => ({
       ...division,
@@ -71,7 +81,7 @@ export default function StandingsMini({ ctx }) {
     }))
     .filter((division) => division.teams.length > 0);
 
-  // The drawer's tints, made opaque (see `tableTones.js`).
+  // The drawer's tints, made opaque (see `table-tones.js`).
   const tone = (team) => {
     if (seeded && team.isBye) return ROW_TONE.bye;
     return team.isPlayoffSpot ? ROW_TONE.qualifier : ROW_TONE.base;
@@ -99,7 +109,14 @@ export default function StandingsMini({ ctx }) {
       empty={divisions.length === 0 && <p className="text-sm text-muted-foreground">No standings yet.</p>}
     >
       <div className="@container space-y-4">
-        {seeded && <QualifierKey />}
+        {/* In the card and not its header, where two buttons beside the title
+            leave no room at phone width. */}
+        {(seeded || showPath) && (
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            {seeded && <QualifierKey />}
+            {showPath && <PathToPlayoffsButton teamId={viewerTeam?.id} onClick={openTab} />}
+          </div>
+        )}
         {/* By the card's width, not the viewport's: side by side once the
             card can hold two tables, whichever column it sits in. */}
         <div className="grid gap-5 @xl:grid-cols-2 @xl:gap-6">
@@ -119,7 +136,7 @@ export default function StandingsMini({ ctx }) {
                         points for — so the default view is those four
                         columns exactly — and never so little that a name
                         loses its first twelve letters. */}
-                    <col className="w-[max(11ch_+_2.75rem,100cqw_-_9.25rem)]" />
+                    <col className="w-[max(11ch_+_2.75rem,100cqw_-_10.75rem)]" />
                     <col className="w-[3.25rem]" />
                     <col className="w-[3.75rem]" />
                     <col className="w-16" />
