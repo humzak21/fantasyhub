@@ -9,7 +9,8 @@ import { STANDINGS_VIEW } from '../../../utils/standings/standingsView.js';
  * `TabsList` is the closest primitive there is. The week itself is a picker
  * beside them, offered only while that view is on.
  *
- * Renders nothing with a single choice: a past season's table is just the table.
+ * Renders no tabs with a single choice: a past season's table is just the table.
+ * `action` sits at the end of the row either way.
  *
  * @param {object} props
  * @param {'live'|'official'|'week'} props.mode
@@ -19,30 +20,34 @@ import { STANDINGS_VIEW } from '../../../utils/standings/standingsView.js';
  * @param {number[]} props.weeks - the scored weeks, newest first
  * @param {number|null} props.week
  * @param {(week: number) => void} props.onWeekChange
+ * @param {React.ReactNode} [props.action] - beside the tabs, at the row's end
  */
-export function StandingsViewToggle({ mode, onModeChange, hasLive, gameOn, weeks, week, onWeekChange }) {
-  if (!hasLive && weeks.length === 0) return null;
+export function StandingsViewToggle({ mode, onModeChange, hasLive, gameOn, weeks, week, onWeekChange, action = null }) {
+  const hasChoice = hasLive || weeks.length > 0;
+  if (!hasChoice && !action) return null;
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-1">
-      <Tabs value={mode} onValueChange={onModeChange}>
-        <TabsList aria-label="Which standings" className="h-9">
-          {hasLive && (
-            <TabsTrigger value={STANDINGS_VIEW.LIVE} className="py-1">
-              <LiveDot done={!gameOn} className="text-success" />
-              Live
+      {hasChoice && (
+        <Tabs value={mode} onValueChange={onModeChange}>
+          <TabsList aria-label="Which standings" className="h-9">
+            {hasLive && (
+              <TabsTrigger value={STANDINGS_VIEW.LIVE} className="py-1">
+                <LiveDot done={!gameOn} className="text-success" />
+                Live
+              </TabsTrigger>
+            )}
+            <TabsTrigger value={STANDINGS_VIEW.OFFICIAL} className="py-1">
+              Official
             </TabsTrigger>
-          )}
-          <TabsTrigger value={STANDINGS_VIEW.OFFICIAL} className="py-1">
-            Official
-          </TabsTrigger>
-          {weeks.length > 0 && (
-            <TabsTrigger value={STANDINGS_VIEW.WEEK} className="py-1">
-              Week
-            </TabsTrigger>
-          )}
-        </TabsList>
-      </Tabs>
+            {weeks.length > 0 && (
+              <TabsTrigger value={STANDINGS_VIEW.WEEK} className="py-1">
+                Week
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </Tabs>
+      )}
 
       {mode === STANDINGS_VIEW.WEEK && (
         <>
@@ -63,6 +68,8 @@ export function StandingsViewToggle({ mode, onModeChange, hasLive, gameOn, weeks
           </Select>
         </>
       )}
+
+      {action && <div className="ml-auto">{action}</div>}
     </div>
   );
 }

@@ -2,13 +2,18 @@ import { describe, it, expect } from 'vitest';
 
 import { calculatePlayoffOdds } from '../playoffOddsCalculator.js';
 import {
+  applyScenario,
   buildPath,
   decodeScenario,
+  decodeScenarioScores,
   encodeScenario,
   fieldSeeds,
   firstUnscoredWeek,
+  pointsToGetIn,
   presetResults,
+  projectedGameScore,
   scenarioStandings,
+  scoresNeeded,
   simulatePath
 } from '../playoffPathCalculator.js';
 import { buildRule } from '../playoffOddsCalculator.js';
@@ -53,6 +58,126 @@ const pathAt = (scoredThrough) =>
 
 const row = (simulation, id) => simulation.teams.find((team) => team.id === id);
 
+describe('projectedGameScore', () => {
+  const path = pathAt(7);
+  const game = path.games[0];
+
+  it('is each side\'s expectation until a winner is named', () => {
+    const projection = projectedGameScore(path, game);
+    expect(projection.team1Score).toBeGreaterThan(0);
+    expect(projection.team2Score).toBeGreaterThan(0);
+  });
+
+  it('gives the winner the higher score, whichever side they are', () => {
+    for (const winner of [game.team1Id, game.team2Id]) {
+      const { team1Score, team2Score } = projectedGameScore(path, game, winner);
+      expect(winner === game.team1Id ? team1Score > team2Score : team2Score > team1Score).toBe(true);
+    }
+  });
+
+  it('still names a winner when nobody has played', () => {
+    const fresh = pathAt(0);
+    const first = fresh.games[0];
+    const { team1Score, team2Score } = projectedGameScore(fresh, first, first.team2Id);
+    expect(team2Score).toBeGreaterThan(team1Score);
+  });
+});
+
+describe('applyScenario', () => {
+  const games = schedule(7);
+  const path = pathAt(7);
+  const decided = path.games[0];
+
+  it('leaves the schedule alone with nothing decided', () => {
+    expect(applyScenario(path, games, new Map())).toEqual(games);
+  });
+
+  it('scores a decided game, at its typed points when it has them', () => {
+    const results = new Map([[decided.id, decided.team1Id]]);
+    const projected = applyScenario(path, games, results).find((game) => game.id === decided.id);
+    expect(projected.team1Score).toBeGreaterThan(projected.team2Score);
+
+    const typed = applyScenario(path, games, results, new Map([[decided.id, { team1Score: 150, team2Score: 90 }]]));
+    expect(typed.find((game) => game.id === decided.id)).toMatchObject({ team1Score: 150, team2Score: 90 });
+  });
+
+  it('keeps every undecided game unscored', () => {
+    const results = new Map([[decided.id, decided.team1Id]]);
+    const scored = applyScenario(path, games, results).filter((game) => game.team1Score != null);
+    expect(scored).toHaveLength(49 + 1);
+  });
+
+  it('does not touch a game that has been played', () => {
+    const played = games.find((game) => game.team1Score != null);
+    const out = applyScenario(path, games, new Map([[played.id, played.team2Id]]));
+    expect(out.find((game) => game.id === played.id)).toBe(played);
+  });
+});
+
+describe('pointsToGetIn', () => {
+  /** Two divisions of four, everyone level unless a row says otherwise. */
+  const table = (overrides = {}) =>
+    ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id, i) => ({
+      id,
+      divisionId: i % 2 === 0 ? 'east' : 'west',
+      winPercentage: 0.5,
+      pointsFor: 1000 - i * 10,
+      pointsAgainst: 1000,
+      ...overrides[id]
+    }));
+
+  it('is the gap to the team a level team has to pass', () => {
+    const answer = pointsToGetIn(table(), 'g');
+    expect(answer).toMatchObject({ status: 'points', seed: 6, rivalId: 'f' });
+    expect(answer.gap).toBe(10);
+    expect(answer.points).toBe(10.01);
+  });
+
+  it('says a result has to change when the team is behind on record', () => {
+    const answer = pointsToGetIn(table({ g: { winPercentage: 0.25, pointsFor: 2000 } }), 'g');
+    expect(answer).toMatchObject({ status: 'record', seed: 6 });
+  });
+
+  it('reports the cushion over the team that could take the spot', () => {
+    const answer = pointsToGetIn(table(), 'f');
+    expect(answer).toMatchObject({ status: 'in', seed: 6, cushion: 10, rivalId: 'g' });
+  });
+
+  it('has no cushion when nobody outside is level', () => {
+    const answer = pointsToGetIn(
+      table({ g: { winPercentage: 0.25 }, h: { winPercentage: 0.25 } }),
+      'f'
+    );
+    expect(answer).toMatchObject({ status: 'in', cushion: null, rivalId: null });
+  });
+
+  it('is nothing for a team not on the table', () => {
+    expect(pointsToGetIn(table(), 'zz')).toBeNull();
+  });
+});
+
+describe('scoresNeeded', () => {
+  const games = schedule(7);
+  const path = pathAt(7);
+  const mine = path.games.filter((game) => game.team1Id === 't1' || game.team2Id === 't1');
+  const results = new Map([
+    [mine[0].id, 't1'],
+    [mine[1].id, mine[1].team1Id === 't1' ? mine[1].team2Id : mine[1].team1Id]
+  ]);
+  const rivalId = mine[0].team1Id === 't1' ? mine[0].team2Id : mine[0].team1Id;
+  const needed = scoresNeeded(path, applyScenario(path, games, results), results, 't1', rivalId, 20);
+
+  it('lists only the games the team wins in the scenario', () => {
+    expect(needed.map((game) => game.id)).toEqual([mine[0].id]);
+  });
+
+  it('adds the points to what the table has them on, and marks the rival', () => {
+    expect(needed[0].needed).toBeCloseTo(needed[0].score + 20, 2);
+    expect(needed[0].againstRival).toBe(true);
+    expect(needed[0].margin).toBeGreaterThan(20);
+  });
+});
+
 describe('firstUnscoredWeek', () => {
   it('is the first week with a game to play', () => {
     expect(firstUnscoredWeek(schedule(7), REGULAR_WEEKS)).toBe(8);
@@ -94,6 +219,27 @@ describe('fieldSeeds', () => {
 });
 
 describe('simulatePath', () => {
+  it('feeds typed points into the tiebreak', () => {
+    const path = pathAt(13);
+    const game = path.games.find((candidate) => candidate.team1Id === 't5' || candidate.team2Id === 't5');
+    const results = new Map([[game.id, 't5']]);
+    const high = game.team1Id === 't5' ? { team1Score: 400, team2Score: 90 } : { team1Score: 90, team2Score: 400 };
+
+    const plain = simulatePath(path, { results, simulations: SIMS });
+    const typed = simulatePath(path, { results, scores: new Map([[game.id, high]]), simulations: SIMS });
+
+    expect(row(typed, 't5').meanPointsFor).toBeGreaterThan(row(plain, 't5').meanPointsFor + 200);
+    expect(row(typed, 't5').meanWins).toBe(row(plain, 't5').meanWins);
+  });
+
+  it('ignores points for a game nobody decided', () => {
+    const path = pathAt(13);
+    const scores = new Map([[path.games[0].id, { team1Score: 400, team2Score: 90 }]]);
+    const plain = simulatePath(path, { simulations: SIMS });
+    const typed = simulatePath(path, { scores, simulations: SIMS });
+    expect(typed.teams).toEqual(plain.teams);
+  });
+
   it('reads the same odds as the rankings when nothing is decided', () => {
     const games = schedule(7);
     const odds = calculatePlayoffOdds({
@@ -205,6 +351,21 @@ describe('presetResults', () => {
 describe('a scenario in a URL', () => {
   const games = schedule(7);
   const results = new Map([['w8g0', games.find((g) => g.id === 'w8g0').team2Id], ['w12g3', games.find((g) => g.id === 'w12g3').team1Id]]);
+
+  it('carries typed points as hundredths, and brings them back', () => {
+    const scores = new Map([['w8g0', { team1Score: 110.2, team2Score: 132.5 }]]);
+    const param = encodeScenario(results, games, scores);
+    expect(param).toBe('8a2-11020-13250.12d1');
+    expect(decodeScenario(param, games)).toEqual(results);
+    expect(decodeScenarioScores(param, games)).toEqual(scores);
+  });
+
+  it('drops points that disagree with the winner, and keeps the winner', () => {
+    const scores = new Map([['w8g0', { team1Score: 150, team2Score: 90 }]]);
+    expect(encodeScenario(results, games, scores)).toBe('8a2.12d1');
+    expect(decodeScenarioScores('8a2-15000-9000', games).size).toBe(0);
+    expect(decodeScenario('8a2-15000-9000', games).size).toBe(1);
+  });
 
   it('round-trips', () => {
     const param = encodeScenario(results, games);

@@ -64,10 +64,12 @@ function Search() {
   return <output data-testid="search">{useLocation().search}</output>;
 }
 
+const DIVISIONS = [{ id: 'east', name: 'East' }, { id: 'west', name: 'West' }];
+
 const renderPath = (entry = '/playoffs?tab=path', props = {}) =>
   render(
     <MemoryRouter initialEntries={[entry]}>
-      <PathToPlayoffs season={season()} standingsRows={teams} {...props} />
+      <PathToPlayoffs season={season()} standingsRows={teams} divisions={DIVISIONS} {...props} />
       <Search />
     </MemoryRouter>
   );
@@ -91,7 +93,7 @@ describe('PathToPlayoffs', () => {
     renderPath();
 
     const schedulePanel = screen.getByText('Remaining schedule').closest('[class*="rounded"]');
-    const [firstChoice] = within(schedulePanel).getAllByRole('button', { name: /Team 3/ });
+    const [firstChoice] = within(schedulePanel).getAllByRole('button', { name: /^Team 3/ });
 
     await user.click(firstChoice);
     expect(search()).toMatch(/s=8[a-g][12]/);
@@ -120,6 +122,42 @@ describe('PathToPlayoffs', () => {
   it('shows the change column only once something is decided', () => {
     renderPath();
     expect(screen.queryByRole('columnheader', { name: /Change/ })).not.toBeInTheDocument();
+  });
+
+  it('reads each game as a pairing', () => {
+    renderPath();
+    const games = screen.getAllByRole('group', { name: /vs .*choose a winner/ });
+    expect(within(games[0]).getByText('vs')).toBeInTheDocument();
+    expect(within(games[0]).getAllByRole('button', { pressed: false })).toHaveLength(2);
+  });
+
+  it('moves the standings table as a game is decided', async () => {
+    const user = userEvent.setup();
+    renderPath();
+
+    const table = screen.getByRole('table', { name: 'East in this scenario' });
+    const before = within(table).getByText('Team 3').closest('tr').textContent;
+
+    await user.click(screen.getByRole('button', { name: 'Win out' }));
+
+    const after = within(screen.getByRole('table', { name: 'East in this scenario' }))
+      .getByText('Team 3')
+      .closest('tr').textContent;
+    expect(after).not.toBe(before);
+    expect(after).toContain('12–2');
+  });
+
+  it('lets typed points decide a game, and keeps them in the link', async () => {
+    const user = userEvent.setup();
+    renderPath();
+
+    const [toggle] = screen.getAllByRole('button', { name: /^Points for/ });
+    await user.click(toggle);
+    const [first] = screen.getAllByRole('textbox', { name: /points, week 8/ });
+    await user.type(first, '250');
+
+    expect(search()).toMatch(/s=8[a-g][12]-25000-\d+/);
+    expect(screen.getByText('1 game decided')).toBeInTheDocument();
   });
 
   it('says so when no games are left', () => {

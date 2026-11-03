@@ -1515,6 +1515,34 @@ model and `PathToPlayoffs.jsx` renders it.
   Nothing is stored, so there is no save and no migration.
 - **Its bracket is seeded on each team's average finish** (`scenarioStandings`),
   through the league's own rule, because one simulated season is one roll.
+- **The standings table is a different reading of the scenario, on purpose.**
+  `ScenarioStandings` is `computeStandings` over `applyScenario`'s games, so it
+  counts real results and decided games and nothing else: exact records, the
+  league's own seeds, and `withMovement` against today. The odds and the bracket
+  play an undecided game out; the table leaves it out. Both captions say so.
+- **A decided game with no typed points plays at its projection**
+  (`projectedGameScore`: each team's expected score, the winner taking the higher),
+  so points for stays comparable between teams with different numbers of decided
+  games.
+- **Typed points are in the token, as hundredths:** `8c1-13250-11020`. They decide
+  the game, and in `simulatePath` that game plays at those figures in every season.
+  They are written only when they agree with the side, so a preset that changes a
+  winner drops them. A level score is refused, since the token has no side for it.
+- **Points only split teams level on record**, so `pointsToGetIn` asks exactly
+  that: in on record, in by a cushion, a number of points from a level team, or a
+  result has to change first. It re-runs `computeSeeds` with the points added, so
+  the answer follows the league's rule rather than restating it. `scoresNeeded` is
+  the same gap game by game, over the games the team wins in the scenario. Show
+  those to the hundredth: a rounded-down target falls short.
+- **The table is pinned beside the games from `lg`** and scrolls itself if it is
+  taller than the window. Below `lg` the columns are `contents` and `order` puts
+  it after Remaining schedule, and a strip under the header keeps the team's
+  record, seed and odds in view while games are decided further down.
+- **The way in is `PathToPlayoffsButton`,** in the standings drawer's view row and
+  the home standings card, for viewers who may open the Playoffs tab.
+  `showsPathToPlayoffs` hides it, and the bracket card's link, once the last
+  regular-season game has a score, which is the moment the tool says the field is
+  set. The next season's unplayed games bring it back; nothing has to be reset.
 
 ### The automation dashboard watches; it cannot run anything
 

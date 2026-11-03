@@ -88,9 +88,11 @@ const TABS = [
   { id: 'teams', label: 'Teams', icon: Users },
   { id: 'history', label: 'History', icon: History, customAccess: false },
   { id: 'pickems', label: "Pick'ems", icon: Target, customAccess: false },
+  { id: 'playoffs', label: 'Playoffs', icon: Target, customAccess: false },
   { id: 'takes', label: 'Takes', icon: Flame, customAccess: false }
 ];
-const shouldShowTab = (tab) => tab.customAccess !== false;
+let openableTabs;
+const shouldShowTab = (tab) => tab.customAccess !== false || openableTabs.includes(tab.id);
 
 const render = () =>
   rtlRender(
@@ -111,6 +113,7 @@ const member = (over = {}) => ({
 });
 
 beforeEach(() => {
+  openableTabs = [];
   viewer = member();
   viewerTeam = TEAMS[6];
   queries = {
@@ -217,6 +220,7 @@ describe('HomePage — a member who owns a team', () => {
       expect(within(tables[0]).getByRole('columnheader', { name: label })).toBeInTheDocument();
     }
     expect(within(standings).getByRole('button', { name: /full standings/i })).toBeInTheDocument();
+    expect(within(standings).queryByRole('link', { name: 'Path to the Playoffs' })).not.toBeInTheDocument();
   });
 });
 
@@ -251,6 +255,14 @@ describe('HomePage — a game under way', () => {
   });
   afterEach(() => {
     window.matchMedia = matchMedia;
+  });
+
+  it('offers Path to the Playoffs from the standings, on the viewer\'s team', () => {
+    openableTabs = ['playoffs'];
+    render();
+    const standings = screen.getByRole('region', { name: /^standings$/i });
+    const link = within(standings).getByRole('link', { name: 'Path to the Playoffs' });
+    expect(link.getAttribute('href')).toContain(`/playoffs?tab=path&team=${viewerTeam.id}`);
   });
 
   it('shows the score so far as live, not as a projection or a result', () => {

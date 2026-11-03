@@ -122,6 +122,39 @@ beforeEach(() => {
   viewer = { user: null, isAdmin: true, teamOwnerNames: [] };
 });
 
+describe('the Path to the Playoffs button', () => {
+  const finished = GAMES.map((game) => ({ ...game, team1Score: 100, team2Score: 90 }));
+  const path = () => screen.queryByRole('link', { name: 'Path to the Playoffs' });
+
+  it('sits beside the views for an approved member', () => {
+    viewer = { ...viewer, isApproved: true };
+    renderDrawer();
+    expect(path()).toHaveAttribute('href', '/playoffs?tab=path');
+  });
+
+  it('is not offered to anybody the Playoffs tab would bounce', () => {
+    viewer = { ...viewer, isApproved: false };
+    renderDrawer();
+    expect(path()).not.toBeInTheDocument();
+  });
+
+  it('goes once every regular-season game is scored', () => {
+    viewer = { ...viewer, isApproved: true };
+    renderDrawer({ games: finished });
+    expect(path()).not.toBeInTheDocument();
+  });
+
+  it('closes the drawer on the way out', async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    viewer = { ...viewer, isApproved: true };
+    renderDrawer({ onOpenChange });
+
+    await user.click(path());
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
 describe('StandingsDrawer views', () => {
   it('opens on Live while a game is on', () => {
     live = LIVE_WEEK;

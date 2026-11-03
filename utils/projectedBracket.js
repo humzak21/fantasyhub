@@ -15,7 +15,13 @@
  * and naming a team there would be a guess.
  */
 
-import { organizeSeededBracket, reseedSemis, sortByStandings, teamIdOf } from './playoffSeeding.js';
+import {
+  organizeSeededBracket,
+  reseedSemis,
+  sortByStandings,
+  teamIdOf,
+  usesSeededPlayoffs
+} from './playoffSeeding.js';
 
 /** The last scored week before the home page shows the bracket. */
 export const HOME_BRACKET_AFTER_WEEK = 10;
@@ -67,6 +73,21 @@ export function showsHomeBracket(games) {
     (game) => game.type === 'bye' || String(game.type ?? '').startsWith('playoff')
   );
   return bracketDrawn || lastScoredWeek(games) >= HOME_BRACKET_AFTER_WEEK;
+}
+
+/**
+ * Do the standings offer Path to the Playoffs? Until the last regular-season
+ * game has a score, which is when the tool itself says the field is set. The
+ * next season's unplayed games bring it back on their own.
+ *
+ * @param {object} input
+ * @param {number} input.year
+ * @param {Array<Object>} input.games - the season's games
+ * @param {number} [input.regularSeasonWeeks]
+ */
+export function showsPathToPlayoffs({ year, games, regularSeasonWeeks = 14 }) {
+  if (!usesSeededPlayoffs(year)) return false;
+  return regularGames(games).some((game) => game.week <= regularSeasonWeeks && !isScored(game));
 }
 
 /**

@@ -7,6 +7,8 @@ import { BracketView } from '../BracketView';
 import { GameChoice } from './GameChoice';
 import { FirstRoundOpponents, RecordsNeeded, SeedChances } from './PathCharts';
 import { formatDelta, formatProjectedRecord, formatShare } from './pathFormat';
+import { PointsToGetIn } from './PointsToGetIn';
+import { ScenarioStandings } from './ScenarioStandings';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -24,15 +26,22 @@ import { sortRows } from '../../../utils/tableSort';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useViewerTeam } from '../../../hooks/use-viewer-team.js';
 import {
+  applyScenario,
   buildPath,
   decodeScenario,
+  decodeScenarioScores,
   encodeScenario,
+  pointsToGetIn,
   presetResults,
+  projectedGameScore,
   scenarioStandings,
+  scoresNeeded,
   simulatePath
 } from '../../../../services/playoffPathCalculator.js';
 import { toSeasonConfig } from '../../../../utils/seasonConfig.js';
-import { mergeStandings, resolveUpperBracket } from '../../../../utils/projectedBracket.js';
+import { flattenStandings, mergeStandings, resolveUpperBracket } from '../../../../utils/projectedBracket.js';
+import { computeStandings } from '../../../../utils/standings/computeStandings.js';
+import { withMovement } from '../../../../utils/standings/standingsView.js';
 
 /** Games shown under "matter most" before the full list takes over. */
 const LEVERAGE_GAMES = 6;
@@ -75,10 +84,14 @@ function Stat({ label, value, delta = null, large = false }) {
   );
 }
 
-/** Where the team stands now, before any what-if. */
-function standingLine(team, row) {
+/** Where the team stands now, or on the scenario's table once a game is decided. */
+function standingLine(team, row, scenarioStanding) {
   if (row.clinched) return 'Clinched a playoff spot in this scenario';
   if (row.eliminated) return 'Eliminated in this scenario';
+  if (scenarioStanding) {
+    const scenarioSeed = scenarioStanding.playoffSeed;
+    return scenarioSeed ? `Seed ${scenarioSeed} on these results` : 'Outside the field on these results';
+  }
   const seed = team.playoffSeed;
   return seed ? `Seed ${seed} as it stands` : `${formatOrdinal(team.leagueRank)} as it stands, outside the field`;
 }
@@ -88,14 +101,20 @@ function standingLine(team, row) {
  * what it does to them.
  *
  * The model is `services/playoffPathCalculator.js`; this renders its output.
- * The scenario is the URL (`team`, and `s` for the decided games), which is
- * the whole of the state: there is nothing to save, a link is the share button,
- * and reloading the page keeps what was on it.
+ * The scenario is the URL (`team`, and `s` for the decided games and any points
+ * typed for them), which is the whole of the state: there is nothing to save, a
+ * link is the share button, and reloading the page keeps what was on it.
+ *
+ * Two readings of a scenario sit side by side, and they answer different things.
+ * The odds, charts and bracket are simulated seasons, so an undecided game is
+ * played out. The standings table is `computeStandings` over the games with the
+ * scenario written on, so an undecided game does not count. That is what lets a
+ * member see the exact table a set of results gives, and read points off it.
  *
  * Runs on the main thread, deferred so a press lands before the five thousand
- * seasons behind it do.
+ * seasons behind it do. The table is a sum and is not deferred.
  */
-export default function PathToPlayoffs({ season, standingsRows = [] }) {
+export default function PathToPlayoffs({ season, standingsRows = [], divisions = [] }) {
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const { team: viewerTeam } = useViewerTeam();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,16 +145,39 @@ export default function PathToPlayoffs({ season, standingsRows = [] }) {
   const focusTeam = teamsById.get(focusId) ?? null;
 
   const scenarioParam = searchParams.get('s');
-  const results = useMemo(() => decodeScenario(scenarioParam, schedule), [scenarioParam, schedule]);
-  const deferredResults = useDeferredValue(results);
+  const scenario = useMemo(
+    () => ({
+      results: decodeScenario(scenarioParam, schedule),
+      scores: decodeScenarioScores(scenarioParam, schedule)
+    }),
+    [scenarioParam, schedule]
+  );
+  const { results, scores } = scenario;
+  const deferred = useDeferredValue(scenario);
 
   const baseline = useMemo(
     () => (path && focusId ? simulatePath(path, { focusId }) : null),
     [path, focusId]
   );
   const simulation = useMemo(
-    () => (path && focusId && deferredResults.size > 0 ? simulatePath(path, { results: deferredResults, focusId }) : baseline),
-    [path, focusId, deferredResults, baseline]
+    () => (path && focusId && deferred.results.size > 0 ? simulatePath(path, { ...deferred, focusId }) : baseline),
+    [path, focusId, deferred, baseline]
+  );
+
+  const scenarioGames = useMemo(
+    () => (path ? applyScenario(path, schedule, results, scores) : schedule),
+    [path, schedule, results, scores]
+  );
+  const officialTable = useMemo(
+    () => computeStandings({ teams, games: schedule, divisions, year: season?.year }),
+    [teams, schedule, divisions, season?.year]
+  );
+  const table = useMemo(
+    () =>
+      results.size > 0
+        ? withMovement(computeStandings({ teams, games: scenarioGames, divisions, year: season?.year }), officialTable)
+        : officialTable,
+    [teams, scenarioGames, divisions, season?.year, officialTable, results]
   );
 
   const nameOf = useCallback(
@@ -157,21 +199,39 @@ export default function PathToPlayoffs({ season, standingsRows = [] }) {
     [setSearchParams]
   );
 
-  const setResults = useCallback(
-    (nextResults) =>
+  const setScenario = useCallback(
+    (nextResults, nextScores) =>
       update((next) => {
-        const encoded = encodeScenario(nextResults, schedule);
+        const encoded = encodeScenario(nextResults, schedule, nextScores);
         if (encoded) next.set('s', encoded);
         else next.delete('s');
       }),
     [update, schedule]
   );
+  // A preset can change a winner under typed points; the encoding drops those.
+  const setResults = (nextResults) => setScenario(nextResults, scores);
 
   const chooseWinner = (gameId, teamId) => {
-    const next = new Map(results);
-    if (next.get(gameId) === teamId) next.delete(gameId);
-    else next.set(gameId, teamId);
-    setResults(next);
+    const nextResults = new Map(results);
+    const nextScores = new Map(scores);
+    nextScores.delete(gameId);
+    if (nextResults.get(gameId) === teamId) nextResults.delete(gameId);
+    else nextResults.set(gameId, teamId);
+    setScenario(nextResults, nextScores);
+  };
+
+  // Points decide the game; clearing them leaves whoever was winning it.
+  const setPoints = (gameId, score) => {
+    const nextResults = new Map(results);
+    const nextScores = new Map(scores);
+    if (score) {
+      const game = path.games.find((candidate) => candidate.id === gameId);
+      nextScores.set(gameId, score);
+      nextResults.set(gameId, score.team1Score > score.team2Score ? game.team1Id : game.team2Id);
+    } else {
+      nextScores.delete(gameId);
+    }
+    setScenario(nextResults, nextScores);
   };
 
   // The team's own games are replaced; "favorites" only fills what is undecided.
@@ -230,7 +290,10 @@ export default function PathToPlayoffs({ season, standingsRows = [] }) {
       nameOf={nameOf}
       winnerId={results.get(game.id) ?? null}
       figures={figuresFor(impactOf(game.id))}
+      score={scores.get(game.id) ?? null}
+      projection={projectedGameScore(path, game, results.get(game.id) ?? null)}
       onChoose={chooseWinner}
+      onScore={setPoints}
     />
   );
 
@@ -246,6 +309,25 @@ export default function PathToPlayoffs({ season, standingsRows = [] }) {
     teams: scenarioStandings(path, simulation, teams),
     firstRoundWeek
   });
+
+  const standing = flattenStandings(table);
+  const focusStanding = standing.find((row) => row.id === focusId);
+  const getIn = pointsToGetIn(standing, focusId);
+  const needed = getIn?.status === 'points'
+    ? scoresNeeded(path, scenarioGames, results, focusId, getIn.rivalId, getIn.points)
+    : [];
+  const undecidedInvolved = path.games.filter(
+    (game) =>
+      !results.has(game.id) &&
+      [focusId, getIn?.rivalId].some((id) => id != null && (game.team1Id === id || game.team2Id === id))
+  ).length;
+
+  const undecidedCount = path.games.length - results.size;
+  let tableNote = "Today's table. Decide a game and it moves.";
+  if (undecidedCount === 0) tableNote = 'Every game left is decided, so this is how the season ends.';
+  else if (scenarioActive) {
+    tableNote = `Today's table with the ${results.size} ${results.size === 1 ? 'game' : 'games'} decided here. The ${undecidedCount} undecided don't count yet.`;
+  }
 
   const tableColumns = [
     {
@@ -368,7 +450,7 @@ export default function PathToPlayoffs({ season, standingsRows = [] }) {
               <p className="mt-0.5 text-xs text-muted-foreground tabular">
                 <RecordText wins={focusTeam.wins} losses={focusTeam.losses} ties={focusTeam.ties} />
               </p>
-              <p className="mt-1.5 text-[13px] font-medium">{standingLine(focusTeam, focusRow)}</p>
+              <p className="mt-1.5 text-[13px] font-medium">{standingLine(focusTeam, focusRow, scenarioActive ? focusStanding : null)}</p>
               {scenarioActive && (
                 <Badge variant="secondary" className="mt-1.5">
                   {results.size} {results.size === 1 ? 'game' : 'games'} decided
@@ -389,9 +471,25 @@ export default function PathToPlayoffs({ season, standingsRows = [] }) {
         </div>
       </section>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <div className="min-w-0 space-y-4">
-          <Card>
+      {/* On a phone the table is a screen away from any game, so this is what
+          stays in view while they are decided. */}
+      {scenarioActive && focusStanding && (
+        <div className="sticky top-[calc(3.5rem+1px)] z-20 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-[13px] shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:top-[calc(4rem+1px)] lg:hidden">
+          <TeamAvatar team={focusTeam} size="xs" />
+          <span className="min-w-0 flex-1 truncate font-medium">{nameOf(focusTeam)}</span>
+          <span className="text-muted-foreground tabular">
+            <RecordText wins={focusStanding.wins} losses={focusStanding.losses} ties={focusStanding.ties} />
+          </span>
+          <span className="tabular">{focusStanding.playoffSeed ? `Seed ${focusStanding.playoffSeed}` : 'Out'}</span>
+          <span className="font-semibold tabular">{focusRow.odds}%</span>
+        </div>
+      )}
+
+      {/* Below `lg` the columns dissolve and `order` reads the cards in turn, so
+          the table comes straight after the games a member decides first. */}
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+        <div className="contents lg:block lg:min-w-0 lg:space-y-4">
+          <Card className="max-lg:order-1">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">{ownGames.length > 0 ? 'Remaining schedule' : 'No games left'}</CardTitle>
               {ownGames.length > 0 && (
@@ -408,7 +506,7 @@ export default function PathToPlayoffs({ season, standingsRows = [] }) {
           </Card>
 
           {biggestGames.length > 0 && (
-            <Card>
+            <Card className="max-lg:order-3">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Swords className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
@@ -423,68 +521,106 @@ export default function PathToPlayoffs({ season, standingsRows = [] }) {
               </CardContent>
             </Card>
           )}
+
+          <Card className="max-lg:order-4">
+            <button
+              type="button"
+              aria-expanded={showAllGames}
+              onClick={() => setShowAllGames((open) => !open)}
+              className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl px-4 text-left text-base font-semibold outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring sm:px-6"
+            >
+              Every game left
+              <span className="flex items-center gap-2 text-[13px] font-normal text-muted-foreground tabular">
+                {path.games.length}
+                <ChevronDown className={cn('h-4 w-4 transition-transform', showAllGames && 'rotate-180')} aria-hidden="true" />
+              </span>
+            </button>
+            {showAllGames && (
+              <CardContent className="space-y-5 pt-1">
+                {weeks.map((week) => (
+                  <section key={week} aria-labelledby={`path-week-${week}`}>
+                    <h3 id={`path-week-${week}`} className="mb-2 text-sm font-semibold">Week {week}</h3>
+                    <div className="grid gap-2.5 sm:grid-cols-2">
+                      {path.games.filter((game) => game.week === week).map((game) => gameRow(game, null))}
+                    </div>
+                  </section>
+                ))}
+              </CardContent>
+            )}
+          </Card>
         </div>
 
-        <div className="min-w-0 space-y-4">
-          <Card>
+        {/* Pinned beside the games from `lg`, so a press is seen landing. It
+            scrolls itself when it is taller than the window. */}
+        <div className="contents lg:sticky lg:top-[calc(4rem+1rem)] lg:block lg:max-h-[calc(100dvh-4rem-2rem)] lg:min-w-0 lg:space-y-4 lg:overflow-y-auto">
+          <Card className="max-lg:order-2">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Where they finish</CardTitle>
+              <CardTitle className="text-base">Standings in this scenario</CardTitle>
+              <CardDescription>
+                {tableNote}
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <SeedChances team={focusTeam} row={focusRow} />
+              <ScenarioStandings
+                standings={table}
+                divisions={divisions}
+                teamsById={teamsById}
+                nameOf={nameOf}
+                focusId={focusId}
+              />
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="max-lg:order-2">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">What it takes</CardTitle>
-              <CardDescription>How often each final record is enough, and how often they get there.</CardDescription>
+              <CardTitle className="text-base">Points to get in</CardTitle>
+              <CardDescription>Off the table above. Set points on any game to change it.</CardDescription>
             </CardHeader>
             <CardContent>
-              <RecordsNeeded team={focusTeam} records={focus.records} />
+              <PointsToGetIn
+                answer={getIn}
+                needed={needed}
+                undecided={undecidedInvolved}
+                teamsById={teamsById}
+                nameOf={nameOf}
+              />
             </CardContent>
           </Card>
-
-          {focus.opponents.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">First-round opponent</CardTitle>
-                <CardDescription>Most likely, in the seasons they play round 1.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <FirstRoundOpponents opponents={focus.opponents} teamsById={teamsById} nameOf={nameOf} />
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
 
-      <Card>
-        <button
-          type="button"
-          aria-expanded={showAllGames}
-          onClick={() => setShowAllGames((open) => !open)}
-          className="flex min-h-12 w-full items-center justify-between gap-2 rounded-xl px-4 text-left text-base font-semibold outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring sm:px-6"
-        >
-          Every game left
-          <span className="flex items-center gap-2 text-[13px] font-normal text-muted-foreground tabular">
-            {path.games.length}
-            <ChevronDown className={cn('h-4 w-4 transition-transform', showAllGames && 'rotate-180')} aria-hidden="true" />
-          </span>
-        </button>
-        {showAllGames && (
-          <CardContent className="space-y-5 pt-1">
-            {weeks.map((week) => (
-              <section key={week} aria-labelledby={`path-week-${week}`}>
-                <h3 id={`path-week-${week}`} className="mb-2 text-sm font-semibold">Week {week}</h3>
-                <div className="grid gap-2.5 lg:grid-cols-2">
-                  {path.games.filter((game) => game.week === week).map((game) => gameRow(game, null))}
-                </div>
-              </section>
-            ))}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Where they finish</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SeedChances team={focusTeam} row={focusRow} />
           </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">What it takes</CardTitle>
+            <CardDescription>How often each final record is enough, and how often they get there.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RecordsNeeded team={focusTeam} records={focus.records} />
+          </CardContent>
+        </Card>
+
+        {focus.opponents.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">First-round opponent</CardTitle>
+              <CardDescription>Most likely, in the seasons they play round 1.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FirstRoundOpponents opponents={focus.opponents} teamsById={teamsById} nameOf={nameOf} />
+            </CardContent>
+          </Card>
         )}
-      </Card>
+      </div>
 
       <Card>
         <CardHeader className="pb-3">

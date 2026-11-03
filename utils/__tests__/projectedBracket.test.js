@@ -9,7 +9,8 @@ import {
   projectBracket,
   resolveUpperBracket,
   seedOrder,
-  showsHomeBracket
+  showsHomeBracket,
+  showsPathToPlayoffs
 } from '../projectedBracket.js';
 
 const row = (n, seed = null) => ({
@@ -80,6 +81,34 @@ describe('showsHomeBracket', () => {
 
   it('shows a drawn bracket whatever the regular season says', () => {
     expect(showsHomeBracket([game('b', 'bye', 15, 't1', null)])).toBe(true);
+  });
+});
+
+describe('showsPathToPlayoffs', () => {
+  const games = [regular(13), regular(14), regular(14, false)];
+
+  it('stays until the last game of the regular season has a score', () => {
+    expect(showsPathToPlayoffs({ year: 2026, games })).toBe(true);
+    expect(showsPathToPlayoffs({ year: 2026, games: [regular(13), regular(14)] })).toBe(false);
+  });
+
+  it('is back the next year, whose games are unplayed', () => {
+    expect(showsPathToPlayoffs({ year: 2027, games: [regular(1, false)] })).toBe(true);
+  });
+
+  it('follows the season\'s own length', () => {
+    const shortSeason = [regular(13), regular(14, false)];
+    expect(showsPathToPlayoffs({ year: 2026, games: shortSeason, regularSeasonWeeks: 13 })).toBe(false);
+  });
+
+  it('does not count a postseason game still to be played', () => {
+    const postseason = [regular(14), game('r1', 'playoff_first_round', 15, 't3', 't6')];
+    expect(showsPathToPlayoffs({ year: 2026, games: postseason })).toBe(false);
+  });
+
+  it('has nothing to offer before seeding, or with no schedule', () => {
+    expect(showsPathToPlayoffs({ year: 2025, games })).toBe(false);
+    expect(showsPathToPlayoffs({ year: 2026, games: [] })).toBe(false);
   });
 });
 
