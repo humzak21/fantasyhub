@@ -103,14 +103,21 @@ jobs:
 
   migrations:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Room for the retries below: a start is about a minute, and a broken
+    # migration is tried three times before the job gives up on it.
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v7
 
+      # The same version `deploy-migrations.yml` applies with, so what this
+      # job replays is what the merge pushes. `latest` picked up CLI v3 on
+      # 2026-11-02, whose `db push` targets a local stack by default; the
+      # deploy pinned then and this job did not. Move both together, with a
+      # dry run of the deploy workflow from a branch.
       - uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: 2.116.0
 
       # The replay below only means anything once the first migration actually
       # creates the schema. The project's original tables were built by hand in
@@ -141,15 +148,51 @@ jobs:
       # realtime, storage, auth…) is irrelevant here and roughly triples the
       # startup time. Migrations are applied during startup, so a bad migration
       # fails this step.
+
+      # Supabase binds 54320-54329 on the host, and Linux hands out 32768-60999
+      # as source ports for outgoing connections. So any connection this job
+      # makes before `start` — Docker pulling an image, mostly — can be given
+      # 54322 and hold it, and `start` fails with "failed to bind host port
+      # 0.0.0.0:54322/tcp: address already in use" while nothing of ours is on
+      # it (2026-10-26, and three times in 36 seconds on 2026-11-03); the
+      # shadow database's 54320 went the same way on the merge of #171. Taking
+      # the ten ports out of the pool is the fix; the retries below are for
+      # whatever else a runner does once.
+      - name: Keep Supabase's host ports out of the ephemeral range
+        if: steps.baseline.outputs.ready == 'true'
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
+
+      # Both Docker steps retry, three tries ten seconds apart, with whatever
+      # the failed try left behind torn down first so a retry starts clean. A
+      # genuinely bad migration still fails: it fails three times.
       - name: Apply migrations to a throwaway database
         if: steps.baseline.outputs.ready == 'true'
         run: |
-          supabase start \
-            -x studio,realtime,storage-api,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor
+          for attempt in 1 2 3; do
+            if supabase start \
+                -x studio,realtime,storage-api,imgproxy,mailpit,edge-runtime,logflare,vector,supavisor; then
+              exit 0
+            fi
+            echo "::warning title=supabase start failed::Attempt $attempt of 3 failed; tearing down and retrying."
+            supabase stop --no-backup || true
+            sleep 10
+          done
+          exit 1
 
       - name: Report drift between migrations and the applied schema
         if: steps.baseline.outputs.ready == 'true'
-        run: supabase db diff --local
+        run: |
+          for attempt in 1 2 3; do
+            if supabase db diff --local; then
+              exit 0
+            fi
+            echo "::warning title=supabase db diff failed::Attempt $attempt of 3 failed; removing the stopped shadow container and retrying."
+            # The shadow container that could not bind its port is left in
+            # the created state; the running stack is untouched by a prune.
+            docker container prune -f >/dev/null || true
+            sleep 10
+          done
+          exit 1
 
       # pgTAP tests in supabase/tests, against the schema just replayed. They
       # are for what the vitest suite's fake client cannot see: constraints,

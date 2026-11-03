@@ -315,6 +315,20 @@ unapplied for two weeks while every sync reported success.
   latest` picked up CLI v3, whose `db push` targets a local stack by default.
   The merge of #147 failed with nothing applied, and the site deploy refused to
   go ahead of it, as it should. A dry run from a branch is how to move the pin.
+  CI's `migrations` job pins the same version (since 2026-11-03), so what it
+  replays is what the merge pushes; move the two together.
+- **CI reserves Supabase's host ports before it starts anything.** Supabase
+  binds 54320-54329 on the runner, inside Linux's ephemeral range
+  (32768-60999), so an outgoing connection the job makes first, Docker pulling
+  an image, can be handed 54322 and hold it. Then `start` fails with "address
+  already in use" while nothing of ours is on the port (2026-10-26, and three
+  times in 36 seconds on 2026-11-03), as did the shadow database's 54320 on
+  `db diff` on the merge of #171. A re-run passed each time, and the site had
+  deployed regardless, since `deploy-site.yml` waits only on the migrations
+  deploy. `sysctl net.ipv4.ip_local_reserved_ports=54320-54329` takes the ten
+  ports out of the pool; `start` and `db diff` also retry three times, tearing
+  down what a failed try left, so a real migration error still fails, three
+  times over.
 - **`--include-all`, in the workflow and in `npm run db:push`.** The CLI's
   default pushes only files newer than the newest recorded version and errors
   on an older one, which is the shape of two PRs merging in the opposite order
