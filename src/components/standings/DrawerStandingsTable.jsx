@@ -46,7 +46,7 @@ export const QualifierKey = () => (
  * is earned here: this number has a direction. `null` is a table with nothing
  * to compare against, which draws nothing, not a dash.
  */
-const RankMovement = ({ movement }) => {
+export const RankMovement = ({ movement }) => {
   if (movement == null) return null;
 
   if (movement === 0) {

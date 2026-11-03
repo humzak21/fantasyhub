@@ -15,6 +15,10 @@
  *   opponent, the record that gets a team in and how much each remaining game
  *   swings its odds. Conditioning on a game costs nothing extra: every season
  *   already played it one way or the other.
+ * - **Typed points.** A member can give a decided game its score. That game then
+ *   plays out at those figures in every season, so what it does to the points-for
+ *   tiebreak reaches the odds, and `applyScenario` writes the same figures onto
+ *   the games for the standings table.
  *
  * Certainty stays `mathematicalStatus`'s, over the records with the decided
  * games applied: 100 means clinched in this scenario and 0 means eliminated in
@@ -23,7 +27,9 @@
 
 import {
   BYE_COUNT,
-  PLAYOFF_FIELD_SIZE
+  PLAYOFF_FIELD_SIZE,
+  computeSeeds,
+  winPercentageOf
 } from '../utils/playoffSeeding.js';
 import {
   SCORE_SD,
@@ -42,6 +48,9 @@ import {
  * rather than 2^16, and the bound beyond it is never early, only late.
  */
 const SCENARIO_EXACT_LIMIT = 12;
+
+/** Past a level total on points for: scores run to the hundredth. */
+const PASSING_MARGIN = 0.01;
 
 const isScored = (game) => game.team1Score != null && game.team2Score != null;
 
@@ -160,6 +169,8 @@ function statusWith(path, results) {
  * @param {Object} path - from `buildPath`
  * @param {object} [options]
  * @param {Map<string, string>} [options.results] - game id → winning team id
+ * @param {Map<string, { team1Score: number, team2Score: number }>} [options.scores]
+ *   - typed points, game id → score
  * @param {*} [options.focusId] - the team the per-team answers are about
  * @param {number} [options.simulations]
  * @returns {{
@@ -170,7 +181,10 @@ function statusWith(path, results) {
  *   focus: null | { records: Array, games: Array, opponents: Array }
  * }}
  */
-export function simulatePath(path, { results = new Map(), focusId = null, simulations = SIMULATIONS } = {}) {
+export function simulatePath(
+  path,
+  { results = new Map(), scores = new Map(), focusId = null, simulations = SIMULATIONS } = {}
+) {
   const { state, rule, games, finalPlayed } = path;
   const { ids, remaining } = state;
   const count = ids.length;
@@ -183,6 +197,7 @@ export function simulatePath(path, { results = new Map(), focusId = null, simula
     if (winner == null) return -1;
     return winner === game.team1Id ? game.a : game.b;
   });
+  const fixed = games.map((game) => (results.has(game.id) ? scores.get(game.id) ?? null : null));
 
   const focus = ids.indexOf(focusId);
   const hasFocus = focus !== -1;
@@ -219,7 +234,10 @@ export function simulatePath(path, { results = new Map(), focusId = null, simula
 
       // The decided side takes the higher score; the draws stay in the stream.
       const winner = forced[g];
-      if ((winner === a && scoreA < scoreB) || (winner === b && scoreB < scoreA)) {
+      if (fixed[g]) {
+        scoreA = fixed[g].team1Score;
+        scoreB = fixed[g].team2Score;
+      } else if ((winner === a && scoreA < scoreB) || (winner === b && scoreB < scoreA)) {
         [scoreA, scoreB] = [scoreB, scoreA];
       }
 
@@ -394,6 +412,161 @@ export function scenarioStandings(path, simulation, teams) {
   });
 }
 
+const toHundredth = (points) => Math.round(points * 100) / 100;
+
+/**
+ * What the model has a game finishing at: each team's expected score, to the
+ * hundredth like a real one. Once a winner is named they take the higher of the
+ * two, which is what a decided game does in the simulation.
+ *
+ * @param {Object} path - from `buildPath`
+ * @param {Object} game - one of `path.games`
+ * @param {*} [winnerId]
+ * @returns {{ team1Score: number, team2Score: number }}
+ */
+export function projectedGameScore(path, game, winnerId = null) {
+  const { means } = expectedScores(path.state);
+  const team1Score = toHundredth(means[game.a]);
+  const team2Score = toHundredth(means[game.b]);
+  if (winnerId == null) return { team1Score, team2Score };
+
+  const low = Math.min(team1Score, team2Score);
+  // Before anybody has played, every team expects the same score.
+  const high = Math.max(team1Score, team2Score, toHundredth(low + 0.01));
+  return winnerId === game.team1Id
+    ? { team1Score: high, team2Score: low }
+    : { team1Score: low, team2Score: high };
+}
+
+/**
+ * The season's games with a scenario written on: every decided game scored, at
+ * the points typed for it or else at its projection. Undecided games stay
+ * unscored, so a table built from these counts what was decided and nothing more.
+ *
+ * @param {Object} path - from `buildPath`
+ * @param {Array<Object>} schedule - the season's games
+ * @param {Map<string, string>} results - game id → winning team id
+ * @param {Map<string, { team1Score: number, team2Score: number }>} [scores]
+ * @returns {Array<Object>} the same shape; rows the scenario does not touch are the originals
+ */
+export function applyScenario(path, schedule, results, scores = new Map()) {
+  const left = new Map(path.games.map((game) => [game.id, game]));
+
+  return schedule.map((game) => {
+    const winner = results.get(game.id);
+    const open = left.get(game.id);
+    if (winner == null || !open) return game;
+    return { ...game, ...(scores.get(game.id) ?? projectedGameScore(path, open, winner)) };
+  });
+}
+
+/** The same table with one team's points for raised. */
+const withExtraPoints = (rows, id, points) =>
+  rows.map((row) => (row.id === id ? { ...row, pointsFor: row.pointsFor + points } : row));
+
+/** A team level with `team` on win percentage, other than itself. */
+const levelWith = (team) => (row) =>
+  row.id !== team.id && winPercentageOf(row) === winPercentageOf(team);
+
+/**
+ * How many points a team is from the field on a table, and from whom.
+ *
+ * The league's tiebreak is points for, so points only ever matter between teams
+ * level on record. That is the whole question: a team a win short cannot score
+ * its way in, and a team in on record cannot be scored out of it.
+ *
+ * @param {Array<Object>} rows - the whole league, in `computeStandings`' row shape
+ * @param {*} focusId
+ * @returns {null
+ *   | { status: 'in', seed: number, cushion: number|null, rivalId: *|null }
+ *   | { status: 'points', seed: number, points: number, gap: number, rivalId: * }
+ *   | { status: 'record', seed: number|null, rivalId: *|null }}
+ *   `cushion` is how far clear of the nearest team that could take the spot.
+ *   `gap` is the points behind `rivalId`, and `points` what it takes to pass them.
+ */
+export function pointsToGetIn(rows, focusId) {
+  const team = rows.find((row) => row.id === focusId);
+  if (!team) return null;
+
+  const seed = computeSeeds(rows).get(focusId)?.seed ?? null;
+
+  if (seed != null) {
+    const chasers = rows
+      .filter(levelWith(team))
+      .filter((row) => row.pointsFor <= team.pointsFor)
+      .sort((a, b) => b.pointsFor - a.pointsFor);
+
+    for (const chaser of chasers) {
+      const cushion = team.pointsFor - chaser.pointsFor;
+      const passed = withExtraPoints(rows, chaser.id, cushion + PASSING_MARGIN);
+      if (computeSeeds(passed).get(focusId)?.seed == null) {
+        return { status: 'in', seed, cushion, rivalId: chaser.id };
+      }
+    }
+    return { status: 'in', seed, cushion: null, rivalId: null };
+  }
+
+  const ahead = rows
+    .filter(levelWith(team))
+    .filter((row) => row.pointsFor >= team.pointsFor)
+    .sort((a, b) => a.pointsFor - b.pointsFor);
+
+  for (const rival of ahead) {
+    const gap = rival.pointsFor - team.pointsFor;
+    const points = toHundredth(gap + PASSING_MARGIN);
+    const newSeed = computeSeeds(withExtraPoints(rows, focusId, points)).get(focusId)?.seed;
+    if (newSeed != null) return { status: 'points', seed: newSeed, points, gap, rivalId: rival.id };
+  }
+
+  const seeds = computeSeeds(rows);
+  const lastIn = rows.reduce(
+    (last, row) => ((seeds.get(row.id)?.seed ?? 0) > (seeds.get(last?.id)?.seed ?? 0) ? row : last),
+    null
+  );
+  return { status: 'record', seed: seeds.get(lastIn?.id)?.seed ?? null, rivalId: lastIn?.id ?? null };
+}
+
+/**
+ * What a team has to score in each game it wins in a scenario to pass a rival on
+ * points for, game by game, with everything else staying as the table has it.
+ * A lost game is left out: scoring past the opponent changes the result, which
+ * is a different scenario and one the member can set.
+ *
+ * @param {Object} path - from `buildPath`
+ * @param {Array<Object>} scenarioGames - from `applyScenario`
+ * @param {Map<string, string>} results
+ * @param {*} focusId
+ * @param {*} rivalId
+ * @param {number} points - from `pointsToGetIn`
+ * @returns {Array<{ id, week: number, opponentId: *, againstRival: boolean,
+ *   score: number, needed: number, margin: number }>}
+ *   `score` is what the table has them on, `needed` what it takes, and `margin`
+ *   how far that is over the opponent.
+ */
+export function scoresNeeded(path, scenarioGames, results, focusId, rivalId, points) {
+  const scored = new Map(scenarioGames.map((game) => [game.id, game]));
+
+  return path.games
+    .filter((game) => results.get(game.id) === focusId)
+    .map((game) => {
+      const row = scored.get(game.id);
+      const isTeam1 = game.team1Id === focusId;
+      const opponentId = isTeam1 ? game.team2Id : game.team1Id;
+      const score = isTeam1 ? row.team1Score : row.team2Score;
+      const theirs = isTeam1 ? row.team2Score : row.team1Score;
+      const needed = toHundredth(score + points);
+      return {
+        id: game.id,
+        week: game.week,
+        opponentId,
+        againstRival: opponentId === rivalId,
+        score,
+        needed,
+        margin: toHundredth(needed - theirs)
+      };
+    });
+}
+
 /**
  * A preset, as results to merge: `win` and `lose` settle the focus team's
  * games, `favorites` every other game, each to the side with the higher
@@ -426,6 +599,11 @@ export function presetResults(path, preset, focusId) {
 // side won. `8c1.9a2` is two games. The index runs over every game of the week
 // and not just the unplayed ones, so a link keeps its meaning after a week is
 // scored; a token for a game now played is dropped, because the real result won.
+//
+// Typed points follow as whole hundredths, so a token has no dot to confuse with
+// the separator: `8c1-13250-11020` is team 1 winning 132.50 to 110.20. They are
+// only carried when they agree with the side, because a preset can change a
+// winner under a score it knows nothing about.
 // ---------------------------------------------------------------------------
 
 const weekGames = (games) => {
@@ -442,22 +620,53 @@ const weekGames = (games) => {
 
 const LETTER_A = 'a'.charCodeAt(0);
 
+const agrees = (score, team1Won) =>
+  score != null && (team1Won ? score.team1Score > score.team2Score : score.team2Score > score.team1Score);
+
+const toHundredths = (points) => Math.round(points * 100);
+
 /**
  * @param {Map<string, string>} results - game id → winning team id
  * @param {Array<Object>} games - the season's games
+ * @param {Map<string, { team1Score: number, team2Score: number }>} [scores]
  * @returns {string} empty when nothing is decided
  */
-export function encodeScenario(results, games) {
+export function encodeScenario(results, games, scores = new Map()) {
   const tokens = [];
   for (const [week, list] of [...weekGames(games).entries()].sort(([a], [b]) => a - b)) {
     list.forEach((game, index) => {
       const winner = results.get(game.id);
       if (winner == null) return;
       const side = winner === game.team1Id ? 1 : 2;
-      tokens.push(`${week}${String.fromCharCode(LETTER_A + index)}${side}`);
+      const score = scores.get(game.id);
+      const points = agrees(score, side === 1)
+        ? `-${toHundredths(score.team1Score)}-${toHundredths(score.team2Score)}`
+        : '';
+      tokens.push(`${week}${String.fromCharCode(LETTER_A + index)}${side}${points}`);
     });
   }
   return tokens.join('.');
+}
+
+/** Every readable token for a game still to be played. */
+function readTokens(param, games) {
+  if (!param) return [];
+
+  const byWeek = weekGames(games);
+  return String(param)
+    .split('.')
+    .flatMap((token) => {
+      const match = /^(\d+)([a-z])([12])(?:-(\d+)-(\d+))?$/.exec(token);
+      if (!match) return [];
+
+      const game = byWeek.get(Number(match[1]))?.[match[2].charCodeAt(0) - LETTER_A];
+      if (!game || isScored(game)) return [];
+
+      const team1Won = match[3] === '1';
+      const score =
+        match[4] == null ? null : { team1Score: match[4] / 100, team2Score: match[5] / 100 };
+      return [{ game, team1Won, score: agrees(score, team1Won) ? score : null }];
+    });
 }
 
 /**
@@ -467,17 +676,21 @@ export function encodeScenario(results, games) {
  * @returns {Map<string, string>} game id → winning team id
  */
 export function decodeScenario(param, games) {
-  const results = new Map();
-  if (!param) return results;
+  return new Map(
+    readTokens(param, games).map(({ game, team1Won }) => [game.id, team1Won ? game.team1Id : game.team2Id])
+  );
+}
 
-  const byWeek = weekGames(games);
-  for (const token of String(param).split('.')) {
-    const match = /^(\d+)([a-z])([12])$/.exec(token);
-    if (!match) continue;
-
-    const game = byWeek.get(Number(match[1]))?.[match[2].charCodeAt(0) - LETTER_A];
-    if (!game || isScored(game)) continue;
-    results.set(game.id, match[3] === '1' ? game.team1Id : game.team2Id);
-  }
-  return results;
+/**
+ * The typed points in a scenario. A score that disagrees with its token's side
+ * is dropped and the side stands.
+ *
+ * @returns {Map<string, { team1Score: number, team2Score: number }>}
+ */
+export function decodeScenarioScores(param, games) {
+  return new Map(
+    readTokens(param, games)
+      .filter(({ score }) => score != null)
+      .map(({ game, score }) => [game.id, score])
+  );
 }

@@ -14,11 +14,13 @@ import { ScrollTable } from '../ScrollTable';
 import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../tableTones';
 import { teamRosterPath } from '../../teams/teamLink';
 import { profilePath } from '../../profile/profileLink';
+import { PathToPlayoffsButton } from '../../playoffs/path/PathToPlayoffsButton';
 import { QualifierKey } from '../../standings/DrawerStandingsTable';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useDivisions, useStandings } from '../../../../hooks/queries/index.js';
 import { franchiseIdsByTeam } from '../../../../utils/viewerTeam.js';
 import { usesSeededPlayoffs } from '../../../../utils/playoffSeeding.js';
+import { showsPathToPlayoffs } from '../../../../utils/projectedBracket.js';
 import { streakOf } from '../../../../utils/home/streak.js';
 
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
@@ -52,7 +54,7 @@ const TABLE_WIDTH = {
  * The whole row opens the team's roster.
  */
 export default function StandingsMini({ ctx }) {
-  const { seasonId, season, viewerTeam, onOpenStandings } = ctx;
+  const { seasonId, season, config, viewerTeam, onOpenStandings, openTab, canOpenTab } = ctx;
   const { isApproved } = useViewer();
   const franchiseIds = franchiseIdsByTeam(season?.teams);
   const faabByTeam = new Map((season?.teams ?? []).map((team) => [team.id, faabOf(team)]));
@@ -62,6 +64,13 @@ export default function StandingsMini({ ctx }) {
   const divisionsQuery = useDivisions(seasonId);
 
   const seeded = usesSeededPlayoffs(season?.year);
+  const showPath =
+    canOpenTab?.('playoffs') &&
+    showsPathToPlayoffs({
+      year: season?.year,
+      games: season?.schedule,
+      regularSeasonWeeks: config?.regularSeasonWeeks || undefined
+    });
   const divisions = (divisionsQuery.data ?? [])
     .map((division, index) => ({
       ...division,
@@ -99,7 +108,14 @@ export default function StandingsMini({ ctx }) {
       empty={divisions.length === 0 && <p className="text-sm text-muted-foreground">No standings yet.</p>}
     >
       <div className="@container space-y-4">
-        {seeded && <QualifierKey />}
+        {/* In the card and not its header, where two buttons beside the title
+            leave no room at phone width. */}
+        {(seeded || showPath) && (
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            {seeded && <QualifierKey />}
+            {showPath && <PathToPlayoffsButton teamId={viewerTeam?.id} onClick={openTab} />}
+          </div>
+        )}
         {/* By the card's width, not the viewport's: side by side once the
             card can hold two tables, whichever column it sits in. */}
         <div className="grid gap-5 @xl:grid-cols-2 @xl:gap-6">

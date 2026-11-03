@@ -13,7 +13,8 @@ import { useStandings } from '../../../../hooks/queries/index.js';
 import {
   flattenStandings,
   mergeStandings,
-  resolveUpperBracket
+  resolveUpperBracket,
+  showsPathToPlayoffs
 } from '../../../../utils/projectedBracket.js';
 
 /**
@@ -41,6 +42,11 @@ export default function PlayoffBracketCard({ ctx }) {
   );
 
   const projected = bracket && !bracket.drawn;
+  const showPath = showsPathToPlayoffs({
+    year: season?.year,
+    games: season?.schedule,
+    regularSeasonWeeks: config?.regularSeasonWeeks || undefined
+  });
 
   return (
     <HomeWidget
@@ -67,13 +73,15 @@ export default function PlayoffBracketCard({ ctx }) {
           {projected && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
               <p className="text-xs text-muted-foreground">If the season ended today.</p>
-              <Link
-                to={pathToPlayoffsLink(viewerTeam?.id)}
-                className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-2 hover:underline"
-              >
-                Path to the Playoffs
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </Link>
+              {showPath && (
+                <Link
+                  to={pathToPlayoffsLink(viewerTeam?.id)}
+                  className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-2 hover:underline"
+                >
+                  Path to the Playoffs
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              )}
             </div>
           )}
         </>

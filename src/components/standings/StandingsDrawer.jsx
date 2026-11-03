@@ -39,7 +39,9 @@ import {
   scoredWeeks,
   standingsForView,
 } from '../../../utils/standings/standingsView.js';
+import { showsPathToPlayoffs } from '../../../utils/projectedBracket.js';
 import { resolveViewerTeam } from '../../../utils/viewerTeam.js';
+import { PathToPlayoffsButton } from '../playoffs/path/PathToPlayoffsButton';
 import DrawerStandingsTable from './DrawerStandingsTable';
 import { StandingsBracket } from './StandingsBracket';
 import { StandingsViewToggle } from './StandingsViewToggle';
@@ -98,7 +100,7 @@ const StandingsDrawer = ({
   onDivisionDelete,
   games = [],
 }) => {
-  const { user, isAdmin, teamOwnerNames } = useViewer();
+  const { user, isAdmin, isApproved, teamOwnerNames } = useViewer();
 
   // `useActualWeek()` answers 1 while the season loads, and a 1 cannot be told
   // from a real week 1. Null is what `useLiveWeek` waits on.
@@ -185,6 +187,15 @@ const StandingsDrawer = ({
   }
 
   const viewerTeamId = resolveViewerTeam(teams, user, teamOwnerNames)?.id ?? null;
+
+  // Approved members only: the Playoffs tab would bounce anybody else.
+  const showPath =
+    isApproved &&
+    showsPathToPlayoffs({
+      year: seasonYear,
+      games,
+      regularSeasonWeeks: seasonConfig?.regularSeasonWeeks || undefined
+    });
 
   // The admin's season picker. It renders inside the table's header row, in
   // the controls cluster next to Manage — the drawer used to carry a second
@@ -276,6 +287,11 @@ const StandingsDrawer = ({
                 weeks={weeks}
                 week={week}
                 onWeekChange={setPickedWeek}
+                action={
+                  showPath && (
+                    <PathToPlayoffsButton teamId={viewerTeamId} onClick={() => handleOpenChange(false)} />
+                  )
+                }
               />
             }
             footer={
