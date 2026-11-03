@@ -315,6 +315,16 @@ unapplied for two weeks while every sync reported success.
   latest` picked up CLI v3, whose `db push` targets a local stack by default.
   The merge of #147 failed with nothing applied, and the site deploy refused to
   go ahead of it, as it should. A dry run from a branch is how to move the pin.
+  CI's `migrations` job pins the same version (since 2026-11-03), so what it
+  replays is what the merge pushes; move the two together.
+- **CI's `start` and `db diff` steps retry three times.** Docker on a fresh
+  runner sometimes refuses a host port nothing of ours holds ("address already
+  in use": 54322 on `start`, 2026-10-26; the shadow database's 54320 on
+  `db diff`, 2026-11-03, on the merge of #171) and lets it go seconds later. A
+  re-run passed each time, and the site had deployed regardless, since
+  `deploy-site.yml` waits only on the migrations deploy. Each retry tears down
+  what the failed try left (`supabase stop`, a prune of stopped containers),
+  so a real migration error still fails, three times over.
 - **`--include-all`, in the workflow and in `npm run db:push`.** The CLI's
   default pushes only files newer than the newest recorded version and errors
   on an older one, which is the shape of two PRs merging in the opposite order
