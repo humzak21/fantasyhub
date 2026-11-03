@@ -13,6 +13,7 @@
 
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { BarChart3, Calendar, Flame, History, House, Target, Users } from 'lucide-react';
 
@@ -21,6 +22,7 @@ import { toSeasonConfig } from '../../../../utils/seasonConfig.js';
 let viewer;
 let viewerTeam;
 let queries;
+let live;
 
 vi.mock('../../../contexts/ViewerContext.jsx', () => ({ useViewer: () => viewer }));
 // The widgets with suites (and hooks) of their own are markers here, so this
@@ -44,7 +46,8 @@ vi.mock('../../../../hooks/queries/index.js', () => ({
   useNflOpponentMap: () => ({ data: {} }),
   useMatchupHistory: () => ({ data: [], isPending: false, isError: false }),
   useStandings: () => queries.standings(),
-  useDivisions: () => queries.divisions
+  useDivisions: () => queries.divisions,
+  useLiveWeek: () => ({ data: live })
 }));
 
 const { default: HomePage } = await import('../HomePage.jsx');
@@ -114,6 +117,7 @@ const member = (over = {}) => ({
 
 beforeEach(() => {
   openableTabs = [];
+  live = null;
   viewer = member();
   viewerTeam = TEAMS[6];
   queries = {
@@ -292,6 +296,81 @@ describe('HomePage — a game under way', () => {
     expect(within(hero).queryByText('live')).not.toBeInTheDocument();
     expect(within(hero).queryByText(/yet to play/)).not.toBeInTheDocument();
     expect(within(hero).getByText('Won by 21.80')).toBeInTheDocument();
+  });
+});
+
+describe('HomePage — the standings read Live or Official', () => {
+  /** The RPC's rows, ranked in id order, so a live upset has a place to move from. */
+  const ranked = (rows) => rows.map((team, i) => ({ ...team, divisionRank: i + 1 }));
+  /** Team 2 is beating Team 1 in the week in progress. */
+  const LIVE_WEEK = {
+    live: true,
+    refreshedAt: '2026-11-01T19:42:00Z',
+    games: { g2: { team1: { points: 40 }, team2: { points: 90 } } }
+  };
+  const east = () => {
+    const standings = screen.getByRole('region', { name: /^standings$/i });
+    return within(standings).getAllByRole('table')[0];
+  };
+
+  beforeEach(() => {
+    queries.standings = () => ({
+      data: {
+        divisions: [
+          { divisionId: 'd1', teams: ranked(TEAMS.slice(0, 7)) },
+          { divisionId: 'd2', teams: ranked(TEAMS.slice(7)) }
+        ]
+      },
+      isPending: false,
+      isError: false
+    });
+  });
+
+  it('offers no toggle with no week in progress, and shows the RPC\'s rows', () => {
+    render();
+
+    const standings = screen.getByRole('region', { name: /^standings$/i });
+    expect(within(standings).queryByRole('tab', { name: 'Live' })).not.toBeInTheDocument();
+    expect(within(standings).queryByRole('tab', { name: 'Official' })).not.toBeInTheDocument();
+    const [, first] = within(east()).getAllByRole('row');
+    expect(first).toHaveTextContent('Team 1');
+  });
+
+  it('opens on Live while a game is on, and marks who it has moved', () => {
+    live = LIVE_WEEK;
+    render();
+
+    const standings = screen.getByRole('region', { name: /^standings$/i });
+    expect(within(standings).getByRole('tab', { name: 'Live' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(standings).queryByRole('tab', { name: 'Week' })).not.toBeInTheDocument();
+    expect(within(standings).getByText(/^As of /)).toBeInTheDocument();
+
+    const [, first] = within(east()).getAllByRole('row');
+    expect(first).toHaveTextContent('Team 2');
+    expect(first).toHaveTextContent('Up 1 from the official standings');
+    expect(first).toHaveTextContent('1–0');
+  });
+
+  it('opens on Official without a game on, and Official is the RPC\'s own rows', async () => {
+    live = LIVE_WEEK;
+    render();
+
+    const standings = screen.getByRole('region', { name: /^standings$/i });
+    await userEvent.click(within(standings).getByRole('tab', { name: 'Official' }));
+
+    expect(within(standings).queryByText(/^As of /)).not.toBeInTheDocument();
+    const [, first] = within(east()).getAllByRole('row');
+    expect(first).toHaveTextContent('Team 1');
+    expect(first).not.toHaveTextContent('official standings');
+  });
+
+  it('defaults to Official once the games are done, with Live still on offer', () => {
+    live = { ...LIVE_WEEK, live: false };
+    render();
+
+    const standings = screen.getByRole('region', { name: /^standings$/i });
+    expect(within(standings).getByRole('tab', { name: 'Official' })).toHaveAttribute('aria-selected', 'true');
+    expect(within(standings).getByRole('tab', { name: 'Live' })).toBeInTheDocument();
   });
 });
 
