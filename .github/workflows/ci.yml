@@ -148,21 +148,29 @@ jobs:
       # realtime, storage, auth…) is irrelevant here and roughly triples the
       # startup time. Migrations are applied during startup, so a bad migration
       # fails this step.
-      #
-      # Both Docker steps retry, because Docker on a fresh runner sometimes
-      # refuses a host port nothing of ours holds — "failed to bind host port
-      # 0.0.0.0:54322/tcp: address already in use" on `start` (2026-10-26),
-      # the shadow database's 54320 on `db diff` (2026-11-03, on a merge to
-      # main) — and lets it go seconds later. A re-run of the same commit
-      # passed each time. Three tries, ten seconds apart, with whatever the
-      # failed try left behind torn down first, so a retry starts clean. A
+
+      # Supabase binds 54320-54329 on the host, and Linux hands out 32768-60999
+      # as source ports for outgoing connections. So any connection this job
+      # makes before `start` — Docker pulling an image, mostly — can be given
+      # 54322 and hold it, and `start` fails with "failed to bind host port
+      # 0.0.0.0:54322/tcp: address already in use" while nothing of ours is on
+      # it (2026-10-26, and three times in 36 seconds on 2026-11-03); the
+      # shadow database's 54320 went the same way on the merge of #171. Taking
+      # the ten ports out of the pool is the fix; the retries below are for
+      # whatever else a runner does once.
+      - name: Keep Supabase's host ports out of the ephemeral range
+        if: steps.baseline.outputs.ready == 'true'
+        run: sudo sysctl -w net.ipv4.ip_local_reserved_ports=54320-54329
+
+      # Both Docker steps retry, three tries ten seconds apart, with whatever
+      # the failed try left behind torn down first so a retry starts clean. A
       # genuinely bad migration still fails: it fails three times.
       - name: Apply migrations to a throwaway database
         if: steps.baseline.outputs.ready == 'true'
         run: |
           for attempt in 1 2 3; do
             if supabase start \
-                -x studio,realtime,storage-api,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor; then
+                -x studio,realtime,storage-api,imgproxy,mailpit,edge-runtime,logflare,vector,supavisor; then
               exit 0
             fi
             echo "::warning title=supabase start failed::Attempt $attempt of 3 failed; tearing down and retrying."
