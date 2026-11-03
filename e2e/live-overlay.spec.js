@@ -113,3 +113,29 @@ test('the full season view fits the viewport', async ({ page }) => {
 
   await expectNoOverflow(page);
 });
+
+/*
+ * The Playoffs tab's pick form drew its bracket in horizontal scrollers, one
+ * round at a time with the next cut off at the edge. Below `sm` the rounds
+ * stack; this holds the stacking and the width on the fixture league, since a
+ * signed-out viewer is redirected and the smoke suite never sees the form.
+ */
+test('the playoff bracket form stacks its rounds on a phone', async ({ page }) => {
+  // A members-only route bounces the signed-out first load to Home, and the
+  // fixture's reload then stays there; open the league on a public page and
+  // walk in signed in.
+  await openLeague(page, '/schedule', LIVE);
+  await page.goto('/playoffs', { waitUntil: 'domcontentloaded' });
+  const round1 = page.getByText('Round 1', { exact: true }).first();
+  await expect(round1).toBeVisible();
+  await expectNoOverflow(page);
+
+  const semis = page.getByText('Semifinals', { exact: true }).first();
+  await expect(semis).toBeVisible();
+  const [a, b] = await Promise.all([round1.boundingBox(), semis.boundingBox()]);
+  if (page.viewportSize().width < 640) {
+    expect(b.y).toBeGreaterThan(a.y + a.height);
+  } else {
+    expect(Math.abs(b.y - a.y)).toBeLessThan(a.height + 1);
+  }
+});

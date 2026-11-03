@@ -162,6 +162,11 @@ const ResultBadge = ({ result }) => {
 function Lineup({ dossier, opponents, onPlayer }) {
   const { lineup, totals, matchup } = dossier;
 
+  // The week in progress has a lineup on file (who is starting) and no
+  // results yet. Its TD, rank and points columns were a grid of dashes under
+  // a totals row of dashes; they wait until the Tuesday sync writes the week.
+  const hasResults = lineup.starters.some((row) => row.actualPoints != null);
+
   // The game is the score. Where a stored game result and the starters' sum
   // disagree, it is a stat correction applied to the matchup only — say so
   // rather than showing two different "totals" side by side unexplained.
@@ -183,10 +188,10 @@ function Lineup({ dossier, opponents, onPlayer }) {
         </p>
       ) : (
         <>
-          <LineupHeader />
+          <LineupHeader results={hasResults} />
           <ul aria-label="Starters">
             {lineup.starters.map((row) => (
-              <PlayerRow key={row.playerId} row={row} opponent={opponents[row.proTeamId]} onPlayer={onPlayer} />
+              <PlayerRow key={row.playerId} row={row} opponent={opponents[row.proTeamId]} onPlayer={onPlayer} results={hasResults} />
             ))}
           </ul>
 
@@ -195,21 +200,29 @@ function Lineup({ dossier, opponents, onPlayer }) {
               <h4 className="mb-1 mt-4 text-sm font-semibold">Bench</h4>
               <ul aria-label="Bench" className="text-muted-foreground">
                 {lineup.bench.map((row) => (
-                  <PlayerRow key={row.playerId} row={row} opponent={opponents[row.proTeamId]} onPlayer={onPlayer} bench />
+                  <PlayerRow key={row.playerId} row={row} opponent={opponents[row.proTeamId]} onPlayer={onPlayer} bench results={hasResults} />
                 ))}
               </ul>
             </>
           )}
 
-          <dl className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-3 text-center sm:grid-cols-4">
-            <Total label="Starters" value={formatPoints(totals?.starterPoints)} />
-            <Total label="Best possible" value={formatPoints(totals?.optimalPoints)} />
-            <Total label="Left on bench" value={formatPoints(totals?.benchPoints)} />
-            <Total label="Efficiency" value={formatFraction(totals?.efficiency)} />
-          </dl>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Wk rank is the player&apos;s rank at his position for this week only, among players on a league roster.
-          </p>
+          {hasResults ? (
+            <>
+              <dl className="mt-4 grid grid-cols-2 gap-2 border-t border-border pt-3 text-center sm:grid-cols-4">
+                <Total label="Starters" value={formatPoints(totals?.starterPoints)} />
+                <Total label="Best possible" value={formatPoints(totals?.optimalPoints)} />
+                <Total label="Left on bench" value={formatPoints(totals?.benchPoints)} />
+                <Total label="Efficiency" value={formatFraction(totals?.efficiency)} />
+              </dl>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Wk rank is the player&apos;s rank at his position for this week only, among players on a league roster.
+              </p>
+            </>
+          ) : (
+            <p className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
+              Points, ranks and totals land once the week is scored.
+            </p>
+          )}
           {corrected && (
             <p className="mt-2 text-xs text-muted-foreground">
               The game score ({formatScore(matchup.pointsFor)}) includes a stat correction ESPN applied to the matchup but not to player lines.
@@ -239,6 +252,11 @@ const LINEUP_GRID =
   'grid grid-cols-[2.75rem_minmax(0,1fr)_1.75rem_3.25rem_3rem] items-center gap-x-2 ' +
   'sm:grid-cols-[2.75rem_minmax(0,1fr)_3.25rem_3.5rem_1.75rem_3.25rem_3rem] sm:gap-x-3';
 
+/** The same rows before the week is scored: slot, player, and from `sm` the team and opponent. */
+const LINEUP_GRID_PENDING =
+  'grid grid-cols-[2.75rem_minmax(0,1fr)] items-center gap-x-2 ' +
+  'sm:grid-cols-[2.75rem_minmax(0,1fr)_3.25rem_3.5rem] sm:gap-x-3';
+
 // Literal class names: a class built at runtime generates no CSS.
 const RANK_HEAT = [
   'bg-success/25 text-success',
@@ -248,21 +266,25 @@ const RANK_HEAT = [
   'bg-destructive/15 text-destructive'
 ];
 
-function LineupHeader() {
+function LineupHeader({ results = true }) {
   return (
-    <div className={cn(LINEUP_GRID, 'border-b border-border pb-1.5 text-xs font-medium text-muted-foreground')}>
+    <div className={cn(results ? LINEUP_GRID : LINEUP_GRID_PENDING, 'border-b border-border pb-1.5 text-xs font-medium text-muted-foreground')}>
       <span>Slot</span>
       <span>Player</span>
       <span className="hidden sm:block">Team</span>
       <span className="hidden text-right sm:block">Opp</span>
-      <span className="text-right" title="Touchdowns scored (rushing and receiving)">TD</span>
-      <span className="text-right" title="Rank at his position this week, among players on a league roster">Wk rank</span>
-      <span className="text-right">Pts</span>
+      {results && (
+        <>
+          <span className="text-right" title="Touchdowns scored (rushing and receiving)">TD</span>
+          <span className="text-right" title="Rank at his position this week, among players on a league roster">Wk rank</span>
+          <span className="text-right">Pts</span>
+        </>
+      )}
     </div>
   );
 }
 
-function PlayerRow({ row, opponent, onPlayer, bench = false }) {
+function PlayerRow({ row, opponent, onPlayer, bench = false, results = true }) {
   const rank = row.rank;
   const tier = rankTier(rank);
   const teamColor = nflTeamColor(row.proTeam);
@@ -272,7 +294,7 @@ function PlayerRow({ row, opponent, onPlayer, bench = false }) {
         type="button"
         onClick={() => onPlayer?.(row)}
         className={cn(
-          LINEUP_GRID,
+          results ? LINEUP_GRID : LINEUP_GRID_PENDING,
           'w-full py-2 text-left text-sm hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none pointer-coarse:py-3'
         )}
       >
@@ -306,6 +328,8 @@ function PlayerRow({ row, opponent, onPlayer, bench = false }) {
         <span className="hidden justify-end sm:flex">
           <OpponentChip entry={opponent} />
         </span>
+        {results && (
+          <>
         <span className="text-right text-xs font-semibold text-success tabular">
           {row.touchdowns > 0 ? row.touchdowns : ''}
         </span>
@@ -320,6 +344,8 @@ function PlayerRow({ row, opponent, onPlayer, bench = false }) {
           )}
         </span>
         <PlayerPoints actualPoints={row.actualPoints} className="text-right" />
+          </>
+        )}
       </button>
     </li>
   );

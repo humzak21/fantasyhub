@@ -7,6 +7,7 @@ import { Trophy, Target, Telescope, CheckCircle2, AlertCircle, Save, Edit3, X, C
 import { getMaskedTeamName, getMaskedOwnerName } from '../../utils/displayNameUtils';
 import { getDb } from '../../../services/db/index.js';
 import { ScrollHint } from '../ui/scroll-hint';
+import { cn } from '../../lib/utils';
 import {
     organizeSeededBracket,
     reseedSemis,
@@ -33,6 +34,19 @@ const SeedChip = ({ seed }) =>
 /**
  * Bracket matchup slot component
  */
+/**
+ * A row of bracket columns. Below `sm` the rounds stack, one under another in
+ * order, and every slot is the width of the card; from `sm` the columns sit
+ * side by side, centred when they fit and left-aligned inside the ScrollHint
+ * when they do not (a `justify-center` scroller puts its start at a negative
+ * offset nobody can reach). The phone used to get the scroller: one round on
+ * screen, the next cut off at the edge, and the consolation bracket's later
+ * rounds as empty boxes off to the right. The `sm` line is the one the
+ * connector stubs in globals.css already hide below, and three 180px columns
+ * fit from 640px.
+ */
+const BRACKET_ROW = 'flex flex-col gap-6 sm:mx-auto sm:w-max sm:flex-row sm:items-start';
+
 const BracketSlot = ({
     matchupId,
     team1,
@@ -951,7 +965,7 @@ const PlayoffsBracket = ({
                             TBD until both round-1 picks exist.
                           */
                           <ScrollHint className="pb-4">
-                            <div className="mx-auto flex w-max items-start gap-6">
+                            <div className={BRACKET_ROW}>
                               {/* Round 1 + byes */}
                               <div className="flex flex-col gap-4">
                                   <div className="text-center text-sm font-semibold text-muted-foreground mb-2">
@@ -1106,7 +1120,7 @@ const PlayoffsBracket = ({
                           </ScrollHint>
                         ) : (
                         <ScrollHint className="pb-4">
-                          <div className="mx-auto flex w-max items-start gap-6">
+                          <div className={BRACKET_ROW}>
                             {/* Division 2 (Left Side) */}
                             <div className="flex flex-col gap-6">
                                 <div className="text-center font-semibold text-sm text-muted-foreground mb-2">
@@ -1281,13 +1295,13 @@ const PlayoffsBracket = ({
                                 ScrollHint centres it when it fits and
                                 left-aligns it when it does not. */}
                             <ScrollHint className="pb-2">
-                              <div className="mx-auto flex w-max items-start gap-8">
+                              <div className={cn(BRACKET_ROW, "sm:gap-8")}>
                                 {/* 5th Place - Week 16 & 17 */}
                                 <div className="flex flex-col gap-4">
                                     <div className="text-xs text-muted-foreground text-center font-medium">
                                         5th Place (Losers of R1)
                                     </div>
-                                    <div className="flex gap-4">
+                                    <div className="flex flex-col gap-4 sm:flex-row">
                                         <div>
                                             <div className="text-xs text-muted-foreground text-center mb-2">Week {labelSemiWeek}</div>
                                             <BracketSlot
@@ -1364,7 +1378,7 @@ const PlayoffsBracket = ({
                 </CardHeader>
                 <CardContent>
                     <ScrollHint className="pb-4">
-                      <div className="mx-auto flex w-max items-start gap-8">
+                      <div className={cn(BRACKET_ROW, "sm:gap-8")}>
                         {/* Week 15 - Round 1 (4 matchups) */}
                         <div className="flex flex-col gap-3">
                             <div className="text-center text-xs text-muted-foreground font-semibold mb-2">

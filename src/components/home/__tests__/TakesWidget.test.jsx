@@ -88,12 +88,14 @@ describe('TakesWidget', () => {
     expect(shown).toEqual(['Take graded', 'Take newest', 'Take second']);
   });
 
+  // The compact card's buttons carry their counts, so the Hell Nah button's
+  // accessible name is "Hell Nah, 1"; the dialog's is still "Hell Nah".
   it('confirms a Hell Nah before writing it, as the Takes tab does', async () => {
     const user = userEvent.setup();
     render();
     const card = (await screen.findByText('Take newest')).closest('[role="button"]');
 
-    await user.click(within(card).getByRole('button', { name: /^hell nah$/i }));
+    await user.click(within(card).getByRole('button', { name: /^hell nah, \d+$/i }));
 
     expect(takes.addFade).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('alertdialog');
@@ -109,7 +111,7 @@ describe('TakesWidget', () => {
     render();
     const card = (await screen.findByText('Take newest')).closest('[role="button"]');
 
-    await user.click(within(card).getByRole('button', { name: /^hell nah$/i }));
+    await user.click(within(card).getByRole('button', { name: /^hell nah, \d+$/i }));
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
     expect(takes.addFade).toHaveBeenCalledWith({ takeId: 'newest', seasonId: 's1' });

@@ -84,22 +84,27 @@ export function MatchupPickCard({
         aria-label={isBye ? 'Bye week' : `Pick the winner of game ${number}`}
         className={cn(
           'grid min-w-0 items-stretch gap-2',
-          isBye ? 'grid-cols-1' : 'grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]'
+          // Two sides across at phone width left each team name about eight
+          // letters ("Coming for Bloo…"), so below `sm` the sides stack as two
+          // full-width rows, and the compact face stacks at every width.
+          isBye || compact ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]'
         )}
       >
         {side(game.team1, game.team1Score, liveSides?.team1)}
         {!isBye && (
           <>
-            <span aria-hidden="true" className="self-center text-center text-xs font-medium uppercase text-muted-foreground">
-              vs
-            </span>
+            {!compact && (
+              <span aria-hidden="true" className="hidden self-center text-center text-xs font-medium uppercase text-muted-foreground sm:block">
+                vs
+              </span>
+            )}
             {side(game.team2, game.team2Score, liveSides?.team2)}
           </>
         )}
       </div>
 
       {outlook && <OutlookChip outlook={outlook} playing={Boolean(board.live?.live)} />}
-      {split && <LeagueShare matchup={split} viewer={viewer} />}
+      {split && <LeagueShare matchup={split} viewer={viewer} compact={compact} />}
     </>
   );
 
@@ -142,7 +147,7 @@ function OutlookChip({ outlook, playing }) {
  * end of one bar, which replaces the fourteen boxes that sat above the page.
  * A game nobody picked has no split, so it draws nothing.
  */
-function LeagueShare({ matchup, viewer }) {
+function LeagueShare({ matchup, viewer, compact = false }) {
   const [first, second] = matchup.sides;
   if (first.share == null) return null;
 
@@ -150,7 +155,10 @@ function LeagueShare({ matchup, viewer }) {
 
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+      {/* The compact face is the bar alone, with the shares in its accessible
+          name: on Home the two percentages on every one of seven cards were
+          most of the panel's height. */}
+      <div className={cn('flex items-baseline justify-between gap-2 text-xs text-muted-foreground', compact && 'sr-only')}>
         <span className={cn(!first.trails && 'text-foreground')}>
           <span className="sr-only">{nameOf(first)}: </span>
           <NumberText variant="percent" value={first.share} />
@@ -250,8 +258,10 @@ function PickOption({ team, score, rows, live, loading, isSelected, isWinner, is
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        'relative flex min-w-0 items-center justify-center rounded-lg border-2 text-center transition-colors',
-        compact ? 'min-h-12 p-2' : 'min-h-16 p-3',
+        'relative flex min-w-0 items-center rounded-lg border-2 transition-colors',
+        // A stacked side is a row: identity on the left, score on the right.
+        // From `sm` the full card goes back to two centred tiles.
+        compact ? 'min-h-12 gap-3 p-2 pr-8 text-left' : 'min-h-14 gap-3 p-3 pr-9 text-left sm:min-h-16 sm:justify-center sm:pr-3 sm:text-center',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         isBye && 'cursor-not-allowed border-border bg-muted/50 opacity-60',
         !isBye && isSelected && ['border-current bg-current/10', color.text],
@@ -274,29 +284,31 @@ function PickOption({ team, score, rows, live, loading, isSelected, isWinner, is
         />
       )}
 
-      <span className="block w-full min-w-0">
-        <span
-          className={cn(
-            'block truncate font-semibold',
-            compact ? 'text-[13px]' : 'text-sm sm:text-base',
-            !isSelected && 'text-foreground'
-          )}
-        >
-          {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
-        </span>
-        <span className="block truncate text-xs text-muted-foreground">
-          {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
-          {hasRecord && (
-            <>
-              {' · '}
-              <RecordText wins={team.wins} losses={team.losses} ties={team.ties} />
-            </>
-          )}
+      <span className={cn('flex min-w-0 flex-1 items-center gap-3', !compact && 'sm:block sm:w-full')}>
+        <span className="block min-w-0 flex-1">
+          <span
+            className={cn(
+              'block truncate font-semibold',
+              compact ? 'text-[13px]' : 'text-sm sm:text-base',
+              !isSelected && 'text-foreground'
+            )}
+          >
+            {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+          </span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
+            {hasRecord && (
+              <>
+                {' · '}
+                <RecordText wins={team.wins} losses={team.losses} ties={team.ties} />
+              </>
+            )}
+          </span>
         </span>
         {isBye ? (
-          <span className="mt-1 block text-xs font-semibold text-warning">On bye</span>
+          <span className={cn('block shrink-0 text-xs font-semibold text-warning', !compact && 'sm:mt-1')}>On bye</span>
         ) : (
-          <span className={cn('block text-foreground', compact ? 'mt-1' : 'mt-2')}>
+          <span className={cn('block shrink-0 text-right text-foreground', !compact && 'sm:mt-2 sm:text-center')}>
             <SideScore score={score} rows={rows} live={live} loading={loading} compact={compact} />
           </span>
         )}

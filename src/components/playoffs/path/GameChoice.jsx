@@ -13,8 +13,14 @@ export function GameChoice({ game, teamsById, nameOf, winnerId, figures, label =
     <div className="@container min-w-0">
       {label && <p className="mb-1 text-xs text-muted-foreground tabular">{label}</p>}
       {/* One above the other in a narrow card, the way a scoreboard stacks: two
-          across at phone width left a team name about eight letters a line. */}
-      <div className="grid gap-1 @sm:grid-cols-2 @sm:gap-1.5" role="group" aria-label={`Week ${game.week}: choose a winner`}>
+          across at phone width left a team name about eight letters a line.
+          The two sides share one border and a hairline between them, not a
+          box each: a card of games was a column of boxes in boxes. */}
+      <div
+        className="grid overflow-hidden rounded-lg border border-border/70 divide-y divide-border/70 @sm:grid-cols-2 @sm:divide-x @sm:divide-y-0"
+        role="group"
+        aria-label={`Week ${game.week}: choose a winner`}
+      >
         {sides.map((teamId, index) => {
           const team = teamsById.get(teamId);
           const chosen = winnerId === teamId;
@@ -26,10 +32,10 @@ export function GameChoice({ game, teamsById, nameOf, winnerId, figures, label =
               aria-pressed={chosen}
               onClick={() => onChoose(game.id, teamId)}
               className={cn(
-                'flex min-h-11 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                'flex min-h-11 min-w-0 items-center gap-2 px-2.5 py-1.5 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                 chosen
-                  ? 'border-primary bg-primary/12 font-semibold'
-                  : 'border-border/70 bg-muted/20 hover:border-foreground/30 hover:bg-accent/40',
+                  ? 'bg-primary/12 font-semibold text-primary'
+                  : 'bg-muted/20 hover:bg-accent/40',
                 passedOver && 'text-muted-foreground'
               )}
             >

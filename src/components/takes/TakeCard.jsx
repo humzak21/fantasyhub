@@ -13,6 +13,7 @@ import {
   canWithdrawFade,
   canWithdrawHellYeah,
   fadeCount,
+  fadeDeadline,
   fadeWindowNote,
   hasFaded,
   hasHellYeahed,
@@ -75,6 +76,12 @@ export function TakeCard({
   // than left to a disabled control.
   const canToggle = faded ? canWithdrawFade(take, user) : canFade(take, user);
   const windowNote = user?.id && isPending(take) ? fadeWindowNote(take) : null;
+  const compactDeadline = (() => {
+    if (!compact || !user?.id || !isPending(take)) return null;
+    const deadline = fadeDeadline(take);
+    if (deadline === null) return null;
+    return deadline > Date.now() ? `closes ${formatDate(deadline)}` : 'closed';
+  })();
 
   const handleToggle = (event) => {
     event.stopPropagation();
@@ -118,7 +125,7 @@ export function TakeCard({
       <p
         className={cn(
           'whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground',
-          compact ? 'mt-2 line-clamp-4 text-pretty' : 'mt-3'
+          compact ? 'mt-2 line-clamp-3 text-pretty' : 'mt-3'
         )}
       >
         {take.body}
@@ -129,7 +136,7 @@ export function TakeCard({
           card no longer repeats the same two sentences under every take on
           the board. The icon carries the accent and the stake itself stays
           `text-foreground`: a wager is a fact, not a direction. */}
-      {staked && (
+      {staked && !compact && (
         <p className="mt-2.5 flex items-baseline gap-1.5 text-[13px]">
           <Coins
             className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-warning"
@@ -140,12 +147,68 @@ export function TakeCard({
         </p>
       )}
 
+      {/* The compact face is one line under the take: the stake and when the
+          window closes, with the two sides as buttons that carry their own
+          counts. The board's card spells all of that out over three rows,
+          which on Home made two takes a screen and a half. */}
+      {compact && (
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground">
+            {staked && (
+              <>
+                <Coins className="h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+                <span className="text-foreground">{take.wager}</span>
+              </>
+            )}
+            {compactDeadline && (
+              <>
+                {staked && <span aria-hidden="true">·</span>}
+                <span className="tabular">{compactDeadline}</span>
+              </>
+            )}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <SideControl
+              held={yeahed}
+              canToggle={yeahed ? canWithdrawHellYeah(take, user) : canHellYeah(take, user)}
+              showHeld={isPending(take)}
+              onToggle={(event) => {
+                event.stopPropagation();
+                if (yeahed) onWithdrawHellYeah?.(take);
+                else onHellYeah?.(take);
+              }}
+              pending={pending}
+              Icon={ThumbsUp}
+              label="Hell Yeah"
+              heldLabel="Hell Yeah'd"
+              count={yeahCount}
+              compact
+            />
+            {staked && (
+              <SideControl
+                held={faded}
+                canToggle={canToggle}
+                showHeld={isPending(take)}
+                onToggle={handleToggle}
+                pending={pending}
+                Icon={ThumbsDown}
+                label="Hell Nah"
+                heldLabel="Hell Nah'd"
+                count={count}
+                compact
+              />
+            )}
+          </span>
+        </div>
+      )}
+
       {/* Hell Yeahs belong to every take — backing a call needs nothing
           staked — so this row is always here. The Hell Nah half of it only
           exists on a staked take: no wager, no other side, and a count of
           nothing would mean nothing. The fade count *is* always shown on a
           staked take, though — the author cannot fade their own, but they
           need to see the six people who did, because that is who they owe. */}
+      {!compact && (
       <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
@@ -189,6 +252,7 @@ export function TakeCard({
           )}
         </span>
       </div>
+      )}
 
       {stakeRequests.length > 0 && (
         <p className="mt-3 flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-2 text-[13px] text-foreground">
@@ -205,7 +269,7 @@ export function TakeCard({
       {/* Shown open or closed, and to the author as well: once the window
           shuts their bet is fixed, which is the thing they most want to know
           about their own take. */}
-      {windowNote && <p className="mt-1.5 text-xs text-muted-foreground">{windowNote}</p>}
+      {windowNote && !compact && <p className="mt-1.5 text-xs text-muted-foreground">{windowNote}</p>}
     </div>
   );
 }
@@ -218,7 +282,27 @@ export function TakeCard({
  * whether they are on the hook for a take. Pending only (`showHeld`): a graded
  * take is frozen by its grade and says so in the status badge.
  */
-function SideControl({ held, canToggle, showHeld, onToggle, pending, Icon, label, heldLabel }) {
+function SideControl({ held, canToggle, showHeld, onToggle, pending, Icon, label, heldLabel, count = null, compact = false }) {
+  // The compact face is the icon and the count, with the words in the
+  // accessible name: "Hell Nah, 2" is the button and the tally at once.
+  const name = held ? heldLabel : label;
+  const face = compact ? (
+    <>
+      {held ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Icon className="h-3.5 w-3.5" aria-hidden="true" />}
+      <span className="tabular">{count ?? 0}</span>
+    </>
+  ) : held ? (
+    <>
+      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+      {heldLabel}
+    </>
+  ) : (
+    <>
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      {label}
+    </>
+  );
+
   if (canToggle) {
     return (
       <Button
@@ -226,29 +310,32 @@ function SideControl({ held, canToggle, showHeld, onToggle, pending, Icon, label
         size="sm"
         onClick={onToggle}
         disabled={pending}
-        className="gap-1.5"
+        aria-label={compact ? `${name}, ${count ?? 0}` : undefined}
+        className={cn('gap-1.5', compact && 'h-8 px-2.5')}
       >
-        {held ? (
-          <>
-            <Check className="h-3.5 w-3.5" aria-hidden="true" />
-            {heldLabel}
-          </>
-        ) : (
-          <>
-            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-            {label}
-          </>
-        )}
+        {face}
       </Button>
     );
   }
 
-  if (!held || !showHeld) return null;
+  if (held && showHeld) {
+    return (
+      <span
+        aria-label={compact ? `${heldLabel}, ${count ?? 0}` : undefined}
+        className={cn('inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[13px] text-muted-foreground', compact && 'h-8')}
+      >
+        {face}
+      </span>
+    );
+  }
 
+  // Nothing to press and nothing held: the compact face still shows the tally.
+  if (!compact) return null;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-[13px] text-muted-foreground">
-      <Check className="h-3.5 w-3.5" aria-hidden="true" />
-      {heldLabel}
+    <span className="inline-flex h-8 items-center gap-1.5 px-1 text-[13px] text-muted-foreground">
+      <span className="sr-only">{label}s: </span>
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      <span className="tabular">{count ?? 0}</span>
     </span>
   );
 }
