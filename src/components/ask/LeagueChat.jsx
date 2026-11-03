@@ -13,9 +13,11 @@ import { Composer, ConversationBody } from './ChatParts.jsx';
  * Ask og jits, mounted once at the app root (JITS-42).
  *
  * It is opened by one icon, the round orange chat button, for approved
- * members only: `ChatLauncher`, floating above the phone tab bar below `lg` and
- * in the bottom-right corner from it. There is no text box to
- * type into until the chat is open.
+ * members only: `ChatLauncher`, floating bottom-right, above the phone tab bar
+ * below `lg`. There is no text box to type into until the chat is open. The
+ * shell's `main` reserves room under the page for it (see
+ * `FantasyFootballApp`), because a fixed button covers whatever ends under
+ * it: the last take's deadline, a profile's bio, a footnote.
  *
  * Below `md` the chat is a vaul drawer drawn like the Menu; from `md` it is a
  * panel down the left-hand side that leaves the page usable, and from `lg`
@@ -227,7 +229,7 @@ export const ChatLauncher = () => {
       title="Ask og jits"
       className={cn(
         LAUNCHER,
-        'fixed left-4 z-40 h-12 w-12 lg:left-auto lg:right-6',
+        'fixed right-4 z-40 h-12 w-12 lg:right-6',
         'bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-6',
         chat.isOpen && 'ring-2 ring-primary/50 ring-offset-2 ring-offset-background'
       )}

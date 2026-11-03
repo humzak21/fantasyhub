@@ -1,6 +1,7 @@
 import { Coins, ListChecks, Trophy } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
+import { RememberedDisclosure } from '../ui/disclosure';
 import { EDIT_WINDOW_MS, FADE_WINDOW_MS, MAX_BODY, STAKE_RESPONSE_WINDOW_MS } from './milestones.js';
 
 /**
@@ -34,12 +35,12 @@ const REWARDS = [
 
 function RulesPanel({ icon: Icon, iconClassName, title, children }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]">
-      <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+    <div className="min-w-0">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <Icon className={cn('h-4 w-4 shrink-0', iconClassName)} aria-hidden="true" />
         {title}
-      </h2>
-      <div className="mt-3 text-sm leading-relaxed text-muted-foreground">{children}</div>
+      </h3>
+      <div className="mt-2 text-sm leading-relaxed text-muted-foreground">{children}</div>
     </div>
   );
 }
@@ -48,9 +49,20 @@ function RuleList({ children }) {
   return <ul className="list-disc space-y-1.5 pl-4 marker:text-muted-foreground/60">{children}</ul>;
 }
 
+/**
+ * The three panels sit inside one `RememberedDisclosure`: read once, then a
+ * single "How takes work" row above the board until somebody opens it again.
+ */
 export function TakesRules({ className }) {
   return (
-    <section aria-label="How takes work" className={cn('grid gap-3 md:grid-cols-3', className)}>
+    <RememberedDisclosure
+      id="takes-rules"
+      title="How takes work"
+      summary="What you can win, what you can bet, the windows"
+      icon={<ListChecks className="h-4 w-4 shrink-0 text-info" aria-hidden="true" />}
+      className={className}
+    >
+    <section aria-label="How takes work" className="grid gap-5 md:grid-cols-3 md:gap-6">
       <RulesPanel icon={Trophy} iconClassName="text-warning" title="What you can win">
         <p>A take that hits pays out by how far ahead you called it.</p>
         <dl className="mt-2.5 divide-y divide-border rounded-md border border-border">
@@ -137,6 +149,7 @@ export function TakesRules({ className }) {
         </RuleList>
       </RulesPanel>
     </section>
+    </RememberedDisclosure>
   );
 }
 
