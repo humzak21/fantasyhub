@@ -1457,10 +1457,15 @@ active season. A past season has one table.
 - **Official is the RPC.** It reads the totals the triggers roll onto `teams`, so it
   can only ever say "as of now", which is why the other two need a mirror.
 - **Live plays the week in progress as if the games ended now,** and shows each row's
-  movement against Official. It is the default while a game is on, and it is computed
-  in the drawer and nowhere else: Home's standings and the rankings stay official. A
+  movement against Official. It is the default while a game is on. It is computed by
+  `standingsForView` (`utils/standings/standingsView.js`) and read in two places, the
+  drawer and the home page's standings card; the rankings stay official. A
   game still at 0-0 has not started, and counting it would hand both teams a tie.
 - **Week N is the table as it stood.** The picker offers weeks with every game scored.
+- **The home standings card has Live · Official and no Week** (since 2026-11-02),
+  through the same `StandingsViewToggle` with no weeks, and `RankMovement` under the
+  rank. A home card is about now, so a past week is the drawer's. With no week in
+  progress the card draws no toggle: one choice is no choice, the toggle's own rule.
 
 **`utils/standings/computeStandings.js` is the RPC's client mirror:** teams and games
 in, the RPC's row shape out, through `compareStandings` and `computeSeeds`.

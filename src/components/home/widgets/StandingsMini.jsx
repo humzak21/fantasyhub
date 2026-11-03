@@ -1,12 +1,15 @@
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ListOrdered } from 'lucide-react';
 
 import HomeWidget from '../HomeWidget';
+import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
+import { LiveDot } from '../../ui/live-dot';
 import { NumberText, RecordText } from '../../ui/number-text';
 import { SkeletonTable } from '../../ui/skeleton';
 import { TeamAvatar } from '../../ui/team-identity';
-import { cn } from '../../../lib/utils';
+import { cn, formatTime } from '../../../lib/utils';
 import { getMaskedDivisionName, getMaskedTeamName } from '../../../utils/displayNameUtils';
 import { faabOf, formatFaab } from '../../../utils/format';
 import { StreakChip } from '../../ui/streak-chip';
@@ -15,15 +18,21 @@ import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../../ui/table-
 import { teamRosterPath } from '../../teams/teamLink';
 import { profilePath } from '../../profile/profileLink';
 import { PathToPlayoffsButton } from '../../playoffs/path/PathToPlayoffsButton';
-import { QualifierKey } from '../../standings/DrawerStandingsTable';
+import { QualifierKey, RankMovement } from '../../standings/DrawerStandingsTable';
+import { StandingsViewToggle } from '../../standings/StandingsViewToggle';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
-import { useDivisions, useStandings } from '../../../../hooks/queries/index.js';
+import { useDivisions, useLiveWeek, useStandings } from '../../../../hooks/queries/index.js';
+import { liveStandingsWeek } from '../../../../utils/liveOverlay.js';
+import { STANDINGS_VIEW, standingsForView } from '../../../../utils/standings/standingsView.js';
 import { franchiseIdsByTeam } from '../../../../utils/viewerTeam.js';
 import { usesSeededPlayoffs } from '../../../../utils/playoffSeeding.js';
 import { showsPathToPlayoffs } from '../../../../utils/projectedBracket.js';
 import { streakOf } from '../../../../utils/home/streak.js';
 
 const sameId = (a, b) => a != null && b != null && String(a) === String(b);
+
+/** One empty list, so a season with no schedule does not re-run the standings every render. */
+const NO_GAMES = Object.freeze([]);
 
 /**
  * The table's width: the team column (whatever the card has after the 9.25rem
@@ -53,9 +62,19 @@ const TABLE_WIDTH = {
  * that one comes off the season's own teams. Divisions stack in
  * a narrow card and sit side by side in a wide one (a container query, `@xl`).
  * The whole row opens the team's roster.
+ *
+ * **Live · Official, the drawer's first two views, without its Week picker.**
+ * While a week is in progress the card offers the drawer's toggle: Live plays
+ * the week as if its games ended now and marks each row's movement against
+ * Official (`RankMovement`, under the rank); Official is the RPC's own rows.
+ * Both go through `standingsForView`, the one definition the drawer reads, so
+ * the two surfaces cannot disagree. Live is the default while a game is on,
+ * as in the drawer. With no week in progress there is no choice to offer and
+ * the toggle is not drawn. Week N stays the drawer's: a home card is about
+ * now.
  */
 export default function StandingsMini({ ctx }) {
-  const { seasonId, season, config, viewerTeam, onOpenStandings, openTab, canOpenTab } = ctx;
+  const { seasonId, season, config, actualWeek = null, viewerTeam, onOpenStandings, openTab, canOpenTab } = ctx;
   const { isApproved } = useViewer();
   const franchiseIds = franchiseIdsByTeam(season?.teams);
   const faabByTeam = new Map((season?.teams ?? []).map((team) => [team.id, faabOf(team)]));
@@ -63,6 +82,35 @@ export default function StandingsMini({ ctx }) {
   const navigate = useNavigate();
   const standings = useStandings(seasonId);
   const divisionsQuery = useDivisions(seasonId);
+
+  const games = season?.schedule ?? NO_GAMES;
+  const liveWeek = liveStandingsWeek({ actualWeek, games });
+  const { data: live } = useLiveWeek(seasonId, liveWeek, { actualWeek });
+
+  // `null` is "the default": Live while a game is on, Official otherwise. A
+  // choice lasts while the page does.
+  const [pickedMode, setPickedMode] = useState(null);
+  const wanted = pickedMode ?? (live?.live ? STANDINGS_VIEW.LIVE : STANDINGS_VIEW.OFFICIAL);
+  // A Live choice outlives the live week (the last score landing) and falls back.
+  const mode = wanted === STANDINGS_VIEW.LIVE && !live ? STANDINGS_VIEW.OFFICIAL : wanted;
+
+  const shownStandings = useMemo(
+    () =>
+      standings.data
+        ? standingsForView({
+            mode,
+            official: standings.data,
+            teams: season?.teams ?? [],
+            games,
+            divisions: divisionsQuery.data ?? [],
+            live,
+            year: season?.year
+          })
+        : standings.data,
+    [mode, standings.data, season?.teams, season?.year, games, divisionsQuery.data, live]
+  );
+
+  const asOf = mode === STANDINGS_VIEW.LIVE && live?.refreshedAt ? formatTime(live.refreshedAt) : null;
 
   const seeded = usesSeededPlayoffs(season?.year);
   const showPath =
@@ -77,7 +125,7 @@ export default function StandingsMini({ ctx }) {
       ...division,
       label: getMaskedDivisionName(division, index, user, isAdmin, teamOwnerNames),
       teams:
-        standings.data?.divisions?.find((d) => sameId(d.divisionId, division.id))?.teams ?? []
+        shownStandings?.divisions?.find((d) => sameId(d.divisionId, division.id))?.teams ?? []
     }))
     .filter((division) => division.teams.length > 0);
 
@@ -110,7 +158,27 @@ export default function StandingsMini({ ctx }) {
     >
       <div className="@container space-y-4">
         {/* In the card and not its header, where two buttons beside the title
-            leave no room at phone width. */}
+            leave no room at phone width. The toggle only appears with a week
+            in progress: one choice is no choice. */}
+        {live && (
+          <div className="flex flex-wrap items-center gap-2">
+            <StandingsViewToggle
+              mode={mode}
+              onModeChange={setPickedMode}
+              hasLive
+              gameOn={Boolean(live.live)}
+              weeks={[]}
+              week={null}
+              onWeekChange={() => {}}
+            />
+            {asOf && (
+              <Badge variant="success" className="gap-1.5 text-xs">
+                <LiveDot done={!live.live} />
+                As of {asOf}
+              </Badge>
+            )}
+          </div>
+        )}
         {(seeded || showPath) && (
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             {seeded && <QualifierKey />}
@@ -185,7 +253,12 @@ export default function StandingsMini({ ctx }) {
                           className={cn('group cursor-pointer', tone(team), isViewer && ROW_TONE.viewer)}
                         >
                           <td className={cn(cell, STICKY_CELL, 'left-0 pl-2 font-semibold tabular text-muted-foreground', isViewer && VIEWER_RAIL)}>
-                            {team.divisionRank ?? index + 1}
+                            {/* The movement sits under the number: the column
+                                is 2.25rem, and the row has the height. */}
+                            <span className="flex flex-col items-start leading-none">
+                              <span>{team.divisionRank ?? index + 1}</span>
+                              <RankMovement movement={team.movement} />
+                            </span>
                           </td>
                           <td className={cn(cell, 'px-1.5')}>
                             <Link
