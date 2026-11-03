@@ -36,13 +36,19 @@ const team = (id, name, owner, espnTeamId, divisionId, wins, losses) => ({
   win_percentage: wins / (wins + losses)
 });
 
+/**
+ * One team carries a name as long as the league's real ones ("if we keep it a
+ * buck, we ass", "Chop Wood Carry Water"), because a row that only ever meets
+ * "Live Leaders" never has to shrink, and the full-season overflow this suite
+ * guards against needs a name that does.
+ */
 export const TEAMS = [
   team('team-final-a', 'Final Winners', 'Fiona Final', 1, 1, 3, 0),
   team('team-final-b', 'Final Losers', 'Frank Final', 2, 1, 2, 1),
   team('team-live-a', 'Live Leaders', 'Lena Live', 3, 1, 1, 2),
   team('team-live-b', 'Live Chasers', 'Liam Live', 4, 2, 2, 1),
   team('team-early-a', 'Early Birds', 'Erin Early', 5, 2, 1, 2),
-  team('team-early-b', 'Late Starters', 'Luke Late', 6, 2, 0, 3)
+  team('team-early-b', 'Late Starters Who Keep It A Buck All Season Long', 'Luke Late', 6, 2, 0, 3)
 ];
 
 const DIVISIONS = [
@@ -80,6 +86,7 @@ const SEASON = {
   timezone: 'America/New_York',
   regular_season_weeks: 14,
   playoff_weeks: 3,
+  total_weeks: 17,
   league_size: 6,
   espn_league_id: '1',
   espn_season_year: 2026,

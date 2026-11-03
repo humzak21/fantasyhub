@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
+
 import { cn } from '../../lib/utils'
 import { ariaSortOf, nextSort } from '../../utils/tableSort'
 import { Button } from './button'
@@ -19,6 +20,14 @@ import {
   TableHeader,
   TableRow,
 } from './table'
+
+/** Stat blocks per row in a card: as many as there are, up to four. */
+const STAT_GRID = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+}
 
 /**
  * One column definition, two layouts.
@@ -314,7 +323,10 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
       {secondary.length > 0 && (
         <dl
           className={cn(
-            'grid grid-cols-3 gap-x-3 gap-y-2.5 xs:grid-cols-4',
+            'grid gap-x-3 gap-y-2.5',
+            // Four stats fit four across at 375px; three is what used to
+            // leave a lone "Playoffs" on its own row under every franchise.
+            STAT_GRID[Math.min(secondary.length, 4)],
             primary.length > 0 && 'mt-3.5 border-t border-border/60 pt-3'
           )}
         >
@@ -348,7 +360,7 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
           </button>
 
           {open && (
-            <dl className="mt-1 grid grid-cols-3 gap-x-3 gap-y-2.5 border-t border-border/60 pt-3 xs:grid-cols-4">
+            <dl className={cn('mt-1 grid gap-x-3 gap-y-2.5 border-t border-border/60 pt-3', STAT_GRID[Math.min(detail.length, 4)])}>
               {detail.map((c) => (
                 <div key={c.key} className={cn('min-w-0', c.cardClassName)}>
                   <dt className="truncate text-xs font-medium text-muted-foreground">

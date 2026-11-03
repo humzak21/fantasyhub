@@ -330,52 +330,60 @@ const DivisionColumn = ({ className, title, picks, waiting = NO_ROWS, emptyText 
     ) : (
       <ul className="divide-y divide-border">
         {picks.map((pick) => (
-          <li key={pick.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-sm">
-            <span className="min-w-0 flex-1 truncate font-medium">{pick.displayName}</span>
-            <span className="flex min-w-0 items-center gap-1.5">
-              <PlayerAvatar
-                name={pick.playerNameRaw}
-                espnPlayerId={pick.player?.espnPlayerId}
-                position={pick.player?.position}
-                size={20}
-              />
-              <span className="truncate">{pick.playerNameRaw}</span>
-            </span>
-            {pick.player?.position && (
-              <span
-                className={cn(
-                  'rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
-                  getPositionColor(pick.player.position)
-                )}
-              >
-                {pick.player.position}
+          <li key={pick.id} className="py-2 text-sm">
+            {/* Two lines: whose pick and its grade, then the player and when.
+                On one line the member's name was what gave way, to "A…" and
+                "Hu…", because the player, his position, his team and the grade
+                badge all sat beside it. */}
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-medium">{pick.displayName}</span>
+              {/* A free-text pick is flagged because it is the one the
+                  commissioner has to look up by hand — no player row means no
+                  auto-grading either. */}
+              {!pick.playerId && (
+                <Badge variant="outline" className="shrink-0 text-[10px]">
+                  unmatched
+                </Badge>
+              )}
+              <GradeCell scoredTd={pick.scoredTd} />
+            </div>
+            <div className="mt-0.5 flex items-center gap-x-2 gap-y-1">
+              <span className="flex min-w-0 items-center gap-1.5">
+                <PlayerAvatar
+                  name={pick.playerNameRaw}
+                  espnPlayerId={pick.player?.espnPlayerId}
+                  position={pick.player?.position}
+                  size={20}
+                />
+                <span className="truncate">{pick.playerNameRaw}</span>
               </span>
-            )}
-            {pick.player?.teamAbbreviation && (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <NflTeamLogo team={teamOf(pick.player)} size={14} />
-                {pick.player.teamAbbreviation}
+              {pick.player?.position && (
+                <span
+                  className={cn(
+                    'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
+                    getPositionColor(pick.player.position)
+                  )}
+                >
+                  {pick.player.position}
+                </span>
+              )}
+              {pick.player?.teamAbbreviation && (
+                <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+                  <NflTeamLogo team={teamOf(pick.player)} size={14} />
+                  {pick.player.teamAbbreviation}
+                </span>
+              )}
+              <span className="ml-auto shrink-0 tabular text-[11px] text-muted-foreground">
+                {pick.submittedAt
+                  ? `Submitted ${new Date(pick.submittedAt).toLocaleString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit'
+                    })}`
+                  : 'Submission time unknown'}
               </span>
-            )}
-            {/* A free-text pick is flagged because it is the one the
-                commissioner has to look up by hand — no player row means no
-                auto-grading either. */}
-            {!pick.playerId && (
-              <Badge variant="outline" className="text-[10px]">
-                unmatched
-              </Badge>
-            )}
-            <GradeCell scoredTd={pick.scoredTd} />
-            <span className="w-full tabular text-[11px] text-muted-foreground">
-              {pick.submittedAt
-                ? `Submitted ${new Date(pick.submittedAt).toLocaleString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit'
-                  })}`
-                : 'Submission time unknown'}
-            </span>
+            </div>
           </li>
         ))}
         {waiting.map((team) => (

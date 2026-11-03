@@ -190,6 +190,10 @@ describe('AutomationsDashboard', () => {
     const user = userEvent.setup();
     renderWithProviders(<ColourKey />);
 
+    // Closed until asked: on a phone the open key was three screens of
+    // legend before the first job.
+    expect(screen.queryByLabelText('Colour key')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /colour key/i }));
     const key = screen.getByLabelText('Colour key');
     expect(key.className).not.toMatch(/grid-cols/);
     for (const label of ['Healthy', 'Ran late', 'Check issues', 'Step failed', 'Missed', 'Failed', 'Never finished', 'Idle (off-season)', 'No runs yet']) {

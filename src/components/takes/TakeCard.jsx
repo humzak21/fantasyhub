@@ -13,7 +13,6 @@ import {
   canWithdrawFade,
   canWithdrawHellYeah,
   fadeCount,
-  fadeTerms,
   fadeWindowNote,
   hasFaded,
   hasHellYeahed,
@@ -125,22 +124,20 @@ export function TakeCard({
         {take.body}
       </p>
 
-      {/* The stake and what pressing the button costs, together — the terms
-          belong beside the number they are about, not in a legend somewhere
-          else on the page. The icon carries the accent and the stake itself
-          stays `text-foreground`: a wager is a fact, not a direction. */}
+      {/* The stake, as one line. What pressing Hell Nah costs is restated by
+          `HellNahDialog` at the moment of the click and in the sheet, so the
+          card no longer repeats the same two sentences under every take on
+          the board. The icon carries the accent and the stake itself stays
+          `text-foreground`: a wager is a fact, not a direction. */}
       {staked && (
-        <div className="mt-3 rounded-md bg-muted/60 px-2.5 py-2">
-          <p className="flex items-baseline gap-1.5 text-[13px]">
-            <Coins
-              className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-warning"
-              aria-hidden="true"
-            />
-            <span className="text-muted-foreground">The bet</span>
-            <span className="break-words text-foreground">{take.wager}</span>
-          </p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{fadeTerms(take)}</p>
-        </div>
+        <p className="mt-2.5 flex items-baseline gap-1.5 text-[13px]">
+          <Coins
+            className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-warning"
+            aria-hidden="true"
+          />
+          <span className="text-muted-foreground">The bet</span>
+          <span className="break-words text-foreground">{take.wager}</span>
+        </p>
       )}
 
       {/* Hell Yeahs belong to every take — backing a call needs nothing

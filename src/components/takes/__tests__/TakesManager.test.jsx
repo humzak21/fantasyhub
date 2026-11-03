@@ -189,13 +189,15 @@ describe('TakesManager, signed out', () => {
     expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
   });
 
-  it('states what a Hell Nah costs wherever a wager is shown', async () => {
+  it('shows the stake on the card and keeps the terms for the moment of the click', async () => {
     renderTab();
     await screen.findByText('Nobody goes 14-0');
 
-    // The terms are not decoration: the button is a financial commitment, and
-    // it must not be possible to press one without the price beside it.
-    expect(screen.getAllByText(/if this take hits, you owe \$20/i).length).toBeGreaterThan(0);
+    // The price is on the card. What pressing Hell Nah commits the reader to
+    // is restated by `HellNahDialog` before anything is written, and in the
+    // sheet; it is not repeated under every take on the board.
+    expect(screen.getAllByText('$20').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/if this take hits, you owe/i)).not.toBeInTheDocument();
   });
 
   it('renders the grade the admin gave', async () => {
@@ -564,8 +566,8 @@ describe('TakesManager, Hell Yeah', () => {
 
     expect(screen.getByRole('button', { name: /^hell yeah'd$/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^hell nah$/i })).not.toBeInTheDocument();
-    // The Hell Nah price on the card stays the author's stake alone.
-    expect(screen.getByText(/you owe \$20\. If it misses, the author owes you\./)).toBeInTheDocument();
+    // The stake on the card stays the author's alone.
+    expect(screen.getByText('$20')).toBeInTheDocument();
   });
 });
 
