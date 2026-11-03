@@ -269,11 +269,25 @@ test.describe('phone navigation', () => {
     expect(box.x).toBeGreaterThanOrEqual(-1)
     expect(box.x + box.width).toBeLessThanOrEqual(vw + 1)
 
-    // …and the standings inside it are showing the card layout, not the
-    // table. ResponsiveDataTable emits both and lets CSS choose, so the check
-    // is visibility, not presence — `toHaveCount(0)` would be asserting the
-    // wrong thing about how that component works.
-    await expect(panel.locator('table').first()).toBeHidden()
+    // …and the standings inside it are one row per team, not the wide table.
+    // ResponsiveDataTable emits both and lets CSS choose, so the check is
+    // visibility, not presence — `toHaveCount(0)` would be asserting the wrong
+    // thing about how that component works.
+    await expect(panel.locator('[data-layout="wide"] table').first()).toBeHidden()
+    const phoneTable = panel.locator('[data-layout="scroll"] table').first()
+    await expect(phoneTable).toBeVisible()
+
+    // The details scroll inside the table, and the page stays put.
+    const scroller = phoneTable.locator('xpath=ancestor::*[@role="region"]')
+    expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    ).toBeLessThanOrEqual(1)
+
+    // One line a team: a wrapped name is what would bring the height back.
+    for (const row of await phoneTable.locator('tbody tr').all()) {
+      expect((await row.boundingBox()).height).toBeLessThanOrEqual(41)
+    }
 
     await page.keyboard.press('Escape')
     await expect(panel).not.toBeVisible()
