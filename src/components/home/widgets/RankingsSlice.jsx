@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronUp, Trophy } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 
 import HomeWidget from '../HomeWidget';
-import { ScrollTable } from '../ScrollTable';
-import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../tableTones';
+import { OddsCell, RankCell } from '../../power-rankings/rankingCells';
+import { ScrollTable } from '../../ui/scroll-table';
+import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../../ui/table-tones';
 import { NumberText, RecordText } from '../../ui/number-text';
 import { SkeletonTable } from '../../ui/skeleton';
 import { StreakChip } from '../../ui/streak-chip';
@@ -38,15 +39,16 @@ const COLUMNS = [
 ];
 
 /**
- * The team column is whatever the card has after the rank (3rem) and the four
- * columns shown by default (15.25rem) — so the default view is exactly those
- * — but never less than twelve letters of name (13ch, plus the cell's
- * padding, plus the team mark once the card is wide enough to show it). The
- * table is that plus every other column: 18.25rem shown, 23.75rem to the right.
+ * The team column is whatever the card has after the rank (3rem), the four
+ * columns shown by default (15.25rem) and the chevron (1.5rem) — so the default
+ * view is exactly those — but never less than twelve letters of name (13ch,
+ * plus the cell's padding, plus the team mark once the card is wide enough to
+ * show it). The table is that plus every other column: 18.25rem shown, 23.75rem
+ * to the right.
  */
-const TEAM_WIDTH = 'w-[max(13ch_+_0.75rem,100cqw_-_18.25rem)] @md:w-[max(13ch_+_2.75rem,100cqw_-_18.25rem)]';
+const TEAM_WIDTH = 'w-[max(13ch_+_0.75rem,100cqw_-_19.75rem)] @md:w-[max(13ch_+_2.75rem,100cqw_-_19.75rem)]';
 const TABLE_WIDTH =
-  'w-[calc(max(13ch_+_0.75rem,100cqw_-_18.25rem)_+_42rem)] @md:w-[calc(max(13ch_+_2.75rem,100cqw_-_18.25rem)_+_42rem)]';
+  'w-[calc(max(13ch_+_0.75rem,100cqw_-_19.75rem)_+_42rem)] @md:w-[calc(max(13ch_+_2.75rem,100cqw_-_19.75rem)_+_42rem)]';
 
 /**
  * The whole power ranking, with the viewer in view.
@@ -209,43 +211,4 @@ export default function RankingsSlice({ ctx }) {
       </ScrollTable>
     </HomeWidget>
   );
-}
-
-/**
- * Rank and the week's move in 48px. `RankBadge`'s circle plus its delta is
- * wider than the column a 375px row can spare, so this is the same two facts
- * — the number, and an up/down arrow coloured by direction — set inline.
- */
-function RankCell({ rank, delta }) {
-  const move = Number(delta);
-  const moved = delta != null && Number.isFinite(move) && move !== 0;
-  return (
-    <span className="flex items-center gap-0.5 font-semibold tabular">
-      {rank}
-      {moved && (
-        <span
-          className={cn('inline-flex items-center text-[10px] font-medium', move > 0 ? 'text-success' : 'text-destructive')}
-          title={`${Math.abs(move)} ${Math.abs(move) === 1 ? 'place' : 'places'} ${move > 0 ? 'up' : 'down'} from last week`}
-        >
-          {move > 0 ? <ChevronUp className="h-3 w-3" aria-hidden="true" /> : <ChevronDown className="h-3 w-3" aria-hidden="true" />}
-          <span className="sr-only">{move > 0 ? 'up' : 'down'}</span>
-          {Math.abs(move)}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * Playoff odds, whole percent. The calculator reads 100 only when clinched
- * and 0 only when eliminated, so those two are words.
- */
-function OddsCell({ odds }) {
-  if (odds === null || odds === undefined || odds === '') {
-    return <span className="text-muted-foreground">—</span>;
-  }
-  const value = Number(odds);
-  if (value >= 100) return <span className="font-medium text-success">Clinched</span>;
-  if (value <= 0) return <span className="text-muted-foreground">Out</span>;
-  return <NumberText value={value} variant="percent" decimals={0} />;
 }

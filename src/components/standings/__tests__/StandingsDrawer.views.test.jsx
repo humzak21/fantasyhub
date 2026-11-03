@@ -115,7 +115,7 @@ const renderDrawer = (props) =>
 
 const tab = (name) => screen.getByRole('tab', { name });
 const north = () => screen.getByRole('heading', { name: 'North' }).parentElement.parentElement;
-const namesIn = (scope) => within(scope).getAllByRole('table')[0];
+const namesIn = (scope) => scope.querySelector('[data-layout="wide"] table');
 
 beforeEach(() => {
   live = null;
