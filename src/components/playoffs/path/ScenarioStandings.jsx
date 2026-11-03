@@ -4,7 +4,7 @@ import { TeamLink } from '../../ui/team-link';
 import { cn } from '../../../lib/utils';
 import { getMaskedDivisionName } from '../../../utils/displayNameUtils';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
-import { ROW_TONE, VIEWER_RAIL } from '../../home/tableTones';
+import { ROW_TONE, VIEWER_RAIL } from '../../ui/table-tones';
 import { QualifierKey, RankMovement } from '../../standings/DrawerStandingsTable';
 
 const CELL = 'h-9 border-b border-border/40 group-last:border-0';
