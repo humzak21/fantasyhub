@@ -22,7 +22,7 @@ const TabsList = React.forwardRef(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-10 max-w-full items-center justify-start gap-1 overflow-x-auto overscroll-x-contain rounded-lg bg-muted p-1 text-muted-foreground shadow-sm scrollbar-mobile mobile-scroll",
+      "inline-flex h-auto min-h-10 max-w-full items-center justify-start gap-1 overflow-x-auto overscroll-x-contain rounded-lg bg-muted p-1 text-muted-foreground shadow-sm scrollbar-mobile mobile-scroll",
       className
     )}
     {...props}
@@ -31,18 +31,24 @@ const TabsList = React.forwardRef(({ className, ...props }, ref) => (
 TabsList.displayName = TabsPrimitive.List.displayName
 
 /**
- * Pass `icon` and the label collapses to the icon below sm:. A strip where the
- * names matter (League History) puts the icon in `children` instead: it keeps
- * every title and scrolls.
+ * Pass `icon` and below sm: the label moves under the icon, small; from sm:
+ * they sit side by side. A strip where the names matter (League History) puts
+ * the icon in `children` instead: it keeps every title at one size and
+ * scrolls.
  *
- * The label stays in the accessible name either way — an icon-only tab with
- * no name is unusable with a screen reader, and `title` is not a substitute.
+ * The label is never dropped. It used to collapse to the icon alone below
+ * sm:, which left Pick'ems, Playoffs and Awards as a row of four unlabelled
+ * glyphs on a phone — a crosshair for TD Parlay, two trophies for Results and
+ * Standings — and a member could not tell the tabs apart. Icon over an
+ * 11px label is what the phone tab bar does, and it costs the strip about
+ * 14px of height.
  */
 const TabsTrigger = React.forwardRef(({ className, icon, children, ...props }, ref) => (
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
       "inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-muted-foreground/10 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow pointer-coarse:min-h-9 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      icon && "flex-col gap-0.5 px-2.5 py-1 sm:flex-row sm:gap-2 sm:px-3 sm:py-1.5",
       className
     )}
     {...props}
@@ -50,8 +56,7 @@ const TabsTrigger = React.forwardRef(({ className, icon, children, ...props }, r
     {icon ? (
       <>
         {icon}
-        <span className="hidden sm:inline">{children}</span>
-        <span className="sr-only sm:hidden">{children}</span>
+        <span className="text-[11px] font-medium leading-none sm:text-sm sm:leading-normal">{children}</span>
       </>
     ) : (
       children

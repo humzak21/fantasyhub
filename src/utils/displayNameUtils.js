@@ -94,6 +94,26 @@ export const getTeamOwnerNames = (teamsOrSeason) => {
 export const normalizeOwnerName = (name) => ownerKey(name);
 
 /**
+ * A name for a row with no room for the whole of it: first name and the
+ * initial of the last, "Aashish G." The full name stays in the accessible
+ * name wherever this is drawn, and a one-word name is returned as it is.
+ *
+ * The league's longest owner names ("Aashish Gatamaneni", "Anand Kanumuru")
+ * were truncating to one or two letters on the TD Parlay board and the
+ * pick'em popularity rows, where the player, his position, his team and a
+ * grade all sit on the same line.
+ *
+ * @param {string} name
+ * @returns {string}
+ */
+export const shortOwnerName = (name) => {
+  const words = String(name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '';
+  if (words.length === 1) return words[0];
+  return `${words[0]} ${words[words.length - 1][0].toUpperCase()}.`;
+};
+
+/**
  * Does a name match one of the league's team owners?
  *
  * The one place the owner-name comparison rule lives, so `isUserATeamOwner`

@@ -410,12 +410,16 @@ const FullScheduleView = ({
             {weekGames.length === 0 ? (
               <p className="text-sm opacity-75">No games scheduled</p>
             ) : (
-              <div className="grid gap-3">
+              // `grid-cols-1`, not a bare `grid`: an implicit column is `auto`
+              // width and sizes to its widest row's text, so a long team name
+              // widened the card past the screen; `minmax(0, 1fr)` holds it to
+              // the container.
+              <div className="grid grid-cols-1 gap-3">
                 {weekGames.map(game => {
                   const team1 = teams.find(t => t.id === game.team1Id);
                   const team2 = teams.find(t => t.id === game.team2Id);
                   const isUserGame = isUserTeam(team1, user) || isUserTeam(team2, user);
-                  const baseClasses = "bg-card bg-opacity-50 rounded p-3 border";
+                  const baseClasses = "min-w-0 bg-card bg-opacity-50 rounded p-3 border";
                   const highlightClasses = getUserTeamHighlightClasses(isUserGame);
                   const borderClasses = game.isCompleted
                     ? "border-green-200 dark:border-green-700/30"
@@ -426,14 +430,23 @@ const FullScheduleView = ({
 
                   return (
                     <div key={game.id} className={`${baseClasses} ${highlightClasses} ${borderClasses}`}>
-                      <div className="flex items-center justify-between gap-4">
+                      {/*
+                        Below `sm:` the two sides stack, each a full-width row
+                        of name and score. Side by side at phone width the row
+                        grew to fit both names — `truncate` on a flex child
+                        with no `min-w-0` cannot shrink below its text — and
+                        the whole season ran off the right edge, with team 2
+                        invisible in every row. From `sm:` the sides sit left
+                        and right of the separator, as before.
+                      */}
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
                         {/* Team 1 */}
-                        <div className={`flex-1 flex items-center gap-2 ${isTeam1Winner ? 'font-bold' : 'font-medium'}`}>
-                          <span className="flex-1 truncate">
+                        <div className={`flex min-w-0 flex-1 items-center justify-between gap-2 sm:justify-start ${isTeam1Winner ? 'font-bold' : 'font-medium'}`}>
+                          <span className="min-w-0 flex-1 truncate">
                             <TeamLink team={team1}>{getTeamName(game.team1Id, game)}</TeamLink>
                           </span>
                           {game.isCompleted && (
-                            <span className={`text-lg font-bold min-w-[3rem] text-right ${
+                            <span className={`shrink-0 text-lg font-bold tabular sm:min-w-[3rem] sm:text-right ${
                               isTeam1Winner
                                 ? 'text-green-600 dark:text-green-400'
                                 : 'text-muted-foreground'
@@ -443,8 +456,9 @@ const FullScheduleView = ({
                           )}
                         </div>
 
-                        {/* VS or Score Separator */}
-                        <div className="flex-shrink-0 px-2">
+                        {/* VS or Score Separator. On a phone a finished game
+                            needs no dash between its two stacked rows. */}
+                        <div className={`shrink-0 sm:block sm:px-2 ${game.isCompleted ? 'hidden' : 'pl-0'}`}>
                           {game.isCompleted ? (
                             <span className="text-muted-foreground font-medium">-</span>
                           ) : (
@@ -453,9 +467,12 @@ const FullScheduleView = ({
                         </div>
 
                         {/* Team 2 */}
-                        <div className={`flex-1 flex items-center gap-2 ${isTeam2Winner ? 'font-bold' : 'font-medium'}`}>
+                        <div className={`flex min-w-0 flex-1 items-center justify-between gap-2 sm:flex-row-reverse sm:justify-start ${isTeam2Winner ? 'font-bold' : 'font-medium'}`}>
+                          <span className="min-w-0 flex-1 truncate sm:text-right">
+                            <TeamLink team={team2}>{getTeamName(game.team2Id, game)}</TeamLink>
+                          </span>
                           {game.isCompleted && (
-                            <span className={`text-lg font-bold min-w-[3rem] ${
+                            <span className={`shrink-0 text-lg font-bold tabular sm:min-w-[3rem] ${
                               isTeam2Winner
                                 ? 'text-green-600 dark:text-green-400'
                                 : 'text-muted-foreground'
@@ -463,9 +480,6 @@ const FullScheduleView = ({
                               {game.team2Score}
                             </span>
                           )}
-                          <span className="flex-1 truncate text-right">
-                            <TeamLink team={team2}>{getTeamName(game.team2Id, game)}</TeamLink>
-                          </span>
                         </div>
                       </div>
 

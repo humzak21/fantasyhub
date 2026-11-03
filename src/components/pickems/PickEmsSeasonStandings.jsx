@@ -213,17 +213,17 @@ const PickEmsSeasonStandings = ({
                       <div
                         key={standing.userId || index}
                         className={cn(
-                          'flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50',
+                          'flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50 sm:p-4',
                           // Warm means yours.
                           isViewer && 'border-primary/40 bg-primary/[0.06]'
                         )}
                       >
-                        <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
                           {/* The trophy is the whole of the podium now. Second and
                               third wore ribbons of their own, which said the
                               league pays three places; it pays one, and everyone
                               level at the top shares it. */}
-                          <span className="flex w-9 shrink-0 items-center justify-center">
+                          <span className="flex w-7 shrink-0 items-center justify-center sm:w-9">
                             {standing.isLeader ? (
                               <Trophy className="h-5 w-5 text-warning" aria-hidden="true" />
                             ) : (
@@ -239,9 +239,12 @@ const PickEmsSeasonStandings = ({
                               give the owner away. */}
                           <TeamAvatar team={{ owner: name }} size="sm" />
 
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 truncate font-medium">
-                              {name}
+                          <div className="min-w-0 flex-1">
+                            {/* The name is a block of its own and the chip sits
+                                after it, so the name ellipsises instead of the
+                                chip being cut to "ti". */}
+                            <div className="flex min-w-0 items-center gap-2 font-medium">
+                              <span className="min-w-0 truncate">{name}</span>
                               {standing.isLeader && (
                                 <Badge variant="warning" className="shrink-0">
                                   {standing.isTied ? `T-${ordinal(standing.rank)}` : ordinal(standing.rank)}
@@ -251,7 +254,7 @@ const PickEmsSeasonStandings = ({
                                 <span className="shrink-0 text-xs text-muted-foreground">tied</span>
                               )}
                             </div>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-sm text-muted-foreground">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[13px] text-muted-foreground">
                               {/* Decided picks, not picks entered. A week whose
                                   games have not kicked off yet is not seven
                                   misses — see `pendingPicks`. */}
@@ -265,6 +268,11 @@ const PickEmsSeasonStandings = ({
                                   {standing.totalWeeksParticipated}{' '}
                                   {standing.totalWeeksParticipated === 1 ? 'week' : 'weeks'}
                                 </span>
+                              {/* On a phone the accuracy joins this line; from
+                                  sm: it sits under the points on the right. */}
+                              <span className="tabular sm:hidden">
+                                {formatAccuracy(standing.overallAccuracyPercentage)}
+                              </span>
                               {standing.perfectWeeks > 0 && (
                                 <span className="flex items-center gap-1">
                                   <Trophy className="h-3 w-3" />
@@ -277,7 +285,7 @@ const PickEmsSeasonStandings = ({
 
                         <div className="shrink-0 text-right">
                           <div className="font-semibold tabular">{standing.totalPoints} pts</div>
-                          <div className="text-sm tabular text-muted-foreground">
+                          <div className="hidden text-sm tabular text-muted-foreground sm:block">
                             {formatAccuracy(standing.overallAccuracyPercentage)} overall
                           </div>
                         </div>
@@ -306,50 +314,46 @@ const PickEmsSeasonStandings = ({
                   {teamPickFrequency.map((team, index) => (
                     <div
                       key={team.teamId}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                      className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50"
                     >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold tabular">
-                          {index + 1}
-                        </div>
-                        <TeamAvatar team={{ name: team.teamName }} size="sm" />
-                        <div className="min-w-0">
-                          <TeamLink franchiseId={franchiseIds.get(team.teamId)} className="block truncate font-medium">
-                            {team.teamName}
-                          </TeamLink>
-                          <div className="text-sm text-muted-foreground">
-                            {team.timesPicked} picks in {team.totalMatchups} matchups
-                          </div>
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold tabular">
+                        {index + 1}
+                      </div>
+                      <TeamAvatar team={{ name: team.teamName }} size="sm" />
+                      {/* The name is the point of the row and gets whatever the
+                          figures leave; the counts go under it in one short
+                          line, where "61 picks in 83 matchups" no longer wraps
+                          one word per line beside a three-letter name. */}
+                      <div className="min-w-0 flex-1">
+                        <TeamLink franchiseId={franchiseIds.get(team.teamId)} className="block truncate font-medium">
+                          {team.teamName}
+                        </TeamLink>
+                        <div className="truncate text-xs tabular text-muted-foreground">
+                          {team.timesPicked} of {team.totalMatchups} matchups
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-6">
-                        <div className="text-center min-w-[80px]">
-                          <div className="flex items-center justify-center gap-2 h-6">
-                            <span className="font-semibold tabular">{team.pickRate.toFixed(1)}%</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">
-                            pick rate
-                          </div>
+                      <div className="flex shrink-0 items-start gap-3 text-right sm:gap-6">
+                        <div className="min-w-[3.25rem] sm:min-w-[4.5rem]">
+                          <div className="font-semibold tabular">{team.pickRate.toFixed(1)}%</div>
+                          <div className="text-[11px] text-muted-foreground">picked</div>
                         </div>
-                        <div className="text-center min-w-[80px]">
-                          {team.timesPicked > 0 && (
+                        <div className="min-w-[3.25rem] sm:min-w-[4.5rem]">
+                          {team.timesPicked > 0 ? (
                             <>
-                              <div className="flex items-center justify-center gap-2 h-6">
-                                {/* A rate either side of even has a direction, so
-                                    it carries colour; the raw counts beside it do
-                                    not and stay in the foreground. */}
-                                <span className={cn(
-                                  'font-semibold tabular',
-                                  team.winRate >= 50 ? 'text-success' : 'text-destructive'
-                                )}>
-                                  {team.winRate.toFixed(1)}%
-                                </span>
+                              {/* A rate either side of even has a direction, so
+                                  it carries colour; the raw counts beside it do
+                                  not and stay in the foreground. */}
+                              <div className={cn(
+                                'font-semibold tabular',
+                                team.winRate >= 50 ? 'text-success' : 'text-destructive'
+                              )}>
+                                {team.winRate.toFixed(1)}%
                               </div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                win rate
-                              </div>
+                              <div className="text-[11px] text-muted-foreground">won</div>
                             </>
+                          ) : (
+                            <div className="text-muted-foreground">&mdash;</div>
                           )}
                         </div>
                       </div>
@@ -361,11 +365,11 @@ const PickEmsSeasonStandings = ({
                 <Separator className="my-4" />
                 <div className="space-y-2 text-sm text-muted-foreground">
                   <div className="flex items-start gap-2">
-                    <span className="font-semibold min-w-[80px]">Pick Rate:</span>
+                    <span className="font-semibold min-w-[80px]">Picked:</span>
                     <span>Percentage of times this team was picked to win out of their total matchups {isSeason ? 'this season' : `in ${scope.span}`}</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <span className="font-semibold min-w-[80px]">Win Rate:</span>
+                    <span className="font-semibold min-w-[80px]">Won:</span>
                     <span>Percentage of times this team actually won when picked by users {isSeason ? 'this season' : `in ${scope.span}`}</span>
                   </div>
                 </div>

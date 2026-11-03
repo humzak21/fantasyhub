@@ -766,7 +766,9 @@ const KeyGroup = ({ title, children }) => (
  * sits beside the page rather than pushing the first card down.
  */
 export const ColourKey = () => {
-  const [open, setOpen] = useState(true);
+  // Closed until asked: on a phone the open key was three screens of legend
+  // before the first job.
+  const [open, setOpen] = useState(false);
   const Chevron = open ? ChevronDown : ChevronRight;
   return (
     <Card>

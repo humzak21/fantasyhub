@@ -170,13 +170,13 @@ describe('PickEmsSeasonStandings', () => {
     it('filters team popularity to the same weeks, and says so', async () => {
       renderStandings(SEASON, { defaultScopeId: 'first-half' });
 
-      expect(screen.getByText('8 picks in 8 matchups')).toBeInTheDocument();
+      expect(screen.getByText('8 of 8 matchups')).toBeInTheDocument();
       expect(screen.getByText(/picked to win in weeks 1–8/)).toBeInTheDocument();
       expect(screen.getByText(/total matchups in weeks 1–8/)).toBeInTheDocument();
       expect(screen.getByText(/picked by users in weeks 1–8/)).toBeInTheDocument();
 
       await openTab('Season-long');
-      expect(screen.getByText('16 picks in 16 matchups')).toBeInTheDocument();
+      expect(screen.getByText('16 of 16 matchups')).toBeInTheDocument();
       expect(screen.getByText(/across all matchups this season/)).toBeInTheDocument();
     });
 

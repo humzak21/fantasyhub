@@ -3,6 +3,7 @@ import { Trophy } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
 import { PICK_EM_TOURNEYS } from './tourneys.js';
+import { RememberedDisclosure } from '../ui/disclosure';
 
 /**
  * The two tourneys, stated where the reader is about to act on them.
@@ -22,49 +23,48 @@ import { PICK_EM_TOURNEYS } from './tourneys.js';
 export default function TourneyNote({ compact = false, currentWeek = null, className }) {
   const week = Number(currentWeek);
 
+  // One id for both faces: closed on Make Picks is closed on Standings too,
+  // since it is the same note.
   return (
-    <div
-      className={cn(
-        'rounded-lg border border-border bg-muted/20 p-3',
-        compact ? 'text-[13px]' : 'text-sm',
-        className
-      )}
+    <RememberedDisclosure
+      id="pickems-tourneys"
+      title="Two tourneys this season"
+      summary={PICK_EM_TOURNEYS.map((t) => `${t.weeks} · ${t.prize}`).join(' · ')}
+      icon={<Trophy className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />}
+      className={cn('bg-muted/20', className)}
     >
-      <p className="flex items-center gap-2 font-medium text-foreground">
-        <Trophy className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-        Two tourneys this season
-      </p>
+      <div className={compact ? 'text-[13px]' : 'text-sm'}>
+        <p className="text-muted-foreground">
+          Pick&rsquo;ems results are tracked for the year, so the season runs as two
+          in-season tourneys.
+        </p>
 
-      <p className="mt-1.5 text-muted-foreground">
-        Pick&rsquo;ems results are tracked for the year, so the season runs as two
-        in-season tourneys.
-      </p>
+        <ul className="mt-2 space-y-1.5">
+          {PICK_EM_TOURNEYS.map((tourney) => {
+            const isCurrent =
+              Number.isFinite(week) && week >= tourney.startWeek && week <= tourney.endWeek;
+            const span = tourney.endWeek - tourney.startWeek + 1;
 
-      <ul className="mt-2 space-y-1.5">
-        {PICK_EM_TOURNEYS.map((tourney) => {
-          const isCurrent =
-            Number.isFinite(week) && week >= tourney.startWeek && week <= tourney.endWeek;
-          const span = tourney.endWeek - tourney.startWeek + 1;
-
-          return (
-            <li key={tourney.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-              <span className="font-medium text-foreground">{tourney.weeks}</span>
-              <span className="text-muted-foreground">&mdash; winner takes {tourney.prize}.</span>
-              {/* The floor is the half of the rule a reader is most likely to
-                  be caught out by, so it is stated beside the prize rather
-                  than as a footnote under both. */}
-              <span className="text-muted-foreground">
-                Enter at least {tourney.minWeeks} of the {span} weeks to be eligible.
-              </span>
-              {isCurrent && (
-                <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-primary">
-                  In progress
+            return (
+              <li key={tourney.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="font-medium text-foreground">{tourney.weeks}</span>
+                <span className="text-muted-foreground">&mdash; winner takes {tourney.prize}.</span>
+                {/* The floor is the half of the rule a reader is most likely to
+                    be caught out by, so it is stated beside the prize rather
+                    than as a footnote under both. */}
+                <span className="text-muted-foreground">
+                  Enter at least {tourney.minWeeks} of the {span} weeks to be eligible.
                 </span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+                {isCurrent && (
+                  <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-primary">
+                    In progress
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </RememberedDisclosure>
   );
 }

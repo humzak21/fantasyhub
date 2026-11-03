@@ -92,3 +92,24 @@ test.describe('the hero', () => {
     await expect(hero(page)).not.toContainText('as of');
   });
 });
+
+/*
+ * Full season is a toggle on /schedule, not a route, so the smoke suite's
+ * per-route overflow check never saw it — and it needs a league on file,
+ * which only this fixture gives the smoke environment. It was the one view
+ * that genuinely overflowed: every game row grew to fit both team names side
+ * by side (a `truncate` span in a flex child with no `min-w-0` cannot
+ * shrink), and at phone width the season was 630px wide with team 2 off the
+ * right edge of every row.
+ */
+test('the full season view fits the viewport', async ({ page }) => {
+  await openLeague(page, '/schedule', LIVE);
+  await expect(page.getByText('Live Leaders').first()).toBeVisible();
+
+  await page.getByRole('button', { name: /full season/i }).click();
+  await expect(page.getByRole('button', { name: /this week/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Week 4\b/ }).first()).toBeVisible();
+  await expect(page.getByText('Live Leaders').first()).toBeVisible();
+
+  await expectNoOverflow(page);
+});

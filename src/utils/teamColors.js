@@ -117,7 +117,13 @@ export function getTeamInitials(team) {
   if (!team) return '?';
   const source =
     team.ownerName ?? team.owner_name ?? team.owner ?? team.name ?? team.teamName ?? team.team_name ?? '';
-  const words = String(source).trim().split(/\s+/).filter(Boolean);
+  // Letters and digits only: a team called "U dont have 🦃🍆" was drawing a
+  // broken half of an emoji as its second initial.
+  const words = String(source)
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (words.length === 0) return '?';
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();

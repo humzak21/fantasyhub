@@ -567,13 +567,16 @@ const FantasyFootballApp = () => {
         </header>
 
         {/* Main content.
-            The bottom padding clears the phone tab bar: it is `fixed`, so it
-            does not occupy layout space, and without this the last row of
-            every page sits under it. `pb-safe` handles the home indicator
-            below that. */}
+            The bottom padding clears the phone tab bar and the chat launcher
+            floating above it: both are `fixed`, so neither occupies layout
+            space, and without this the last row of every page sits under
+            one of them. The launcher is 3rem tall at 4.75rem up, so the
+            page ends 8.5rem up. `pb-safe` handles the home indicator below
+            that. From `lg` the launcher sits in the corner, clear of the
+            column. */}
         <PageContainer
           as="main"
-          className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-10"
+          className="py-6 pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:py-8 sm:pb-[calc(9rem+env(safe-area-inset-bottom))] lg:py-10 lg:pb-16"
         >
           {/* Signed in but not yet approved by the admin: says so, once, at the
               top of every page. Renders nothing for everyone else. */}
