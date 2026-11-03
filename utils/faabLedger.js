@@ -51,7 +51,14 @@ export function parseFaabTransfers(topics = []) {
   for (const topic of topics) {
     for (const message of topic.messages ?? []) {
       if (message.messageTypeId !== FAAB_TRADE_PROCESSED) continue;
-      transfers.set(message.id, { from: message.from, to: message.to, amount: message.targetId });
+      transfers.set(message.id, {
+        from: message.from,
+        to: message.to,
+        amount: message.targetId,
+        // The topic is the trade's: its targetId is the trade's transaction
+        // id, which is how `parseTransactionEvents` puts the amount on it.
+        tradeId: topic.targetId != null ? String(topic.targetId) : null
+      });
     }
   }
   return [...transfers.values()];

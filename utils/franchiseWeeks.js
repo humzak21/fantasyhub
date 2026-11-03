@@ -415,6 +415,12 @@ function movesFor(index, franchiseId, week) {
         id: event.id,
         kind: event.type === 'TRADE_ACCEPT' ? 'trade' : event.type === 'WAIVER' ? 'waiver' : 'free_agent',
         bidAmount: event.type === 'WAIVER' ? event.bidAmount : null,
+        // The FAAB a trade moved, from this franchise's side: dollars in or
+        // out, null for none on record, and null dollars where only the
+        // direction is known.
+        faabIn: event.faab?.toFranchiseId === franchiseId ? event.faab.amount ?? null : null,
+        faabOut: event.faab?.fromFranchiseId === franchiseId ? event.faab.amount ?? null : null,
+        faabMoved: Boolean(event.faab && (event.faab.toFranchiseId === franchiseId || event.faab.fromFranchiseId === franchiseId)),
         processedAt: event.processedAt,
         counterparts: event.franchiseIds
           .filter((id) => id !== franchiseId)
@@ -425,7 +431,7 @@ function movesFor(index, franchiseId, week) {
         involved: directionStored ? [] : event.players
       };
     })
-    .filter((move) => move.added.length || move.dropped.length || move.involved.length);
+    .filter((move) => move.added.length || move.dropped.length || move.involved.length || move.faabMoved);
 }
 
 /**

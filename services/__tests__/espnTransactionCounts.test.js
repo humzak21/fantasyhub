@@ -2,11 +2,12 @@
  * ESPN transactions, counted per team.
  *
  * Pinned: a trade counts once for each team it moved players between, and a
- * `TRADE_ACCEPT` that moved nobody between two teams counts for nobody. ESPN
- * files those — rows with no items, and the drop that made room for a real
- * trade filed again as a row of its own — and until 2026-09-15 the second kind
- * counted as a trade for the team that dropped. The fixtures are shaped after
- * the league's 2022 rows.
+ * `TRADE_ACCEPT` that moved nobody between two teams counts for nobody. The
+ * week view shows another team's trade that way to an outsider — no items, or
+ * only the drop that made room — and until 2026-09-15 the second kind counted
+ * as a trade for the team that dropped. The trade itself comes in from the
+ * player cards (`mergeCardTrades`). The fixtures are shaped after the
+ * league's 2022 rows.
  */
 
 import { describe, it, expect } from 'vitest';

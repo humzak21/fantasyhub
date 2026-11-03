@@ -281,7 +281,8 @@ describe('buildRecordBook', () => {
             { espnPlayerId: 3, name: 'Three', position: 'TE' }
           ],
           fromFranchiseIds: ['fB', 'fA', 'fA'],
-          toFranchiseIds: ['fA', 'fB', null]
+          toFranchiseIds: ['fA', 'fB', null],
+          faab: { amount: 15, fromFranchiseId: 'fA', toFranchiseId: 'fB' }
         },
         // ESPN's rows that are not trades: the drop filed again, and nothing at all.
         {
@@ -303,14 +304,27 @@ describe('buildRecordBook', () => {
     expect(latest.sides.every((side) => side.received.length === 0)).toBe(true);
     expect(latest.players.map((player) => player.name)).toEqual(['Four']);
 
+    const faab = { amount: 15, fromFranchiseId: 'fA', toFranchiseId: 'fB' };
+    expect(earlier.faab).toEqual(faab);
     expect(earlier.sides).toEqual([
       {
         franchiseId: 'fA',
         received: [{ espnPlayerId: 1, name: 'One', position: 'RB' }],
-        dropped: [{ espnPlayerId: 3, name: 'Three', position: 'TE' }]
+        dropped: [{ espnPlayerId: 3, name: 'Three', position: 'TE' }],
+        faabReceived: null,
+        faabSent: faab
       },
-      { franchiseId: 'fB', received: [{ espnPlayerId: 2, name: 'Two', position: 'WR' }], dropped: [] }
+      {
+        franchiseId: 'fB',
+        received: [{ espnPlayerId: 2, name: 'Two', position: 'WR' }],
+        dropped: [],
+        faabReceived: faab,
+        faabSent: null
+      }
     ]);
+    // A trade with no budget on record carries none on either side.
+    expect(latest.faab).toBeNull();
+    expect(latest.sides.map((side) => side.faabReceived)).toEqual([null, null]);
 
     // A team-season row is that season's trades; a pair row is the pair's, partner second.
     expect(tradesForRow(tradeBook, { franchiseId: 'fA', year: 2024 }).map((trade) => trade.id)).toEqual(['t1']);

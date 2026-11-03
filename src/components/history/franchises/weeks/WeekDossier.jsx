@@ -426,6 +426,15 @@ function Moves({ moves, viewer }) {
                   )}
                 </span>
                 {move.bidAmount != null && <span className="text-xs text-muted-foreground tabular">${move.bidAmount} FAAB</span>}
+                {move.faabMoved && (
+                  <span className="text-xs text-muted-foreground tabular">
+                    {move.faabIn != null
+                      ? `+${move.faabIn} FAAB`
+                      : move.faabOut != null
+                        ? `−${move.faabOut} FAAB`
+                        : 'FAAB moved'}
+                  </span>
+                )}
               </div>
               <ul className="mt-1 space-y-0.5">
                 {move.added.map((p) => (

@@ -665,17 +665,25 @@ function addTitleRunRows(career, sides, teamById) {
  * Every trade as the league reads one — who got which player, and when —
  * newest first.
  *
- * A trade moves players between at least two franchises. ESPN also files
- * `TRADE_ACCEPT` rows that do not: rows with no items at all, and the drop that
- * made room for a real trade filed again as a row of its own. Neither is a
- * trade, and leaving them out here keeps them out of the partner record and
- * every trade list. `parseTransactionData` draws the same line when it counts
+ * A trade moves players between at least two franchises. A `TRADE_ACCEPT`
+ * row that does not is how ESPN's week view showed another team's trade to an
+ * outsider (no items, or only the drop that made room); the sync fills those
+ * from player cards now (`mergeCardTrades`) and stores no such row; the 15
+ * written before 2026-11-02 (2021-23) are deleted by hand, since an upsert
+ * cannot remove them. Leaving any that remain out here keeps them out of the
+ * partner record and every trade list.
+ * `parseTransactionData` draws the same line when it counts
  * `transactions.trades`, so a franchise's count and its listed trades agree.
  *
  * Direction is `fromFranchiseIds` / `toFranchiseIds`, aligned with `players`,
  * with null for the free-agent pool. A row written before direction was stored
  * has neither, and its players are listed without sides rather than guessed
  * onto one.
+ *
+ * `faab` is the budget the trade moved (ESPN allows it from 2026), or null:
+ * `{ amount, fromFranchiseId, toFranchiseId }`, with `amount` null where the
+ * direction is on record and the dollars are not. Each side carries its own
+ * `faabReceived` / `faabSent` amount, null when none.
  */
 function buildTrades(trades, seasonById) {
   const built = [];
@@ -694,6 +702,13 @@ function buildTrades(trades, seasonById) {
     const to = trade.toFranchiseIds;
     const directed = Array.isArray(from) && Array.isArray(to) &&
       from.length === players.length && to.length === players.length;
+    const faab = trade.faab
+      ? {
+        amount: trade.faab.amount ?? null,
+        fromFranchiseId: trade.faab.fromFranchiseId ?? null,
+        toFranchiseId: trade.faab.toFranchiseId ?? null
+      }
+      : null;
 
     built.push({
       id: trade.id ?? null,
@@ -701,13 +716,17 @@ function buildTrades(trades, seasonById) {
       week: trade.week ?? null,
       processedAt: trade.processedAt ?? null,
       directed,
+      faab,
       sides: franchiseIds.map((franchiseId) => ({
         franchiseId,
         received: directed ? players.filter((_, index) => to[index] === franchiseId) : [],
         // Off this roster and onto no league team's: the drop that made room.
         dropped: directed
           ? players.filter((_, index) => from[index] === franchiseId && to[index] == null)
-          : []
+          : [],
+        // The budget this side took in or sent, when the trade moved any.
+        faabReceived: faab && faab.toFranchiseId === franchiseId ? faab : null,
+        faabSent: faab && faab.fromFranchiseId === franchiseId ? faab : null
       })),
       players: directed ? [] : players
     });

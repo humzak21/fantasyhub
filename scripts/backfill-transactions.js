@@ -10,6 +10,10 @@
  * counted into `transactions` and kept move by move in `transaction_events`,
  * exactly as the weekly job does for the active season.
  *
+ * Run again on 2026-11-02, after the fetcher learned to fill trades from
+ * player cards: the week view had shown only the cookie owner's trades, 37 of
+ * 170 across 2020-26. Every season's counts and events were rewritten.
+ *
  * Idempotent: both tables upsert on natural keys, so re-running a season
  * rewrites it. `--dry-run` fetches and parses, then prints what it would store
  * beside what `transactions` holds now, and writes nothing.
