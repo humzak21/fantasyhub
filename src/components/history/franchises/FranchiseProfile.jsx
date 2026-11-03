@@ -244,14 +244,12 @@ const FranchiseProfile = ({
         </SectionHeading>
         {seasonHistory.length > 0 ? (
           <>
-            <div className="rounded-xl border border-border p-2 sm:p-0 sm:overflow-hidden">
-              <ResponsiveDataTable
-                columns={seasonColumns}
-                data={sortedSeasonHistory}
-                rowClassName={(season) => seasonRowClass(season)}
-                onRowClick={(season) => season.season?.id && openSeasonWeeks(season.season.id)}
-              />
-            </div>
+            <ResponsiveDataTable
+              columns={seasonColumns}
+              data={sortedSeasonHistory}
+              rowClassName={(season) => seasonRowClass(season)}
+              onRowClick={(season) => season.season?.id && openSeasonWeeks(season.season.id)}
+            />
             <p className="text-xs text-muted-foreground">Select a season to open it week by week.</p>
           </>
         ) : (

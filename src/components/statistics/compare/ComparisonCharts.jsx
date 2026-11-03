@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 
 import { ChartContainer, teamChartColor, useMobileAxis } from '../../ui/chart';
+import { shortOwnerName } from '../../../utils/displayNameUtils';
 import { formatStatTick, formatStatValue } from './statFormat';
 
 /** Beyond this many lines, per-point dots turn the chart into confetti. */
@@ -24,6 +25,10 @@ const MAX_TICK_NAME = 14;
 
 const colorOf = (franchiseId) => teamChartColor({ franchiseId });
 const shortName = (name) => (name.length > MAX_TICK_NAME ? `${name.slice(0, MAX_TICK_NAME - 1)}…` : name);
+// The phone's tick: first name and an initial ("Aashish G."), which fits the
+// gutter whole. Cutting the full name at fourteen characters gave
+// "Aashish Gatma…", and the gutter clipped the start of the longest ones.
+const phoneName = (name) => shortName(shortOwnerName(name));
 
 /**
  * The chart's height follows how many bars it has to fit: fourteen franchises
@@ -67,9 +72,9 @@ export const RankedBarChart = ({ rows, stat, averaged, nameOf }) => {
           type="category"
           dataKey="name"
           interval={0}
-          tickFormatter={shortName}
+          tickFormatter={axis.isMobile ? phoneName : shortName}
           tickLine={false}
-          width={axis.isMobile ? 92 : 132}
+          width={axis.isMobile ? 88 : 132}
           tick={{ fontSize: axis.isMobile ? 10 : 11 }}
         />
         {hasNegative && <ReferenceLine x={0} stroke="var(--muted-foreground)" strokeOpacity={0.5} />}

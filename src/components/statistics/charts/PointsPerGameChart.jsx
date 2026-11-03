@@ -1,13 +1,13 @@
-import React, { useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Cell } from 'recharts';
 import { ChartContainer, ChartTooltip, useMobileAxis, teamChartColor } from '../../ui/chart';
-import { getMaskedTeamName } from '../../../utils/displayNameUtils';
+import { getMaskedOwnerName, getMaskedTeamName, shortOwnerName } from '../../../utils/displayNameUtils';
 
 /**
  * Custom tooltip component for PointsPerGameChart
  * Displays PPG and total points with game count
  */
-const CustomPPGTooltip = ({ active, payload, label }) => {
+const CustomPPGTooltip = ({ active, payload }) => {
   if (!active || !payload || payload.length === 0) return null;
 
   const data = payload[0].payload;
@@ -34,8 +34,19 @@ const CustomPPGTooltip = ({ active, payload, label }) => {
 };
 
 /**
+ * The chart's height follows how many bars it has to fit on a phone: fourteen
+ * horizontal bars in 260px is a bar every 18px, which is a barcode.
+ */
+const phoneHeight = (count) => (count > 8 ? 'h-[420px]' : count > 4 ? 'h-[280px]' : 'h-[200px]');
+
+/**
  * PointsPerGameChart - Bar chart showing average points per game for each team
  * Higher bars indicate more prolific scoring teams
+ *
+ * Below `md` the bars run sideways with the owner's short name beside each,
+ * because fourteen vertical bars at 375px had room for two labels, the first
+ * and the last, and twelve bars nobody could put a name to. From `md` the
+ * bars stand up and every one is labelled on an angled tick.
  */
 const PointsPerGameChart = ({
   data = [],
@@ -61,17 +72,23 @@ const PointsPerGameChart = ({
     // Sort by PPG descending
     return filteredData
       .sort((a, b) => b.ppg - a.ppg)
-      .map(team => ({
-        name: getMaskedTeamName({ id: team.teamId, name: team.teamName, owner: team.owner }, user, isAdmin, teamOwnerNames),
-        ppg: Math.round(team.ppg * 100) / 100,
-        totalPoints: Math.round(team.totalPoints * 100) / 100,
-        gamesPlayed: team.gamesPlayed,
-        teamId: team.teamId,
-        // Carried through so the bar can be coloured by franchise. The owner
-        // is what `teamColors` keys on when there is no franchise id.
-        franchiseId: team.franchiseId ?? team.franchise_id,
-        owner: team.owner
-      }));
+      .map(team => {
+        const row = { id: team.teamId, name: team.teamName, owner: team.owner };
+        return {
+          name: getMaskedTeamName(row, user, isAdmin, teamOwnerNames),
+          // The phone's tick: the owner, short. A masked viewer gets the
+          // masked owner, which `shortOwnerName` returns as it is.
+          label: shortOwnerName(getMaskedOwnerName(row, user, isAdmin, teamOwnerNames)),
+          ppg: Math.round(team.ppg * 100) / 100,
+          totalPoints: Math.round(team.totalPoints * 100) / 100,
+          gamesPlayed: team.gamesPlayed,
+          teamId: team.teamId,
+          // Carried through so the bar can be coloured by franchise. The owner
+          // is what `teamColors` keys on when there is no franchise id.
+          franchiseId: team.franchiseId ?? team.franchise_id,
+          owner: team.owner
+        };
+      });
   }, [data, selectedTeams, user, isAdmin, teamOwnerNames]);
 
   if (chartData.length === 0) {
@@ -88,38 +105,68 @@ const PointsPerGameChart = ({
    * and it did so with interpolated rgb() values that owed nothing to the
    * theme. Team colour lets a reader find their team in the chart instead.
    */
+  const cells = chartData.map((entry, index) => (
+    <Cell
+      key={`cell-${index}`}
+      fill={teamChartColor({ franchiseId: entry.franchiseId, ownerName: entry.owner, name: entry.name })}
+      opacity={0.85}
+    />
+  ));
+
+  if (axis.isMobile) {
+    return (
+      <div className="w-full h-full flex flex-col">
+        <ChartContainer config={{}} className={`w-full ${phoneHeight(chartData.length)}`}>
+          <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.1} horizontal={false} />
+            <XAxis type="number" domain={[70, 150]} tick={{ fontSize: 10 }} tickLine={false} height={20} />
+            {/* A category axis in a horizontal layout: every name, and room
+                for it. `axis.y`'s narrow numeric gutter would clip them; the
+                chart's height grows with the bar count so no two names share
+                a row. */}
+            <YAxis
+              type="category"
+              dataKey="label"
+              interval={0}
+              tickLine={false}
+              width={84}
+              tick={{ fontSize: 10 }}
+            />
+            <ChartTooltip content={<CustomPPGTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
+            <Bar dataKey="ppg" name="PPG" radius={[0, 6, 6, 0]} maxBarSize={18} isAnimationActive={false}>
+              {cells}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full flex flex-col">
-      <ChartContainer config={{}} className="h-[260px] w-full sm:h-[400px]">
-        <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }} {...axis.chart}>
+      <ChartContainer config={{}} className="h-[400px] w-full">
+        <BarChart data={chartData} margin={{ top: 10, right: 20, left: 35, bottom: 15 }}>
           <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+          {/* Every bar labelled: an angled tick per team, which fits from
+              `md` and is exactly what does not fit below it. */}
           <XAxis
-            dataKey="name"
+            dataKey="label"
             angle={-45}
             textAnchor="end"
-            height={60}
+            height={70}
             tick={{ fontSize: 10 }}
             interval={0}
-            {...axis.x}
           />
           <YAxis
             domain={[70, 150]}
             label={{ value: 'Points Per Game', angle: -90, position: 'insideLeft', offset: -5, dy: 30 }}
             tick={{ fontSize: 10 }}
             width={30}
-            {...axis.y}
           />
           <ChartTooltip content={<CustomPPGTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.1)' }} />
 
           <Bar dataKey="ppg" name="PPG" radius={[8, 8, 0, 0]}>
-            {chartData.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                fill={teamChartColor({ franchiseId: entry.franchiseId, ownerName: entry.owner, name: entry.name })}
-                opacity={0.85}
-              />
-            ))}
+            {cells}
           </Bar>
         </BarChart>
       </ChartContainer>

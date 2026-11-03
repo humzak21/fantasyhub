@@ -114,7 +114,9 @@ export function GameChoice({
         </div>
       )}
       {/* One above the other in a narrow card, the way a scoreboard stacks: two
-          across at phone width left a team name about eight letters a line. */}
+          across at phone width left a team name about eight letters a line.
+          The sides are tinted rows inside the game's one box, not a bordered
+          button each: a card of games was a column of boxes in boxes. */}
       <div
         className="grid gap-0.5 @sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] @sm:gap-1.5"
         role="group"
@@ -131,10 +133,10 @@ export function GameChoice({
               aria-pressed={chosen}
               onClick={() => onChoose(game.id, teamId)}
               className={cn(
-                'flex min-h-11 min-w-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                'flex min-h-11 min-w-0 items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-[13px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
                 chosen
-                  ? 'border-primary bg-primary/12 font-semibold'
-                  : 'border-border/70 bg-muted/20 hover:border-foreground/30 hover:bg-accent/40',
+                  ? 'bg-primary/12 font-semibold text-primary'
+                  : 'bg-muted/20 hover:bg-accent/40',
                 passedOver && 'text-muted-foreground'
               )}
             >

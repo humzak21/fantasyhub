@@ -1,7 +1,6 @@
 import * as React from 'react'
 import { ArrowDown, ArrowUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
 
-
 import { cn } from '../../lib/utils'
 import { ariaSortOf, nextSort } from '../../utils/tableSort'
 import { Button } from './button'
@@ -169,8 +168,17 @@ export function ResponsiveDataTable({
 
   return (
     <div className={cn('min-w-0', className)}>
-      {/* ---------- Cards, or one row each: below md ---------- */}
-      <div data-layout={scroll ? 'scroll' : 'cards'} className="space-y-2 md:hidden">
+      {/* ---------- Cards, or one row each: below md ----------
+          The card stack is rows separated by hairlines, not a bordered card
+          each. Every table on the site sits inside a card already (a stat
+          section, a profile, the leaderboards), so a card per row was a box
+          in a box: the per-season blocks on Statistics and the profile read
+          as fourteen little panels, each 40px narrower than the screen. The
+          tint a caller passes through `rowClassName` still lands on the row. */}
+      <div
+        data-layout={scroll ? 'scroll' : 'cards'}
+        className={cn(scroll ? 'space-y-2' : 'divide-y divide-border/60', 'md:hidden')}
+      >
         {sortable.length > 0 && (
           <SortControl columns={sortable} sort={sort} onSortChange={onSortChange} />
         )}
@@ -440,8 +448,7 @@ function DataCard({ row, index, primary, secondary, detail, onClick, className }
   return (
     <div
       className={cn(
-        'rounded-xl border border-border bg-card p-3.5 text-card-foreground',
-        'shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]',
+        'py-3 text-card-foreground first:pt-0 last:pb-0',
         onClick && 'cursor-pointer active:bg-accent/40',
         className
       )}
