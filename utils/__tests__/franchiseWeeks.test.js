@@ -75,6 +75,7 @@ function seasonSource({ year = 2026, id = 's1' } = {}) {
       },
       {
         id: 'e3', type: 'TRADE_ACCEPT', week: 2, teamId: null, franchiseId: null, franchiseIds: ['fA', 'fC'], bidAmount: null, processedAt: null,
+        faab: { amount: 12, fromFranchiseId: 'fC', toFranchiseId: 'fA' },
         players: [
           { espnPlayerId: 12, name: 'Incoming', from: 'fC', to: 'fA' },
           { espnPlayerId: 13, name: 'Outgoing', from: 'fA', to: 'fC' }
@@ -245,6 +246,11 @@ describe('buildWeekDossier', () => {
     expect(trade.counterparts.map((f) => f.id)).toEqual(['fC']);
     expect(trade.added.map((p) => p.name)).toEqual(['Incoming']);
     expect(trade.dropped.map((p) => p.name)).toEqual(['Outgoing']);
+    // The budget the trade moved, from this side.
+    expect([trade.faabMoved, trade.faabIn, trade.faabOut]).toEqual([true, 12, null]);
+    const theirs = buildWeekDossier(index, 'fC', 2).moves[0];
+    expect([theirs.faabIn, theirs.faabOut]).toEqual([null, 12]);
+    expect(week1.find((m) => m.kind === 'waiver').faabMoved).toBe(false);
   });
 
   it('is null for a franchise with no team that season', () => {

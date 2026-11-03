@@ -5,6 +5,20 @@ import { formatDate } from '../../../lib/utils';
 
 const playerName = (player) => player.name ?? 'Unknown player';
 
+/** "$15 FAAB", or "FAAB" for a trade known to have moved budget by an amount not on record. */
+const faabLabel = (faab) => (faab.amount != null ? `${faab.amount} FAAB` : 'FAAB');
+
+function FaabLine({ faab }) {
+  return (
+    <li className="flex min-w-0 items-center gap-1.5 text-xs">
+      <span aria-hidden="true" className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground">
+        $
+      </span>
+      <span className="text-foreground tabular">{faabLabel(faab)}</span>
+    </li>
+  );
+}
+
 /** "Wk 6 · Oct 14, 2021", or "Wk 6, 2021" for a trade with no processed date. */
 function tradeWhen(trade) {
   const week = trade.week != null ? `Wk ${trade.week}` : null;
@@ -65,11 +79,11 @@ export function TradeList({ id, trades, count = trades.length, identity }) {
                           </span>
                         </p>
                         <ul aria-label={`${name} received`} className="mt-1 space-y-0.5 pl-7">
-                          {side.received.length > 0 ? (
-                            side.received.map((player, playerIndex) => (
-                              <PlayerLine key={player.espnPlayerId ?? playerIndex} player={player} />
-                            ))
-                          ) : (
+                          {side.received.map((player, playerIndex) => (
+                            <PlayerLine key={player.espnPlayerId ?? playerIndex} player={player} />
+                          ))}
+                          {side.faabReceived && <FaabLine faab={side.faabReceived} />}
+                          {side.received.length === 0 && !side.faabReceived && (
                             <li className="text-xs text-muted-foreground">No players</li>
                           )}
                         </ul>
@@ -92,6 +106,7 @@ export function TradeList({ id, trades, count = trades.length, identity }) {
                     {trade.players.map((player, playerIndex) => (
                       <PlayerLine key={player.espnPlayerId ?? playerIndex} player={player} />
                     ))}
+                    {trade.faab && <FaabLine faab={trade.faab} />}
                   </ul>
                 </div>
               )}

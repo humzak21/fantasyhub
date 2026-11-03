@@ -60,7 +60,8 @@ clock, GitHub's runners".
 - `npm run backfill-transactions` - Store every executed transaction
   (`transaction_events`) and re-derive the counts (`transactions`) for past
   seasons, through the sync's own `syncTransactions`. `[year]`, `--dry-run`;
-  default is every completed season from 2020. Run once on 2026-09-15.
+  default is every completed season from 2020. Run on 2026-09-15, and again
+  for every season on 2026-11-02 once trades were read from player cards.
 - `npm run backfill-player-week-stats` - Store past weeks' `player_week_stats`
   and `team_week_lineups` through the sync's own `syncPlayerStats`.
   `[year] [week]`, `--dry-run`. Run once on 2026-09-15; see "Lineups and
@@ -1721,9 +1722,8 @@ out from `lg`. History
   record book's own query key, which the trophy case already holds, so it fetches
   nothing and cannot disagree with Records: the list is what "Most trades" opens
   to (`records/TradeList.jsx`, one component), and the totals are what "Most
-  frequent trade partners" counts. So "Most trades"'s note holds here too: the
-  commissioner's list is long for the reason that record says. A franchise that
-  has never traded has no section.
+  frequent trade partners" counts. A franchise that has never traded has no
+  section.
 - **`TeamAvatar` draws the avatar everywhere, through
   `FranchiseAvatarsContext`,** which also answers `useCanOpenProfiles()` for
   `TeamLink`. A context so both primitives stay plain with no provider. It hands
@@ -1855,22 +1855,24 @@ Rules that are load-bearing:
   shows, All-Time rate records are one neutral list ("Win %", "Points per
   game", "Lineup efficiency") rather than a best and a worst; Single Season
   keeps both ends, since its ~100 team-seasons never reach the bottom in 20.
-- **"Most trades" carries a note** (`note` in the catalog, rendered under the
-  blurb): the commissioner's count is inflated, because trades the
-  commissioner executes for other managers go through their own account.
+- **"Most trades" carries no note.** It used to say the commissioner's count
+  was inflated by trades executed for other managers; that was a reading of
+  the hidden-trade bug (every stored trade had the commissioner on a side),
+  and it went with the fix on 2026-11-02.
 - **A trade record's row opens to its trades** (`expandsTrades` in the
   catalog) instead of linking to the franchise — "Most trades" and "Most
   frequent trade partners", on both tabs. `tradesForRow` picks a row's out of
   `book.trades`: the week and processed date, each side's players received,
   and the drop that made room. **A trade is a `TRADE_ACCEPT` between at least
-  two franchises.** ESPN also files rows with no items, and the roster-space
-  drop filed again as a row of its own — 15 of the 48 stored for 2020-25, all
-  in 2021-23 — and `buildTrades` keeps them out of the lists and the partner
-  record. `parseTransactionData` applies the same rule to
-  `transactions.trades`; until 2026-09-15 it did not, and six franchise-seasons
-  each counted one of those rows as a trade. Where a count still runs past its
-  listed trades — a season counted but not yet stored move by move — the list
-  says how many more.
+  two franchises.** A `TRADE_ACCEPT` row with no items, or with only the
+  roster-space drop, is how ESPN's week view shows another team's trade to an
+  outsider (see "ESPN shows a trade only to the teams in it" under "Lineups
+  and transactions go back to 2020"); `buildTrades` keeps any such row out of
+  the lists and the partner record, and `parseTransactionData` applies the
+  same rule to `transactions.trades`. Until 2026-09-15 it did not, and six
+  franchise-seasons each counted one of those rows as a trade. Where a count
+  still runs past its listed trades — a season counted but not yet stored move
+  by move — the list says how many more.
 - **Unknown is absent, never zero**, the power ranking's rule again: a season
   with no lineup data has no lineup rows. Counts ranked high-to-low hide zeros
   (`hidesZero`).
@@ -2100,6 +2102,20 @@ both home tables) show `teams.faab_remaining`, which needs no join.
 - **NULL is unknown, never 0**, and 0 is a real answer. A table with no figures
   at all drops the column, which is what a past season in the drawer gets.
 - **Records keep meaning bids.** "Most FAAB spent" is `faab_spent`, unchanged.
+- **Each trade carries the FAAB it moved**
+  (`20261106120000_transaction_events_faab.sql`: `faab_amount`,
+  `faab_from_franchise_id`, `faab_to_franchise_id` on `transaction_events`).
+  The feed's message 290 sits in the trade's own topic, whose `targetId` is
+  the trade's transaction id, so `parseFaabTransfers` returns `tradeId` and
+  `parseTransactionEvents` puts the amount on the trade. The direction comes
+  from the trade's `ACQUISITION_BUDGET_TRADE` item, which has player id 0 and
+  is no longer listed among `espn_player_ids` (it read "Unknown player" on
+  every 2026 trade list). A trade with the direction and no feed (a past
+  season's, or a feed that failed) stores the franchises with a NULL amount.
+  The record book's trades (`faab`, and `faabReceived` / `faabSent` per side),
+  `TradeList` and the week's moves (`faabIn` / `faabOut`) show it. ESPN
+  allowed FAAB in trades from 2026, so nothing earlier needs a backfill: the
+  2026 rows get theirs from the first sync after the migration applies.
 - **The standings RPC has no FAAB.** `StandingsMini` and the drawer read it off
   the season's own teams. `faabOf` takes either shape.
 - **Left is a figure about today,** so `PowerRankingsTable` drops it for a past
@@ -2128,6 +2144,28 @@ writes, both backfilled for 2020-25:
   is ESPN's free-agent pool, and a null column is a row written before
   direction was stored, which the record book lists without sides rather than
   guessing one.
+
+**ESPN shows a trade only to the teams in it.** `mTransactions2`, the week
+view the sync reads, describes an executed trade in full only when the
+cookies' owner is a side of it. Every other team's trade comes back as a
+`TRADE_ACCEPT` with no items, or with just the drop that made room, so read
+through one member's cookies the league had 37 trades on file where it had
+made 170 (2020 through 2026 week 8, measured 2026-11-02: 4 of 36 in 2020, 2
+of 14, 3 of 11, 4 of 16, 7 of 31, 13 of 40, 4 of 22), and every one stored
+had Humza on a side. The activity feed is no help for history: ESPN keeps a
+communication group for the active season only, and every past season
+answers 404. What does work is the player card view, `kona_playercard`:
+each player's own transaction history, every leg of every trade, whoever
+asks, by the same transaction ids. So `fetchSeasonTransactions` cards every
+player the week view's items name (drafted, added, dropped or traded, which
+is everyone who was ever on a roster; checked against `player_week_stats`
+for 2020-26) in batches of `CARD_BATCH`, and `mergeCardTrades` puts each
+trade back by id. This is cwendt94/espn-api's `fill_trade_items`. A failed
+card batch fails the step, because a partial set of trades written over a
+complete one lowers `transactions.trades`. `parseTransactionEvents` stores
+no `TRADE_ACCEPT` without a TRADE leg: such a row is an outsider's view of a
+trade, not a trade. The 2026 count was checked against the activity feed's
+22 trade topics, and the 2024 visible rows' items against their card copies.
 
 `scripts/backfill-transactions.js` and `scripts/backfill-player-week-stats.js`
 run the sync's own `syncTransactions` / `syncPlayerStats` over past seasons

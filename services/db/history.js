@@ -658,7 +658,7 @@ export async function getRecordBookSource(ctx) {
         .order('id')),
       selectAll(() => client
         .from('transaction_events')
-        .select('id, season_id, scoring_period, processed_at, franchise_ids, espn_player_ids, player_from_franchise_ids, player_to_franchise_ids')
+        .select('id, season_id, scoring_period, processed_at, franchise_ids, espn_player_ids, player_from_franchise_ids, player_to_franchise_ids, faab_amount, faab_from_franchise_id, faab_to_franchise_id')
         .eq('type', 'TRADE_ACCEPT')
         .order('id')),
       selectAll(() => client
@@ -733,7 +733,15 @@ export async function getRecordBookSource(ctx) {
         // Null on a row stored before direction was; the record book lists
         // those players without sides rather than guessing one.
         fromFranchiseIds: row.player_from_franchise_ids ?? null,
-        toFranchiseIds: row.player_to_franchise_ids ?? null
+        toFranchiseIds: row.player_to_franchise_ids ?? null,
+        // The FAAB the trade moved, or null; see `20261106120000_transaction_events_faab.sql`.
+        faab: row.faab_from_franchise_id || row.faab_to_franchise_id || row.faab_amount != null
+          ? {
+            amount: num(row.faab_amount),
+            fromFranchiseId: row.faab_from_franchise_id ?? null,
+            toFranchiseId: row.faab_to_franchise_id ?? null
+          }
+          : null
       })),
       bids: bids.map((row) => ({
         seasonId: row.season_id,
@@ -888,7 +896,7 @@ export async function getSeasonWeekSource(ctx, seasonId) {
         .order('id')),
       selectAll(() => client
         .from('transaction_events')
-        .select('id, type, team_id, franchise_id, franchise_ids, scoring_period, bid_amount, processed_at, espn_player_ids, player_from_franchise_ids, player_to_franchise_ids')
+        .select('id, type, team_id, franchise_id, franchise_ids, scoring_period, bid_amount, processed_at, espn_player_ids, player_from_franchise_ids, player_to_franchise_ids, faab_amount, faab_from_franchise_id, faab_to_franchise_id')
         .eq('season_id', seasonId)
         .order('id'))
     ]);
@@ -975,6 +983,13 @@ export async function getSeasonWeekSource(ctx, seasonId) {
         franchiseIds: row.franchise_ids ?? [],
         bidAmount: num(row.bid_amount),
         processedAt: row.processed_at,
+        faab: row.faab_from_franchise_id || row.faab_to_franchise_id || row.faab_amount != null
+          ? {
+            amount: num(row.faab_amount),
+            fromFranchiseId: row.faab_from_franchise_id ?? null,
+            toFranchiseId: row.faab_to_franchise_id ?? null
+          }
+          : null,
         players: (row.espn_player_ids ?? []).map((espnPlayerId, i) => ({
           espnPlayerId,
           name: players.get(espnPlayerId)?.name ?? null,

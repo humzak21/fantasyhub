@@ -76,6 +76,11 @@ export async function upsertTransactionEvents(ctx, seasonId, events = [], teams 
         player_to_franchise_ids: event.espnToTeamIds
           ? event.espnToTeamIds.map((id) => resolve(id)?.franchiseId ?? null)
           : null,
+        // The FAAB a trade moved; see `parseTransactionEvents`. Null across
+        // the board for a trade that moved none, and for every other kind.
+        faab_amount: event.faab?.amount ?? null,
+        faab_from_franchise_id: event.faab ? resolve(event.faab.espnFromTeamId)?.franchiseId ?? null : null,
+        faab_to_franchise_id: event.faab ? resolve(event.faab.espnToTeamId)?.franchiseId ?? null : null,
         updated_at: now
       });
     }

@@ -462,7 +462,6 @@ export async function syncTransactions(seasonId, espn) {
   );
   const leagueData = await fetcher.fetchSeasonTransactions(espn.seasonYear);
   const summary = fetcher.parseTransactionData(leagueData);
-  const events = fetcher.parseTransactionEvents(leagueData);
 
   if (!summary || summary.length === 0) {
     return { updated: 0, errors: [{ error: 'ESPN returned no transaction data' }] };
@@ -472,17 +471,22 @@ export async function syncTransactions(seasonId, espn) {
   const rows = [];
   const errors = [];
 
+  // The feed exists for the active season only; a past season answers 404,
+  // which costs the ledger and the trades' FAAB amounts and nothing else.
   let ledger = new Map();
+  let transfers = [];
   try {
+    transfers = await fetcher.fetchFaabTransfers(espn.seasonYear);
     ledger = buildFaabLedger({
       teams: leagueData.teams,
       settings: leagueData.settings,
       bids: new Map(summary.map((entry) => [entry.espnTeamId, entry.faab_spent])),
-      transfers: await fetcher.fetchFaabTransfers(espn.seasonYear)
+      transfers
     });
   } catch (error) {
     errors.push({ error: `FAAB ledger not updated: ${error.message}` });
   }
+  const events = fetcher.parseTransactionEvents(leagueData, { faabTransfers: transfers });
   const espnTeams = new Map((leagueData.teams ?? []).map((team) => [team.id, team]));
 
   for (const entry of summary) {

@@ -45,8 +45,6 @@ export const SECTIONS = [
 ];
 
 const LINEUP_NOTE = 'Built from ESPN lineups, back to 2020.';
-const COMMISSIONER_TRADES_NOTE =
-  "The commissioner's count is inflated: trades the commissioner executes for other managers go through the commissioner's own account.";
 
 const career = (entry) => ({ scope: 'career', kind: 'franchise', direction: 'desc', ...entry });
 const season = (entry) => ({ scope: 'season', kind: 'teamSeason', direction: 'desc', ...entry });
@@ -119,7 +117,7 @@ export const RECORDS = [
   career({ id: 'career-finals-streak', section: 'streaks', kind: 'seasonStreak', data: 'finalsStreak', title: 'Finals-appearance streak', blurb: 'Consecutive championship-game appearances.', format: 'int', unit: 'seasons' }),
   career({ id: 'career-title-run-streak', section: 'streaks', kind: 'streak', data: 'titleRunStreak', title: 'Longest win streak to a title', blurb: 'Consecutive wins, regular season and playoffs, ending with the championship game.', format: 'int', unit: 'games' }),
 
-  career({ id: 'career-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', note: COMMISSIONER_TRADES_NOTE, format: 'int' }),
+  career({ id: 'career-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', format: 'int' }),
   career({ id: 'career-roster-moves', section: 'transactions', data: 'rosterMoves', title: 'Most roster moves', blurb: 'Free-agent adds, waiver claims and drops.', format: 'int' }),
   career({ id: 'career-waiver-claims', section: 'transactions', data: 'waiverClaims', title: 'Most waiver claims', blurb: 'The waiver-wire merchant.', format: 'int' }),
   career({ id: 'career-faab-spent', section: 'transactions', data: 'faabSpent', title: 'Most FAAB spent', blurb: 'Waiver budget spent on winning claims.', format: 'money' }),
@@ -210,7 +208,7 @@ export const RECORDS = [
   season({ id: 'season-high-score-streak', section: 'streaks', kind: 'streak', data: 'highScoreStreak', title: 'Longest high-score streak', blurb: "Consecutive weeks with the league's top score.", format: 'int', unit: 'weeks' }),
   season({ id: 'season-high-score-drought', section: 'streaks', kind: 'streak', data: 'highScoreDrought', title: 'Longest high-score drought', blurb: "Consecutive weeks without the league's top score.", format: 'int', unit: 'weeks' }),
 
-  season({ id: 'season-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', note: COMMISSIONER_TRADES_NOTE, format: 'int' }),
+  season({ id: 'season-trades', section: 'transactions', data: 'trades', title: 'Most trades', blurb: 'Accepted trades.', format: 'int' }),
   season({ id: 'season-roster-moves-most', section: 'transactions', data: 'rosterMoves', title: 'Most roster moves', blurb: 'Free-agent adds, waiver claims and drops.', format: 'int' }),
   season({ id: 'season-roster-moves-fewest', section: 'transactions', data: 'rosterMoves', direction: 'asc', title: 'Fewest roster moves', blurb: "My draft was fire, I don't need the wire.", format: 'int' }),
   season({ id: 'season-waiver-claims', section: 'transactions', data: 'waiverClaims', title: 'Most waiver claims', blurb: 'The waiver-wire merchant.', format: 'int' }),

@@ -159,7 +159,7 @@ describe('RecordBook', () => {
     expect(within(wins).queryByText('New record')).not.toBeInTheDocument();
   });
 
-  it('keeps one neutral list per All-Time rate, and flags the trade count the commissioner inflates', async () => {
+  it('keeps one neutral list per All-Time rate', async () => {
     renderWithProviders(<RecordBook franchises={FRANCHISES} />);
     await screen.findByRole('heading', { name: 'Winning' });
 
@@ -178,9 +178,6 @@ describe('RecordBook', () => {
 
     // No minimum games: every franchise with a game is on the win % board.
     expect(within(screen.getByRole('region', { name: 'Win %' })).getAllByRole('listitem')).toHaveLength(4);
-
-    const trades = screen.getByRole('region', { name: 'Most trades' });
-    expect(within(trades).getByText(/commissioner's count is inflated/)).toBeInTheDocument();
   });
 
   it('masks every franchise for a viewer who may not see names', async () => {

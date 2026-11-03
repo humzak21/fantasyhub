@@ -44,8 +44,13 @@ describe('parseFaabTransfers', () => {
   const message = (id, messageTypeId, from, to, targetId) => ({ id, messageTypeId, from, to, targetId });
 
   it('reads a processed trade\'s amount', () => {
+    const topics = [{ targetId: 'trade-9', messages: [message('m1', FAAB_TRADE_PROCESSED, 14, 1, 10)] }];
+    expect(parseFaabTransfers(topics)).toEqual([{ from: 14, to: 1, amount: 10, tradeId: 'trade-9' }]);
+  });
+
+  it('names no trade for a topic without one', () => {
     const topics = [{ messages: [message('m1', FAAB_TRADE_PROCESSED, 14, 1, 10)] }];
-    expect(parseFaabTransfers(topics)).toEqual([{ from: 14, to: 1, amount: 10 }]);
+    expect(parseFaabTransfers(topics)[0].tradeId).toBeNull();
   });
 
   it('ignores a proposal, an offer and a veto, which moved nothing', () => {
