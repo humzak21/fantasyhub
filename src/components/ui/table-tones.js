@@ -1,5 +1,5 @@
 /**
- * Class names for the home page's scrolling tables (`ScrollTable`).
+ * Class names for the scrolling tables (`ScrollTable`).
  */
 
 /**

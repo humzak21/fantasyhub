@@ -1220,7 +1220,7 @@ then the design pass.
 - **The brand is a link to `/home`** — the only way back from Settings and
   Alerts, which have no tab.
 - **The rankings and standings are tables wider than their cards, on
-  purpose** (`home/ScrollTable.jsx`). The columns a reader wants first fill
+  purpose** (`ui/scroll-table.jsx`). The columns a reader wants first fill
   the card by default; the rest are a swipe or a scrollbar to the right.
   Only the rank is `sticky` (the team scrolls with its figures), and so is
   the header. The default view is
@@ -1231,7 +1231,7 @@ then the design pass.
   the sum**. A name never loses its first twelve letters, so in a narrow card
   the last default column moves off to the right instead.
   - Sticky cells inherit the row's background, so row tints are **opaque**:
-    `color-mix(...)` over `--card` (`home/tableTones.js`), never `bg-x/15`.
+    `color-mix(...)` over `--card` (`ui/table-tones.js`), never `bg-x/15`.
     A translucent tint lets the scrolled columns show through a sticky
     cell. The viewer's rail is an inset shadow on the first cell, as
     `ff-viewer-row` draws it.
@@ -2750,8 +2750,34 @@ was pasted.
 **Tables wider than about four columns use `ResponsiveDataTable`**
 (`ui/responsive-table.jsx`). Columns declare a `priority` and the component
 renders a real table at `md:`+ and a card stack below it, from one set of
-column definitions. Do not solve a wide table by scrolling it sideways: the
-reader loses their row the moment the first column leaves the viewport.
+column definitions. Do not solve a wide table by scrolling it sideways with
+nothing held in place: the reader loses their row the moment the first column
+leaves the viewport.
+
+**A table read down the list takes `scroll` instead of cards.** Vertical space
+is for the overview, as many teams as a screen holds, and horizontal space is for
+the details. A card apiece put 1.3 teams on an iPhone SE, so the Power Rankings
+and the standings drawer pass `scroll={{ label, order, tone, isViewer }}` and get
+one 40px row per team, with the leading column pinned, the way the home page's
+tables already read. A column's `scroll` key holds what it gives up for the
+narrower row (`width`, a shorter `header`, a one-line `cell`), and `pin`, `fluid`,
+`shown` and `only` place it.
+
+- **Widths are rem numbers, and the table's width is worked out from them,** so
+  there is no sum to keep by hand. `fluid` is the name column: whatever the phone
+  has left after the `pin` and `shown` columns and `CHEVRON_GUTTER`, so the
+  default view lands on those columns at any width.
+- **Row tones are `ROW_TONE`, not the wide table's `rowClassName`.** Those tints
+  are translucent, and the pinned cell inherits its row's background.
+- **A cell in this layout is one line.** `whitespace-nowrap` is on the `<td>`; give
+  a column that wraps on the wide table a `scroll.cell` that truncates.
+- **Tests choose a layout.** jsdom shows both tables, so scope to
+  `[data-layout="wide"]` or `[data-layout="scroll"]`. Anything measuring the wide
+  table does the same, or it reads the phone's.
+- **`ScrollTable`'s viewport has to stay `relative`.** An `sr-only` span is
+  absolutely positioned, and without it one in a column past the edge widens the
+  page, not the scroller: the streak chips' did, by 311px.
+
 **To sort one, give columns a `sortValue` and pass `sort` / `onSortChange`**:
 headers cycle default → descending → ascending with `aria-sort`, and the card
 stack gets a compact control, since it has no headers. The caller owns the state

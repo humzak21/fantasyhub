@@ -10,8 +10,8 @@ import { cn } from '../../../lib/utils';
 import { getMaskedDivisionName, getMaskedTeamName } from '../../../utils/displayNameUtils';
 import { faabOf, formatFaab } from '../../../utils/format';
 import { StreakChip } from '../../ui/streak-chip';
-import { ScrollTable } from '../ScrollTable';
-import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../tableTones';
+import { ScrollTable } from '../../ui/scroll-table';
+import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../../ui/table-tones';
 import { teamRosterPath } from '../../teams/teamLink';
 import { profilePath } from '../../profile/profileLink';
 import { PathToPlayoffsButton } from '../../playoffs/path/PathToPlayoffsButton';
@@ -27,14 +27,15 @@ const sameId = (a, b) => a != null && b != null && String(a) === String(b);
 
 /**
  * The table's width: the team column (whatever the card has after the 9.25rem
- * of rank, record and points for, but never under twelve letters of name —
- * 11ch, since `ch` is a digit and letters run narrower) plus every other
- * column: 9.25rem shown by default, 19rem to the right, and the seed's 3rem
- * from 2026. Literal strings, so Tailwind generates them.
+ * of rank, record and points for and the chevron's 1.5rem, but never under
+ * twelve letters of name — 11ch, since `ch` is a digit and letters run
+ * narrower) plus every other column: 9.25rem shown by default, 19rem to the
+ * right, and the seed's 3rem from 2026. Literal strings, so Tailwind generates
+ * them.
  */
 const TABLE_WIDTH = {
-  seeded: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_31.25rem)]',
-  plain: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_9.25rem)_+_28.25rem)]'
+  seeded: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_10.75rem)_+_31.25rem)]',
+  plain: 'w-[calc(max(11ch_+_2.75rem,100cqw_-_10.75rem)_+_28.25rem)]'
 };
 
 /**
@@ -80,7 +81,7 @@ export default function StandingsMini({ ctx }) {
     }))
     .filter((division) => division.teams.length > 0);
 
-  // The drawer's tints, made opaque (see `tableTones.js`).
+  // The drawer's tints, made opaque (see `table-tones.js`).
   const tone = (team) => {
     if (seeded && team.isBye) return ROW_TONE.bye;
     return team.isPlayoffSpot ? ROW_TONE.qualifier : ROW_TONE.base;
@@ -135,7 +136,7 @@ export default function StandingsMini({ ctx }) {
                         points for — so the default view is those four
                         columns exactly — and never so little that a name
                         loses its first twelve letters. */}
-                    <col className="w-[max(11ch_+_2.75rem,100cqw_-_9.25rem)]" />
+                    <col className="w-[max(11ch_+_2.75rem,100cqw_-_10.75rem)]" />
                     <col className="w-[3.25rem]" />
                     <col className="w-[3.75rem]" />
                     <col className="w-16" />

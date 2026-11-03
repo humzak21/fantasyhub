@@ -5,9 +5,14 @@ import { ResponsiveDataTable } from '../ui/responsive-table';
 import { Badge } from '../ui/badge';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
+import { NumberText, RecordText } from '../ui/number-text';
+import { StreakChip } from '../ui/streak-chip';
+import { ROW_TONE } from '../ui/table-tones';
+import { TeamAvatar } from '../ui/team-identity';
 import { getMaskedTeamName, getMaskedOwnerName, getMaskedDivisionName } from '../../utils/displayNameUtils';
 import { faabOf, formatFaab } from '../../utils/format';
 import { computeSeeds, teamIdOf, usesSeededPlayoffs } from '../../../utils/playoffSeeding.js';
+import { streakOf } from '../../../utils/home/streak.js';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +26,13 @@ import {
 } from '../ui/alert-dialog';
 import { TeamLink } from '../ui/team-link';
 import { franchiseIdsByTeam } from '../../../utils/viewerTeam.js';
+
+/**
+ * The phone's reading order, the home page's standings card's: record and
+ * points for fill the row, and the rest is a swipe to the right. A Move button
+ * sits by the name, because that is the column Manage mode is there for.
+ */
+const SCROLL_ORDER = ['rank', 'team', 'move', 'record', 'pf', 'pa', 'diff', 'winPct', 'streak', 'seed', 'faab', 'owner'];
 
 /**
  * What the row tints mean, above the first division. Only seeded seasons
@@ -307,6 +319,13 @@ const DrawerStandingsTable = ({
     return team.isPlayoffSpot ? 'bg-success/10' : '';
   };
 
+  // The same tint for the `scroll` layout, opaque because its pinned rank
+  // inherits the row's background (see `table-tones.js`).
+  const qualifierTone = (team) => {
+    if (seeded && team.isBye) return ROW_TONE.bye;
+    return team.isPlayoffSpot ? ROW_TONE.qualifier : ROW_TONE.base;
+  };
+
   const getStreakDisplay = (streak) => {
     if (!streak || streak.type === 'none') return '-';
     const prefix = streak.type === 'win' ? 'W' : streak.type === 'loss' ? 'L' : 'T';
@@ -569,7 +588,7 @@ const DrawerStandingsTable = ({
       // What the other columns leave. The fixed-width columns report their
       // class widths under `table-fixed` whatever their content, so they are
       // read from the first table rather than restated here as numbers.
-      const table = board.querySelector('table');
+      const table = board.querySelector('[data-layout="wide"] table');
       const tableWidth = table?.getBoundingClientRect().width ?? 0;
       const fixed = table
         ? [...table.querySelectorAll('thead th')]
@@ -653,9 +672,11 @@ const DrawerStandingsTable = ({
    *
    * These tables carried `min-w-[500px]` inside a drawer that is `w-[95%]` —
    * about 356px on an iPhone SE — so reading the standings meant scrolling
-   * every row sideways past the team name to reach the numbers. Below sm: each team
-   * is a card: rank, team and owner identify it, the record and point totals
-   * are a labelled grid.
+   * every row sideways past the team name to reach the numbers. Then each team
+   * was a card, about 280px tall, which fixed that and put one team on a screen.
+   * Below `md` it is the home page's standings now (`StandingsMini`): one row
+   * per team with the rank pinned, name, record and points for in the first
+   * view, and everything else to the right.
    *
    * `withRank` is false for the unassigned list, which has no division
    * standing to show.
@@ -665,7 +686,8 @@ const DrawerStandingsTable = ({
   // the season in progress has a figure: a past season gets no column.
   const faabByTeam = new Map(teams.map((team) => [team.id, faabOf(team)]));
   const hasFaab = [...faabByTeam.values()].some((value) => value != null);
-  const viewerRow = (team) => (viewerTeamId != null && (team.id ?? team.teamId) === viewerTeamId ? 'ff-viewer-row' : '');
+  const isViewerTeam = (team) => viewerTeamId != null && (team.id ?? team.teamId) === viewerTeamId;
+  const viewerRow = (team) => (isViewerTeam(team) ? 'ff-viewer-row' : '');
   const standingsColumns = ({ withRank, moveTargets, moveLabel }) => [
     ...(withRank
       ? [{
@@ -682,6 +704,21 @@ const DrawerStandingsTable = ({
               <RankMovement movement={team.movement} />
             </span>
           ),
+          scroll: {
+            pin: true,
+            width: 2.75,
+            header: (
+              <>
+                <span className="sr-only">Division rank</span>#
+              </>
+            ),
+            cell: (team) => (
+              <span className="inline-flex items-center gap-1 font-semibold tabular text-muted-foreground">
+                {team.divisionRank}
+                <RankMovement movement={team.movement} />
+              </span>
+            ),
+          },
         }]
       : []),
     {
@@ -695,24 +732,38 @@ const DrawerStandingsTable = ({
       headerClassName: 'standings-fluid-col w-(--standings-team-col) px-3 py-2 text-sm',
       className: 'px-3 py-2 font-medium',
       cell: (team) => (
-        <div className="min-w-0">
+        <div className="min-w-0 font-medium">
           {/* Wraps at a space, as the owner column does; the measured column
-              floor is the longest single word, so it never breaks inside one. */}
-          <div className="min-w-0 font-medium">
-            {/* The drawer sits over the page the link opens, so it closes. */}
-            <TeamLink franchiseId={franchiseIds.get(team.id)} onClick={onClose}>
-              {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
-            </TeamLink>
-            {team.isBye && <span className="sr-only">First-round bye</span>}
-            {team.isWildcard && <span className="sr-only">Wild card</span>}
-          </div>
-          {/* The owner is its own column at sm:+; on a card it belongs under
-              the team name rather than in the stats grid. */}
-          <div className="truncate text-xs text-muted-foreground sm:hidden">
-            {getMaskedOwnerName(team, user, isAdmin, teamOwnerNames)}
-          </div>
+              floor is the longest single word, so it never breaks inside one.
+              The drawer sits over the page the link opens, so it closes. */}
+          <TeamLink franchiseId={franchiseIds.get(team.id)} onClick={onClose}>
+            {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
+          </TeamLink>
+          {team.isBye && <span className="sr-only">First-round bye</span>}
+          {team.isWildcard && <span className="sr-only">Wild card</span>}
         </div>
       ),
+      scroll: {
+        fluid: '10ch + 2.75rem',
+        cell: (team) => {
+          const name = getMaskedTeamName(team, user, isAdmin, teamOwnerNames);
+          return (
+            <div className="flex min-w-0 items-center gap-2">
+              <TeamAvatar team={team} size="xs" />
+              <TeamLink
+                franchiseId={franchiseIds.get(team.id)}
+                onClick={onClose}
+                title={name}
+                className="truncate text-sm font-medium"
+              >
+                {name}
+              </TeamLink>
+              {team.isBye && <span className="sr-only">First-round bye</span>}
+              {team.isWildcard && <span className="sr-only">Wild card</span>}
+            </div>
+          );
+        },
+      },
     },
     {
       key: 'owner',
@@ -723,6 +774,7 @@ const DrawerStandingsTable = ({
       headerClassName: 'standings-fluid-col px-3 py-2 text-sm',
       className: 'px-3 py-2 text-muted-foreground',
       cell: (team) => getMaskedOwnerName(team, user, isAdmin, teamOwnerNames),
+      scroll: { width: 10, className: 'truncate text-muted-foreground' },
     },
     {
       key: 'record',
@@ -730,6 +782,14 @@ const DrawerStandingsTable = ({
       headerClassName: 'w-20 px-2 py-2 text-center text-sm',
       className: 'px-2 py-2 text-center',
       cell: (team) => `${team.wins}-${team.losses}-${team.ties}`,
+      scroll: {
+        shown: true,
+        width: 3.25,
+        header: 'W-L',
+        title: 'Record',
+        className: 'text-center',
+        cell: (team) => <RecordText wins={team.wins} losses={team.losses} ties={team.ties} />,
+      },
     },
     {
       key: 'winPct',
@@ -739,6 +799,15 @@ const DrawerStandingsTable = ({
       headerClassName: 'w-[4.5rem] whitespace-nowrap px-2 py-2 text-center text-sm',
       className: 'px-2 py-2 text-center',
       cell: (team) => `${((team.winPercentage || team.calculatedWinPct || 0) * 100).toFixed(1)}%`,
+      scroll: { width: 3.75, className: 'text-right text-muted-foreground' },
+    },
+    // The home card has it, and it is what the row tints cannot say. The wide
+    // table has no column to spare.
+    {
+      key: 'streak',
+      header: 'Streak',
+      cell: (team) => <StreakChip streak={streakOf(team, games)} />,
+      scroll: { only: true, width: 3.75, className: 'text-center' },
     },
     // The playoff seed is the number that decides who plays whom, so it is a
     // column of numbers rather than a chip on the name. Only seeded seasons
@@ -758,6 +827,7 @@ const DrawerStandingsTable = ({
             ) : (
               <span className="text-muted-foreground" aria-label="No seed">—</span>
             ),
+          scroll: { width: 3, className: 'text-center' },
         }]
       : []),
     {
@@ -767,6 +837,13 @@ const DrawerStandingsTable = ({
       headerClassName: 'w-16 px-2 py-2 text-center text-sm',
       className: 'px-2 py-2 text-center',
       cell: (team) => (team.pointsFor || 0).toFixed(2),
+      scroll: {
+        shown: true,
+        width: 3.75,
+        title: 'Points for',
+        className: 'text-right',
+        cell: (team) => <NumberText value={team.pointsFor} />,
+      },
     },
     {
       key: 'pa',
@@ -775,6 +852,12 @@ const DrawerStandingsTable = ({
       headerClassName: 'w-16 px-2 py-2 text-center text-sm',
       className: 'px-2 py-2 text-center',
       cell: (team) => (team.pointsAgainst || 0).toFixed(2),
+      scroll: {
+        width: 4,
+        title: 'Points against',
+        className: 'text-right text-muted-foreground',
+        cell: (team) => <NumberText value={team.pointsAgainst} />,
+      },
     },
     {
       key: 'diff',
@@ -786,6 +869,12 @@ const DrawerStandingsTable = ({
           {team.pointDifferential >= 0 ? '+' : ''}{(team.pointDifferential || 0).toFixed(1)}
         </span>
       ),
+      scroll: {
+        width: 4,
+        title: 'Point differential',
+        className: 'text-right',
+        cell: (team) => <NumberText value={team.pointDifferential} variant="delta" emphasis="signed" />,
+      },
     },
     ...(hasFaab
       ? [{
@@ -795,6 +884,7 @@ const DrawerStandingsTable = ({
           headerClassName: 'w-16 px-2 py-2 text-center text-sm',
           className: 'px-2 py-2 text-center tabular',
           cell: (team) => formatFaab(faabByTeam.get(team.id ?? team.teamId)),
+          scroll: { width: 3.5, title: 'FAAB left', className: 'text-right tabular text-muted-foreground' },
         }]
       : []),
     ...(isManaging
@@ -803,6 +893,7 @@ const DrawerStandingsTable = ({
           header: moveLabel,
           headerClassName: 'w-20 px-2 py-2 text-center text-sm',
           className: 'px-2 py-2 text-center',
+          scroll: { width: 8 },
           cell: (team) => (
             <div className="flex flex-col gap-1">
               {moveTargets(team).map((targetDivision) => (
@@ -1022,20 +1113,24 @@ const DrawerStandingsTable = ({
 
             {/* Full table for drawer */}
             {division.teams.length > 0 ? (
-              <div className="rounded-md border p-2 sm:p-0">
-                <ResponsiveDataTable
-                  columns={standingsColumns({
-                    withRank: true,
-                    moveLabel: 'Move',
-                    moveTargets: () => divisionStandings.filter((d) => d.id !== division.id),
-                  })}
-                  data={division.teams}
-                  tableClassName="table-fixed"
-                  rowClassName={(team) =>
-                    `text-sm transition-all duration-200 hover:bg-muted/50 ${qualifierTint(team)} ${viewerRow(team)}`
-                  }
-                />
-              </div>
+              <ResponsiveDataTable
+                columns={standingsColumns({
+                  withRank: true,
+                  moveLabel: 'Move',
+                  moveTargets: () => divisionStandings.filter((d) => d.id !== division.id),
+                })}
+                data={division.teams}
+                tableClassName="table-fixed"
+                rowClassName={(team) =>
+                  `text-sm transition-all duration-200 hover:bg-muted/50 ${qualifierTint(team)} ${viewerRow(team)}`
+                }
+                scroll={{
+                  label: `${getMaskedDivisionName(division, divisionIndex, user, isAdmin, teamOwnerNames)} standings table`,
+                  order: SCROLL_ORDER,
+                  tone: qualifierTone,
+                  isViewer: isViewerTeam,
+                }}
+              />
             ) : (
               <div className="text-center py-4 text-muted-foreground text-xs">
                 No teams assigned
@@ -1050,18 +1145,17 @@ const DrawerStandingsTable = ({
             <div className="flex items-center gap-2 px-1">
               <h3 className="text-base font-semibold text-muted-foreground">Unassigned</h3>
             </div>
-            <div className="rounded-md border p-2 sm:p-0">
-              <ResponsiveDataTable
-                columns={standingsColumns({
-                  withRank: false,
-                  moveLabel: 'Assign',
-                  moveTargets: () => divisionStandings,
-                })}
-                data={unassigned}
-                tableClassName="table-fixed"
-                rowClassName={(team) => `text-sm transition-all duration-200 hover:bg-muted/50 ${viewerRow(team)}`}
-              />
-            </div>
+            <ResponsiveDataTable
+              columns={standingsColumns({
+                withRank: false,
+                moveLabel: 'Assign',
+                moveTargets: () => divisionStandings,
+              })}
+              data={unassigned}
+              tableClassName="table-fixed"
+              rowClassName={(team) => `text-sm transition-all duration-200 hover:bg-muted/50 ${viewerRow(team)}`}
+              scroll={{ label: 'Unassigned teams table', order: SCROLL_ORDER, isViewer: isViewerTeam }}
+            />
           </div>
         )}
       </div>

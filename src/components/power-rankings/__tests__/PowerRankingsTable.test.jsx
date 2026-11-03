@@ -11,11 +11,12 @@
  * once been computed appeared as a confident number for every team.
  *
  * Cell assertions are scoped with `within(table())`. The table now renders
- * through ResponsiveDataTable, which emits *both* a table and a card stack and
- * lets CSS choose — in a browser exactly one of them is `display: none` and so
- * out of the accessibility tree, but jsdom applies no CSS and sees both. An
- * unscoped `getByText` therefore finds two of everything. Scoping says which
- * layout the assertion is about, which is more precise than what it replaced.
+ * through ResponsiveDataTable, which emits *both* a wide table and the phone's
+ * scrolling one and lets CSS choose — in a browser exactly one of them is
+ * `display: none` and so out of the accessibility tree, but jsdom applies no CSS
+ * and sees both. An unscoped `getByText` therefore finds two of everything.
+ * Scoping says which layout the assertion is about, which is more precise than
+ * what it replaced.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -59,7 +60,8 @@ const team = (overrides = {}) => ({
 });
 
 describe('PowerRankingsTable', () => {
-  const table = () => screen.getByRole('table');
+  const table = () => within(document.querySelector('[data-layout="wide"]')).getByRole('table');
+  const phone = () => within(document.querySelector('[data-layout="scroll"]'));
 
   // One precision policy, from src/utils/format.js: points and ratings to one
   // decimal, percentages to one, records with an en dash. The table used to
@@ -73,15 +75,44 @@ describe('PowerRankingsTable', () => {
     expect(within(table()).getByText('+135.0')).toBeInTheDocument();
   });
 
-  it('renders the same row as a card, from the same column definitions', () => {
-    const { container } = renderWithProviders(
-      <PowerRankingsTable rankings={[team()]} currentWeek={4} />
+  it('gives each team one row on a phone, from the same column definitions', () => {
+    renderWithProviders(
+      <PowerRankingsTable rankings={[team(), team({ teamId: 't2', id: 't2' })]} currentWeek={4} />
     );
 
-    const cardStack = container.querySelector('.md\\:hidden');
-    expect(cardStack.children).toHaveLength(1);
-    expect(within(cardStack).getByText('3–0')).toBeInTheDocument();
-    expect(within(cardStack).getByText('87.5')).toBeInTheDocument();
+    const [, first, ...rest] = phone().getAllByRole('row');
+    expect(rest).toHaveLength(1);
+    expect(within(first).getByText('3–0')).toBeInTheDocument();
+    expect(within(first).getByText('87.5')).toBeInTheDocument();
+    expect(document.querySelector('[data-layout="cards"]')).not.toBeInTheDocument();
+  });
+
+  it('leads a phone with the overview, and keeps every detail to the right', () => {
+    renderWithProviders(
+      <PowerRankingsTable rankings={[team({ faabRemaining: 58 })]} currentWeek={4} />
+    );
+
+    const headers = phone().getAllByRole('columnheader').map((th) => th.textContent.trim());
+    expect(headers.slice(1, 5)).toEqual(['Team', 'Rtg', 'W-L', 'Playoff%']);
+    for (const detail of ['Luck', 'Win%', 'PF', 'PA', 'Diff', 'Streak', 'Form', 'QW / BL', 'Proj', 'Next', 'FAAB', 'Owner']) {
+      expect(headers).toContain(detail);
+    }
+  });
+
+  it('keeps the owner under the name on the wide table, not in a column of its own', () => {
+    renderWithProviders(<PowerRankingsTable rankings={[team()]} currentWeek={4} />);
+    expect(within(table()).queryByRole('columnheader', { name: 'Owner' })).not.toBeInTheDocument();
+  });
+
+  it('reads the odds on a phone as words at the two certainties', () => {
+    renderWithProviders(
+      <PowerRankingsTable
+        rankings={[team({ playoffOdds: 100 }), team({ teamId: 't2', id: 't2', playoffOdds: 0 })]}
+        currentWeek={4}
+      />
+    );
+    expect(phone().getByText('Clinched')).toBeInTheDocument();
+    expect(phone().getByText('Out')).toBeInTheDocument();
   });
 
   it('masks the team name for a signed-out viewer', () => {
@@ -101,8 +132,8 @@ describe('PowerRankingsTable', () => {
       <PowerRankingsTable rankings={[team(), team({ teamId: 't2', id: 't2' })]} currentWeek={4} />
     );
 
-    // The link is the name, in both layouts — the card stack is where a phone
-    // taps it — and it carries the team id the Teams tab scrolls to.
+    // The link is the name, in both layouts — the scrolling row is where a
+    // phone taps it — and it carries the team id the Teams tab scrolls to.
     const links = within(table()).getAllByRole('link');
     expect(links.map((a) => a.getAttribute('href'))).toEqual(['/teams?team=t1', '/teams?team=t2']);
     expect(screen.getAllByRole('link', { name: /t1/ })).toHaveLength(2);
