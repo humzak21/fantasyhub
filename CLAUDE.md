@@ -1554,10 +1554,15 @@ model and `PathToPlayoffs.jsx` renders it.
   the answer follows the league's rule rather than restating it. `scoresNeeded` is
   the same gap game by game, over the games the team wins in the scenario. Show
   those to the hundredth: a rounded-down target falls short.
-- **The table is pinned beside the games from `lg`** and scrolls itself if it is
-  taller than the window. Below `lg` the columns are `contents` and `order` puts
-  it after Remaining schedule, and a strip under the header keeps the team's
-  record, seed and odds in view while games are decided further down.
+- **The summary card is the page's header and is pinned from `lg`.** Title,
+  team picker, presets and Copy link sit on the card beside the odds, bye and
+  average finish, so a press anywhere on the page is seen landing. Its band is
+  measured into `--path-summary`, and the standings column beside the games is
+  pinned under it, scrolling itself if it is taller than the room left. Below
+  `lg` the card is most of a phone, so it scrolls away and a zero-height sticky
+  strip (record, seed, odds, bye, finish) shows once an `IntersectionObserver`
+  says the card is out of view. Below `lg` the columns are `contents` and
+  `order` puts the table after Remaining schedule.
 - **The way in is `PathToPlayoffsButton`,** in the standings drawer's view row and
   the home standings card, for viewers who may open the Playoffs tab.
   `showsPathToPlayoffs` hides it, and the bracket card's link, once the last
