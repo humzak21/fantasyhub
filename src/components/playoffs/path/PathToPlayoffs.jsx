@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ChevronDown, Link2, RotateCcw, Route, Swords, TrendingDown, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
@@ -120,6 +120,32 @@ export default function PathToPlayoffs({ season, standingsRows = [], divisions =
   const [searchParams, setSearchParams] = useSearchParams();
   const [showAllGames, setShowAllGames] = useState(false);
   const [tableSort, setTableSort] = useState(null);
+
+  // The pinned card's band, measured so the pinned column beside the games
+  // starts under it; and the card, watched so the phone strip shows only once
+  // it has scrolled away. State rather than refs: both mount after the early
+  // returns below, and an effect has to hear when they do.
+  const [summaryBand, setSummaryBand] = useState(null);
+  const [summaryCard, setSummaryCard] = useState(null);
+  const [summaryHeight, setSummaryHeight] = useState(0);
+  const [summaryInView, setSummaryInView] = useState(true);
+
+  useEffect(() => {
+    if (!summaryBand || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => setSummaryHeight(summaryBand.offsetHeight));
+    observer.observe(summaryBand);
+    return () => observer.disconnect();
+  }, [summaryBand]);
+
+  useEffect(() => {
+    if (!summaryCard || typeof IntersectionObserver === 'undefined') return undefined;
+    // The header covers the top of the viewport; a card behind it is out of view.
+    const observer = new IntersectionObserver(([entry]) => setSummaryInView(entry.isIntersecting), {
+      rootMargin: '-65px 0px 0px 0px'
+    });
+    observer.observe(summaryCard);
+    return () => observer.disconnect();
+  }, [summaryCard]);
 
   const schedule = useMemo(() => season?.schedule ?? [], [season?.schedule]);
   const config = useMemo(() => toSeasonConfig(season), [season]);
@@ -274,6 +300,9 @@ export default function PathToPlayoffs({ season, standingsRows = [], divisions =
   const baseRow = rowOf(baseline, focusId);
   const { focus } = simulation;
   const scenarioActive = results.size > 0;
+  const averageFinish = formatProjectedRecord(focusRow.meanWins, path.finalPlayed[path.state.ids.indexOf(focusId)] - focusRow.meanWins);
+  const oddsDelta = focusRow.odds - baseRow.odds;
+  const oddsMoved = formatDelta(oddsDelta);
 
   // The figure on each side of a game: what that result leaves the team on.
   const metric = focusRow.made > SAFE_SHARE ? 'bye' : 'made';
@@ -388,102 +417,148 @@ export default function PathToPlayoffs({ season, standingsRows = [], divisions =
     .sort((a, b) => b.sim.made - a.sim.made || b.sim.meanWins - a.sim.meanWins);
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Route className="h-5 w-5" aria-hidden="true" />
-            Path to the Playoffs
-          </CardTitle>
-          <CardDescription>
-            Pick a team, decide any game left, and see what it does. Every number is {simulation.simulations.toLocaleString()} simulated
-            seasons from week {path.asOfWeek}, on each team&apos;s scoring so far.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <Select value={focusId} onValueChange={(id) => update((next) => next.set('team', id))}>
-            <SelectTrigger aria-label="Team" className="sm:w-72">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {teams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {nameOf(team)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div role="group" aria-label="Quick scenarios" className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => applyPreset('win')}>Win out</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => applyPreset('lose')}>Lose out</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => applyPreset('favorites')}>Favorites win</Button>
-            <Button type="button" variant="ghost" size="sm" disabled={!scenarioActive} onClick={() => setResults(new Map())}>
-              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-              Reset
-            </Button>
-          </div>
-
-          <Button type="button" variant="ghost" size="sm" onClick={copyLink} className="sm:ml-auto">
-            <Link2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-            Copy link
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* The answer, in the page's one lit object. */}
-      <section
-        aria-label={`${nameOf(focusTeam)} in this scenario`}
-        className="relative overflow-hidden rounded-xl border border-border bg-card px-4 py-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:px-6 sm:py-5"
+    <div className="space-y-4" style={{ '--path-summary': `${summaryHeight}px` }}>
+      {/* The answer, in the page's one lit object, with every control on it.
+          From `lg` it is pinned under the header, so a press anywhere on the
+          page is seen landing. The page-coloured band around it covers what
+          scrolls past above and below its rounded corners. */}
+      <div
+        ref={setSummaryBand}
+        className="lg:sticky lg:top-[calc(4rem+1px)] lg:z-30 lg:-mt-2 lg:mb-0 lg:bg-background lg:pb-4 lg:pt-2"
       >
-        <FieldBackdrop left={focusTeam} />
-        <div className="relative grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-          <div className="flex min-w-0 items-center gap-3">
-            <TeamAvatar team={focusTeam} size="lg" className="h-12 w-12" />
-            <div className="min-w-0">
-              <TeamLink team={focusTeam} className="block truncate text-base font-semibold leading-tight">
-                {nameOf(focusTeam)}
-              </TeamLink>
-              <p className="truncate text-xs text-muted-foreground">
-                {getMaskedOwnerName(focusTeam, user, isAdmin, teamOwnerNames)}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground tabular">
-                <RecordText wins={focusTeam.wins} losses={focusTeam.losses} ties={focusTeam.ties} />
-              </p>
-              <p className="mt-1.5 text-[13px] font-medium">{standingLine(focusTeam, focusRow, scenarioActive ? focusStanding : null)}</p>
-              {scenarioActive && (
-                <Badge variant="secondary" className="mt-1.5">
-                  {results.size} {results.size === 1 ? 'game' : 'games'} decided
-                </Badge>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-[auto_auto] items-end gap-x-8 gap-y-3 md:grid-cols-[auto_auto_auto]">
-            <div className="col-span-2 md:col-span-1">
-              <Stat label="Playoff odds" value={`${focusRow.odds}%`} delta={focusRow.odds - baseRow.odds} large />
-            </div>
-            <Stat label="Bye" value={formatShare(focusRow.bye)} delta={(focusRow.bye - baseRow.bye) * 100} />
-            <Stat
-              label="Average finish"
-              value={formatProjectedRecord(focusRow.meanWins, path.finalPlayed[path.state.ids.indexOf(focusId)] - focusRow.meanWins)}
-            />
-          </div>
-        </div>
-      </section>
+        <section
+          ref={setSummaryCard}
+          aria-label={`${nameOf(focusTeam)} in this scenario`}
+          className="relative overflow-hidden rounded-xl border border-border bg-card px-4 py-4 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:px-6 sm:py-5"
+        >
+          <FieldBackdrop left={focusTeam} />
+          <div className="relative">
+            <h2 className="flex items-center gap-2 text-base font-semibold leading-tight">
+              <Route className="h-5 w-5" aria-hidden="true" />
+              Path to the Playoffs
+            </h2>
+            <p className="mt-1 text-[13px] text-muted-foreground">
+              Pick a team, decide any game left, and see what it does. Every number is {simulation.simulations.toLocaleString()} simulated
+              seasons from week {path.asOfWeek}, on each team&apos;s scoring so far.
+            </p>
 
-      {/* On a phone the table is a screen away from any game, so this is what
-          stays in view while they are decided. */}
-      {scenarioActive && focusStanding && (
-        <div className="sticky top-[calc(3.5rem+1px)] z-20 flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-[13px] shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] sm:top-[calc(4rem+1px)] lg:hidden">
-          <TeamAvatar team={focusTeam} size="xs" />
-          <span className="min-w-0 flex-1 truncate font-medium">{nameOf(focusTeam)}</span>
-          <span className="text-muted-foreground tabular">
-            <RecordText wins={focusStanding.wins} losses={focusStanding.losses} ties={focusStanding.ties} />
-          </span>
-          <span className="tabular">{focusStanding.playoffSeed ? `Seed ${focusStanding.playoffSeed}` : 'Out'}</span>
-          <span className="font-semibold tabular">{focusRow.odds}%</span>
+            <div className="mt-4 grid gap-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div className="min-w-0 space-y-3.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <TeamAvatar team={focusTeam} size="lg" className="h-12 w-12" />
+                  <div className="min-w-0">
+                    <TeamLink team={focusTeam} className="block truncate text-base font-semibold leading-tight">
+                      {nameOf(focusTeam)}
+                    </TeamLink>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {getMaskedOwnerName(focusTeam, user, isAdmin, teamOwnerNames)}
+                      <span aria-hidden="true"> · </span>
+                      <span className="tabular">
+                        <RecordText wins={focusTeam.wins} losses={focusTeam.losses} ties={focusTeam.ties} />
+                      </span>
+                    </p>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-medium">
+                      {standingLine(focusTeam, focusRow, scenarioActive ? focusStanding : null)}
+                      {scenarioActive && (
+                        <Badge variant="secondary">
+                          {results.size} {results.size === 1 ? 'game' : 'games'} decided
+                        </Badge>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select value={focusId} onValueChange={(id) => update((next) => next.set('team', id))}>
+                    <SelectTrigger aria-label="Team" className="h-9 w-full sm:w-60">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams.map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {nameOf(team)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <div role="group" aria-label="Quick scenarios" className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => applyPreset('win')}>Win out</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => applyPreset('lose')}>Lose out</Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => applyPreset('favorites')}>Favorites win</Button>
+                  </div>
+
+                  {/* One unit, so on a phone the two share a line rather than one each. */}
+                  <div className="flex gap-2">
+                    <Button type="button" variant="ghost" size="sm" disabled={!scenarioActive} onClick={() => setResults(new Map())}>
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      Reset
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={copyLink}>
+                      <Link2 className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      Copy link
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-[auto_auto] items-end gap-x-8 gap-y-3 md:grid-cols-[auto_auto_auto]">
+                <div className="col-span-2 md:col-span-1">
+                  <Stat label="Playoff odds" value={`${focusRow.odds}%`} delta={oddsDelta} large />
+                </div>
+                <Stat label="Bye" value={formatShare(focusRow.bye)} delta={(focusRow.bye - baseRow.bye) * 100} />
+                <Stat label="Average finish" value={averageFinish} />
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* Below `lg` the card is most of a phone's screen, so once it has
+          scrolled away this strip takes its place under the header. It takes
+          no room in the page (the sticky box is zero tall), and it is hidden
+          while the card itself is still in view. */}
+      <div className="sticky top-[calc(3.5rem+1px)] z-20 mb-0 h-0 sm:top-[calc(4rem+1px)] lg:hidden">
+        <div
+          data-testid="path-summary-strip"
+          aria-hidden={summaryInView}
+          className={cn(
+            'rounded-lg border border-border bg-card px-3 py-2 shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)] transition-[opacity,translate] duration-200',
+            summaryInView ? 'pointer-events-none -translate-y-1 opacity-0' : 'opacity-100'
+          )}
+        >
+          <div className="flex items-center gap-2 text-[13px]">
+            <TeamAvatar team={focusTeam} size="xs" />
+            <span className="min-w-0 flex-1 truncate font-medium">{nameOf(focusTeam)}</span>
+            {focusStanding && (
+              <span className="shrink-0 text-muted-foreground tabular">
+                <RecordText wins={focusStanding.wins} losses={focusStanding.losses} ties={focusStanding.ties} />
+                <span aria-hidden="true"> · </span>
+                {focusStanding.playoffSeed ? `Seed ${focusStanding.playoffSeed}` : 'Out'}
+              </span>
+            )}
+          </div>
+          <dl className="mt-1 grid grid-cols-3 gap-2 text-[13px]">
+            <div className="min-w-0">
+              <dt className="text-xs text-muted-foreground">Playoffs</dt>
+              <dd className="flex items-baseline gap-1 font-semibold tabular">
+                {focusRow.odds}%
+                {oddsMoved && (
+                  <span className={cn('text-xs font-medium', oddsDelta > 0 ? 'text-success' : 'text-destructive')}>{oddsMoved}</span>
+                )}
+              </dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted-foreground">Bye</dt>
+              <dd className="font-semibold tabular">{formatShare(focusRow.bye)}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-xs text-muted-foreground">Avg finish</dt>
+              <dd className="truncate font-semibold tabular">{averageFinish}</dd>
+            </div>
+          </dl>
         </div>
-      )}
+      </div>
 
       {/* Below `lg` the columns dissolve and `order` reads the cards in turn, so
           the table comes straight after the games a member decides first. */}
@@ -550,9 +625,10 @@ export default function PathToPlayoffs({ season, standingsRows = [], divisions =
           </Card>
         </div>
 
-        {/* Pinned beside the games from `lg`, so a press is seen landing. It
-            scrolls itself when it is taller than the window. */}
-        <div className="contents lg:sticky lg:top-[calc(4rem+1rem)] lg:block lg:max-h-[calc(100dvh-4rem-2rem)] lg:min-w-0 lg:space-y-4 lg:overflow-y-auto">
+        {/* Pinned beside the games from `lg`, under the pinned card, so a
+            press is seen landing. It scrolls itself when it is taller than the
+            room left. */}
+        <div className="contents lg:sticky lg:top-[calc(4rem+1px+var(--path-summary))] lg:block lg:max-h-[calc(100dvh-4rem-1px-var(--path-summary)-1rem)] lg:min-w-0 lg:space-y-4 lg:overflow-y-auto">
           <Card className="max-lg:order-2">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Standings in this scenario</CardTitle>
