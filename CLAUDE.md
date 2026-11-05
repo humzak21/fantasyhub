@@ -2804,11 +2804,23 @@ and its sections, `utils/playerProfile/` the pure half (tested), and
   `deploy-migrations.yml` by hand against the branch (see "Migrations deploy on
   merge"), never the MCP. Production is safe either way, because the site
   deploy waits for the migrations run.
+- **The page opens on All seasons.** His whole time in the league is the
+  page; one season is a narrowing of it, picked in the season bar. The tiles
+  and the OG Jits standing are always the career; the log, totals, charts,
+  trends, best and worst, ownership and moves follow the picker.
+- **Every week or year the page prints opens that game's box score.** The
+  game log's week, a best or worst game's "2026 · Wk 3" and a move's week are
+  `BoxScoreButton`s where that week's game was scored
+  (`sectionFormat.js::lineBoxScore`, his team first, names masked for the
+  viewer); a bye, a week with no game or an unscored game stays plain text,
+  so a button always has something to open. `PlayerDetailBody` holds the one
+  `MatchupBoxScoreSheet`, which opens over the page: both are Radix dialogs
+  on one layer stack, so the sheet stacks on top and the page stays open
+  beneath it. The week line carries `game.gameId` for the sheet's key.
 - **The box score is covered through `LineupPanel`.** `MatchupBoxScoreSheet`
   renders Schedule's `TeamLineup`, so its names link with no change of its own.
-  The page opens over the open sheet: both are Radix dialogs on one layer
-  stack, and the page's portal mounts later, so it stacks on top and the sheet
-  stays open beneath it.
+  The page opens over an open sheet the same way, and a box score opened from
+  the page can open another player from its lineups, replacing the param.
 - `e2e/player-detail.spec.js` opens a Schedule lineup name at both widths
   against `e2e/fixtures/liveWeek.js`, which answers `players`, `rosters` and the
   two views by their filters; the smoke list opens an id nobody has.

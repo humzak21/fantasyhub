@@ -15,7 +15,9 @@ vi.mock('../../../../hooks/queries/index.js', () => ({
   useNflSeasonSchedule: () => ({ data: [] }),
   useNflOpponentMap: () => ({ data: {} }),
   buildOpponentMap: () => ({}),
-  usePlayerByEspnId: () => ({ data: null })
+  usePlayerByEspnId: () => ({ data: null }),
+  // The box score sheet's reads, for the week that opens one.
+  useWeekPlayerStats: () => ({ data: {}, isLoading: false })
 }));
 
 vi.mock('../../../contexts/FranchiseAvatarsContext.jsx', async (importOriginal) => ({
@@ -41,7 +43,7 @@ function line(seasonId, year, week, teamId, franchiseId, started, actualPoints, 
     statBreakdown: actualPoints == null ? null : { ...BREAKDOWN },
     overallRank: 4, overallOf: 150, positionRank: 2, positionOf: 40,
     gameId: `g-${seasonId}-${week}`, gameType: 'regular', teamScore: 100, opponentScore: 90,
-    opponentTeamId: null, opponentFranchiseId: null, result: 'W', isBye: false,
+    opponentTeamId: 'tOpp', opponentFranchiseId: 'fB', result: 'W', isBye: false,
     ...extra
   };
 }
@@ -121,30 +123,35 @@ describe('PlayerDetailBody', () => {
     expect(within(tile).getByText('RB1 of 2')).toBeInTheDocument();
   });
 
-  it('defaults to the newest season and switches the game log with the season picker', async () => {
+  it('opens on All seasons, newest first, and narrows the game log with the season picker', async () => {
     const user = userEvent.setup();
     renderBody();
-    const log = () => within(gameLogTable());
-    expect(log().getByText('Wk 1')).toBeInTheDocument();
-    expect(log().queryByText('Wk 15')).toBeNull();
+    const tables = document.querySelectorAll('[data-season]');
+    expect([...tables].map((t) => t.dataset.season)).toEqual(['2026', '2025']);
+    expect(screen.getByTestId('charts').dataset.mode).toBe('all');
 
     await user.click(screen.getByRole('combobox', { name: 'Season' }));
     await user.click(await screen.findByRole('option', { name: '2025' }));
 
+    const log = () => within(gameLogTable());
     expect(log().getByText('Wk 15')).toBeInTheDocument();
     expect(log().queryByText('Wk 1')).toBeNull();
     // The playoff week carries its phase.
     expect(log().getByText('R1')).toBeInTheDocument();
+    expect(screen.getByTestId('charts').dataset.mode).toBe('season');
   });
 
-  it('shows every season, newest first, under All seasons', async () => {
+  it('opens a scored week\'s box score from the game log, over the page', async () => {
     const user = userEvent.setup();
     renderBody();
-    await user.click(screen.getByRole('combobox', { name: 'Season' }));
-    await user.click(await screen.findByRole('option', { name: 'All seasons' }));
-    const tables = document.querySelectorAll('[data-season]');
-    expect([...tables].map((t) => t.dataset.season)).toEqual(['2026', '2025']);
-    expect(screen.getByTestId('charts').dataset.mode).toBe('all');
+    // Every week in the fixture has a scored game, so each is a box score button.
+    const buttons = within(gameLogTable()).getAllByRole('button', { name: /box score/ });
+    expect(buttons.length).toBeGreaterThan(0);
+    await user.click(buttons[0]);
+    const sheet = await screen.findByRole('dialog');
+    expect(within(sheet).getByText(/Box score: both lineups/)).toBeInTheDocument();
+    // The page's sections are still there beneath it.
+    expect(screen.getByTestId('tile-ppg')).toBeInTheDocument();
   });
 
   it('masks every franchise for a viewer who cannot see names', () => {
@@ -188,13 +195,13 @@ describe('PlayerDetailBody', () => {
     expect(document.querySelector('[data-self]')).toHaveTextContent('Jahmyr Gibbs');
   });
 
-  it('lists his moves with the bid', async () => {
+  it('lists his moves with the bid, for the seasons in view', async () => {
     const user = userEvent.setup();
     renderBody();
-    expect(screen.getByText('No recorded moves')).toBeInTheDocument();
-    await user.click(screen.getByRole('combobox', { name: 'Season' }));
-    await user.click(await screen.findByRole('option', { name: '2025' }));
     expect(screen.getByText('Claimed')).toBeInTheDocument();
     expect(screen.getByText('$12')).toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Season' }));
+    await user.click(await screen.findByRole('option', { name: /^2026/ }));
+    expect(screen.getByText('No recorded moves')).toBeInTheDocument();
   });
 });

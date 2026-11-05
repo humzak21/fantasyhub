@@ -5,6 +5,7 @@ import { GAME_LIST_SIZE } from '../../../../utils/playerProfile/buildPlayerProfi
 import { summarizeLine } from '../../../../utils/playerProfile/statCatalog.js';
 import { cn } from '../../../lib/utils';
 import { formatPoints, formatScore } from '../../../utils/format';
+import { BoxScoreButton } from '../../matchups/MatchupBoxScoreSheet.jsx';
 import { FranchiseLink, SectionCard, SectionEmpty } from './SectionCard.jsx';
 import { resultTone } from './sectionFormat.js';
 
@@ -33,9 +34,11 @@ function gamesFor(profile, season) {
   return { best, worst, everyGame: rest.length === 0 };
 }
 
-function GameRow({ line, position, viewer, onClose }) {
+function GameRow({ line, position, viewer, onClose, boxScoreFor, openBoxScore }) {
   const summary = summarizeLine(line, position);
   const game = line.game;
+  const boxScore = boxScoreFor?.(line) ?? null;
+  const when = `${line.year} · ${line.label}`;
   return (
     <li className="flex min-w-0 items-start gap-3 border-b border-border/40 py-2 last:border-0">
       <span className="w-16 shrink-0 text-right font-display text-2xl leading-none tracking-[-0.01em] text-foreground tabular">
@@ -43,7 +46,13 @@ function GameRow({ line, position, viewer, onClose }) {
       </span>
       <div className="min-w-0 flex-1 space-y-0.5">
         <div className="flex min-w-0 items-baseline gap-1.5 text-sm">
-          <span className="shrink-0 font-medium text-foreground tabular">{line.year} · {line.label}</span>
+          {boxScore && openBoxScore ? (
+            <BoxScoreButton game={boxScore} onOpen={openBoxScore} className="shrink-0 font-medium text-foreground tabular">
+              {when}
+            </BoxScoreButton>
+          ) : (
+            <span className="shrink-0 font-medium text-foreground tabular">{when}</span>
+          )}
           <span className="shrink-0 text-muted-foreground" aria-hidden="true">·</span>
           <FranchiseLink franchise={line.franchise} viewer={viewer} onClose={onClose} className="min-w-0 text-muted-foreground" />
         </div>
@@ -68,13 +77,21 @@ function GameRow({ line, position, viewer, onClose }) {
   );
 }
 
-function GameList({ title, lines, position, viewer, onClose }) {
+function GameList({ title, lines, position, viewer, onClose, boxScoreFor, openBoxScore }) {
   return (
     <div className="min-w-0">
       <h4 className="text-sm font-semibold text-foreground">{title}</h4>
       <ol>
         {lines.map((line) => (
-          <GameRow key={`${line.seasonId}-${line.week}`} line={line} position={position} viewer={viewer} onClose={onClose} />
+          <GameRow
+            key={`${line.seasonId}-${line.week}`}
+            line={line}
+            position={position}
+            viewer={viewer}
+            onClose={onClose}
+            boxScoreFor={boxScoreFor}
+            openBoxScore={openBoxScore}
+          />
         ))}
       </ol>
     </div>
@@ -82,7 +99,7 @@ function GameList({ title, lines, position, viewer, onClose }) {
 }
 
 /** His five best and five worst weeks in the span. */
-export default function BestWorstGames({ profile, season, viewer, onClose }) {
+export default function BestWorstGames({ profile, season, viewer, onClose, boxScoreFor, openBoxScore }) {
   const { best, worst, everyGame } = useMemo(() => gamesFor(profile, season), [profile, season]);
   const position = profile.player.position;
   return (
@@ -91,8 +108,8 @@ export default function BestWorstGames({ profile, season, viewer, onClose }) {
         <SectionEmpty>No games played in this span</SectionEmpty>
       ) : (
         <div className="grid gap-4 @xl:grid-cols-2">
-          <GameList title={everyGame ? 'Every game, best first' : 'Best'} lines={best} position={position} viewer={viewer} onClose={onClose} />
-          {!everyGame && <GameList title="Worst" lines={worst} position={position} viewer={viewer} onClose={onClose} />}
+          <GameList title={everyGame ? 'Every game, best first' : 'Best'} lines={best} position={position} viewer={viewer} onClose={onClose} boxScoreFor={boxScoreFor} openBoxScore={openBoxScore} />
+          {!everyGame && <GameList title="Worst" lines={worst} position={position} viewer={viewer} onClose={onClose} boxScoreFor={boxScoreFor} openBoxScore={openBoxScore} />}
         </div>
       )}
     </SectionCard>

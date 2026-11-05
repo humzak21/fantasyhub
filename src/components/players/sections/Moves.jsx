@@ -3,8 +3,26 @@ import { ArrowRightLeft, CircleDashed, Gavel, Minus, Plus, Repeat } from 'lucide
 
 import { cn } from '../../../lib/utils';
 import { formatFaab } from '../../../utils/format';
+import { BoxScoreButton } from '../../matchups/MatchupBoxScoreSheet.jsx';
 import { FranchiseLink, SectionCard, SectionEmpty } from './SectionCard.jsx';
 import { plural } from './sectionFormat.js';
+
+/**
+ * When the move happened: the year and week, opening that week's box score
+ * where he was in a scored game that week (a move is not a game, so only a
+ * week he was rostered for has one to open).
+ */
+function MoveWhen({ move, boxScoreFor, openBoxScore }) {
+  const text = [move.year, move.week != null ? `Wk ${move.week}` : null].filter(Boolean).join(' · ');
+  if (!text) return null;
+  const game = move.week != null ? boxScoreFor?.({ seasonId: move.seasonId, week: move.week }) ?? null : null;
+  const className = 'text-xs text-muted-foreground tabular';
+  return game && openBoxScore ? (
+    <BoxScoreButton game={game} onOpen={openBoxScore} className={className}>{text}</BoxScoreButton>
+  ) : (
+    <span className={className}>{text}</span>
+  );
+}
 
 const KIND = {
   add: { icon: Plus, label: 'Added', tone: 'text-success' },
@@ -46,7 +64,7 @@ function Path({ move, viewer, onClose }) {
  * Every transaction that moved him, newest first: adds, waiver claims with
  * the bid, drops and trades, with where he went from and to.
  */
-export default function Moves({ profile, season, viewer, onClose }) {
+export default function Moves({ profile, season, viewer, onClose, boxScoreFor, openBoxScore }) {
   const moves = useMemo(
     () => (profile.moves ?? []).filter((m) => !season || m.seasonId === season.seasonId),
     [profile.moves, season]
@@ -73,9 +91,7 @@ export default function Moves({ profile, season, viewer, onClose }) {
                     {move.kind === 'waiver' && move.bidAmount != null && (
                       <span className="font-semibold text-foreground tabular">{formatFaab(move.bidAmount)}</span>
                     )}
-                    <span className="text-xs text-muted-foreground tabular">
-                      {[move.year, move.week != null ? `Wk ${move.week}` : null].filter(Boolean).join(' · ')}
-                    </span>
+                    <MoveWhen move={move} boxScoreFor={boxScoreFor} openBoxScore={openBoxScore} />
                   </div>
                   <Path move={move} viewer={viewer} onClose={onClose} />
                   {others > 0 && (
