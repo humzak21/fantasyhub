@@ -33,7 +33,6 @@ export default function ProfileHeader({ profile, viewer, onClose }) {
         espnPlayerId={player.espnPlayerId}
         position={player.position}
         team={player.proTeam}
-        showTeam
         size={64}
       />
       <div className="min-w-0 flex-1 space-y-1.5">

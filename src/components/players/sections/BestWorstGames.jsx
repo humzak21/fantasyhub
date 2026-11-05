@@ -14,13 +14,23 @@ const newerFirst = (a, b) => (b.year ?? 0) - (a.year ?? 0) || (b.week ?? 0) - (a
  * A season's best and worst weeks, by the profile's own rule: appeared weeks
  * only, ties to the newer week. Across all seasons the profile has them.
  */
+const lineKey = (line) => `${line.seasonId}:${line.week}`;
+
+/**
+ * The best five, then the worst five of what is left. With five games or
+ * fewer there is nothing left, and two lists of the same games in opposite
+ * orders say nothing, so a short span lists every game once, best first.
+ */
 function gamesFor(profile, season) {
-  if (!season) return { best: profile.bestGames ?? [], worst: profile.worstGames ?? [] };
-  const played = season.weeks.filter((w) => w.appeared && w.actualPoints != null);
-  return {
-    best: [...played].sort((a, b) => b.actualPoints - a.actualPoints || newerFirst(a, b)).slice(0, GAME_LIST_SIZE),
-    worst: [...played].sort((a, b) => a.actualPoints - b.actualPoints || newerFirst(a, b)).slice(0, GAME_LIST_SIZE)
-  };
+  const played = season
+    ? season.weeks.filter((w) => w.appeared)
+    : [...(profile.bestGames ?? []), ...(profile.worstGames ?? [])]
+        .filter((line, i, all) => all.findIndex((other) => lineKey(other) === lineKey(line)) === i);
+  const best = [...played].sort((a, b) => b.actualPoints - a.actualPoints || newerFirst(a, b)).slice(0, GAME_LIST_SIZE);
+  const taken = new Set(best.map(lineKey));
+  const rest = played.filter((line) => !taken.has(lineKey(line)));
+  const worst = [...rest].sort((a, b) => a.actualPoints - b.actualPoints || newerFirst(a, b)).slice(0, GAME_LIST_SIZE);
+  return { best, worst, everyGame: rest.length === 0 };
 }
 
 function GameRow({ line, position, viewer, onClose }) {
@@ -73,7 +83,7 @@ function GameList({ title, lines, position, viewer, onClose }) {
 
 /** His five best and five worst weeks in the span. */
 export default function BestWorstGames({ profile, season, viewer, onClose }) {
-  const { best, worst } = useMemo(() => gamesFor(profile, season), [profile, season]);
+  const { best, worst, everyGame } = useMemo(() => gamesFor(profile, season), [profile, season]);
   const position = profile.player.position;
   return (
     <SectionCard title="Best & worst games" icon={Flame}>
@@ -81,8 +91,8 @@ export default function BestWorstGames({ profile, season, viewer, onClose }) {
         <SectionEmpty>No games played in this span</SectionEmpty>
       ) : (
         <div className="grid gap-4 @xl:grid-cols-2">
-          <GameList title="Best" lines={best} position={position} viewer={viewer} onClose={onClose} />
-          <GameList title="Worst" lines={worst} position={position} viewer={viewer} onClose={onClose} />
+          <GameList title={everyGame ? 'Every game, best first' : 'Best'} lines={best} position={position} viewer={viewer} onClose={onClose} />
+          {!everyGame && <GameList title="Worst" lines={worst} position={position} viewer={viewer} onClose={onClose} />}
         </div>
       )}
     </SectionCard>

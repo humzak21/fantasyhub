@@ -48,6 +48,7 @@ import PageContainer from './src/components/layout/PageContainer.jsx';
 import LeagueChat, { ChatLauncher, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
 import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
 import { PlayerDetailProvider } from './src/components/players/PlayerDetailContext.jsx';
+import PlayerDetailMount from './src/components/players/PlayerDetailMount.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
 import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
@@ -67,9 +68,6 @@ const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueH
 const TakesManager = lazy(() => import('./src/components/takes/TakesManager.jsx'));
 const AlertsPage = lazy(() => import('./src/components/alerts/AlertsPage.jsx'));
 const ProfilePage = lazy(() => import('./src/components/profile/ProfilePage.jsx'));
-// The player page: a modal over every tab, opened by `?player=`. Lazy so its
-// code (and the charts inside it) stay out of the landing bundle.
-const PlayerDetail = lazy(() => import('./src/components/players/PlayerDetail.jsx'));
 const UserSettingsPage = lazy(() =>
   import('./src/components/auth/UserSettingsPage.jsx').then((m) => ({ default: m.UserSettingsPage }))
 );
@@ -825,10 +823,9 @@ const FantasyFootballApp = () => {
         <LeagueChat />
 
         {/* A player's page, for every viewer: `?player=<id>` on any tab opens
-            it. It portals to <body>, beside the header, never inside it. */}
-        <Suspense fallback={null}>
-          <PlayerDetail />
-        </Suspense>
+            it. It portals to <body>, beside the header, never inside it. Its
+            chunk is requested the first time a player is opened. */}
+        <PlayerDetailMount />
 
         {/* Standings Drawer */}
         {activeSeason && (

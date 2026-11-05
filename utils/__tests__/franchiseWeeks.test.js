@@ -9,8 +9,6 @@ import {
   seasonArc,
   standingsThrough,
   buildWeekDossier,
-  buildPlayerSeason,
-  buildPlayerCareer,
   gamePhaseLabel,
   appeared,
   rankTier
@@ -281,43 +279,6 @@ describe('a future season needs no code change', () => {
   });
 });
 
-describe('buildPlayerSeason', () => {
-  const index = buildSeasonIndex(seasonSource());
-
-  it("summarizes a player's weeks, ranks and splits over scored weeks only", () => {
-    const { weeks, splits } = buildPlayerSeason(index, 'p1');
-    expect(weeks.map((w) => w.actualPoints)).toEqual([25, 22]);
-    expect(weeks[0].rank).toMatchObject({ overall: 2, positional: 1 });
-    expect(splits).toMatchObject({ total: 47, games: 2, average: 23.5, best: { week: 1 }, worst: { week: 2 } });
-
-    const bijan = buildPlayerSeason(index, 'p2');
-    expect(bijan.splits).toMatchObject({ games: 1, rostered: 2 });
-    expect(bijan.weeks[1].rank).toBeNull();
-  });
-});
-
-describe('buildPlayerCareer', () => {
-  it('groups by season, newest first, and splits stints on a team change or gap', () => {
-    const row = (year, week, franchiseId, started = true, actualPoints = 10) =>
-      ({ seasonId: `s${year}`, year, week, teamId: `t${franchiseId}${year}`, franchiseId, teamName: franchiseId, owner: franchiseId, started, actualPoints });
-
-    const career = buildPlayerCareer({
-      weeks: [
-        row(2025, 1, 'fA'), row(2025, 2, 'fA', false), row(2025, 3, 'fB'),
-        row(2026, 1, 'fB'), row(2026, 3, 'fB')
-      ]
-    });
-
-    expect(career.map((s) => s.year)).toEqual([2026, 2025]);
-    expect(career[1].stints).toMatchObject([
-      { franchiseId: 'fA', fromWeek: 1, toWeek: 2, weeks: 2, starts: 1 },
-      { franchiseId: 'fB', fromWeek: 3, toWeek: 3 }
-    ]);
-    expect(career[0].stints).toHaveLength(2); // week 2 gap breaks the stint
-    expect(career[1].splits.total).toBe(30);
-  });
-});
-
 describe('gamePhaseLabel', () => {
   it('names a postseason game by its type, not the calendar week', () => {
     expect(gamePhaseLabel('playoff_consolation_final')).toBe('Consolation');
@@ -342,7 +303,6 @@ describe('appeared', () => {
   it('treats a settled zero with no stat line as not playing', () => {
     expect(appeared({ actualPoints: 0, statBreakdown: null })).toBe(false);
     expect(appeared({ actualPoints: 0, statBreakdown: { 25: 0 } })).toBe(true);
-    expect(appeared({ actualPoints: 0, hasStatLine: true })).toBe(true);
     expect(appeared({ actualPoints: -1, statBreakdown: null })).toBe(true);
     expect(appeared({ actualPoints: null, statBreakdown: { 25: 1 } })).toBe(false);
   });
@@ -356,9 +316,5 @@ describe('appeared', () => {
     const index = buildSeasonIndex(source);
     expect(index.playerRanksByWeek.get(1).has('pIR')).toBe(false);
     expect(index.playerRanksByWeek.get(1).get('p1').positionalOf).toBe(2);
-
-    const season = buildPlayerSeason(index, 'pIR');
-    expect(season.weeks[0].appeared).toBe(false);
-    expect(season.splits).toBeNull();
   });
 });

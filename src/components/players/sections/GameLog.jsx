@@ -151,6 +151,8 @@ function columnsFor({ position, opponents, viewer, onClose }) {
   ];
 }
 
+const SCROLL_ORDER = ['week', 'team', 'pts', 'rank', 'result', 'slot', 'opp', 'proj'];
+
 /**
  * One season's weeks. Its own component so the calendar read is one hook per
  * season, whatever the mode, and hooks never run conditionally.
@@ -181,7 +183,10 @@ function SeasonGameLog({ season, position, viewer, onClose, showYear }) {
         onSortChange={setSort}
         empty="No lineup data for this season"
         tableClassName="text-[13px]"
-        scroll={{ label: `${season.year} game log` }}
+        // On a phone the default view is Week, Team and Pts: the points are
+        // what a reader came for, so they sit beside the team rather than
+        // behind Opp and Slot, a swipe away.
+        scroll={{ label: `${season.year} game log`, order: SCROLL_ORDER }}
       />
     </div>
   );

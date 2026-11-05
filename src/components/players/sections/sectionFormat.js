@@ -122,3 +122,17 @@ export function projectionSentence(delta, weeks) {
     : `Fell short of his projections by ${formatPoints(-delta)} points over ${span}`;
 }
 
+/**
+ * The rank axis's ticks, always from #1. Recharts' own choice over a reversed
+ * [1, worst] domain left #1 unlabelled, which is the one rank a reader looks
+ * for.
+ */
+export function rankTicks(worst) {
+  const top = Math.max(worst, 2);
+  const step = Math.max(1, Math.ceil((top - 1) / 4));
+  const ticks = [];
+  // Stop short of the bottom when the last step would crowd its label.
+  for (let v = 1; top - v >= step / 2; v += step) ticks.push(v);
+  ticks.push(top);
+  return ticks;
+}

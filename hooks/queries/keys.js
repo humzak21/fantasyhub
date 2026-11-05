@@ -308,9 +308,7 @@ export const qk = {
      * week view. League-wide on purpose: switching teams inside a season
      * fetches nothing, and a player's weekly rank is a league comparison.
      */
-    seasonWeeks: (seasonId) => ['history', 'seasonWeeks', seasonId],
-    /** Every week one player was rostered in the league, across seasons. */
-    playerCareer: (playerId) => ['history', 'player', playerId]
+    seasonWeeks: (seasonId) => ['history', 'seasonWeeks', seasonId]
   },
 
   /**

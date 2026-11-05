@@ -146,8 +146,7 @@ export {
   useSituations,
   useTransactionLeaderboard,
   useFranchiseTransactions,
-  useSeasonWeeks,
-  usePlayerCareer
+  useSeasonWeeks
 } from './useLeagueHistory.js';
 export { useAskLeague } from './useAskLeague.js';
 export { useAutosubAccess, useMyAutosubs, useAutosubMutations } from './useAutosubs.js';

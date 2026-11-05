@@ -18,6 +18,7 @@ import { ChartContainer, useMobileAxis } from '../../ui/chart';
 import { EMPTY, formatPoints } from '../../../utils/format';
 import { STAT_GROUPS } from '../../../../utils/playerProfile/statCatalog.js';
 import { ESPN_STAT_IDS } from '../../../../services/db/espnMapping.js';
+import { rankTicks } from './sectionFormat.js';
 
 /**
  * The player page's charts (Contract 5, item 6). A lazy chunk: the body loads
@@ -238,6 +239,8 @@ function RankByWeek({ rows, position, maskName }) {
           <YAxis
             reversed
             domain={[1, Math.max(worst, 2)]}
+            ticks={rankTicks(worst)}
+            interval={0}
             allowDecimals={false}
             width={36}
             tickLine={false}
@@ -310,6 +313,21 @@ function categorySpec(position) {
   }
 }
 
+/** Which colour is which, for a chart with more than one series. */
+function SeriesLegend({ series, caption }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {series.map((s) => (
+        <span key={s.name} className="inline-flex items-center gap-1.5">
+          <span aria-hidden="true" className="inline-block h-2 w-2 rounded-sm" style={{ background: s.color }} />
+          {s.name}
+        </span>
+      ))}
+      {caption && <span>{caption}</span>}
+    </span>
+  );
+}
+
 function CategoryChart({ weeks, position, maskName }) {
   const axis = useMobileAxis();
   const spec = useMemo(() => categorySpec(position), [position]);
@@ -329,7 +347,12 @@ function CategoryChart({ weeks, position, maskName }) {
   const stacked = spec.kind === 'stacked' && spec.series.length > 1;
 
   return (
-    <ChartBlock title={spec.title} caption={spec.caption} empty={empty} emptyText="No stat lines stored for this season.">
+    <ChartBlock
+      title={spec.title}
+      caption={spec.series.length > 1 ? <SeriesLegend series={spec.series} caption={spec.caption} /> : spec.caption}
+      empty={empty}
+      emptyText="No stat lines stored for this season."
+    >
       <ChartContainer config={{}} className={CHART_CLASS}>
         <ComposedChart data={rows} margin={MARGIN} {...axis.chart}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />

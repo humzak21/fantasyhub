@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 import PlayerCharts from '../sections/PlayerCharts.jsx';
+import { rankTicks } from '../sections/sectionFormat.js';
 import { buildPlayerProfile } from '../../../../utils/playerProfile/buildPlayerProfile.js';
 
 // jsdom has no layout, so ResponsiveContainer measures 0x0 and draws nothing.
@@ -101,5 +102,14 @@ describe('PlayerCharts', () => {
     expect(screen.getByText('Career points')).toBeInTheDocument();
     expect(screen.queryByText('Yards by week')).not.toBeInTheDocument();
     expect(screen.queryByText('Points by week')).not.toBeInTheDocument();
+  });
+});
+
+describe('rankTicks', () => {
+  it('always labels #1 and the worst rank, without crowding the bottom', () => {
+    expect(rankTicks(1)).toEqual([1, 2]);
+    expect(rankTicks(5)).toEqual([1, 2, 3, 4, 5]);
+    expect(rankTicks(18)).toEqual([1, 6, 11, 18]);
+    expect(rankTicks(30)).toEqual([1, 9, 17, 25, 30]);
   });
 });
