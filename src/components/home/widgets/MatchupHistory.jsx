@@ -1,12 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Flame } from 'lucide-react';
 
-import { Badge } from '../../ui/badge';
+import { badgeVariants } from '../../ui/badge';
 import { Skeleton } from '../../ui/skeleton';
 import { cn } from '../../../lib/utils';
 import { formatPoints, formatScore } from '../../../utils/format';
 import { PlayerAvatar } from '../../ui/player-avatar';
+import { BoxScoreButton, MatchupBoxScoreSheet } from '../../matchups/MatchupBoxScoreSheet';
 import { useMatchupHistory, useMatchupStarters } from '../../../../hooks/queries/index.js';
 import { teamOf } from '../../../../utils/playerImages.js';
 import { bestGames } from '../../../../utils/home/bestGames.js';
@@ -19,6 +20,7 @@ const RESULT = {
   T: { label: 'T', tone: 'bg-muted text-muted-foreground ring-border' }
 };
 
+const RESULT_WORD = { W: 'win', L: 'loss', T: 'tie' };
 const STANDING_LABEL = { lead: 'You lead', trail: 'You trail', level: 'Level' };
 const PHASE_LABEL = { playoff: 'Playoffs', consolation: 'Consolation' };
 
@@ -38,6 +40,10 @@ const PHASE_LABEL = { playoff: 'Playoffs', consolation: 'Consolation' };
  *
  * `gameType` is the type of the game the two are about to play, which picks
  * the phase the best games are drawn from (`bestGames`).
+ *
+ * Every meeting opens its box score (`MatchupBoxScoreSheet`): a row of the
+ * list, and the date under each notable and best game. The date, never the
+ * player, is the link on a best game.
  */
 export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, historyHref = null, gameType = null }) {
   const { data: meetings, isPending, isError, refetch } = useMatchupHistory(
@@ -45,6 +51,7 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, history
     opponentFranchiseId
   );
 
+  const [boxScore, setBoxScore] = useState(null);
   const summary = useMemo(() => summarizeMatchup(meetings ?? []), [meetings]);
   const series = useMemo(() => describeSeries(summary), [summary]);
 
@@ -129,10 +136,16 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, history
               label="Highest-scoring"
               value={formatScore(summary.highestCombined.value)}
               game={summary.highestCombined.game}
+              onOpen={setBoxScore}
             />
           )}
           {summary.closest && (
-            <Notable label="Closest" value={formatScore(summary.closest.value)} game={summary.closest.game} />
+            <Notable
+              label="Closest"
+              value={formatScore(summary.closest.value)}
+              game={summary.closest.game}
+              onOpen={setBoxScore}
+            />
           )}
         </dl>
 
@@ -141,6 +154,7 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, history
           opponentFranchiseId={opponentFranchiseId}
           meetings={meetings}
           gameType={gameType}
+          onOpen={setBoxScore}
         />
       </section>
 
@@ -153,32 +167,40 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, history
             const result = RESULT[meetingResult(game)];
             const phase = phaseOf(game);
             return (
-              <li key={`${game.year}-${game.week}`} className="flex min-h-12 items-center gap-3 py-1.5">
-                <span className="w-14 shrink-0">
-                  <span className="block font-display text-xl font-semibold leading-none tabular">{game.year}</span>
-                  <span className="block text-[11px] text-muted-foreground tabular">Week {game.week}</span>
-                </span>
-                <span
-                  className={cn(
-                    'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold ring-1 ring-inset',
-                    result.tone
-                  )}
-                  aria-label={result.label === 'W' ? 'Win' : result.label === 'L' ? 'Loss' : 'Tie'}
+              <li key={`${game.year}-${game.week}`}>
+                <button
+                  type="button"
+                  onClick={() => setBoxScore(game)}
+                  aria-label={`${game.year} week ${game.week}: ${RESULT_WORD[result.label]}, ${formatScore(game.team1Score)} to ${formatScore(game.team2Score)}. Open the box score`}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  {result.label}
-                </span>
-                {PHASE_LABEL[phase] && (
-                  <Badge variant="outline" className="hidden shrink-0 px-1.5 py-0 text-[10px] sm:inline-flex">
-                    {PHASE_LABEL[phase]}
-                  </Badge>
-                )}
-                <span className="ml-auto shrink-0 text-right text-sm tabular">
-                  <span className="font-semibold">{formatScore(game.team1Score)}</span>
-                  <span className="text-muted-foreground">
-                    {' '}
-                    – {formatScore(game.team2Score)}
+                  <span className="w-14 shrink-0">
+                    <span className="block font-display text-xl font-semibold leading-none tabular">{game.year}</span>
+                    <span className="block text-[11px] text-muted-foreground tabular">Week {game.week}</span>
                   </span>
-                </span>
+                  <span
+                    className={cn(
+                      'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-xs font-semibold ring-1 ring-inset',
+                      result.tone
+                    )}
+                    aria-label={result.label === 'W' ? 'Win' : result.label === 'L' ? 'Loss' : 'Tie'}
+                  >
+                    {result.label}
+                  </span>
+                  {PHASE_LABEL[phase] && (
+                    <span className={cn(badgeVariants({ variant: 'outline' }), 'hidden shrink-0 px-1.5 py-0 text-[10px] sm:inline-flex')}>
+                      {PHASE_LABEL[phase]}
+                    </span>
+                  )}
+                  <span className="ml-auto shrink-0 text-right text-sm tabular">
+                    <span className="font-semibold">{formatScore(game.team1Score)}</span>
+                    <span className="text-muted-foreground">
+                      {' '}
+                      – {formatScore(game.team2Score)}
+                    </span>
+                  </span>
+                  <ChevronRight className="-ml-1.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </button>
               </li>
             );
           })}
@@ -194,20 +216,22 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, history
           </Link>
         )}
       </section>
+
+      <MatchupBoxScoreSheet game={boxScore} onClose={() => setBoxScore(null)} />
     </div>
   );
 }
 
 /** A game worth remembering: its figure, and when. */
-function Notable({ label, value, game }) {
+function Notable({ label, value, game, onOpen }) {
   return (
     <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
       <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
       <dd className="mt-1">
         <span className="block font-display text-lg font-semibold leading-none tabular">{value}</span>
-        <span className="mt-1 block text-[11px] text-muted-foreground tabular">
+        <BoxScoreButton game={game} onOpen={onOpen} className="mt-1 block text-[11px] text-muted-foreground tabular">
           <span className="font-medium text-foreground">{game.year}</span> · Week {game.week}
-        </span>
+        </BoxScoreButton>
       </dd>
     </div>
   );
@@ -220,7 +244,7 @@ const BEST_PHASE_LABEL = { regular: 'Regular season', playoff: 'Playoffs', all: 
  * most in any meeting, in the phase the coming game is in. Viewer first, as
  * every row here is. A side with no lineup on file (2024 week 1) has no cell.
  */
-function BestGames({ viewerFranchiseId, opponentFranchiseId, meetings, gameType }) {
+function BestGames({ viewerFranchiseId, opponentFranchiseId, meetings, gameType, onOpen }) {
   const { data: starters, isPending, isError } = useMatchupStarters(
     viewerFranchiseId,
     opponentFranchiseId,
@@ -260,7 +284,7 @@ function BestGames({ viewerFranchiseId, opponentFranchiseId, meetings, gameType 
       <ul className="grid grid-cols-2 gap-2">
         {best.sides.map((entry, i) => (
           <li key={i} className="min-w-0">
-            {entry ? <BestGame entry={entry} /> : (
+            {entry ? <BestGame entry={entry} onOpen={onOpen} /> : (
               <div className="flex h-full items-center rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-xs text-muted-foreground">
                 No lineups on file
               </div>
@@ -273,8 +297,8 @@ function BestGames({ viewerFranchiseId, opponentFranchiseId, meetings, gameType 
 }
 
 /** One side's best game: who, how many, for whom, and when. */
-function BestGame({ entry }) {
-  const { player, points, teamName, year, week, result } = entry;
+function BestGame({ entry, onOpen }) {
+  const { player, points, teamName, year, week, result, game } = entry;
   const tone = RESULT[result];
   return (
     <div className="flex h-full flex-col rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
@@ -299,9 +323,9 @@ function BestGame({ entry }) {
         {teamName ?? '—'}
       </p>
       <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground tabular">
-        <span>
+        <BoxScoreButton game={game} onOpen={onOpen}>
           <span className="font-medium text-foreground">{year}</span> · Week {week}
-        </span>
+        </BoxScoreButton>
         <span
           className={cn(
             'ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[10px] font-semibold ring-1 ring-inset',

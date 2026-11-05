@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Flame, Target } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { Button } from '../../ui/button';
-import { Badge } from '../../ui/badge';
+import { badgeVariants } from '../../ui/badge';
 import { EmptyState } from '../../ui/empty-state';
 import { FieldBackdrop, ShareBar } from '../../ui/field-backdrop';
 import { TeamAvatar } from '../../ui/team-identity';
@@ -13,6 +13,7 @@ import { useMatchupHistory } from '../../../../hooks/queries/index.js';
 import { canViewFullData, getMaskedFranchiseName } from '../utils/privacyHelpers';
 import { meetingWinner, phaseOf, summarizeMatchup } from './matchupSummary';
 import { TeamLink } from '../../ui/team-link';
+import { BoxScoreButton, MatchupBoxScoreSheet } from '../../matchups/MatchupBoxScoreSheet';
 
 const PHASE_LABEL = { regular: 'Regular season', playoff: 'Playoffs', consolation: 'Consolation' };
 
@@ -147,7 +148,7 @@ function TapeRow({ label, values, lead, split, avatar }) {
  * when between them. The row washes in from the winner's side in their colour,
  * so a season reads as who won before a single number does.
  */
-function MeetingRow({ game, avatar }) {
+function MeetingRow({ game, avatar, onOpen }) {
   const winner = meetingWinner(game);
   const phase = phaseOf(game);
   const score = (side) => (
@@ -168,33 +169,46 @@ function MeetingRow({ game, avatar }) {
       : `linear-gradient(${winner === 0 ? '90deg' : '270deg'}, color-mix(in oklab, ${getTeamColor(avatar(winner)).value} 22%, transparent), transparent 42%)`;
 
   return (
-    <li className={cn(SIDES_GRID, 'min-h-11 gap-3 rounded-md px-2.5 py-1.5')} style={{ backgroundImage: wash }}>
-      {score(0)}
-      <span className="flex flex-col items-center gap-0.5 text-center">
-        <span className="flex items-baseline gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
-          <span className="tabular">Wk {game.week}</span>
-        </span>
-        {phase !== 'regular' && (
-          <Badge variant={phase === 'playoff' ? 'secondary' : 'outline'} className="px-1.5 py-0 text-[10px]">
-            {phase === 'playoff' ? 'Playoffs' : 'Consol.'}
-          </Badge>
+    <li>
+      <button
+        type="button"
+        onClick={() => onOpen(game)}
+        aria-label={`${game.year} week ${game.week}, ${formatScore(game.team1Score)} to ${formatScore(game.team2Score)}. Open the box score`}
+        className={cn(
+          SIDES_GRID,
+          'min-h-11 w-full gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
         )}
-      </span>
-      {score(1)}
+        style={{ backgroundImage: wash }}
+      >
+        {score(0)}
+        <span className="flex flex-col items-center gap-0.5 text-center">
+          <span className="flex items-baseline gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
+            <span className="tabular">Wk {game.week}</span>
+          </span>
+          {phase !== 'regular' && (
+            <span className={cn(badgeVariants({ variant: phase === 'playoff' ? 'secondary' : 'outline' }), 'px-1.5 py-0 text-[10px]')}>
+              {phase === 'playoff' ? 'Playoffs' : 'Consol.'}
+            </span>
+          )}
+        </span>
+        {score(1)}
+      </button>
     </li>
   );
 }
 
 /** A notable game, told as its figure and the meeting it came from. */
-function NotableGame({ label, value, game }) {
+function NotableGame({ label, value, game, onOpen }) {
   return (
     <div className="rounded-lg border border-border/60 bg-muted/20 px-3.5 py-3">
       <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
       <p className="mt-1.5 font-display text-[28px] font-semibold leading-none tracking-[-0.01em] tabular">{value}</p>
       {game && (
         <p className="mt-2 text-xs leading-snug text-muted-foreground tabular">
-          {formatScore(game.team1Score)}–{formatScore(game.team2Score)} · Wk {game.week},{' '}
-          <span className="font-medium text-foreground">{game.year}</span>
+          {formatScore(game.team1Score)}–{formatScore(game.team2Score)} ·{' '}
+          <BoxScoreButton game={game} onOpen={onOpen}>
+            Wk {game.week}, <span className="font-medium text-foreground">{game.year}</span>
+          </BoxScoreButton>
           {phaseOf(game) !== 'regular' && ` · ${PHASE_LABEL[phaseOf(game)]}`}
         </p>
       )}
@@ -224,6 +238,7 @@ const MatchupDetail = ({
   onBack = () => {}
 }) => {
   const { data: matchups = [], isLoading } = useMatchupHistory(franchise1Id, franchise2Id);
+  const [boxScore, setBoxScore] = useState(null);
 
   const fullData = canViewFullData(user, isAdmin, teamOwnerNames);
   const franchisesById = new Map(franchises.map((franchise) => [franchise.id, franchise]));
@@ -387,11 +402,13 @@ const MatchupDetail = ({
           label="Highest-scoring meeting"
           value={formatScore(summary.highestCombined.value)}
           game={summary.highestCombined.game}
+          onOpen={setBoxScore}
         />
         <NotableGame
           label="Closest meeting"
           value={summary.closest ? formatScore(summary.closest.value) : '—'}
           game={summary.closest?.game}
+          onOpen={setBoxScore}
         />
         <NotableGame label="Average combined score" value={formatScore(summary.averageCombined)} />
       </div>
@@ -414,7 +431,7 @@ const MatchupDetail = ({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Every meeting</CardTitle>
-          <CardDescription>By season, newest first.</CardDescription>
+          <CardDescription>By season, newest first. Tap a meeting for its box score.</CardDescription>
         </CardHeader>
         {/* A full-strength rule between seasons, where everything else on the
             page uses a faint one: the season is the unit this card is read in. */}
@@ -429,7 +446,7 @@ const MatchupDetail = ({
               </h3>
               <ol className="space-y-1">
                 {games.map((game) => (
-                  <MeetingRow key={game.id} game={game} avatar={avatar} />
+                  <MeetingRow key={game.id} game={game} avatar={avatar} onOpen={setBoxScore} />
                 ))}
               </ol>
             </section>
@@ -437,6 +454,10 @@ const MatchupDetail = ({
         </CardContent>
       </Card>
       </div>
+
+      {/* A masked viewer gets the masked franchise names; anyone else the
+          season's own team names, which the meeting rows carry. */}
+      <MatchupBoxScoreSheet game={boxScore} names={fullData ? null : names} onClose={() => setBoxScore(null)} />
     </div>
   );
 };
