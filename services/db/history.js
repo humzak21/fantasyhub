@@ -565,6 +565,7 @@ export async function getMatchupHistory(ctx, franchise1Id, franchise2Id) {
         const season = seasonById.get(row.season_id);
         return {
           id: row.game_id,
+          seasonId: row.season_id,
           week: row.week,
           year: season?.year ?? null,
           seasonName: season?.name ?? null,
@@ -578,6 +579,8 @@ export async function getMatchupHistory(ctx, franchise1Id, franchise2Id) {
           team2Score: Number(row.points_against),
           team1Name: teamById.get(row.team_id)?.name ?? null,
           team2Name: teamById.get(row.opponent_id)?.name ?? null,
+          team1Id: row.team_id,
+          team2Id: row.opponent_id,
           team1FranchiseId: franchise1Id,
           team2FranchiseId: franchise2Id,
           team1Record: recordById.get(row.team_id) ?? null,
@@ -589,6 +592,58 @@ export async function getMatchupHistory(ctx, franchise1Id, franchise2Id) {
       .sort((a, b) => (a.year - b.year) || (a.week - b.week));
   } catch (error) {
     throwDbError(error, 'Get matchup history');
+  }
+}
+
+/**
+ * Every starter's points in a set of meetings, for the head-to-head's best
+ * games: who carried each side the week the two met.
+ *
+ * Takes `getMatchupHistory`'s rows, whose team ids are per season, so a
+ * team id plus a week is one team-week. The read is filtered to those teams
+ * and weeks and narrowed to the exact meetings here, since `in` on two
+ * columns also matches a team's other weeks of the same number. Starters with
+ * a result only: a bench player's points did not count, and a null is a
+ * projection, not a score. Paged, because two franchises' starters over
+ * every season pass PostgREST's 1,000-row cap.
+ */
+export async function getMatchupStarters(ctx, meetings = []) {
+  try {
+    const teamIds = [...new Set(meetings.flatMap((game) => [game.team1Id, game.team2Id]).filter(Boolean))];
+    const weeks = [...new Set(meetings.map((game) => game.week).filter((week) => week != null))];
+    if (teamIds.length === 0 || weeks.length === 0) return [];
+
+    const rows = await selectAll(() => ctx.client
+      .from('player_week_stats')
+      .select(`
+        id, week, team_id, player_id, espn_player_id, position, actual_points, pro_team_id,
+        player:players ( name, team_abbreviation )
+      `)
+      .in('team_id', teamIds)
+      .in('week', weeks)
+      .eq('started', true)
+      .not('actual_points', 'is', null)
+      .order('id'));
+
+    const meetingWeeks = new Set(
+      meetings.flatMap((game) => [`${game.team1Id}:${game.week}`, `${game.team2Id}:${game.week}`])
+    );
+
+    return rows
+      .filter((row) => meetingWeeks.has(`${row.team_id}:${row.week}`))
+      .map((row) => ({
+        week: row.week,
+        teamId: row.team_id,
+        playerId: row.player_id,
+        espnPlayerId: row.espn_player_id ?? null,
+        name: row.player?.name ?? null,
+        position: row.position,
+        actualPoints: num(row.actual_points),
+        proTeamId: row.pro_team_id,
+        proTeam: row.player?.team_abbreviation ?? null
+      }));
+  } catch (error) {
+    throwDbError(error, 'Get matchup starters');
   }
 }
 

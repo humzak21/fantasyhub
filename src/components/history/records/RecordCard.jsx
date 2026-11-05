@@ -11,6 +11,8 @@ import { newRowIds, rowIdentity } from '../../../../utils/recordBook/newRecords.
 import { expandsTrades, formatRecordValue, hidesZero } from './recordCatalog';
 import { describeRow } from './describeRow';
 import { TradeList } from './TradeList';
+import { MatchupBoxScoreSheet } from '../../matchups/MatchupBoxScoreSheet';
+import { boxScoreFromRecordRow } from '../../matchups/boxScoreGame';
 
 /** Rows a card shows before it is opened. */
 export const COLLAPSED_ROWS = 5;
@@ -20,11 +22,14 @@ const PHASES = [
   { id: 'playoff', label: 'Playoffs' }
 ];
 
-function RecordRow({ record, row, book, identity, onViewFranchise, detailId, isNew = false }) {
+function RecordRow({ record, row, book, identity, onViewFranchise, onOpenBoxScore, detailId, isNew = false }) {
   const { name, meta, active } = describeRow(record, row, identity);
   const opensTrades = expandsTrades(record);
+  // A game record's row is a game: it opens that game's box score, whose team
+  // names link on to the franchises.
+  const boxScore = record.kind === 'game' ? boxScoreFromRecordRow(row, identity) : null;
   // A league-wide row is no franchise's: there is nothing for it to open.
-  const interactive = opensTrades || Boolean(row.franchiseId);
+  const interactive = opensTrades || Boolean(boxScore) || Boolean(row.franchiseId);
   const Row = interactive ? 'button' : 'div';
   const [open, setOpen] = useState(false);
 
@@ -46,7 +51,11 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, isN
           {...(interactive
             ? {
                 type: 'button',
-                onClick: opensTrades ? () => setOpen((isOpen) => !isOpen) : () => onViewFranchise(row.franchiseId),
+                onClick: opensTrades
+                  ? () => setOpen((isOpen) => !isOpen)
+                  : boxScore
+                    ? () => onOpenBoxScore(boxScore)
+                    : () => onViewFranchise(row.franchiseId),
                 'aria-expanded': opensTrades ? open : undefined,
                 'aria-controls': opensTrades && open ? detailId : undefined
               }
@@ -65,6 +74,7 @@ function RecordRow({ record, row, book, identity, onViewFranchise, detailId, isN
             <span className="block break-words text-sm font-medium leading-tight">
               {name}
               {row.tied && <span className="sr-only"> (tied)</span>}
+              {boxScore && <span className="sr-only">. Open the box score</span>}
             </span>
             {(meta || active || isNew) && (
               <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-snug text-muted-foreground">
@@ -127,6 +137,7 @@ export function RecordCard({ record, book, before = null, year = null, identity,
   // the one the link was about.
   const [expanded, setExpanded] = useState(focused);
   const [phase, setPhase] = useState('regular');
+  const [boxScore, setBoxScore] = useState(null);
   const expandedLimit = year == null ? 20 : 10;
   const titleId = `record-${record.id}`;
 
@@ -213,6 +224,7 @@ export function RecordCard({ record, book, before = null, year = null, identity,
                 book={book}
                 identity={identity}
                 onViewFranchise={onViewFranchise}
+                onOpenBoxScore={setBoxScore}
                 detailId={`${titleId}-row-${index}`}
                 isNew={isNew(row)}
               />
@@ -239,6 +251,11 @@ export function RecordCard({ record, book, before = null, year = null, identity,
           </Button>
         )}
       </CardContent>
+
+      {record.kind === 'game' && (
+        // The rows' names are the identity's, so the sheet's are too.
+        <MatchupBoxScoreSheet game={boxScore} onClose={() => setBoxScore(null)} />
+      )}
     </Card>
   );
 }

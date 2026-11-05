@@ -536,6 +536,9 @@ function addGameRows(store, sides) {
     if (side.phase !== 'regular' && side.phase !== 'playoff') continue;
 
     const base = {
+      // The game itself, so a row can open its box score.
+      gameId: side.gameId,
+      seasonId: side.seasonId,
       franchiseId: side.franchiseId,
       teamId: side.teamId,
       opponentFranchiseId: side.opponentFranchiseId,

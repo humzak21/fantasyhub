@@ -33,10 +33,11 @@ export function describeRow(record, row, identity) {
     }
     case 'game': {
       const [pf, pa] = row.score ?? [];
-      return {
-        name: franchise,
-        meta: `${formatScore(pf)}–${formatScore(pa)} vs ${identity.franchiseName(row.opponentFranchiseId)} · Wk ${row.week}, ${row.year}`
-      };
+      // `lead` and `when` are `meta` in two halves, for a surface that links the
+      // date to the game's box score.
+      const lead = `${formatScore(pf)}–${formatScore(pa)} vs ${identity.franchiseName(row.opponentFranchiseId)}`;
+      const when = `Wk ${row.week}, ${row.year}`;
+      return { name: franchise, meta: `${lead} · ${when}`, lead, when };
     }
     case 'streak': {
       const { start, end } = row;

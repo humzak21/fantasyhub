@@ -17,10 +17,12 @@ import {
 } from '../../../../test/renderWithProviders.jsx';
 
 const history = { getRecordBookSource: vi.fn() };
+const playerWeekStats = { getPlayerWeekStatsForWeek: vi.fn() };
+const nflSchedule = { getNflScheduleForSeason: vi.fn() };
 
 vi.mock('../../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
-  getDb: () => ({ history })
+  getDb: () => ({ history, playerWeekStats, nflSchedule })
 }));
 
 const { default: RecordBook } = await import('../RecordBook.jsx');
@@ -124,6 +126,11 @@ const SOURCE = {
 beforeEach(() => {
   vi.clearAllMocks();
   history.getRecordBookSource.mockResolvedValue(SOURCE);
+  nflSchedule.getNflScheduleForSeason.mockResolvedValue([]);
+  playerWeekStats.getPlayerWeekStatsForWeek.mockResolvedValue([
+    { id: 1, teamId: 't-B', rosterSlot: 'QB', started: true, position: 'QB', actualPoints: 40.5, player: { name: 'Bravo Passer' } },
+    { id: 2, teamId: 't-C', rosterSlot: 'RB', started: true, position: 'RB', actualPoints: 9, player: { name: 'Charlie Back' } }
+  ]);
 });
 
 describe('RecordBook', () => {
@@ -186,6 +193,24 @@ describe('RecordBook', () => {
     const wins = await screen.findByRole('region', { name: 'Most wins' });
     expect(within(wins).getByText('Franchise f-alpha0')).toBeInTheDocument();
     expect(screen.queryByText('Owner A')).not.toBeInTheDocument();
+  });
+
+  it('opens a game record row as that game\'s box score', async () => {
+    renderWithProviders(<RecordBook franchises={FRANCHISES} />);
+    await screen.findByRole('heading', { name: 'Winning' });
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'Single Season' }), { button: 0 });
+
+    const highScore = await screen.findByRole('region', { name: 'Highest score' });
+    const [top] = within(highScore).getAllByRole('listitem');
+    fireEvent.click(within(top).getByRole('button', { name: /box score/ }));
+
+    const sheet = await screen.findByRole('dialog');
+    expect(within(sheet).getByText('2024 · Week 3')).toBeInTheDocument();
+    expect(await within(sheet).findByText('Bravo Passer')).toBeInTheDocument();
+    expect(within(sheet).getByText('Charlie Back')).toBeInTheDocument();
+    expect(playerWeekStats.getPlayerWeekStatsForWeek).toHaveBeenCalledWith('s24', 3);
+    // Masked, as the row is: a signed-out viewer never reads a team name.
+    expect(within(sheet).queryByText(/Team B|Team C/)).not.toBeInTheDocument();
   });
 
   it('shows five rows of a long list, opens to the rest, and switches a game card to the playoffs', async () => {
