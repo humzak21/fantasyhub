@@ -147,7 +147,7 @@ function TapeRow({ label, values, lead, split, avatar }) {
  * when between them. The row washes in from the winner's side in their colour,
  * so a season reads as who won before a single number does.
  */
-function MeetingRow({ game, avatar, showYear = false }) {
+function MeetingRow({ game, avatar }) {
   const winner = meetingWinner(game);
   const phase = phaseOf(game);
   const score = (side) => (
@@ -172,7 +172,6 @@ function MeetingRow({ game, avatar, showYear = false }) {
       {score(0)}
       <span className="flex flex-col items-center gap-0.5 text-center">
         <span className="flex items-baseline gap-1.5 whitespace-nowrap text-xs text-muted-foreground">
-          {showYear && <span className="font-display text-base font-semibold leading-none text-foreground tabular">{game.year}</span>}
           <span className="tabular">Wk {game.week}</span>
         </span>
         {phase !== 'regular' && (
@@ -205,7 +204,8 @@ function NotableGame({ label, value, game }) {
 
 /**
  * Two franchises' whole rivalry: the series, how each side fared by phase, the
- * games worth remembering, and every meeting.
+ * games worth remembering, and every meeting, season by season. There is no
+ * separate "recent meetings" list: the newest season leads the full one.
  *
  * The numbers are `summarizeMatchup`'s; this lays them out on the home page's
  * field, as one scoreboard that runs the length of the page. The franchise
@@ -413,41 +413,27 @@ const MatchupDetail = ({
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Recent meetings</CardTitle>
-          <CardDescription>The last {summary.recent.length}, newest first.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-1">
-            {summary.recent.map((game) => (
-              <MeetingRow key={game.id} game={game} avatar={avatar} showYear />
-            ))}
-          </ol>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="pb-3">
           <CardTitle className="text-base">Every meeting</CardTitle>
           <CardDescription>By season, newest first.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
-          {byYear.map(([year, games]) => {
-            const seasonSummary = summarizeMatchup(games);
-            return (
-              <section key={year} aria-labelledby={`meetings-${year}`}>
-                <h3 id={`meetings-${year}`} className={cn(SIDES_GRID, 'mb-1 gap-3 px-2.5')}>
-                  <span className="text-xs text-muted-foreground tabular">{formatRecord(seasonSummary.sides[0])}</span>
-                  <span className="font-display text-lg font-semibold leading-none tabular">{year}</span>
-                  <span className="text-right text-xs text-muted-foreground tabular">{formatRecord(seasonSummary.sides[1])}</span>
-                </h3>
-                <ol className="space-y-1">
-                  {games.map((game) => (
-                    <MeetingRow key={game.id} game={game} avatar={avatar} />
-                  ))}
-                </ol>
-              </section>
-            );
-          })}
+        {/* A full-strength rule between seasons, where everything else on the
+            page uses a faint one: the season is the unit this card is read in. */}
+        <CardContent className="divide-y divide-foreground/15">
+          {byYear.map(([year, games]) => (
+            <section key={year} aria-labelledby={`meetings-${year}`} className="py-4 first:pt-0 last:pb-0">
+              <h3
+                id={`meetings-${year}`}
+                className="mb-2 text-center font-display text-lg font-semibold leading-none tabular"
+              >
+                {year}
+              </h3>
+              <ol className="space-y-1">
+                {games.map((game) => (
+                  <MeetingRow key={game.id} game={game} avatar={avatar} />
+                ))}
+              </ol>
+            </section>
+          ))}
         </CardContent>
       </Card>
       </div>

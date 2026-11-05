@@ -78,6 +78,18 @@ describe('MatchupDetail', () => {
     expect(screen.getAllByText('Consol.').length).toBeGreaterThan(0);
   });
 
+  it('lists meetings once, with no season record beside the year', async () => {
+    renderWithProviders(
+      <MatchupDetail franchise1Id="f-alpha01" franchise2Id="f-bravo02" franchises={FRANCHISES} />
+    );
+
+    await screen.findByText('Every meeting');
+    expect(screen.queryByText('Recent meetings')).not.toBeInTheDocument();
+    for (const year of ['2025', '2024', '2023']) {
+      expect(document.getElementById(`meetings-${year}`).textContent).toBe(year);
+    }
+  });
+
   it('reads scores and margins to the hundredth', async () => {
     renderWithProviders(
       <MatchupDetail franchise1Id="f-alpha01" franchise2Id="f-bravo02" franchises={FRANCHISES} />

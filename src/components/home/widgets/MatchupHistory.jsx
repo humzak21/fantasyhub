@@ -5,9 +5,12 @@ import { ChevronRight, Flame } from 'lucide-react';
 import { Badge } from '../../ui/badge';
 import { Skeleton } from '../../ui/skeleton';
 import { cn } from '../../../lib/utils';
-import { formatScore } from '../../../utils/format';
-import { useMatchupHistory } from '../../../../hooks/queries/index.js';
-import { phaseOf, summarizeMatchup } from '../../history/headtohead/matchupSummary';
+import { formatPoints, formatScore } from '../../../utils/format';
+import { PlayerAvatar } from '../../ui/player-avatar';
+import { useMatchupHistory, useMatchupStarters } from '../../../../hooks/queries/index.js';
+import { teamOf } from '../../../../utils/playerImages.js';
+import { bestGames } from '../../../../utils/home/bestGames.js';
+import { RECENT_MEETINGS, phaseOf, summarizeMatchup } from '../../history/headtohead/matchupSummary';
 import { describeSeries, meetingResult } from '../../../../utils/home/matchup.js';
 
 const RESULT = {
@@ -29,11 +32,14 @@ const PHASE_LABEL = { playoff: 'Playoffs', consolation: 'Consolation' };
  *
  * Two columns from `lg`: the series on the left (the record, set large, its
  * split by phase, the streak, the two games worth remembering), the meetings
- * on the right, newest first and one per row with the season leading — the
- * year is what a reader scans for. "Full history" opens the same pairing on
+ * on the right, the last `RECENT_MEETINGS` (eight), newest first and one per
+ * row with the season leading — the year is what a reader scans for. "Full history" opens the same pairing on
  * History → Head-to-Head (`historyHref`, by franchise id).
+ *
+ * `gameType` is the type of the game the two are about to play, which picks
+ * the phase the best games are drawn from (`bestGames`).
  */
-export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, historyHref = null }) {
+export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, historyHref = null, gameType = null }) {
   const { data: meetings, isPending, isError, refetch } = useMatchupHistory(
     viewerFranchiseId,
     opponentFranchiseId
@@ -55,7 +61,7 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, history
           <Skeleton className="h-16 w-full" />
         </div>
         <div className="space-y-2" aria-hidden="true">
-          {[0, 1, 2, 3, 4].map((i) => (
+          {Array.from({ length: RECENT_MEETINGS }, (_, i) => (
             <Skeleton key={i} className="h-10 w-full" />
           ))}
         </div>
@@ -129,6 +135,13 @@ export function MatchupHistory({ viewerFranchiseId, opponentFranchiseId, history
             <Notable label="Closest" value={formatScore(summary.closest.value)} game={summary.closest.game} />
           )}
         </dl>
+
+        <BestGames
+          viewerFranchiseId={viewerFranchiseId}
+          opponentFranchiseId={opponentFranchiseId}
+          meetings={meetings}
+          gameType={gameType}
+        />
       </section>
 
       <section aria-labelledby="home-meetings-title" className="min-w-0">
@@ -196,6 +209,109 @@ function Notable({ label, value, game }) {
           <span className="font-medium text-foreground">{game.year}</span> · Week {game.week}
         </span>
       </dd>
+    </div>
+  );
+}
+
+const BEST_PHASE_LABEL = { regular: 'Regular season', playoff: 'Playoffs', all: 'All meetings' };
+
+/**
+ * The best player game on each side of the series: the starter who scored the
+ * most in any meeting, in the phase the coming game is in. Viewer first, as
+ * every row here is. A side with no lineup on file (2024 week 1) has no cell.
+ */
+function BestGames({ viewerFranchiseId, opponentFranchiseId, meetings, gameType }) {
+  const { data: starters, isPending, isError } = useMatchupStarters(
+    viewerFranchiseId,
+    opponentFranchiseId,
+    meetings
+  );
+  const best = useMemo(
+    () => bestGames(meetings ?? [], starters ?? [], { gameType }),
+    [meetings, starters, gameType]
+  );
+
+  if (isError) return null;
+
+  const heading = (
+    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+      <h4 className="text-[13px] font-medium text-muted-foreground">Best games in this matchup</h4>
+      {best && <span className="text-[11px] text-muted-foreground">{BEST_PHASE_LABEL[best.phase]}</span>}
+    </div>
+  );
+
+  if (isPending) {
+    return (
+      <section aria-label="Best games in this matchup" role="status">
+        {heading}
+        <div className="grid grid-cols-2 gap-2" aria-hidden="true">
+          <Skeleton className="h-[118px] w-full rounded-lg" />
+          <Skeleton className="h-[118px] w-full rounded-lg" />
+        </div>
+      </section>
+    );
+  }
+
+  if (!best) return null;
+
+  return (
+    <section aria-label="Best games in this matchup">
+      {heading}
+      <ul className="grid grid-cols-2 gap-2">
+        {best.sides.map((entry, i) => (
+          <li key={i} className="min-w-0">
+            {entry ? <BestGame entry={entry} /> : (
+              <div className="flex h-full items-center rounded-lg border border-dashed border-border/60 px-3 py-2.5 text-xs text-muted-foreground">
+                No lineups on file
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** One side's best game: who, how many, for whom, and when. */
+function BestGame({ entry }) {
+  const { player, points, teamName, year, week, result } = entry;
+  const tone = RESULT[result];
+  return (
+    <div className="flex h-full flex-col rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+      <div className="flex items-center gap-2">
+        <PlayerAvatar
+          name={player.name}
+          espnPlayerId={player.espnPlayerId}
+          position={player.position}
+          team={teamOf(player)}
+          showTeam
+          size={32}
+        />
+        <span className="font-display text-lg font-semibold leading-none tabular">
+          {formatPoints(points)}
+          <span className="ml-0.5 text-[11px] font-normal text-muted-foreground"> pts</span>
+        </span>
+      </div>
+      <p className="mt-2 truncate text-sm font-medium leading-tight" title={player.name ?? undefined}>
+        {player.name ?? 'Unknown player'}
+      </p>
+      <p className="truncate text-[11px] text-muted-foreground" title={teamName ?? undefined}>
+        {teamName ?? '—'}
+      </p>
+      <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground tabular">
+        <span>
+          <span className="font-medium text-foreground">{year}</span> · Week {week}
+        </span>
+        <span
+          className={cn(
+            'ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-[10px] font-semibold ring-1 ring-inset',
+            tone.tone
+          )}
+          aria-label={result === 'W' ? 'Won that week' : result === 'L' ? 'Lost that week' : 'Tied that week'}
+        >
+          {tone.label}
+        </span>
+      </p>
     </div>
   );
 }

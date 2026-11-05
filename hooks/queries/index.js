@@ -133,6 +133,7 @@ export {
   useSeasonDetails,
   useHeadToHeadMatrix,
   useMatchupHistory,
+  useMatchupStarters,
   useRecordBook,
   useRecordBooks,
   useRecordTrends,

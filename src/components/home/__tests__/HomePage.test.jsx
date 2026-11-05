@@ -45,6 +45,7 @@ vi.mock('../../../../hooks/queries/index.js', () => ({
   useLineupsForWeek: () => queries.lineups,
   useNflOpponentMap: () => ({ data: {} }),
   useMatchupHistory: () => ({ data: [], isPending: false, isError: false }),
+  useMatchupStarters: () => ({ data: [], isPending: false, isError: false }),
   useStandings: () => queries.standings(),
   useDivisions: () => queries.divisions,
   useLiveWeek: () => ({ data: live })

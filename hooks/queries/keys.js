@@ -286,6 +286,7 @@ export const qk = {
     seasonDetail: (seasonId) => ['history', 'season', seasonId],
     h2hMatrix: () => ['history', 'h2h', 'matrix'],
     matchup: (franchise1Id, franchise2Id) => ['history', 'h2h', franchise1Id, franchise2Id],
+    matchupStarters: (franchise1Id, franchise2Id) => ['history', 'h2h', franchise1Id, franchise2Id, 'starters'],
     recordBook: () => ['history', 'records'],
     divisionTitles: () => ['history', 'divisionTitles'],
     recordTrends: () => ['history', 'recordTrends'],

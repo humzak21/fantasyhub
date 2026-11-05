@@ -235,6 +235,7 @@ function ViewerMatchup({ ctx, matchup }) {
             viewerFranchiseId={viewerFranchiseId}
             opponentFranchiseId={opponentFranchiseId}
             historyHref={historyHref}
+            gameType={game.type}
           />
         </Disclosure>
         <Disclosure label="Rosters" flush>
@@ -408,6 +409,7 @@ function ByeWeek({ ctx }) {
                     ? headToHeadPath(franchiseIdOf(viewerTeam), franchiseIdOf(opponent))
                     : null
                 }
+                gameType={next?.game?.type ?? null}
               />
             </Disclosure>
           </div>
