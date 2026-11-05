@@ -1,4 +1,5 @@
-import { ArrowRightLeft, Minus, Plus, Trophy, Users } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRightLeft, ChevronRight, Minus, Plus, Trophy, Users } from 'lucide-react';
 
 import { Badge } from '../../../ui/badge';
 import { SectionHeading } from '../../../ui/section-heading';
@@ -11,9 +12,11 @@ import { getPositionColor } from '../../../../utils/positionColors';
 import { nflTeamColor } from '../../../../../utils/nflTeamColors.js';
 import { rankTier } from '../../../../../utils/franchiseWeeks.js';
 import { EMPTY, formatDelta, formatFraction, formatOrdinal, formatPoints, formatRecord, formatScore } from '../../../../utils/format';
-import { getMaskedFranchiseName } from '../../utils/privacyHelpers';
 import { useNflOpponentMap } from '../../../../../hooks/queries/index.js';
 import { TeamLink } from '../../../ui/team-link';
+import { MatchupBoxScoreSheet } from '../../../matchups/MatchupBoxScoreSheet';
+import { boxScoreGame } from '../../../matchups/boxScoreGame';
+import { canViewFullData, getMaskedFranchiseName } from '../../utils/privacyHelpers';
 
 /**
  * One franchise's week, as `utils/franchiseWeeks.js::buildWeekDossier` built it.
@@ -30,7 +33,7 @@ const WeekDossier = ({ dossier, nflSeasonYear, viewer, onPlayer }) => {
 
   return (
     <div className="space-y-4">
-      <ResultHeader dossier={dossier} viewer={viewer} />
+      <ResultHeader dossier={dossier} viewer={viewer} nflSeasonYear={nflSeasonYear} />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Tile label="Power rank" footer={dossier.power ? powerFooter(dossier.power) : 'No snapshot this week'}>
@@ -79,11 +82,45 @@ const Tile = ({ label, footer, children }) => (
   </div>
 );
 
-function ResultHeader({ dossier, viewer }) {
+/**
+ * The week's game, as `MatchupBoxScoreSheet` opens it: this franchise first.
+ * Names are the season's team names, or the masked franchise names for a
+ * viewer who sees masked data.
+ */
+function weekBoxScore(dossier, viewer, nflSeasonYear) {
+  const { matchup, team, franchise } = dossier;
+  if (!matchup?.result || !team || !matchup.opponentTeam) return null;
+  const fullData = canViewFullData(viewer.user, viewer.isAdmin, viewer.teamOwnerNames);
+  const mask = (f) => getMaskedFranchiseName(f, viewer.user, viewer.isAdmin, viewer.teamOwnerNames);
+  return boxScoreGame({
+    id: matchup.gameId,
+    seasonId: matchup.seasonId,
+    year: matchup.year,
+    nflSeasonYear,
+    week: dossier.week,
+    type: matchup.type,
+    team1: {
+      id: team.id,
+      franchiseId: franchise?.id ?? team.franchiseId,
+      name: fullData ? team.name : mask(franchise),
+      score: matchup.pointsFor
+    },
+    team2: {
+      id: matchup.opponentTeam.id,
+      franchiseId: matchup.opponentFranchise?.id ?? matchup.opponentTeam.franchiseId,
+      name: fullData ? matchup.opponentTeam.name : mask(matchup.opponentFranchise),
+      score: matchup.pointsAgainst
+    }
+  });
+}
+
+function ResultHeader({ dossier, viewer, nflSeasonYear }) {
   const { matchup } = dossier;
   const opponentName = matchup?.opponentFranchise
     ? getMaskedFranchiseName(matchup.opponentFranchise, viewer.user, viewer.isAdmin, viewer.teamOwnerNames)
     : null;
+  const game = weekBoxScore(dossier, viewer, nflSeasonYear);
+  const [boxScore, setBoxScore] = useState(null);
 
   let body;
   if (!matchup) {
@@ -123,11 +160,26 @@ function ResultHeader({ dossier, viewer }) {
           {matchup.isBlowout && <Badge variant="warning">Blowout</Badge>}
           {matchup.isClose && <Badge variant="info">Close game</Badge>}
         </div>
-        {opponentName && (
-          <p className="w-full text-sm text-muted-foreground">
-            vs <TeamLink franchiseId={matchup.opponentFranchise.id}>{opponentName}</TeamLink>
+        {(opponentName || game) && (
+          <p className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            {opponentName && (
+              <span>
+                vs <TeamLink franchiseId={matchup.opponentFranchise.id}>{opponentName}</TeamLink>
+              </span>
+            )}
+            {game && (
+              <button
+                type="button"
+                onClick={() => setBoxScore(game)}
+                className="inline-flex min-h-9 items-center gap-0.5 rounded-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Box score
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
           </p>
         )}
+        <MatchupBoxScoreSheet game={boxScore} onClose={() => setBoxScore(null)} />
       </div>
     );
   }

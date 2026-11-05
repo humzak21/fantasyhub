@@ -14,6 +14,8 @@ import { formatRecordValue } from '../history/records/recordCatalog';
 import { buildRecordIdentity } from '../history/records/recordIdentity';
 import { recordPath } from '../history/records/recordLink';
 import { getMaskedHistoricalTeamName } from '../history/utils/privacyHelpers';
+import { BoxScoreButton, MatchupBoxScoreSheet } from '../matchups/MatchupBoxScoreSheet';
+import { boxScoreFromRecordRow } from '../matchups/boxScoreGame';
 
 /** Records shown before "Show all". A franchise can hold a dozen. */
 const RECORDS_SHOWN = 6;
@@ -65,14 +67,27 @@ const lockDetail = (lock) => `Locked week ${lock.week} · ${formatRecord(lock.re
 function HeldRecord({ held, identity, linkable }) {
   const { record, rows, shared } = held;
   const [row] = rows;
-  const { meta } = describeRow(record, row, identity);
+  const { meta, lead, when } = describeRow(record, row, identity);
+  // A game record's date opens the game. A link cannot hold a button, so for
+  // these the link is laid under the row and the date sits above it.
+  const game = record.kind === 'game' ? boxScoreFromRecordRow(row, identity) : null;
+  const [boxScore, setBoxScore] = useState(null);
   const body = (
     <>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{record.title}</p>
         <p className="truncate text-xs text-muted-foreground">
           {record.scope === 'career' ? 'All-time' : 'Single season'}
-          {meta ? ` · ${meta}` : ''}
+          {game ? (
+            <>
+              {` · ${lead} · `}
+              <BoxScoreButton game={game} onOpen={setBoxScore} className="relative z-10">
+                {when}
+              </BoxScoreButton>
+            </>
+          ) : (
+            meta ? ` · ${meta}` : ''
+          )}
           {rows.length > 1 ? ` · ${rows.length} times` : ''}
         </p>
       </div>
@@ -91,6 +106,24 @@ function HeldRecord({ held, identity, linkable }) {
       </p>
     </>
   );
+
+  if (game) {
+    return (
+      <li
+        className={cn(
+          'relative flex items-center gap-3 px-3 py-2.5',
+          linkable && 'transition-colors hover:bg-accent/40 has-[>a:focus-visible]:bg-accent/40'
+        )}
+      >
+        {linkable && (
+          <Link to={recordPath(record.id)} aria-label={`${record.title}: open on Records`} className="absolute inset-0 outline-none" />
+        )}
+        {body}
+        {linkable && <ChevronRight className="pointer-events-none h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+        <MatchupBoxScoreSheet game={boxScore} onClose={() => setBoxScore(null)} />
+      </li>
+    );
+  }
 
   return (
     <li>

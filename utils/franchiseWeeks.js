@@ -475,6 +475,10 @@ export function buildWeekDossier(index, franchiseId, week) {
     const pointsAgainst = home ? game.team2Score : game.team1Score;
     const result = resultOf(game, team.id);
     matchup = {
+      // The game itself, for its box score: the season it was in and its id.
+      gameId: game.id ?? null,
+      seasonId: index.season?.id ?? null,
+      year: index.season?.year ?? null,
       type: game.type,
       isBye: isBye(game),
       opponentTeam,
