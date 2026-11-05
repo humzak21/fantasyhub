@@ -1,6 +1,5 @@
-import { lazy, Suspense, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowRight, TrendingDown, TrendingUp } from 'lucide-react';
+import { lazy, Suspense, useMemo, useState } from 'react';
+import { ArrowRight, ChevronRight, TrendingDown, TrendingUp } from 'lucide-react';
 
 import HomeWidget from '../HomeWidget';
 import { Skeleton } from '../../ui/skeleton';
@@ -11,6 +10,8 @@ import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useRankingsHistory } from '../../../../hooks/queries/index.js';
 import { buildLightSeasonIndex, recentForm } from '../../../../utils/home/recentForm.js';
 import { franchiseIdOf } from '../../../../utils/viewerTeam.js';
+import { MatchupBoxScoreSheet } from '../../matchups/MatchupBoxScoreSheet';
+import { boxScoreGame } from '../../matchups/boxScoreGame';
 
 // The page's only recharts consumer, so the chart alone is a chunk of its own.
 const RecentFormChart = lazy(() => import('./RecentFormChart.jsx'));
@@ -24,10 +25,11 @@ const sameId = (a, b) => a != null && b != null && String(a) === String(b);
  * moved — `recentForm` over a light season index built from what the shell
  * already holds, plus the rank snapshots (shared with Statistics).
  *
- * Tapping a game opens the Schedule on that week.
+ * Tapping a game opens its box score: both lineups, every player's points.
  */
 export default function RecentForm({ ctx }) {
-  const { seasonId, season, actualWeek, viewerTeam, openWeek } = ctx;
+  const { seasonId, season, actualWeek, viewerTeam } = ctx;
+  const [boxScore, setBoxScore] = useState(null);
   const { user, isAdmin, teamOwnerNames } = useViewer();
   const ranksQuery = useRankingsHistory(seasonId);
 
@@ -39,6 +41,19 @@ export default function RecentForm({ ctx }) {
   const teamName = (teamId) => {
     const team = season?.teams?.find((t) => sameId(t.id, teamId));
     return team ? getMaskedTeamName(team, user, isAdmin, teamOwnerNames) : 'Unknown team';
+  };
+
+  const gameOf = (row) => {
+    const opponent = season?.teams?.find((t) => sameId(t.id, row.opponentId));
+    return boxScoreGame({
+      seasonId,
+      year: season?.year ?? null,
+      nflSeasonYear: season?.espnSeasonYear ?? season?.espn_season_year ?? season?.year ?? null,
+      week: row.week,
+      type: row.type,
+      team1: { id: viewerTeam?.id, franchiseId: franchiseIdOf(viewerTeam), name: teamName(viewerTeam?.id), score: row.pointsFor },
+      team2: { id: row.opponentId, franchiseId: franchiseIdOf(opponent), name: teamName(row.opponentId), score: row.pointsAgainst }
+    });
   };
 
   return (
@@ -58,10 +73,11 @@ export default function RecentForm({ ctx }) {
           <ol className="divide-y divide-border/60">
             {[...form.rows].reverse().map((row) => (
               <li key={row.week}>
-                <Link
-                  to="/schedule"
-                  onClick={() => openWeek?.(row.week)}
-                  className="-mx-2 flex min-h-11 items-center gap-3 rounded-md px-2 text-sm transition-colors hover:bg-accent/40"
+                <button
+                  type="button"
+                  onClick={() => setBoxScore(gameOf(row))}
+                  aria-label={`Week ${row.week} vs ${teamName(row.opponentId)}: ${formatPoints(row.pointsFor)} to ${formatPoints(row.pointsAgainst)}. Open the box score`}
+                  className="flex min-h-11 w-full items-center gap-3 rounded-md px-1 text-left text-sm transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className={cn('w-4 shrink-0 font-semibold', RESULT_TONE[row.result])}>{row.result}</span>
                   <span className="min-w-0 flex-1">
@@ -76,7 +92,8 @@ export default function RecentForm({ ctx }) {
                       {formatDelta(row.margin)}
                     </span>
                   </span>
-                </Link>
+                  <ChevronRight className="-ml-1.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                </button>
               </li>
             ))}
           </ol>
@@ -91,6 +108,7 @@ export default function RecentForm({ ctx }) {
             <Movement label="Standing" span={form.standing} format={formatOrdinal} />
             <Movement label="Power" span={form.powerRank} format={(n) => `#${n}`} />
           </dl>
+          <MatchupBoxScoreSheet game={boxScore} onClose={() => setBoxScore(null)} />
         </div>
       )}
     </HomeWidget>

@@ -11,6 +11,9 @@
  * breaks a streak.
  */
 
+/** How many meetings `recent` holds: what the home page's head-to-head lists. */
+export const RECENT_MEETINGS = 8;
+
 export const phaseOf = (game) =>
   game.isPlayoff ? 'playoff' : game.isConsolation ? 'consolation' : 'regular';
 
@@ -117,7 +120,7 @@ export function summarizeMatchup(games = []) {
     currentStreak: currentStreak
       ? { side: runs[0] ? 0 : 1, length: currentStreak.length }
       : null,
-    recent: played.slice(-5).reverse()
+    recent: played.slice(-RECENT_MEETINGS).reverse()
   };
 }
 

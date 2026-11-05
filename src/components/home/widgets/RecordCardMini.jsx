@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, Sparkles } from 'lucide-react';
 
@@ -8,6 +9,8 @@ import { describeRow } from '../../history/records/describeRow';
 import { formatRecordValue } from '../../history/records/recordCatalog';
 import { recordPath } from '../../history/records/recordLink';
 import { useCountUp } from '../../../hooks/use-count-up.js';
+import { BoxScoreButton, MatchupBoxScoreSheet } from '../../matchups/MatchupBoxScoreSheet';
+import { boxScoreFromRecordRow } from '../../matchups/boxScoreGame';
 
 const KIND = {
   new: { label: (place) => `New · ${place}`, tone: 'bg-warning/12 text-warning' },
@@ -23,10 +26,16 @@ const KIND = {
  * A link to the record when `linkable` — History is the admin's and the team
  * owners', and a card whose only outcome is a redirect is the bug the
  * directory rule exists to prevent.
+ *
+ * A game record's date opens that game's box score. The card cannot be one
+ * link with a button inside it, so the link is laid under the card and the
+ * date sits above it (`relative z-10`).
  */
 export function RecordCardMini({ card, identity, linkable = true }) {
   const { record, row, rank, kind } = card;
-  const { name, meta } = describeRow(record, row, identity);
+  const { name, meta, lead, when } = describeRow(record, row, identity);
+  const game = record.kind === 'game' ? boxScoreFromRecordRow(row, identity) : null;
+  const [boxScore, setBoxScore] = useState(null);
   const scope = record.scope === 'career' ? 'All-time' : 'Single season';
   const place = `${row.tied ? 'T-' : ''}${formatOrdinal(rank)}`;
   const kicker = KIND[kind] ?? KIND.day;
@@ -55,7 +64,16 @@ export function RecordCardMini({ card, identity, linkable = true }) {
             <p className="break-words text-sm font-medium leading-tight" title={name}>
               {name}
             </p>
-            {meta && <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{meta}</p>}
+            {game ? (
+              <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">
+                {lead} ·{' '}
+                <BoxScoreButton game={game} onOpen={setBoxScore} className="relative z-10">
+                  {when}
+                </BoxScoreButton>
+              </p>
+            ) : (
+              meta && <p className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{meta}</p>
+            )}
           </div>
         </div>
         <p className="shrink-0 text-right">
@@ -73,7 +91,37 @@ export function RecordCardMini({ card, identity, linkable = true }) {
   const surface =
     'flex h-full flex-col rounded-lg border border-border bg-muted/20 p-3.5 outline-none';
 
-  if (!linkable) return <div className={surface}>{body}</div>;
+  const sheet = game && <MatchupBoxScoreSheet game={boxScore} onClose={() => setBoxScore(null)} />;
+
+  if (!linkable) {
+    return (
+      <>
+        <div className={surface}>{body}</div>
+        {sheet}
+      </>
+    );
+  }
+
+  if (game) {
+    return (
+      <>
+        <div
+          className={cn(
+            surface,
+            'group relative pr-8 transition-colors hover:bg-accent/40 has-[>a:focus-visible]:ring-2 has-[>a:focus-visible]:ring-ring'
+          )}
+        >
+          <Link to={recordPath(record.id)} aria-label={`${record.title}: open on Records`} className="absolute inset-0 rounded-lg outline-none" />
+          {body}
+          <ChevronRight
+            className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+            aria-hidden="true"
+          />
+        </div>
+        {sheet}
+      </>
+    );
+  }
 
   return (
     <Link

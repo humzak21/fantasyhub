@@ -106,6 +106,20 @@ export function useMatchupHistory(franchise1Id, franchise2Id) {
 }
 
 /**
+ * Every starter's points in two franchises' meetings, for the home page's
+ * best games. Keyed beside the meetings and fed by them, so it waits for
+ * `useMatchupHistory` and costs one more read, once, per pairing.
+ */
+export function useMatchupStarters(franchise1Id, franchise2Id, meetings) {
+  return useQuery({
+    queryKey: qk.history.matchupStarters(franchise1Id, franchise2Id),
+    queryFn: () => db().history.getMatchupStarters(meetings),
+    enabled: Boolean(franchise1Id) && Boolean(franchise2Id) && Array.isArray(meetings) && meetings.length > 0,
+    ...STABLE
+  });
+}
+
+/**
  * The whole record book: every leaderboard, all-time and per season.
  *
  * The query caches the source rows; `buildRecordBook` runs in `select`, which

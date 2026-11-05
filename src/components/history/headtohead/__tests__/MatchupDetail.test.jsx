@@ -5,13 +5,16 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { renderWithProviders, screen, within } from '../../../../test/renderWithProviders.jsx';
 
 const history = { getMatchupHistory: vi.fn() };
+const playerWeekStats = { getPlayerWeekStatsForWeek: vi.fn() };
+const nflSchedule = { getNflScheduleForSeason: vi.fn() };
 
 vi.mock('../../../../../services/db/index.js', async (importOriginal) => ({
   ...(await importOriginal()),
-  getDb: () => ({ history })
+  getDb: () => ({ history, playerWeekStats, nflSchedule })
 }));
 
 const { default: MatchupDetail } = await import('../MatchupDetail.jsx');
@@ -23,6 +26,11 @@ const FRANCHISES = [
 
 const meeting = (id, year, week, team1Score, team2Score, phase = 'regular') => ({
   id,
+  seasonId: `s${year}`,
+  team1Id: `a${year}`,
+  team2Id: `b${year}`,
+  team1Name: `Alpha ${year}`,
+  team2Name: `Bravo ${year}`,
   year,
   week,
   team1Score,
@@ -43,6 +51,12 @@ const MEETINGS = [
 beforeEach(() => {
   vi.clearAllMocks();
   history.getMatchupHistory.mockResolvedValue(MEETINGS);
+  nflSchedule.getNflScheduleForSeason.mockResolvedValue([]);
+  playerWeekStats.getPlayerWeekStatsForWeek.mockResolvedValue([
+    { id: 1, teamId: 'a2024', rosterSlot: 'RB', started: true, position: 'RB', actualPoints: 31.4, player: { name: 'Alpha Back' } },
+    { id: 2, teamId: 'b2024', rosterSlot: 'WR', started: true, position: 'WR', actualPoints: 12, player: { name: 'Bravo Wideout' } },
+    { id: 3, teamId: 'b2024', rosterSlot: 'BE', started: false, position: 'TE', actualPoints: 20, player: { name: 'Bravo Bench' } }
+  ]);
 });
 
 const tapeRow = (label) => screen.getByText(label, { selector: 'dt' }).parentElement;
@@ -76,6 +90,37 @@ describe('MatchupDetail', () => {
 
     expect(screen.getAllByText('Playoffs', { selector: '[class*="badge"], span, div' }).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Consol.').length).toBeGreaterThan(0);
+  });
+
+  it('lists meetings once, with no season record beside the year', async () => {
+    renderWithProviders(
+      <MatchupDetail franchise1Id="f-alpha01" franchise2Id="f-bravo02" franchises={FRANCHISES} />
+    );
+
+    await screen.findByText('Every meeting');
+    expect(screen.queryByText('Recent meetings')).not.toBeInTheDocument();
+    for (const year of ['2025', '2024', '2023']) {
+      expect(document.getElementById(`meetings-${year}`).textContent).toBe(year);
+    }
+  });
+
+  it('opens a meeting as a box score of both lineups', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <MatchupDetail franchise1Id="f-alpha01" franchise2Id="f-bravo02" franchises={FRANCHISES} />
+    );
+
+    await screen.findByText('Every meeting');
+    await user.click(screen.getByRole('button', { name: /^2024 week 2,.*box score/ }));
+
+    const sheet = await screen.findByRole('dialog');
+    expect(within(sheet).getByText('2024 · Week 2')).toBeInTheDocument();
+    expect(await within(sheet).findByText('Alpha Back')).toBeInTheDocument();
+    expect(within(sheet).getByText('Bravo Wideout')).toBeInTheDocument();
+    expect(within(sheet).getByText('Bravo Bench')).toBeInTheDocument();
+    expect(playerWeekStats.getPlayerWeekStatsForWeek).toHaveBeenCalledWith('s2024', 2);
+    // A signed-out viewer reads the masked franchise names, never the season's own.
+    expect(within(sheet).queryByText(/Alpha 2024|Bravo 2024/)).not.toBeInTheDocument();
   });
 
   it('reads scores and margins to the hundredth', async () => {

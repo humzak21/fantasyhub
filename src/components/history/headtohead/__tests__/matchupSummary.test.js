@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 
-import { phaseOf, summarizeMatchup } from '../matchupSummary';
+import { RECENT_MEETINGS, phaseOf, summarizeMatchup } from '../matchupSummary';
 
 const meeting = (year, week, team1Score, team2Score, phase = 'regular') => ({
   id: `${year}-${week}`,
@@ -68,8 +68,17 @@ describe('summarizeMatchup', () => {
     expect(later.currentStreak).toEqual({ side: 1, length: 2 });
   });
 
-  it('lists the last five meetings newest first', () => {
+  it('lists every meeting newest first while there are no more than eight', () => {
     expect(summary.recent.map((game) => game.id)).toEqual(['2025-5', '2024-16', '2024-2', '2023-10', '2023-3']);
+  });
+
+  it('stops at the last eight meetings', () => {
+    const more = [2025, 2026].flatMap((year) => [7, 9, 11].map((week) => meeting(year, week, 100, 90)));
+    const long = summarizeMatchup([...GAMES, ...more]);
+    expect(RECENT_MEETINGS).toBe(8);
+    expect(long.recent).toHaveLength(8);
+    expect(long.recent[0].id).toBe('2026-11');
+    expect(long.recent.at(-1).id).toBe('2024-16');
   });
 
   it('has nothing to say about two franchises that never met', () => {
