@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import { ScrollHint } from '../ui/scroll-hint';
 import { PlayerAvatar } from '../ui/player-avatar';
+import { PlayerLink } from '../players/PlayerLink';
 import { cn } from '../../lib/utils';
 import { usePlayersByName } from '../../../hooks/queries/index.js';
 import { uniqueByName } from '../../../utils/playerImages.js';
@@ -77,7 +78,7 @@ const QueryData = ({ queries = [] }) => {
                             {face ? (
                               <span className="flex items-center gap-1.5">
                                 <PlayerAvatar name={value} espnPlayerId={face.espnPlayerId} position={face.position} size={18} />
-                                {cell(value)}
+                                <PlayerLink espnPlayerId={face.espnPlayerId}>{cell(value)}</PlayerLink>
                               </span>
                             ) : cell(value)}
                           </td>

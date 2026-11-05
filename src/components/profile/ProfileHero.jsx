@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { FaabBreakdown } from '../ui/faab-breakdown';
 import { NflTeamLogo } from '../ui/nfl-team-logo';
 import { PlayerAvatar } from '../ui/player-avatar';
+import { PlayerLink } from '../players/PlayerLink';
 import { Skeleton } from '../ui/skeleton';
 import { TeamAvatar } from '../ui/team-identity';
 import { LogOutButton } from '../auth/LogOutButton.jsx';
@@ -214,7 +215,9 @@ export function ProfileHero({
                   />
                 }
               >
-                {player}
+                <PlayerLink playerId={profile.favoritePlayerId} espnPlayerId={profile.favoritePlayer?.espnPlayerId}>
+                  {player}
+                </PlayerLink>
               </Favourite>
             )}
           </div>

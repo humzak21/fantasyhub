@@ -1,7 +1,7 @@
 /**
  * The franchise profile's week view. The arithmetic is
  * `utils/franchiseWeeks`' and tested there; this pins what the reader does —
- * where it opens, stepping between weeks, and opening a player — and that an
+ * where it opens, stepping between weeks, and opening a player's page — and that an
  * opponent's name is masked for a signed-out viewer.
  *
  * Week 1: A 120 – B 90 (A's lineup stored). Week 2: A 95 – C 110. Week 3 is
@@ -10,9 +10,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
+import { useLocation } from 'react-router-dom';
 import { renderWithProviders, screen, within } from '../../../../../test/renderWithProviders.jsx';
 
-const history = { getSeasonWeekSource: vi.fn(), getPlayerCareer: vi.fn() };
+const history = { getSeasonWeekSource: vi.fn() };
 const nflSchedule = { getNflScheduleForSeason: vi.fn() };
 
 vi.mock('../../../../../../services/db/index.js', async (importOriginal) => ({
@@ -21,6 +22,9 @@ vi.mock('../../../../../../services/db/index.js', async (importOriginal) => ({
 }));
 
 const { default: FranchiseWeekByWeek } = await import('../FranchiseWeekByWeek.jsx');
+const { PlayerDetailProvider } = await import('../../../../players/PlayerDetailContext.jsx');
+
+const Search = () => <output data-testid="search">{useLocation().search}</output>;
 
 const game = (week, team1Id, team2Id, team1Score, team2Score) => ({
   id: `g${week}${team1Id}`, week, type: 'regular', team1Id, team2Id, team1Score, team2Score, isBlowout: false, isClose: false
@@ -59,13 +63,6 @@ const MEMBER = { user: { email: 'a@example.com', user_metadata: { display_name: 
 beforeEach(() => {
   vi.clearAllMocks();
   history.getSeasonWeekSource.mockResolvedValue(SOURCE);
-  history.getPlayerCareer.mockResolvedValue({
-    player: { id: 'p1', name: 'Josh Allen', position: 'QB', proTeam: 'BUF' },
-    weeks: [
-      { seasonId: 's30', year: 2030, week: 1, teamId: 'tA', franchiseId: 'fA', teamName: 'Team A', owner: 'Owner A', started: true, actualPoints: 30 },
-      { seasonId: 's30', year: 2030, week: 2, teamId: 'tA', franchiseId: 'fA', teamName: 'Team A', owner: 'Owner A', started: true, actualPoints: 22 }
-    ]
-  });
   nflSchedule.getNflScheduleForSeason.mockResolvedValue([]);
 });
 
@@ -95,17 +92,19 @@ describe('FranchiseWeekByWeek', () => {
     expect(screen.getByRole('button', { name: 'Previous week' })).toBeDisabled();
   });
 
-  it('opens a player’s sheet with their rank that week', async () => {
+  it('opens a player’s page from the lineup', async () => {
     const user = userEvent.setup();
-    renderView();
+    renderWithProviders(
+      <PlayerDetailProvider>
+        <FranchiseWeekByWeek franchiseId="fA" seasons={SEASONS} seasonId="s30" onSeasonChange={() => {}} viewer={MEMBER} />
+        <Search />
+      </PlayerDetailProvider>,
+      { initialEntries: ['/profile/fA'] }
+    );
     await user.click(await screen.findByRole('button', { name: /^Week 1:/ }));
     await user.click(screen.getByRole('button', { name: /Josh Allen/ }));
 
-    const sheet = await screen.findByRole('dialog');
-    expect(within(sheet).getByText('Rank that week')).toBeInTheDocument();
-    expect(within(sheet).getByText(/Among players on a league roster/)).toBeInTheDocument();
-    expect(await within(sheet).findByText('In this league')).toBeInTheDocument();
-    expect(history.getPlayerCareer).toHaveBeenCalledWith('p1');
+    expect(new URLSearchParams(screen.getByTestId('search').textContent).get('player')).toBe('p1');
   });
 
   it('masks the opponent for a signed-out viewer', async () => {

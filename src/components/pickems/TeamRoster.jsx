@@ -1,5 +1,6 @@
 import { OpponentChip } from '../ui/opponent-chip';
 import { PlayerMark } from '../ui/player-avatar';
+import { PlayerLink } from '../players/PlayerLink';
 import { PlayerPoints } from '../ui/player-points';
 import { cn } from '../../lib/utils';
 import { getPositionColor } from '../../utils/positionColors';
@@ -110,7 +111,13 @@ const PlayerList = ({ rows, opponents = {}, bench = false }) => (
           position={positionOf(row)}
           team={teamOf({ proTeamId: row.proTeamId, teamAbbreviation: row.player?.teamAbbreviation })}
         />
-        <span className="min-w-0 flex-1 truncate">{row.player?.name ?? '—'}</span>
+        <PlayerLink
+          playerId={row.playerId ?? row.player?.id}
+          espnPlayerId={row.espnPlayerId ?? row.player?.espnPlayerId}
+          className="min-w-0 flex-1 truncate"
+        >
+          {row.player?.name ?? '—'}
+        </PlayerLink>
         {/* A starter on a bye is the single most useful thing this panel can
             say, so it is the one variant that gets colour. An unknown opponent
             renders nothing at all rather than a placeholder — see

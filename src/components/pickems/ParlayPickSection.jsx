@@ -16,6 +16,7 @@ import { getMaskedDivisionName, getMaskedUserName } from '../../utils/displayNam
 import { groupPicksByDivision } from '../../utils/parlayDivisions';
 import { getPositionColor } from '../../utils/positionColors';
 import { PlayerAvatar } from '../ui/player-avatar';
+import { PlayerLink } from '../players/PlayerLink';
 import { teamOf } from '../../../utils/playerImages.js';
 import { ParlayPickStatus } from './LiveTdIndicator.jsx';
 import { pickOutcome } from './liveTdOutcome.js';
@@ -281,7 +282,7 @@ const DivisionColumn = ({ className, title, picks, waiting = EMPTY, showGrades, 
                 team={teamOf(pick.player ?? {})}
                 size={20}
               />
-              <span className="truncate font-medium">{pick.playerNameRaw}</span>
+              <PlayerLink playerId={pick.playerId} className="truncate font-medium">{pick.playerNameRaw}</PlayerLink>
             </span>
             {pick.player?.position && (
               <span

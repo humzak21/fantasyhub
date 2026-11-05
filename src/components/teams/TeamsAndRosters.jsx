@@ -37,6 +37,7 @@ import { cn } from '../../lib/utils';
 import { TEAM_PARAM } from './teamLink.js';
 import { TeamIdentityLink } from '../ui/team-link';
 import { AutosubSection } from '../autosub/AutosubSection';
+import { PlayerLink } from '../players/PlayerLink';
 
 /** How long a linked card keeps its ring after the scroll lands. */
 const LINKED_HIGHLIGHT_MS = 2000;
@@ -268,7 +269,13 @@ const TeamsAndRosters = ({
             position={position}
             team={teamOf({ proTeamId: player.player?.proTeamId, teamAbbreviation: player.player?.teamAbbreviation })}
           />
-          <span className="min-w-0 flex-1 truncate">{playerName}</span>
+          <PlayerLink
+            playerId={player.player?.id ?? player.playerId}
+            espnPlayerId={player.player?.espnPlayerId}
+            className="min-w-0 flex-1 truncate"
+          >
+            {playerName}
+          </PlayerLink>
           {slot === 'IR' && (
             <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-destructive">
               IR
