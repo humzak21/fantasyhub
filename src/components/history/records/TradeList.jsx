@@ -1,4 +1,5 @@
 import { PlayerAvatar } from '../../ui/player-avatar';
+import { PlayerLink } from '../../players/PlayerLink';
 import { TeamAvatar } from '../../ui/team-identity';
 import { TeamLink } from '../../ui/team-link';
 import { formatDate } from '../../../lib/utils';
@@ -31,7 +32,9 @@ function PlayerLine({ player }) {
   return (
     <li className="flex min-w-0 items-center gap-1.5 text-xs">
       <PlayerAvatar name={player.name} espnPlayerId={player.espnPlayerId} position={player.position} size={18} />
-      <span className="min-w-0 break-words text-foreground">{playerName(player)}</span>
+      <PlayerLink espnPlayerId={player.espnPlayerId} className="min-w-0 break-words text-foreground">
+        {playerName(player)}
+      </PlayerLink>
       {player.position && (
         <span className="shrink-0 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
           {player.position}

@@ -128,6 +128,10 @@ export function makeClient(handlers = {}, { session = null } = {}) {
           state.filters[`is:${column}`] = value;
           return builder;
         },
+        contains: (column, value) => {
+          state.filters[`contains:${column}`] = value;
+          return builder;
+        },
         or: (expression) => {
           state.filters.or = expression;
           return builder;

@@ -278,13 +278,3 @@ export function useSeasonWeeks(seasonId, { isCompleted = false, enabled = true }
     refetchOnWindowFocus: !isCompleted
   });
 }
-
-/** A player's league career, for the player sheet. Fetched when it opens. */
-export function usePlayerCareer(playerId, { enabled = true } = {}) {
-  return useQuery({
-    queryKey: qk.history.playerCareer(playerId),
-    queryFn: () => db().history.getPlayerCareer(playerId),
-    enabled: Boolean(playerId) && enabled,
-    ...STABLE
-  });
-}

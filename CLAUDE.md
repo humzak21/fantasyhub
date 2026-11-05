@@ -1777,8 +1777,8 @@ Below its season table, a franchise profile has **Week by week**
 the section's picker) and a week, and see the franchise as it stood then —
 result, power rank and standing by record, the lineup with each player's
 opponent, TDs and in-league rank, why the snapshot ranked it there, and the
-moves it made. Every player opens a sheet with his week, his season and every
-stint he has had in this league. Any approved member can open any franchise;
+moves it made. Every player opens his page (see "A player opens his page"),
+which replaced the sheet that used to open here. Any approved member can open any franchise;
 names go through the masking helpers like everywhere else. The franchise picker above
 the hero switches without the round trip to the leaderboards.
 
@@ -2714,7 +2714,7 @@ tested) the URLs, the team spellings and the fallbacks.
   surfaces place the components directly:
   - the history week grid: a logo beside the name below `sm` (the grid's own
     breakpoint), and from `sm` a headshot plus the logo in the Team column;
-  - the player sheet's 52px header;
+  - the player page's 64px header;
   - the parlay picker, current pick, board and TD Parlay tab;
   - record-book trade lines and the week's moves.
 - **The chat's data tables** have names but no ids, so `QueryData` looks up a
@@ -2723,6 +2723,95 @@ tested) the URLs, the team spellings and the fallbacks.
   has (`uniqueByName`): two Josh Allens get none, never the wrong one.
 - **Decorative to a screen reader.** The name is always beside the image.
   `NflTeamLogo label` names the team where the logo stands in for it.
+
+### A player opens his page
+
+Every player name on the site opens one page: his weeks in this league, how he
+ranked in each, his career against every other player at his position, who has
+had him and every move he was part of. `src/components/players/` is the shell
+and its sections, `utils/playerProfile/` the pure half (tested), and
+`services/db/playerProfiles.js` + `hooks/queries/usePlayerProfile.js` the read.
+
+- **One surface, one URL param.** `?player=<players.id>`, on whatever tab is
+  open, is the whole state (`PlayerDetailContext`, `playerDetailLink.js`).
+  Opening *pushes* a history entry and keeps every other param
+  (`?view=statistics` survives), so the phone's back button closes the page, a
+  refresh keeps it open and a link to a player can be shared. Closing removes
+  the param and nothing else. From `md` it is a centred dialog; below `md` a
+  full-screen page with a back arrow. Both are one Radix dialog chosen by
+  `useIsMobile()`, the sanctioned case: structurally different presentations,
+  with focus trapping, Escape and the scroll lock from Radix in both.
+- **`PlayerLink` is the one way a name becomes a target**, the player's
+  `TeamLink`. It takes `playerId` or, where a surface knows only ESPN's id (a
+  trade line, a chat table, a snapshot lineup), `espnPlayerId`, which
+  `usePlayerByEspnId` resolves before the param is written. Without an id or
+  outside the provider it is a plain span. **Never inside a `<button>`**: a
+  pick'em side or bracket slot is a press that already means something, and a
+  button cannot nest there, so those surfaces keep the plain name.
+  `PlayerPicker` is a picker, not a surface, and keeps its own.
+- **Everyone may open it**, signed out included: the player tables are
+  public-read. Every franchise and owner on the page goes through
+  `getMaskedFranchiseName` / `TeamLink`, so a viewer who sees masked names
+  elsewhere sees them here. The player's own name and figures are never masked.
+- **The league arithmetic is two views**
+  (`20261107120000_player_profile_views.sql`), because it needs the whole
+  league's 22,000 `player_week_stats` rows and a page should cost one player's
+  hundred. `v_player_week_lines` is one row per `player_week_stats` row with
+  the year, the franchise that held him, his overall and positional rank that
+  week, and his team's game and result. `v_player_careers` is one row per
+  player ever rostered, read from the first, so a week means the same thing in
+  both. `supabase/tests/database/player_profile_views.test.sql` holds them.
+- **Ranks are among appeared rows only.** `appeared` is
+  `utils/franchiseWeeks.js::appeared`, restated in the view, and the two must
+  change together: a result, and a non-zero one or a stat line behind it. A
+  settled week stores 0 for everybody rostered, the man on IR included, and
+  ranking those would rank an injury and push every real zero down the board.
+  A row that did not appear has NULL for all four rank columns and takes nobody's
+  slot. Averages, best and worst, the trends and the career all count appeared
+  weeks only.
+- **Unknown is NULL, never 0**, the power ranking's rule again: a week with no
+  game row has no result, a season with no appeared week has no points per
+  game, a row with no breakdown has no stat line.
+- **The OG Jits ranking is career points per game over games appeared,
+  within position, at five games or more** (`rankCareers`, `MIN_GAMES` in
+  `usePlayerProfile.js`). Competition ranking (1, 2, 2, 4). Under the floor a
+  player shows his figure and "Not yet ranked · 3 of 5 games": one big week is
+  not a career, and without a floor the board's top would be one-game backups.
+- **The stat catalog labels only ids that were checked against real rows**
+  (`utils/playerProfile/statCatalog.js`: Myers' made field goals sum his three
+  distance ids, and so on). Any other id is not shown, never "Unknown stat".
+  Ratios are computed from the season's sums, never averaged per week. TDs go
+  through `getScoredTouchdownCount`, the TD parlay's definition. **No scoring
+  settings are stored anywhere**, so there is no "points from rushing": the page
+  shows ESPN's raw categories beside the fantasy total, and inventing a split
+  would be a guess dressed as a figure.
+- **`players.percent_owned` and `percent_started` are 0 on every row and are
+  never shown.** They are ESPN's league-wide figures and read 0 for all 749
+  rows (measured 2026-11-05). League start % is computed: weeks started over
+  weeks rostered here.
+- **The chunk waits for the first open.** `PlayerDetailMount` renders the lazy
+  `PlayerDetail` only once a player has been opened in the session, and keeps it
+  mounted after the first close so the exit animation runs. Rendering it on
+  every page downloaded the page and its charts on every first load; the charts
+  are a lazy chunk of their own beneath it.
+- **A preview cannot show the page until the migration is applied.** A
+  preview reads production, where the views do not exist before the merge.
+  Every line on the page comes from `v_player_week_lines`, so there the whole
+  page is its error card ("Couldn't load this player", measured against
+  production on 2026-11-05), not just the ranks. Only `v_player_careers`
+  degrades on its own: the rank tile reads "League ranks unavailable" and the
+  OG Jits standing says so. To check the page before merging, run
+  `deploy-migrations.yml` by hand against the branch (see "Migrations deploy on
+  merge"), never the MCP. Production is safe either way, because the site
+  deploy waits for the migrations run.
+- **The box score is covered through `LineupPanel`.** `MatchupBoxScoreSheet`
+  renders Schedule's `TeamLineup`, so its names link with no change of its own.
+  The page opens over the open sheet: both are Radix dialogs on one layer
+  stack, and the page's portal mounts later, so it stacks on top and the sheet
+  stays open beneath it.
+- `e2e/player-detail.spec.js` opens a Schedule lineup name at both widths
+  against `e2e/fixtures/liveWeek.js`, which answers `players`, `rosters` and the
+  two views by their filters; the smoke list opens an id nobody has.
 
 ### No analytics subsystem
 The `ffAnalytics` pipeline (R scripts, `services/ffAnalytics*`, `api/`,

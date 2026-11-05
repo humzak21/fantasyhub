@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { OpponentChip } from '../ui/opponent-chip';
 import { NflTeamLogo } from '../ui/nfl-team-logo';
 import { PlayerAvatar } from '../ui/player-avatar';
+import { PlayerLink } from '../players/PlayerLink';
 import { teamOf } from '../../../utils/playerImages.js';
 import { cn } from '../../lib/utils';
 import { getPositionColor } from '../../utils/positionColors';
@@ -36,7 +37,7 @@ export const ParlayCurrentPick = ({ pick, opponent, canEdit, onEdit, showGrade, 
     />
     <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="truncate font-semibold">{pick.playerNameRaw}</span>
+        <PlayerLink playerId={pick.playerId} className="truncate font-semibold">{pick.playerNameRaw}</PlayerLink>
         {pick.player?.position && (
           <span
             className={cn(

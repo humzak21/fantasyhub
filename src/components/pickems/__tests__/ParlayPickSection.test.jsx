@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import userEvent from '@testing-library/user-event';
+import { useLocation } from 'react-router-dom';
 import { renderWithProviders, screen, waitFor } from '../../../test/renderWithProviders.jsx';
 
 const parlay = {
@@ -85,6 +86,9 @@ vi.mock('../../../contexts/AuthContext.jsx', async (importOriginal) => ({
 }));
 
 const { default: ParlayPickSection } = await import('../ParlayPickSection.jsx');
+const { PlayerDetailProvider } = await import('../../players/PlayerDetailContext.jsx');
+
+const Search = () => <output data-testid="search">{useLocation().search}</output>;
 
 const WEEK = {
   id: 'pew-1',
@@ -239,6 +243,26 @@ describe('ParlayPickSection', () => {
     // The whole point of the change: no waiting for the deadline.
     expect(await screen.findByText('Justin Jefferson')).toBeInTheDocument();
     expect(screen.getByText(/the league.s picks/i)).toBeInTheDocument();
+  });
+
+  it('opens a matched pick\'s player, and leaves a free-text pick as text', async () => {
+    parlay.getParlayPicksForWeek.mockResolvedValue([
+      { id: 'a', userId: 'u1', displayName: 'Arya Shah', playerId: 'p7', playerNameRaw: 'Justin Jefferson', scoredTd: null, player: {} },
+      { id: 'b', userId: 'u2', displayName: 'Rohit Ramki', playerId: null, playerNameRaw: 'Some Fullback', scoredTd: null, player: {} }
+    ]);
+
+    renderWithProviders(
+      <PlayerDetailProvider>
+        <ParlayPickSection pickEmWeek={WEEK} status={OPEN} weekNumber={3} />
+        <Search />
+      </PlayerDetailProvider>,
+      { initialEntries: ['/pickems'] }
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Justin Jefferson' }));
+    expect(new URLSearchParams(screen.getByTestId('search').textContent).get('player')).toBe('p7');
+    expect(screen.queryByRole('button', { name: 'Some Fullback' })).toBeNull();
+    expect(screen.getByText('Some Fullback')).toBeInTheDocument();
   });
 
   it('asks for the league\'s picks even on an open week', async () => {

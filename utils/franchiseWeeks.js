@@ -1,6 +1,7 @@
 /**
  * The franchise profile's week-by-week view, computed from
- * `services/db/history.js::getSeasonWeekSource` and `getPlayerCareer`.
+ * `services/db/history.js::getSeasonWeekSource`. A player's own page is
+ * `utils/playerProfile/`, which reuses `appeared` and the ranking from here.
  *
  * Pure, and the only place the view's rules live — the components render what
  * this returns and nothing else, the same decide/render split as the record
@@ -59,9 +60,11 @@ function push(map, mapKey, value) {
 
 /**
  * Competition ranking (1, 2, 2, 4) over a numeric value, highest first.
+ * Exported so the player page's career ranking (`utils/playerProfile/`) ties
+ * the same way the weekly ranks do, rather than restating the rule.
  * @returns {Map<any, number>} id → rank
  */
-function competitionRank(items, idOf, valueOf) {
+export function competitionRank(items, idOf, valueOf) {
   const sorted = [...items].sort((a, b) => valueOf(b) - valueOf(a));
   const ranks = new Map();
   let previous = null;
@@ -129,13 +132,12 @@ export function listSeasonWeeks(season, { games = [], playerWeeks = [], ranks = 
  * injured-reserve starter who never played — ESPN's matchup counted him as 0,
  * and that stays true on the lineup. But averaging or ranking him at 0 would
  * report an injury as a bad game, so those readers ask this instead: a stat
- * line, or any non-zero points.
- *
- * `hasStatLine` is the career read's flag, which carries no breakdown.
+ * line, or any non-zero points. `v_player_week_lines.appeared` is the same
+ * rule in SQL; change the two together.
  */
 export function appeared(row) {
   if (!row || !isNumber(row.actualPoints)) return false;
-  return row.actualPoints !== 0 || row.statBreakdown != null || row.hasStatLine === true;
+  return row.actualPoints !== 0 || row.statBreakdown != null;
 }
 
 export function rankPlayersForWeek(rows = []) {
@@ -207,13 +209,10 @@ export function buildSeasonIndex(source) {
 
   const playerWeeksByKey = new Map();
   const playerWeeksByWeek = new Map();
-  const playerWeeksByPlayer = new Map();
   for (const row of playerWeeks) {
     push(playerWeeksByKey, key(row.teamId, row.week), row);
     push(playerWeeksByWeek, row.week, row);
-    if (row.playerId) push(playerWeeksByPlayer, row.playerId, row);
   }
-  for (const list of playerWeeksByPlayer.values()) list.sort((a, b) => a.week - b.week);
 
   const lineupByKey = new Map(lineups.map((row) => [key(row.teamId, row.week), row]));
 
@@ -243,7 +242,6 @@ export function buildSeasonIndex(source) {
     games,
     gamesByWeek,
     playerWeeksByKey,
-    playerWeeksByPlayer,
     lineupByKey,
     rankByKey,
     eventsByWeek,
@@ -552,85 +550,4 @@ export function buildWeekDossier(index, franchiseId, week) {
       : null,
     moves: movesFor(index, franchiseId, week)
   };
-}
-
-function splitsOf(weeks) {
-  const scored = weeks.filter(appeared);
-  if (!scored.length) return null;
-  const total = scored.reduce((sum, row) => sum + row.actualPoints, 0);
-  const best = scored.reduce((a, b) => (b.actualPoints > a.actualPoints ? b : a));
-  const worst = scored.reduce((a, b) => (b.actualPoints < a.actualPoints ? b : a));
-  return {
-    total,
-    games: scored.length,
-    average: total / scored.length,
-    best: { points: best.actualPoints, week: best.week },
-    worst: { points: worst.actualPoints, week: worst.week },
-    starts: weeks.filter((row) => row.started).length,
-    rostered: weeks.length
-  };
-}
-
-/**
- * One player's season in the league: every week he was on a roster here, what
- * he scored, where he ranked that week, and whose team he was on.
- */
-export function buildPlayerSeason(index, playerId) {
-  const rows = index?.playerWeeksByPlayer.get(playerId) ?? [];
-  const weeks = rows.map((row) => {
-    const team = index.teamById.get(row.teamId) ?? null;
-    return {
-      week: row.week,
-      label: index.weeks.find((w) => w.week === row.week)?.label ?? `Week ${row.week}`,
-      teamId: row.teamId,
-      franchiseId: team?.franchiseId ?? null,
-      started: row.started,
-      slot: row.slot,
-      actualPoints: isNumber(row.actualPoints) ? row.actualPoints : null,
-      appeared: appeared(row),
-      touchdowns: row.statBreakdown ? getScoredTouchdownCount(row.statBreakdown) : null,
-      proTeamId: row.proTeamId,
-      rank: index.playerRanksByWeek.get(row.week)?.get(playerId) ?? null
-    };
-  });
-  return { weeks, splits: splitsOf(weeks) };
-}
-
-/**
- * A player's whole history in the league, season by season, with the stints he
- * spent on each franchise (consecutive rostered weeks on one team).
- */
-export function buildPlayerCareer(career) {
-  const bySeason = new Map();
-  for (const row of career?.weeks ?? []) {
-    if (!isNumber(row.year)) continue;
-    push(bySeason, row.year, row);
-  }
-
-  return [...bySeason.entries()]
-    .sort(([a], [b]) => b - a)
-    .map(([year, rows]) => {
-      const sorted = [...rows].sort((a, b) => a.week - b.week);
-      const stints = [];
-      for (const row of sorted) {
-        const last = stints[stints.length - 1];
-        if (last && last.franchiseId === row.franchiseId && row.week === last.toWeek + 1) {
-          last.toWeek = row.week;
-          last.weeks += 1;
-          if (row.started) last.starts += 1;
-        } else {
-          stints.push({
-            franchiseId: row.franchiseId,
-            teamId: row.teamId,
-            teamName: row.teamName,
-            owner: row.owner,
-            fromWeek: row.week,
-            toWeek: row.week,
-            weeks: 1,
-            starts: row.started ? 1 : 0
-          });
-        }
-      }
-      return { year, stints, splits: splitsOf(sorted) };
-    });
 }

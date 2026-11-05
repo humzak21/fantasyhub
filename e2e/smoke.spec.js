@@ -22,6 +22,9 @@ const ROUTES = [
   '/awards',
   '/settings',
   '/alerts',
+  // A player nobody has: the page's not-found state over the tab (its error
+  // card until the player views are applied), without a crash or overflow.
+  '/teams?player=00000000-0000-4000-8000-00000000ffff',
 ]
 
 test.describe('smoke', () => {

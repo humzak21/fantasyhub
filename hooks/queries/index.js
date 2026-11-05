@@ -79,6 +79,8 @@ export {
   buildOpponentMap
 } from './useNflSchedule.js';
 
+export { usePlayerProfile, usePlayerCareers, usePlayerByEspnId } from './usePlayerProfile.js';
+
 export {
   useMyParlayPick,
   useParlayWeekPicks,
@@ -144,8 +146,7 @@ export {
   useSituations,
   useTransactionLeaderboard,
   useFranchiseTransactions,
-  useSeasonWeeks,
-  usePlayerCareer
+  useSeasonWeeks
 } from './useLeagueHistory.js';
 export { useAskLeague } from './useAskLeague.js';
 export { useAutosubAccess, useMyAutosubs, useAutosubMutations } from './useAutosubs.js';

@@ -43,6 +43,15 @@ async function getFranchises(ctx) {
   ) ?? [];
 }
 
+/**
+ * Every franchise in the identity shape the components mask with. For modules
+ * outside this one that need the league's franchises beside their own rows
+ * (`playerProfiles.getPlayerProfileSource`).
+ */
+export async function getFranchiseRefs(ctx) {
+  return (await getFranchises(ctx)).map(franchiseRef);
+}
+
 /** `{ byId, byOwner }` — owner name is the stable key across team renames. */
 function indexFranchises(franchises) {
   return {
@@ -1057,78 +1066,5 @@ export async function getSeasonWeekSource(ctx, seasonId) {
     };
   } catch (error) {
     throwDbError(error, 'Get season week source');
-  }
-}
-
-/**
- * Every week one player was rostered in this league, across every season —
- * the player sheet's career and roster history.
- *
- * `player_week_stats` only holds players while they are on a league roster, so
- * a week this returns nothing for is a week nobody here had him, not a zero.
- */
-export async function getPlayerCareer(ctx, playerId) {
-  try {
-    const client = ctx.client;
-
-    const [player, rows] = await Promise.all([
-      (async () => unwrap(
-        await client
-          .from('players')
-          .select('id, name, position, team_abbreviation')
-          .eq('id', playerId)
-          .maybeSingle(),
-        'Get career player'
-      ))(),
-      selectAll(() => client
-        .from('player_week_stats')
-        .select('id, season_id, week, team_id, started, actual_points, stat_breakdown, position')
-        .eq('player_id', playerId)
-        .order('id'))
-    ]);
-
-    const teamIds = [...new Set(rows.map((row) => row.team_id))];
-    const seasonIds = [...new Set(rows.map((row) => row.season_id))];
-
-    const [teams, seasons] = await Promise.all([
-      teamIds.length
-        ? (async () => unwrap(
-            await client.from('teams').select('id, franchise_id, name, owner').in('id', teamIds),
-            'Get career teams'
-          ) ?? [])()
-        : [],
-      seasonIds.length
-        ? (async () => unwrap(
-            await client.from('seasons').select('id, year').in('id', seasonIds),
-            'Get career seasons'
-          ) ?? [])()
-        : []
-    ]);
-
-    const teamById = new Map(teams.map((team) => [team.id, team]));
-    const yearById = new Map(seasons.map((season) => [season.id, season.year]));
-
-    return {
-      player: player
-        ? { id: player.id, name: player.name, position: player.position, proTeam: player.team_abbreviation }
-        : null,
-      weeks: rows.map((row) => {
-        const team = teamById.get(row.team_id);
-        return {
-          seasonId: row.season_id,
-          year: yearById.get(row.season_id) ?? null,
-          week: row.week,
-          teamId: row.team_id,
-          franchiseId: team?.franchise_id ?? null,
-          teamName: team?.name ?? null,
-          owner: team?.owner ?? null,
-          started: Boolean(row.started),
-          actualPoints: num(row.actual_points),
-          hasStatLine: row.stat_breakdown != null
-        };
-      })
-    };
-  } catch (error) {
-    throwDbError(error, 'Get player career');
   }
 }

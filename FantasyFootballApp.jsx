@@ -47,6 +47,8 @@ import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, ProfileAvatarLink,
 import PageContainer from './src/components/layout/PageContainer.jsx';
 import LeagueChat, { ChatLauncher, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
 import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
+import { PlayerDetailProvider } from './src/components/players/PlayerDetailContext.jsx';
+import PlayerDetailMount from './src/components/players/PlayerDetailMount.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
 import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
@@ -425,6 +427,7 @@ const FantasyFootballApp = () => {
   return (
     <ErrorBoundary>
       <FranchiseAvatarsProvider>
+      <PlayerDetailProvider>
       <LeagueChatProvider enabled={isApproved}>
       <LeagueChatOffset className="min-h-screen bg-background">
         {/* Header - Responsive Design */}
@@ -819,6 +822,11 @@ const FantasyFootballApp = () => {
         <ChatLauncher />
         <LeagueChat />
 
+        {/* A player's page, for every viewer: `?player=<id>` on any tab opens
+            it. It portals to <body>, beside the header, never inside it. Its
+            chunk is requested the first time a player is opened. */}
+        <PlayerDetailMount />
+
         {/* Standings Drawer */}
         {activeSeason && (
           <StandingsDrawer
@@ -858,6 +866,7 @@ const FantasyFootballApp = () => {
         */}
       </LeagueChatOffset>
       </LeagueChatProvider>
+      </PlayerDetailProvider>
       </FranchiseAvatarsProvider>
     </ErrorBoundary>
   );

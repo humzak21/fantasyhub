@@ -18,7 +18,7 @@ import {
   seasonArc
 } from '../../../../../utils/franchiseWeeks.js';
 import WeekDossier from './WeekDossier';
-import PlayerSheet from './PlayerSheet';
+import { usePlayerDetail } from '../../../players/PlayerDetailContext.jsx';
 
 /**
  * The franchise profile's week view: pick a season, pick a week, and see the
@@ -91,13 +91,9 @@ function WeekBrowser({ index, franchiseId, viewer }) {
     [index, franchiseId, week]
   );
 
-  // The sheet keeps its player while it animates closed.
-  const [sheetPlayer, setSheetPlayer] = useState(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const openPlayer = (row) => {
-    setSheetPlayer(row);
-    setSheetOpen(true);
-  };
+  // A player opens his page, the one every name on the site opens.
+  const { open: openPlayerDetail } = usePlayerDetail();
+  const openPlayer = (row) => openPlayerDetail({ playerId: row.playerId });
 
   if (strip.length === 0 || !dossier) {
     return (
@@ -150,15 +146,6 @@ function WeekBrowser({ index, franchiseId, viewer }) {
       <SeasonArc arc={arc} week={week} teamCount={index.teams?.length ?? null} onSelect={setPicked} />
 
       <WeekDossier dossier={dossier} nflSeasonYear={index.season.nflSeasonYear} viewer={viewer} onPlayer={openPlayer} />
-
-      <PlayerSheet
-        player={sheetPlayer}
-        week={week}
-        index={index}
-        viewer={viewer}
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-      />
     </div>
   );
 }

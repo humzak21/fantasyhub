@@ -7,6 +7,7 @@ import { OpponentChip } from '../../../ui/opponent-chip';
 import { PlayerPoints } from '../../../ui/player-points';
 import { NflTeamLogo } from '../../../ui/nfl-team-logo';
 import { PlayerAvatar } from '../../../ui/player-avatar';
+import { PlayerLink } from '../../../players/PlayerLink';
 import { cn } from '../../../../lib/utils';
 import { getPositionColor } from '../../../../utils/positionColors';
 import { nflTeamColor } from '../../../../../utils/nflTeamColors.js';
@@ -26,7 +27,7 @@ import { canViewFullData, getMaskedFranchiseName } from '../../utils/privacyHelp
  * 1), a lineup and no rank snapshot (anything before 2025), or nothing settled
  * yet (the week in progress). One blanket "no data" would hide what *is* known.
  *
- * Players are buttons: tapping one opens their sheet (`onPlayer`).
+ * Players are buttons: tapping one opens their page (`onPlayer`).
  */
 const WeekDossier = ({ dossier, nflSeasonYear, viewer, onPlayer }) => {
   const { data: opponents = {} } = useNflOpponentMap(nflSeasonYear, dossier.week);
@@ -513,7 +514,9 @@ const MovePlayer = ({ icon: Icon, tone, player }) => (
     <span className="sr-only">{Icon === Plus ? 'Added' : Icon === Minus ? 'Dropped' : 'Moved'}</span>
     {/* No team badge: the only team on file is where he is now, not then. */}
     <PlayerAvatar name={player.name} espnPlayerId={player.espnPlayerId} position={player.position} size={18} className="self-center" />
-    <span className="truncate text-foreground">{player.name ?? `Player ${player.espnPlayerId}`}</span>
+    <PlayerLink espnPlayerId={player.espnPlayerId} className="truncate text-foreground">
+      {player.name ?? `Player ${player.espnPlayerId}`}
+    </PlayerLink>
     {player.position && <span className="text-xs">{player.position}</span>}
   </li>
 );

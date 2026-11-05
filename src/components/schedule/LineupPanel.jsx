@@ -8,6 +8,7 @@ import { rowAsPoints } from '../../../utils/lineupTotals.js';
 import { teamOf } from '../../../utils/playerImages.js';
 import { TeamLink } from '../ui/team-link';
 import { AutosubSection } from '../autosub/AutosubSection';
+import { PlayerLink } from '../players/PlayerLink';
 
 /** The slots this league starts, in lineup order. Matches OPTIMAL_LINEUP_TEMPLATE. */
 const STARTER_SLOTS = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'D/ST', 'K'];
@@ -184,7 +185,13 @@ const PlayerRow = ({ row, opponent, muted }) => {
         position={position}
         team={teamOf({ proTeamId: row.proTeamId, teamAbbreviation: row.player?.teamAbbreviation })}
       />
-      <span className="min-w-0 flex-1 truncate">{playerName}</span>
+      <PlayerLink
+        playerId={row.playerId ?? row.player?.id}
+        espnPlayerId={row.espnPlayerId ?? row.player?.espnPlayerId}
+        className="min-w-0 flex-1 truncate"
+      >
+        {playerName}
+      </PlayerLink>
       {isInjured && (
         <span
           className="h-1.5 w-1.5 shrink-0 rounded-full bg-destructive"

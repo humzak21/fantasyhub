@@ -23,6 +23,7 @@ import { parlayHitRate } from './hitRate.js';
 import { getPositionColor } from '../../utils/positionColors';
 import { NflTeamLogo } from '../ui/nfl-team-logo';
 import { PlayerAvatar } from '../ui/player-avatar';
+import { PlayerLink } from '../players/PlayerLink';
 import { teamOf } from '../../../utils/playerImages.js';
 
 /**
@@ -355,7 +356,7 @@ const DivisionColumn = ({ className, title, picks, waiting = NO_ROWS, emptyText 
                   position={pick.player?.position}
                   size={20}
                 />
-                <span className="truncate">{pick.playerNameRaw}</span>
+                <PlayerLink playerId={pick.playerId} className="truncate">{pick.playerNameRaw}</PlayerLink>
               </span>
               {pick.player?.position && (
                 <span

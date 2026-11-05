@@ -7,6 +7,7 @@ import { Skeleton } from '../../ui/skeleton';
 import { cn } from '../../../lib/utils';
 import { formatPoints, formatScore } from '../../../utils/format';
 import { PlayerAvatar } from '../../ui/player-avatar';
+import { PlayerLink } from '../../players/PlayerLink';
 import { BoxScoreButton, MatchupBoxScoreSheet } from '../../matchups/MatchupBoxScoreSheet';
 import { useMatchupHistory, useMatchupStarters } from '../../../../hooks/queries/index.js';
 import { teamOf } from '../../../../utils/playerImages.js';
@@ -317,7 +318,9 @@ function BestGame({ entry, onOpen }) {
         </span>
       </div>
       <p className="mt-2 truncate text-sm font-medium leading-tight" title={player.name ?? undefined}>
-        {player.name ?? 'Unknown player'}
+        <PlayerLink playerId={player.playerId} espnPlayerId={player.espnPlayerId} className="block max-w-full truncate">
+          {player.name ?? 'Unknown player'}
+        </PlayerLink>
       </p>
       <p className="truncate text-[11px] text-muted-foreground" title={teamName ?? undefined}>
         {teamName ?? '—'}
