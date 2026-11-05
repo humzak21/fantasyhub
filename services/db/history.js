@@ -43,6 +43,15 @@ async function getFranchises(ctx) {
   ) ?? [];
 }
 
+/**
+ * Every franchise in the identity shape the components mask with. For modules
+ * outside this one that need the league's franchises beside their own rows
+ * (`playerProfiles.getPlayerProfileSource`).
+ */
+export async function getFranchiseRefs(ctx) {
+  return (await getFranchises(ctx)).map(franchiseRef);
+}
+
 /** `{ byId, byOwner }` — owner name is the stable key across team renames. */
 function indexFranchises(franchises) {
   return {

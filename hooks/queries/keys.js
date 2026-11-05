@@ -70,7 +70,17 @@ export const qk = {
      */
     search: (query) => ['players', 'search', query],
     /** Exact names, sorted, for the chat's data tables (`usePlayersByName`). */
-    byNames: (names) => ['players', 'byNames', names]
+    byNames: (names) => ['players', 'byNames', names],
+    /**
+     * A player's page (`usePlayerProfile`), every career for the league ranks
+     * (`usePlayerCareers`), and the ESPN-id lookup behind `PlayerLink`. The
+     * weekly sync and the daily refresh write every table behind them out of
+     * process, so nothing in the app invalidates these; a 10-minute
+     * `staleTime` is what keeps them current.
+     */
+    profile: (playerId) => ['players', 'profile', playerId],
+    careers: () => ['players', 'careers'],
+    byEspnId: (espnPlayerId) => ['players', 'byEspnId', espnPlayerId]
   },
 
   /**

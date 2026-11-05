@@ -47,6 +47,7 @@ import { AlertsLink, HeaderNav, MobileTabBar, NewsletterLink, ProfileAvatarLink,
 import PageContainer from './src/components/layout/PageContainer.jsx';
 import LeagueChat, { ChatLauncher, LeagueChatOffset } from './src/components/ask/LeagueChat.jsx';
 import { LeagueChatProvider } from './src/components/ask/LeagueChatContext.jsx';
+import { PlayerDetailProvider } from './src/components/players/PlayerDetailContext.jsx';
 import ApprovalPendingNotice from './src/components/auth/ApprovalPendingNotice.jsx';
 import RouteLoading from './src/components/layout/RouteLoading.jsx';
 import RankingsHeader from './src/components/power-rankings/RankingsHeader.jsx';
@@ -66,6 +67,9 @@ const LeagueHistoryManager = lazy(() => import('./src/components/history/LeagueH
 const TakesManager = lazy(() => import('./src/components/takes/TakesManager.jsx'));
 const AlertsPage = lazy(() => import('./src/components/alerts/AlertsPage.jsx'));
 const ProfilePage = lazy(() => import('./src/components/profile/ProfilePage.jsx'));
+// The player page: a modal over every tab, opened by `?player=`. Lazy so its
+// code (and the charts inside it) stay out of the landing bundle.
+const PlayerDetail = lazy(() => import('./src/components/players/PlayerDetail.jsx'));
 const UserSettingsPage = lazy(() =>
   import('./src/components/auth/UserSettingsPage.jsx').then((m) => ({ default: m.UserSettingsPage }))
 );
@@ -425,6 +429,7 @@ const FantasyFootballApp = () => {
   return (
     <ErrorBoundary>
       <FranchiseAvatarsProvider>
+      <PlayerDetailProvider>
       <LeagueChatProvider enabled={isApproved}>
       <LeagueChatOffset className="min-h-screen bg-background">
         {/* Header - Responsive Design */}
@@ -819,6 +824,12 @@ const FantasyFootballApp = () => {
         <ChatLauncher />
         <LeagueChat />
 
+        {/* A player's page, for every viewer: `?player=<id>` on any tab opens
+            it. It portals to <body>, beside the header, never inside it. */}
+        <Suspense fallback={null}>
+          <PlayerDetail />
+        </Suspense>
+
         {/* Standings Drawer */}
         {activeSeason && (
           <StandingsDrawer
@@ -858,6 +869,7 @@ const FantasyFootballApp = () => {
         */}
       </LeagueChatOffset>
       </LeagueChatProvider>
+      </PlayerDetailProvider>
       </FranchiseAvatarsProvider>
     </ErrorBoundary>
   );

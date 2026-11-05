@@ -59,9 +59,11 @@ function push(map, mapKey, value) {
 
 /**
  * Competition ranking (1, 2, 2, 4) over a numeric value, highest first.
+ * Exported so the player page's career ranking (`utils/playerProfile/`) ties
+ * the same way the weekly ranks do, rather than restating the rule.
  * @returns {Map<any, number>} id → rank
  */
-function competitionRank(items, idOf, valueOf) {
+export function competitionRank(items, idOf, valueOf) {
   const sorted = [...items].sort((a, b) => valueOf(b) - valueOf(a));
   const ranks = new Map();
   let previous = null;
