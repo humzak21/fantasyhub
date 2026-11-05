@@ -10,15 +10,19 @@ import { cn } from '../../../lib/utils';
 import { EMPTY, formatPoints, formatScore } from '../../../utils/format';
 import { getPositionColor } from '../../../utils/positionColors';
 import { sortRows } from '../../../utils/tableSort';
+import { BoxScoreButton } from '../../matchups/MatchupBoxScoreSheet.jsx';
 import { FranchiseLink, SectionCard, SectionEmpty } from './SectionCard.jsx';
 import { GAME_LOG_STATS, shortPhase, statCell } from './gameLogColumns.js';
 import { RANK_HEAT, formatCount, resultTone } from './sectionFormat.js';
 
-function WeekCell({ line }) {
+/** The week, opening its box score where the game was scored. */
+function WeekCell({ line, boxScoreFor, openBoxScore }) {
   const phase = shortPhase(line.phase);
+  const game = boxScoreFor?.(line) ?? null;
+  const label = <span className="font-medium text-foreground">Wk {line.week}</span>;
   return (
     <span className="inline-flex items-center gap-1 whitespace-nowrap tabular" title={line.phase ? `${line.label} · ${line.phase}` : line.label}>
-      <span className="font-medium text-foreground">Wk {line.week}</span>
+      {game && openBoxScore ? <BoxScoreButton game={game} onOpen={openBoxScore}>{label}</BoxScoreButton> : label}
       {phase && (
         <span className="rounded bg-muted px-1 py-px text-[9px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
           {phase}
@@ -75,7 +79,7 @@ function ResultCell({ line }) {
   );
 }
 
-function columnsFor({ position, opponents, viewer, onClose }) {
+function columnsFor({ position, opponents, viewer, onClose, boxScoreFor, openBoxScore }) {
   const stats = (GAME_LOG_STATS[position] ?? []).map((spec) => ({
     key: spec.key,
     header: <span title={spec.title}>{spec.header}</span>,
@@ -95,7 +99,7 @@ function columnsFor({ position, opponents, viewer, onClose }) {
       key: 'week',
       header: 'Week',
       priority: 'primary',
-      cell: (line) => <WeekCell line={line} />,
+      cell: (line) => <WeekCell line={line} boxScoreFor={boxScoreFor} openBoxScore={openBoxScore} />,
       sortValue: (line) => line.week,
       scroll: { pin: true, width: 5 }
     },
@@ -157,7 +161,7 @@ const SCROLL_ORDER = ['week', 'team', 'pts', 'rank', 'result', 'slot', 'opp', 'p
  * One season's weeks. Its own component so the calendar read is one hook per
  * season, whatever the mode, and hooks never run conditionally.
  */
-function SeasonGameLog({ season, position, viewer, onClose, showYear }) {
+function SeasonGameLog({ season, position, viewer, onClose, showYear, boxScoreFor, openBoxScore }) {
   const [sort, setSort] = useState(null);
   const { data: schedule } = useNflSeasonSchedule(season.nflSeasonYear);
   // One calendar fetch per season; each week's opponents projected from it once.
@@ -169,7 +173,10 @@ function SeasonGameLog({ season, position, viewer, onClose, showYear }) {
     return map;
   }, [schedule, season.weeks]);
 
-  const columns = useMemo(() => columnsFor({ position, opponents, viewer, onClose }), [position, opponents, viewer, onClose]);
+  const columns = useMemo(
+    () => columnsFor({ position, opponents, viewer, onClose, boxScoreFor, openBoxScore }),
+    [position, opponents, viewer, onClose, boxScoreFor, openBoxScore]
+  );
   const rows = useMemo(() => sortRows(season.weeks, sort, columns), [season.weeks, sort, columns]);
 
   return (
@@ -196,7 +203,7 @@ function SeasonGameLog({ season, position, viewer, onClose, showYear }) {
  * Every week he was rostered: where, against whom, what he scored and how it
  * ranked. In "All seasons" a table per season, newest first.
  */
-export default function GameLog({ profile, season, viewer, onClose }) {
+export default function GameLog({ profile, season, viewer, onClose, boxScoreFor, openBoxScore }) {
   const position = profile.player.position;
   const seasons = season ? [season] : profile.seasons ?? [];
   return (
@@ -212,6 +219,8 @@ export default function GameLog({ profile, season, viewer, onClose }) {
               position={position}
               viewer={viewer}
               onClose={onClose}
+              boxScoreFor={boxScoreFor}
+              openBoxScore={openBoxScore}
               showYear={!season}
             />
           ))}

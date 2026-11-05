@@ -134,6 +134,7 @@ function weekLine(row, ctx) {
       : null,
     game: hasGame
       ? {
+          gameId: row.gameId ?? null,
           result: row.result ?? null,
           teamScore: num(row.teamScore),
           opponentScore: num(row.opponentScore),

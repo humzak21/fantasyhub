@@ -4,6 +4,7 @@
 
 import { getMaskedFranchiseName } from '../../history/utils/privacyHelpers';
 import { EMPTY, formatPoints } from '../../../utils/format';
+import { boxScoreGame } from '../../matchups/boxScoreGame.js';
 
 /** The standard lit surface every section card carries. */
 export const SURFACE = 'shadow-[0_1px_2px_rgb(0_0_0/0.4),inset_0_1px_0_rgb(255_255_255/0.035)]';
@@ -21,6 +22,33 @@ export const RANK_HEAT = [
 export function maskFranchise(franchise, viewer) {
   if (!franchise) return null;
   return getMaskedFranchiseName(franchise, viewer?.user ?? null, viewer?.isAdmin ?? false, viewer?.teamOwnerNames ?? []);
+}
+
+/**
+ * A week line as `MatchupBoxScoreSheet` opens it: his team first, names masked
+ * for this viewer. Null for a week with no game, a bye, or a game not yet
+ * scored, so a caller renders plain text there and a button only where there
+ * is a box score to open.
+ */
+export function lineBoxScore(line, viewer, nflSeasonYear = null) {
+  const game = line?.game;
+  if (!game || game.isBye || !line.teamId || !game.opponentTeamId) return null;
+  if (game.teamScore == null || game.opponentScore == null) return null;
+  return boxScoreGame({
+    id: game.gameId ?? null,
+    seasonId: line.seasonId,
+    year: line.year,
+    nflSeasonYear: nflSeasonYear ?? line.year,
+    week: line.week,
+    type: game.type,
+    team1: { id: line.teamId, franchiseId: line.franchiseId, name: maskFranchise(line.franchise, viewer), score: game.teamScore },
+    team2: {
+      id: game.opponentTeamId,
+      franchiseId: game.opponentFranchiseId,
+      name: maskFranchise(game.opponentFranchise, viewer),
+      score: game.opponentScore
+    }
+  });
 }
 
 /** A stat count: whole numbers bare and grouped, anything else to one decimal. */
