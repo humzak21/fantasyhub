@@ -131,6 +131,24 @@ describe('PathToPlayoffs', () => {
     expect(within(games[0]).getAllByRole('button', { pressed: false })).toHaveLength(2);
   });
 
+  it("carries each team's record into the next week's games", async () => {
+    const user = userEvent.setup();
+    renderPath();
+    const gameOf = (week) =>
+      screen.getAllByRole('group', { name: new RegExp(`^Week ${week}, (Team 3 vs|.* vs Team 3:)`) })[0];
+    const sideOf = (group) => within(group).getByRole('button', { name: /^Team 3\b/ });
+
+    // Going into week 9, week 8 has not been played, so it is counted as open.
+    expect(sideOf(gameOf(9)).textContent).toMatch(/· 1 undecided/);
+    const before = sideOf(gameOf(9)).textContent;
+
+    await user.click(sideOf(gameOf(8)));
+
+    const after = sideOf(gameOf(9)).textContent;
+    expect(after).not.toMatch(/undecided/);
+    expect(after).not.toBe(before);
+  });
+
   it('moves the standings table as a game is decided', async () => {
     const user = userEvent.setup();
     renderPath();

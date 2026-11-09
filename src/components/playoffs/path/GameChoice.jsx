@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Input } from '../../ui/input';
 import { TeamAvatar } from '../../ui/team-identity';
 import { cn } from '../../../lib/utils';
-import { formatPoints } from '../../../utils/format';
+import { formatPoints, formatRecord } from '../../../utils/format';
 
 /** A typed figure, or null for anything that is not yet one. */
 function parsePoints(text) {
@@ -41,7 +41,8 @@ function PointsField({ label, value, placeholder, onChange }) {
  * sit beside it: two buttons, one per team, with "vs" between them. Pressing a
  * team decides the game for them and pressing it again hands the game back to
  * the simulation. Each side carries the figure that result leaves the selected
- * team on.
+ * team on, and the team's record going into the week under the scenario
+ * (`recordsGoingIn`), so deciding week 9 moves the records on week 10's cards.
  *
  * Points are one disclosure further in. A score decides the game by itself, and
  * a side left alone plays at its projection, which is what the field shows until
@@ -53,6 +54,7 @@ export function GameChoice({
   nameOf,
   winnerId,
   figures,
+  records = null,
   label = null,
   score = null,
   projection = null,
@@ -141,7 +143,27 @@ export function GameChoice({
               )}
             >
               <TeamAvatar team={team} size="xs" />
-              <span className="min-w-0 flex-1 break-words leading-tight">{names[index]}</span>
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="block break-words">{names[index]}</span>
+                {records?.[index] && (
+                  <span
+                    className={cn(
+                      'mt-0.5 block text-xs font-normal tabular',
+                      chosen ? 'text-primary/80' : 'text-muted-foreground'
+                    )}
+                  >
+                    <span className="sr-only">, </span>
+                    {formatRecord(records[index])}
+                    <span className="sr-only"> going into week {game.week}</span>
+                    {records[index].undecided > 0 && (
+                      <span className="text-muted-foreground/70">
+                        {' '}· {records[index].undecided} undecided
+                      </span>
+                    )}
+                    <span className="sr-only">, </span>
+                  </span>
+                )}
+              </span>
               {figures?.[index] != null && (
                 <span className="shrink-0 text-xs font-medium tabular">{figures[index]}</span>
               )}

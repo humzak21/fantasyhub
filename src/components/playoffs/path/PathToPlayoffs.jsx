@@ -34,6 +34,7 @@ import {
   pointsToGetIn,
   presetResults,
   projectedGameScore,
+  recordsGoingIn,
   scenarioStandings,
   scoresNeeded,
   simulatePath
@@ -194,6 +195,10 @@ export default function PathToPlayoffs({ season, standingsRows = [], divisions =
     () => (path ? applyScenario(path, schedule, results, scores) : schedule),
     [path, schedule, results, scores]
   );
+  const weekRecords = useMemo(
+    () => (path ? recordsGoingIn(path, scenarioGames, results) : new Map()),
+    [path, scenarioGames, results]
+  );
   const officialTable = useMemo(
     () => computeStandings({ teams, games: schedule, divisions, year: season?.year }),
     [teams, schedule, divisions, season?.year]
@@ -319,6 +324,7 @@ export default function PathToPlayoffs({ season, standingsRows = [], divisions =
       nameOf={nameOf}
       winnerId={results.get(game.id) ?? null}
       figures={figuresFor(impactOf(game.id))}
+      records={[game.team1Id, game.team2Id].map((id) => weekRecords.get(game.week)?.get(id) ?? null)}
       score={scores.get(game.id) ?? null}
       projection={projectedGameScore(path, game, results.get(game.id) ?? null)}
       onChoose={chooseWinner}
