@@ -259,6 +259,30 @@ describe('starts', () => {
   });
 });
 
+describe('places from the bottom', () => {
+  const { places } = buildSituations(source);
+
+  it('counts where the bottom of the table stood after a start, and who took the punishment', () => {
+    // After week 3: F is 0-3, and B is below C at 1-2 on points for.
+    expect(places[3]).toEqual([
+      { fromBottom: 1, seasons: 1, punished: 1 },
+      { fromBottom: 2, seasons: 1, punished: 0 },
+      { fromBottom: 3, seasons: 1, punished: 0 },
+      { fromBottom: 4, seasons: 1, punished: 0 }
+    ]);
+  });
+
+  it('leaves a season still being played out', () => {
+    const active = { ...S, id: 's2', year: 2024, isCompleted: false };
+    const { places: open } = buildSituations({
+      seasons: [active],
+      teams: ['A', 'B'].map((key) => team(key, { seasonId: active.id })),
+      games: [game(1, 'A', 100, 'B', 90, active), game(2, 'A', 100, 'B', 90, active)]
+    });
+    expect(open[2].every((place) => place.seasons === 0)).toBe(true);
+  });
+});
+
 describe('score bands by season', () => {
   it('counts the league, newest first, with every band', () => {
     const { bands } = buildSituations(source);

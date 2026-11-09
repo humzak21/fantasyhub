@@ -42,6 +42,8 @@ const team = (id, name, owner, espnTeamId, divisionId, wins, losses) => ({
  * "Live Leaders" never has to shrink, and the full-season overflow this suite
  * guards against needs a name that does.
  */
+export { SEASON_ID };
+
 export const TEAMS = [
   team('team-final-a', 'Final Winners', 'Fiona Final', 1, 1, 3, 0),
   team('team-final-b', 'Final Losers', 'Frank Final', 2, 1, 2, 1),
@@ -373,7 +375,7 @@ const sessionFor = (owner) => ({
   }
 });
 
-function answer(request, owner) {
+function answer(request, owner, overrides = {}) {
   const { pathname } = new URL(request.url());
 
   if (pathname.endsWith('/functions/v1/live-scores')) return LIVE_WEEK;
@@ -382,7 +384,7 @@ function answer(request, owner) {
   const [, name] = pathname.match(/\/rest\/v1\/(?:rpc\/)?(.+)$/) ?? [];
   if (pathname.includes('/rpc/')) return RPCS[name] ?? [];
 
-  const rows = TABLES[name] ?? [];
+  const rows = overrides[name] ?? TABLES[name] ?? [];
   return FILTERED.has(name) ? applyFilters(rows, new URL(request.url()).searchParams) : rows;
 }
 
@@ -392,8 +394,11 @@ function answer(request, owner) {
  * The session has to sit under the storage key supabase-js derives from the
  * project's URL, which only the build knows. So the first load reads the host
  * off a request, stores the session, and reloads.
+ *
+ * `tables` replaces whole tables of the league (`{ games: [...] }`), for a spec
+ * that needs a different week of the same six teams.
  */
-export async function openLeague(page, path, owner) {
+export async function openLeague(page, path, owner, { tables = {} } = {}) {
   let host = null;
 
   await page.clock.setFixedTime(new Date(FROZEN_AT));
@@ -415,7 +420,7 @@ export async function openLeague(page, path, owner) {
     const isLive = request.url().includes('/functions/v1/live-scores');
     if (!isRead && !isRpc && !isLive) return route.fulfill({ status: 403, headers: cors, json: { message: 'read-only' } });
 
-    const body = answer(request, owner);
+    const body = answer(request, owner, tables);
     const wantsOne = (request.headers().accept ?? '').includes('vnd.pgrst.object');
 
     if (wantsOne && Array.isArray(body)) {
