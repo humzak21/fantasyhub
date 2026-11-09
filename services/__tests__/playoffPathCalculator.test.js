@@ -12,6 +12,7 @@ import {
   pointsToGetIn,
   presetResults,
   projectedGameScore,
+  recordsGoingIn,
   scenarioStandings,
   scoresNeeded,
   simulatePath
@@ -381,5 +382,38 @@ describe('a scenario in a URL', () => {
 
   it('skips what it cannot read, and a game since played', () => {
     expect(decodeScenario('8a2.nope.99a1.8z1.3a1', games)).toEqual(new Map([['w8g0', games.find((g) => g.id === 'w8g0').team2Id]]));
+  });
+});
+
+describe('recordsGoingIn', () => {
+  const games = schedule(7);
+  const path = pathAt(7);
+  const [first] = path.games;
+  const later = path.games.find(
+    (game) => game.week === first.week + 1 && [game.team1Id, game.team2Id].includes(first.team1Id)
+  );
+
+  it('counts the games played, and leaves an undecided earlier game open', () => {
+    const records = recordsGoingIn(path, applyScenario(path, games, new Map()), new Map());
+    const week8 = records.get(8).get(first.team1Id);
+    expect(week8.wins + week8.losses + week8.ties).toBe(7);
+    expect(week8.undecided).toBe(0);
+    expect(records.get(9).get(first.team1Id)).toMatchObject({ ...week8, undecided: 1 });
+  });
+
+  it("moves the next week's record when a game is decided", () => {
+    const results = new Map([[first.id, first.team1Id]]);
+    const before = recordsGoingIn(path, applyScenario(path, games, new Map()), new Map());
+    const after = recordsGoingIn(path, applyScenario(path, games, results), results);
+    const winner = first.team1Id;
+    const loser = first.team2Id;
+
+    expect(after.get(later.week).get(winner)).toMatchObject({
+      wins: before.get(later.week).get(winner).wins + 1,
+      undecided: 0
+    });
+    expect(after.get(later.week).get(loser).losses).toBe(before.get(later.week).get(loser).losses + 1);
+    // The week the game is played in is unchanged: the record is going in.
+    expect(after.get(first.week)).toEqual(before.get(first.week));
   });
 });

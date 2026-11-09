@@ -31,6 +31,7 @@ import {
   computeSeeds,
   winPercentageOf
 } from '../utils/playoffSeeding.js';
+import { tallyRecords } from '../utils/standings/computeStandings.js';
 import {
   SCORE_SD,
   SIMULATIONS,
@@ -458,6 +459,40 @@ export function applyScenario(path, schedule, results, scores = new Map()) {
     if (winner == null || !open) return game;
     return { ...game, ...(scores.get(game.id) ?? projectedGameScore(path, open, winner)) };
   });
+}
+
+/**
+ * Each team's record going into every week left, under a scenario: the games
+ * played, plus every game decided before that week. An undecided earlier game
+ * is not guessed at; it is counted in `undecided`, so a reader can tell a 5-3
+ * with a game still open from a 5-3 with nothing left before it.
+ *
+ * @param {Object} path - from `buildPath`
+ * @param {Array<Object>} scenarioGames - `applyScenario`'s output
+ * @param {Map<string, string>} results - game id → winning team id
+ * @returns {Map<number, Map<*, { wins: number, losses: number, ties: number, undecided: number }>>}
+ *   week → team id → record
+ */
+export function recordsGoingIn(path, scenarioGames, results) {
+  const teams = path.state.ids.map((id) => ({ id }));
+  const weeks = [...new Set(path.games.map((game) => game.week))].sort((a, b) => a - b);
+
+  return new Map(
+    weeks.map((week) => {
+      const tally = tallyRecords(teams, scenarioGames, { throughWeek: week - 1 });
+      const records = new Map(
+        [...tally].map(([id, row]) => [id, { wins: row.wins, losses: row.losses, ties: row.ties, undecided: 0 }])
+      );
+      for (const game of path.games) {
+        if (game.week >= week || results.has(game.id)) continue;
+        for (const id of [game.team1Id, game.team2Id]) {
+          const record = records.get(id);
+          if (record) record.undecided += 1;
+        }
+      }
+      return [week, records];
+    })
+  );
 }
 
 /** The same table with one team's points for raised. */

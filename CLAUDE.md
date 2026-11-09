@@ -1544,6 +1544,11 @@ model and `PathToPlayoffs.jsx` renders it.
   (`projectedGameScore`: each team's expected score, the winner taking the higher),
   so points for stays comparable between teams with different numbers of decided
   games.
+- **Each side of a game card carries the team's record going into that week**
+  (`recordsGoingIn`): the games played plus every game decided before it, through
+  `tallyRecords` over `applyScenario`'s games, so deciding week 9 moves week 10's
+  records. An undecided earlier game is never guessed at; it reads "· 1 undecided"
+  beside the record, the standings table's rule.
 - **Typed points are in the token, as hundredths:** `8c1-13250-11020`. They decide
   the game, and in `simulatePath` that game plays at those figures in every season.
   They are written only when they agree with the side, so a preset that changes a
