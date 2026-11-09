@@ -20,9 +20,11 @@
 
 import { usesSeededPlayoffs } from '../../../utils/playoffSeeding.js';
 import { showsHomeBracket } from '../../../utils/projectedBracket.js';
+import { showsPunishmentWatch } from '../../../services/punishmentWatch.js';
 import MatchupHero from './widgets/MatchupHero.jsx';
 import PlayoffBracketCard from './widgets/PlayoffBracketCard.jsx';
 import PickemsParlayWidget from './widgets/PickemsParlayWidget.jsx';
+import PunishmentWatch from './widgets/PunishmentWatch.jsx';
 import RankingsSlice from './widgets/RankingsSlice.jsx';
 import RecentForm from './widgets/RecentForm.jsx';
 import RecordsCarousel from './widgets/RecordsCarousel.jsx';
@@ -97,6 +99,16 @@ export const HOME_WIDGETS = [
     Component: PlayoffBracketCard,
     when: (ctx) =>
       inSeason(ctx) && usesSeededPlayoffs(ctx.season?.year) && showsHomeBracket(ctx.season?.schedule)
+  },
+  {
+    // The other end of the standings: from the Tuesday week 9 is scored, the
+    // bottom four and how each could finish last. It stays through the
+    // postseason, where it says who did.
+    id: 'punishment-watch',
+    title: 'Punishment Watch',
+    column: 'main',
+    Component: PunishmentWatch,
+    when: (ctx) => inSeason(ctx) && showsPunishmentWatch(ctx.season?.schedule)
   },
   {
     id: 'recent-form',

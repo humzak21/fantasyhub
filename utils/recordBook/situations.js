@@ -284,6 +284,35 @@ export function startOutcomes(teamSeasons, games) {
     .sort((a, b) => equivalentWins(a) - equivalentWins(b));
 }
 
+/**
+ * How the bottom of the table after `games` games ended up: for each place
+ * counted from the bottom (1 is last), how many completed seasons had a team
+ * there and how many of those teams took the punishment. Places are the
+ * standings after the week of that game, by the canonical sort.
+ *
+ * @param {object[]} teamSeasons from `buildSeasonStories`
+ * @param {number} games
+ * @param {number} [depth] how many places up from the bottom
+ * @returns {Array<{ fromBottom: number, seasons: number, punished: number }>}
+ */
+export function placeOutcomes(teamSeasons, games, depth = 4) {
+  const rows = Array.from({ length: depth }, (_, index) => ({ fromBottom: index + 1, seasons: 0, punished: 0 }));
+  const sizes = new Map();
+  for (const team of teamSeasons) sizes.set(team.seasonId, (sizes.get(team.seasonId) ?? 0) + 1);
+
+  for (const team of teamSeasons) {
+    if (!team.completed) continue;
+    const place = team.weekly[games - 1]?.place;
+    if (place == null) continue;
+    const fromBottom = sizes.get(team.seasonId) - place + 1;
+    const row = rows[fromBottom - 1];
+    if (!row) continue;
+    row.seasons += 1;
+    if (team.punished) row.punished += 1;
+  }
+  return rows;
+}
+
 /** League-wide count of each score band per season, newest first. */
 export function scoreBandsBySeason(sides, seasons) {
   return [...seasons]

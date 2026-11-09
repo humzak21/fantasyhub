@@ -1382,6 +1382,38 @@ surfaces cannot drift:
   Both honour `prefers-reduced-motion`. Nothing loops except the parlay's
   existing live dot.
 
+### Punishment Watch is the odds model, asked who finishes last
+
+From the Tuesday week 9 is scored (`PUNISHMENT_WATCH_AFTER_WEEK`, read by
+`showsPunishmentWatch`) the home page has **Punishment Watch**
+(`home/widgets/PunishmentWatch.jsx`), under the bracket: the bottom four
+(`WATCHED_TEAMS`), each with the chance of finishing last, and one team's detail
+open at a time (the viewer's if they are in the four, else last place).
+`services/punishmentWatch.js` is the model and `utils/home/punishmentWatch.js`
+the sentences; both are pure and tested.
+
+- **Punishment is last place in the regular season by the canonical sort**, the
+  rule in "How seasons were decided". The model plays out the rest of the season
+  with `simulatePath`'s draws in `simulatePath`'s order, so it is the same model
+  as Playoff%, and takes the bottom of `standingsOrder` in each season.
+- **100 and 0 are arithmetic, never a frequency.** Locked is `lockedEnds`; safe
+  is `isSafe`, a rival who cannot catch the team even if it loses out. Anything
+  still open is held to 1-99. `winsToBeSafe` is the same bound, so it can ask
+  for a win more than strictly needed, never one fewer.
+- **The most likely way down is a record, then a run.** The record over the games
+  left that ends in punishment most often, how often it does, and the likeliest
+  order of results to it. One exact run is nearly always "lose out", because
+  every 1-4 run is a fifth of the 1-4s, so picking the run first said nothing.
+- **The games that matter** are every game left by how far it moves this team's
+  chance, its own and other people's, and whom to root for in the latter.
+  **The real race** is who finishes just above it in the seasons it is last.
+- **History is the record book's**: `buildSituations` now returns `places`
+  (`placeOutcomes`: for the 1st-4th from the bottom after N games, how many
+  completed seasons and how many punished) beside `starts`. Read on the record
+  book's own query key through `useSituations`, after `useNearViewport`.
+- `e2e/punishment-watch.spec.js` holds it at both widths, on the e2e league with
+  a season scored through week 9 (`openLeague`'s `tables` override).
+
 ### Settings is a tab, reached by the cog (or the Menu)
 
 `/settings` is a tab in `FantasyFootballApp`'s `mainTabs` like every other —

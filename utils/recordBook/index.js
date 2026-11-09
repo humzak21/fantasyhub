@@ -40,7 +40,7 @@
  */
 
 import { compareStandings } from '../playoffSeeding.js';
-import { SCORE_BANDS, START_LENGTHS, buildSeasonStories, scoreBandsBySeason, startOf, startOutcomes } from './situations.js';
+import { SCORE_BANDS, START_LENGTHS, buildSeasonStories, placeOutcomes, scoreBandsBySeason, startOf, startOutcomes } from './situations.js';
 import { streakRuns } from './streaks.js';
 
 export { rankRows } from './rank.js';
@@ -980,7 +980,8 @@ export function buildSituations(source = {}) {
   return {
     races: [...races].reverse(),
     bands: scoreBandsBySeason(sides, seasons),
-    starts: Object.fromEntries(START_LENGTHS.map((games) => [games, startOutcomes(teamSeasons, games)]))
+    starts: Object.fromEntries(START_LENGTHS.map((games) => [games, startOutcomes(teamSeasons, games)])),
+    places: Object.fromEntries(START_LENGTHS.map((games) => [games, placeOutcomes(teamSeasons, games)]))
   };
 }
 
