@@ -1325,9 +1325,18 @@ surfaces cannot drift:
   Records tab on that record's scope, rings the card, expands it and scrolls
   it into view once. A card links only when `ctx.canOpenTab('history')`:
   History is the admin's and the team owners'.
-- **The takes card** (`widgets/TakesWidget.jsx`) shows
+- **The takes card** (`widgets/TakesWidget.jsx`) always shows
   `takes/homeTakes.js::selectHomeTakes`: the two newest, plus every take
-  graded in the last 72 hours, graded first. It renders the board's own
+  graded in the last 72 hours, graded first. Below them is the card's spare
+  room: on a desktop it is the last card in the narrow column and stretches to
+  wherever the wide one ends, and it fills that with the rest of the board,
+  newest first (`moreHomeTakes`), as many as fit whole. `useFitCount`
+  (`src/hooks/use-fit-count.js`) finds that by adding one and taking it back
+  if it spills, in layout effects, so nothing half-fits on screen. The extra
+  list is absolute inside a `flex-1` filler, so it can never make the card,
+  or the column, taller. Unstretched (a phone, a tablet) the filler has no
+  height and the card shows the essentials only. `e2e/home-takes.spec.js`
+  holds both widths. It renders the board's own
   `TakeCard` with `compact` (one component, two densities). It **never writes
   the seen mark**: two cards are not the board, and marking them read would
   clear a badge for takes the member has not seen.
