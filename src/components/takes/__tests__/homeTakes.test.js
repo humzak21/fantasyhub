@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRADED_WITHIN_MS, selectHomeTakes } from '../homeTakes.js';
+import { GRADED_WITHIN_MS, MORE_HOME_TAKES, moreHomeTakes, selectHomeTakes } from '../homeTakes.js';
 
 const NOW = new Date('2026-10-23T12:00:00Z');
 const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
@@ -39,5 +39,25 @@ describe('selectHomeTakes', () => {
 
   it('is empty for an empty board', () => {
     expect(selectHomeTakes([], NOW)).toEqual([]);
+  });
+});
+
+describe('moreHomeTakes', () => {
+  it('offers the rest of the board, newest first, after what is already shown', () => {
+    const board = [
+      take('a', { createdAt: ago(1 * H) }),
+      take('b', { createdAt: ago(2 * H) }),
+      take('c', { createdAt: ago(5 * H) }),
+      take('d', { createdAt: ago(3 * H) }),
+      take('undated', { createdAt: null })
+    ];
+    const shown = selectHomeTakes(board, NOW);
+    expect(ids(moreHomeTakes(board, shown))).toEqual(['d', 'c']);
+  });
+
+  it('stops at the limit', () => {
+    const board = Array.from({ length: 20 }, (_, i) => take(`t${i}`, { createdAt: ago((i + 1) * H) }));
+    expect(moreHomeTakes(board, [], 4)).toHaveLength(4);
+    expect(moreHomeTakes(board, [])).toHaveLength(MORE_HOME_TAKES);
   });
 });

@@ -47,4 +47,26 @@ export function selectHomeTakes(takes = [], now = new Date(), { recent = 2, grad
   );
 }
 
+/** Enough to fill the tallest column the page builds; more is never seen. */
+export const MORE_HOME_TAKES = 10;
+
+/**
+ * What the card can add when it has room to spare: the rest of the board,
+ * newest first, after the takes `selectHomeTakes` already chose. The card
+ * shows as many of these as fit (`useFitCount`), so a tall column fills with
+ * takes and a short one shows only the essentials.
+ *
+ * @param {object[]} takes - the board's rows
+ * @param {object[]} shown - what `selectHomeTakes` returned
+ * @param {number} [limit] - the most the card will ever try
+ * @returns {object[]}
+ */
+export function moreHomeTakes(takes = [], shown = [], limit = MORE_HOME_TAKES) {
+  const shownIds = new Set(shown.map((take) => take.id));
+  return takes
+    .filter((take) => !shownIds.has(take.id) && time(take.createdAt) !== null)
+    .sort((a, b) => time(b.createdAt) - time(a.createdAt))
+    .slice(0, limit);
+}
+
 export default selectHomeTakes;

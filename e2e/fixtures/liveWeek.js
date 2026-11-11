@@ -450,3 +450,37 @@ async function hostKnown(read) {
   }
   if (!read()) throw new Error('The app never called Supabase. Was it built with VITE_SUPABASE_URL?');
 }
+
+/**
+ * A round robin of the six teams over fourteen weeks, scored through week
+ * `scoredThrough`: a `games` table for `openLeague`'s `tables`, for a spec that
+ * needs a season far enough on for the late-season widgets.
+ */
+export function scoredThrough(throughWeek) {
+  const ring = TEAMS.map((team) => team.id);
+  const strength = Object.fromEntries(ring.map((id, i) => [id, 124 - i * 4]));
+  const games = [];
+  for (let week = 1; week <= 14; week += 1) {
+    for (let g = 0; g < 3; g += 1) {
+      const team1 = ring[g];
+      const team2 = ring[5 - g];
+      const scored = week <= throughWeek;
+      // A little week-to-week noise, so the bottom is a race and not a lock.
+      const wobble = ((week * 7 + g * 13) % 11) - 5;
+      games.push({
+        id: `pw-${week}-${g}`,
+        season_id: SEASON_ID,
+        week,
+        type: 'regular',
+        team1_id: team1,
+        team2_id: team2,
+        team1_score: scored ? strength[team1] + wobble * 3 : null,
+        team2_score: scored ? strength[team2] - wobble * 2 : null,
+        is_completed: scored,
+        espn_matchup_id: 1000 + week * 10 + g
+      });
+    }
+    ring.splice(1, 0, ring.pop());
+  }
+  return games;
+}

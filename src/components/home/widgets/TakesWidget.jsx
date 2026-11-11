@@ -13,12 +13,18 @@ import { useTakesBoard, useTakesSeen } from '../../../../hooks/queries/index.js'
 import { TakeCard } from '../../takes/TakeCard.jsx';
 import { TakeActionDialogs } from '../../takes/TakeActionDialogs.jsx';
 import { useTakeActions } from '../../takes/useTakeActions.js';
-import { selectHomeTakes } from '../../takes/homeTakes.js';
+import { moreHomeTakes, selectHomeTakes } from '../../takes/homeTakes.js';
 import { countUnseenTakes } from '../../takes/seen.js';
+import { useFitCount } from '../../../hooks/use-fit-count.js';
 
 /**
  * The takes worth seeing today: the two newest, and every take graded in the
- * last three days (`selectHomeTakes`).
+ * last three days (`selectHomeTakes`). Those always show. When the card has
+ * room to spare — it is the last card in the narrow column on a desktop, so it
+ * stretches to wherever the wide column ends — it fills that room with the
+ * rest of the board, newest first (`moreHomeTakes`), as many as fit whole
+ * (`useFitCount`). A card that is not stretched (a phone, a tablet) has no
+ * spare room and shows the essentials only.
  *
  * Each is the board's own `TakeCard`, in its `compact` density, with the board's
  * own buttons — Hell Yeah, Hell Nah and taking either back, each shown only
@@ -45,7 +51,26 @@ export default function TakesWidget({ ctx }) {
 
   const { takes, displayNames } = board;
   const shown = useMemo(() => selectHomeTakes(takes), [takes]);
+  const more = useMemo(() => moreHomeTakes(takes, shown), [takes, shown]);
+  const moreKey = more.map((take) => take.id).join(',');
+  const { count: moreCount, boxRef, listRef } = useFitCount(more.length, moreKey);
   const unseen = isMarkLoading ? 0 : countUnseenTakes(takes, lastSeenAt, user?.id);
+
+  const renderTake = (take) => (
+    <li key={take.id}>
+      <TakeCard
+        compact
+        take={take}
+        displayNames={displayNames}
+        onOpen={() => navigate(`/takes?take=${encodeURIComponent(take.id)}`)}
+        onFade={actions.requestFade}
+        onWithdraw={actions.withdrawFade}
+        onHellYeah={actions.requestHellYeah}
+        onWithdrawHellYeah={actions.withdrawHellYeah}
+        pending={actions.pendingTakeId === take.id}
+      />
+    </li>
+  );
 
   const nameOf = (userId) =>
     getMaskedUserName(displayNames[userId], userId, user, isAdmin, teamOwnerNames);
@@ -62,6 +87,7 @@ export default function TakesWidget({ ctx }) {
       skeleton={<SkeletonCards count={2} className="sm:grid-cols-1 lg:grid-cols-1" label="Loading takes" />}
       error={isError}
       onRetry={() => refetch()}
+      bodyClassName="flex flex-col"
       empty={
         !isLoading &&
         shown.length === 0 && (
@@ -82,23 +108,16 @@ export default function TakesWidget({ ctx }) {
         )
       }
     >
-      <ul className="space-y-3">
-        {shown.map((take) => (
-          <li key={take.id}>
-            <TakeCard
-              compact
-              take={take}
-              displayNames={displayNames}
-              onOpen={() => navigate(`/takes?take=${encodeURIComponent(take.id)}`)}
-              onFade={actions.requestFade}
-              onWithdraw={actions.withdrawFade}
-              onHellYeah={actions.requestHellYeah}
-              onWithdrawHellYeah={actions.withdrawHellYeah}
-              pending={actions.pendingTakeId === take.id}
-            />
-          </li>
-        ))}
-      </ul>
+      <ul className="space-y-3">{shown.map(renderTake)}</ul>
+
+      {/* The spare room: as tall as the stretched card's slack, and the list
+          inside it is absolute, so the extra takes never make the card (or the
+          column) taller than the page already made it. */}
+      <div ref={boxRef} className="relative min-h-0 flex-1 overflow-hidden">
+        <ul ref={listRef} className="absolute inset-x-0 top-0 space-y-3 pt-3">
+          {more.slice(0, moreCount).map(renderTake)}
+        </ul>
+      </div>
 
       <TakeActionDialogs actions={actions} takes={takes} nameOf={nameOf} />
     </HomeWidget>
