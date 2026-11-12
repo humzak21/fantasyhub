@@ -16,6 +16,7 @@ import {
   buildSeasonState,
   calculatePlayoffOdds,
   makesFieldOnRecord,
+  playoffStatus,
   qualifiedField
 } from '../playoffOddsCalculator.js';
 import { computeSeeds, sortByStandings } from '../../utils/playoffSeeding.js';
@@ -401,5 +402,77 @@ describe('inputs', () => {
 
   it('returns an empty map for an empty league', () => {
     expect(odds([], 3, 2026, []).size).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Clinched and eliminated, for the standings
+// ---------------------------------------------------------------------------
+
+describe('playoffStatus', () => {
+  const status = (games, seasonYear = 2026) =>
+    playoffStatus({ teams: leagueTeams, games, regularSeasonWeeks: WEEKS, seasonYear });
+
+  it('marks exactly the teams the odds read 100 and 0 for', () => {
+    const rng = seeded(23);
+    for (const scoredThrough of [10, 11, 12, 13]) {
+      const games = season({ scoredThrough, winner: () => rng() < 0.6 });
+      const result = odds(games, scoredThrough + 1);
+      const marks = status(games);
+
+      for (const id of ids) {
+        const expected =
+          result.get(id) === 100 ? 'clinched' : result.get(id) === 0 ? 'eliminated' : undefined;
+        expect(marks.get(id)).toBe(expected);
+      }
+    }
+  });
+
+  it('marks nobody after one week', () => {
+    expect(status(season({ scoredThrough: 1, winner: chalk })).size).toBe(0);
+  });
+
+  it('marks the settled teams with two weeks left', () => {
+    const marks = status(season({ scoredThrough: 12, winner: chalk }));
+
+    expect(marks.get('t00')).toBe('clinched');
+    expect(marks.get('t01')).toBe('clinched');
+    expect(marks.get('t13')).toBe('eliminated');
+  });
+
+  it('marks nobody once the last regular-season game is scored', () => {
+    expect(status(season({ scoredThrough: WEEKS, winner: chalk })).size).toBe(0);
+  });
+
+  it('keeps marking while one regular-season game is unscored, whatever its week', () => {
+    const games = season({ scoredThrough: WEEKS, winner: chalk });
+    const open = games.map((game, index) =>
+      index === 0 ? { ...game, team1Score: null, team2Score: null } : game
+    );
+    const marks = status(open);
+
+    expect(marks.get('t00')).toBe('clinched');
+    expect(marks.get('t13')).toBe('eliminated');
+  });
+
+  it('pays no attention to the postseason', () => {
+    const games = [
+      ...season({ scoredThrough: WEEKS, winner: chalk }),
+      { id: 'p1', week: 15, type: 'playoff_first_round', team1Id: 't02', team2Id: 't05', team1Score: null, team2Score: null }
+    ];
+    expect(status(games).size).toBe(0);
+  });
+
+  it('uses the pre-2026 rule for a pre-2026 season', () => {
+    // Top three per division: under chalk t00, t02 and t04 lead division 1.
+    const marks = status(season({ scoredThrough: 12, winner: chalk }), 2025);
+
+    expect(marks.get('t00')).toBe('clinched');
+    expect(marks.get('t12')).toBe('eliminated');
+  });
+
+  it('says nothing without a schedule, or a league', () => {
+    expect(status([]).size).toBe(0);
+    expect(playoffStatus({ teams: [], games: [], regularSeasonWeeks: WEEKS }).size).toBe(0);
   });
 });

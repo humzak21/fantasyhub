@@ -18,12 +18,12 @@ import { ROW_TONE, STICKY_CELL, STICKY_HEAD, VIEWER_RAIL } from '../../ui/table-
 import { teamRosterPath } from '../../teams/teamLink';
 import { profilePath } from '../../profile/profileLink';
 import { PathToPlayoffsButton } from '../../playoffs/path/PathToPlayoffsButton';
-import { QualifierKey, RankMovement } from '../../standings/DrawerStandingsTable';
+import { PlayoffStatusTag, QualifierKey, RankMovement } from '../../standings/DrawerStandingsTable';
 import { StandingsViewToggle } from '../../standings/StandingsViewToggle';
 import { useViewer } from '../../../contexts/ViewerContext.jsx';
 import { useDivisions, useLiveWeek, useStandings } from '../../../../hooks/queries/index.js';
 import { liveStandingsWeek } from '../../../../utils/liveOverlay.js';
-import { STANDINGS_VIEW, standingsForView } from '../../../../utils/standings/standingsView.js';
+import { STANDINGS_VIEW, standingsForView, withPlayoffStatus } from '../../../../utils/standings/standingsView.js';
 import { franchiseIdsByTeam } from '../../../../utils/viewerTeam.js';
 import { usesSeededPlayoffs } from '../../../../utils/playoffSeeding.js';
 import { showsPathToPlayoffs } from '../../../../utils/projectedBracket.js';
@@ -72,6 +72,10 @@ const TABLE_WIDTH = {
  * as in the drawer. With no week in progress there is no choice to offer and
  * the toggle is not drawn. Week N stays the drawer's: a home card is about
  * now.
+ *
+ * **"– clinched" / "– eliminated"** follow a name from the week it is settled
+ * until the regular season's last game is scored (`withPlayoffStatus`), on
+ * whichever view is showing, as in the drawer.
  */
 export default function StandingsMini({ ctx }) {
   const { seasonId, season, config, actualWeek = null, viewerTeam, onOpenStandings, openTab, canOpenTab } = ctx;
@@ -94,21 +98,15 @@ export default function StandingsMini({ ctx }) {
   // A Live choice outlives the live week (the last score landing) and falls back.
   const mode = wanted === STANDINGS_VIEW.LIVE && !live ? STANDINGS_VIEW.OFFICIAL : wanted;
 
-  const shownStandings = useMemo(
-    () =>
-      standings.data
-        ? standingsForView({
-            mode,
-            official: standings.data,
-            teams: season?.teams ?? [],
-            games,
-            divisions: divisionsQuery.data ?? [],
-            live,
-            year: season?.year
-          })
-        : standings.data,
-    [mode, standings.data, season?.teams, season?.year, games, divisionsQuery.data, live]
-  );
+  const regularSeasonWeeks = config?.regularSeasonWeeks || undefined;
+  const shownStandings = useMemo(() => {
+    if (!standings.data) return standings.data;
+    const view = { mode, teams: season?.teams ?? [], games, live, year: season?.year };
+    return withPlayoffStatus(
+      standingsForView({ ...view, official: standings.data, divisions: divisionsQuery.data ?? [] }),
+      { ...view, regularSeasonWeeks }
+    );
+  }, [mode, standings.data, season?.teams, season?.year, games, divisionsQuery.data, live, regularSeasonWeeks]);
 
   const asOf = mode === STANDINGS_VIEW.LIVE && live?.refreshedAt ? formatTime(live.refreshedAt) : null;
 
@@ -268,7 +266,11 @@ export default function StandingsMini({ ctx }) {
                               className="flex min-w-0 items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             >
                               <TeamAvatar team={team} size="xs" />
-                              <span className="truncate font-medium">{name}</span>
+                              {/* Under the name: beside it would truncate the name. */}
+                              <span className="flex min-w-0 flex-col">
+                                <span className="truncate font-medium leading-tight">{name}</span>
+                                <PlayoffStatusTag status={team.playoffStatus} className="leading-tight" />
+                              </span>
                               {team.isBye && <span className="sr-only">First-round bye</span>}
                               {team.isWildcard && <span className="sr-only">Wild card</span>}
                             </Link>

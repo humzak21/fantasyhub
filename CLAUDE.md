@@ -1548,6 +1548,18 @@ calling a winner. Seeded seasons only.
 The rank column's arrow sits under the number. The table is `table-fixed` and already
 tight, and a wider rank column pushes Owner into Record.
 
+**A settled team reads "– clinched" or "– eliminated"**, in the drawer and the home
+card, from the week it is settled until the last regular-season game is scored. Then
+every mark goes, and the row tints say who is in. `withPlayoffStatus`
+(`utils/standings/standingsView.js`) puts `playoffStatus` on each row, using
+`playoffStatus` in `services/playoffOddsCalculator.js`: `mathematicalStatus` over the
+view's own results, with every unscored regular-season game still to play. So it says
+exactly what Playoff% says at 100 and 0, and a test holds the two together. Live
+counts the live scores, and Week N keeps the weeks after N to play. The tag
+(`PlayoffStatusTag`) follows the name on the wide table. It goes under the name in the
+phone rows and the home card, where it would otherwise truncate the name to a letter.
+Playoff% says "Clinched" and "Out" at 100 and 0 at every width, through `OddsCell`.
+
 ### Path to the Playoffs is the odds model, asked "what if"
 
 `/playoffs?tab=path` (`src/components/playoffs/path/`) lets a member pick any

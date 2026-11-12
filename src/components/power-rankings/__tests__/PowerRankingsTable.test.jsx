@@ -115,6 +115,25 @@ describe('PowerRankingsTable', () => {
     expect(phone().getByText('Out')).toBeInTheDocument();
   });
 
+  it('reads the odds on the wide table as words at the two certainties too', () => {
+    renderWithProviders(
+      <PowerRankingsTable
+        rankings={[
+          team({ playoffOdds: 100 }),
+          team({ teamId: 't2', id: 't2', playoffOdds: 0 }),
+          team({ teamId: 't3', id: 't3', playoffOdds: 47 })
+        ]}
+        currentWeek={4}
+      />
+    );
+    const wide = within(table());
+    expect(wide.getByText('Clinched')).toBeInTheDocument();
+    expect(wide.getByText('Out')).toBeInTheDocument();
+    expect(wide.queryByText('100%')).not.toBeInTheDocument();
+    expect(wide.queryByText('0%')).not.toBeInTheDocument();
+    expect(wide.getByText('47%')).toBeInTheDocument();
+  });
+
   it('masks the team name for a signed-out viewer', () => {
     // These tests render with no authenticated user, so the league's names are
     // masked to a truncated team id — asserting on the real name here would be

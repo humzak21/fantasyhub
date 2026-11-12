@@ -38,6 +38,7 @@ import {
   gamesForView,
   scoredWeeks,
   standingsForView,
+  withPlayoffStatus,
 } from '../../../utils/standings/standingsView.js';
 import { showsPathToPlayoffs } from '../../../utils/projectedBracket.js';
 import { resolveViewerTeam } from '../../../utils/viewerTeam.js';
@@ -81,6 +82,10 @@ import { StandingsViewToggle } from './StandingsViewToggle';
  * by default while a game is on. It is computed here and nowhere else: nothing
  * writes `games`, and Home's standings stay official. The bracket under the
  * tables is drawn from whichever rows are showing. A past season has one table.
+ *
+ * **A name reads "– clinched" or "– eliminated"** from the week it is settled
+ * until the regular season's last game is scored, on whichever view is
+ * showing (`withPlayoffStatus`). After that the row tints say who is in.
  */
 const StandingsDrawer = ({
   open,
@@ -148,10 +153,16 @@ const StandingsDrawer = ({
       ? STANDINGS_VIEW.OFFICIAL
       : wanted;
 
+  // Each row carries "clinched" / "eliminated" on the view's own results
+  // until the regular season's last game is scored.
+  const regularSeasonWeeks = seasonConfig?.regularSeasonWeeks || undefined;
   const shownStandings = useMemo(
     () =>
-      standingsForView({ mode, week, official: standings, teams, games, divisions, live, year: seasonYear }),
-    [mode, week, standings, teams, games, divisions, live, seasonYear]
+      withPlayoffStatus(
+        standingsForView({ mode, week, official: standings, teams, games, divisions, live, year: seasonYear }),
+        { mode, week, teams, games, live, year: seasonYear, regularSeasonWeeks }
+      ),
+    [mode, week, standings, teams, games, divisions, live, seasonYear, regularSeasonWeeks]
   );
   const shownGames = useMemo(() => gamesForView({ mode, week, games, live }), [mode, week, games, live]);
 

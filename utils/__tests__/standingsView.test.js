@@ -6,7 +6,8 @@ import {
   gamesForView,
   scoredWeeks,
   standingsForView,
-  withMovement
+  withMovement,
+  withPlayoffStatus
 } from '../standings/standingsView.js';
 
 const { LIVE, OFFICIAL, WEEK } = STANDINGS_VIEW;
@@ -154,5 +155,103 @@ describe('the bracket under Live, in a postseason week', () => {
   it('leaves a game that has not started without a score', () => {
     const [third] = matchup(bracketFor(null)).sides;
     expect(third.score).toBeNull();
+  });
+});
+
+describe('withPlayoffStatus', () => {
+  // Fourteen teams in two divisions, a round robin, and the lower id always
+  // winning: t00 is unbeaten and t13 winless.
+  const ids = Array.from({ length: 14 }, (_, i) => `t${String(i).padStart(2, '0')}`);
+  const teams = ids.map((id, i) => team(id, i % 2 === 0 ? 1 : 2));
+  const schedule = (() => {
+    const rotating = ids.slice(1);
+    const rounds = [];
+    for (let r = 0; r < 13; r += 1) {
+      const circle = [ids[0], ...rotating];
+      rounds.push(Array.from({ length: 7 }, (_, k) => [circle[k], circle[13 - k]]));
+      rotating.unshift(rotating.pop());
+    }
+    return Array.from({ length: 14 }, (_, w) => rounds[w % 13]);
+  })();
+  const seasonScoredThrough = (last) =>
+    schedule.flatMap((pairs, w) =>
+      pairs.map(([a, b], k) => {
+        const week = w + 1;
+        const scored = week <= last;
+        const aWins = a < b;
+        return game(`g${week}-${k}`, week, a, b, scored ? (aWins ? 120 : 100) : null, scored ? (aWins ? 100 : 120) : null);
+      })
+    );
+
+  const table = {
+    divisions: [1, 2].map((divisionId) => ({
+      divisionId,
+      teams: teams
+        .filter((t) => t.division_id === divisionId)
+        .map((t, index) => ({ id: t.id, divisionRank: index + 1, playoffSeed: null }))
+    })),
+    unassigned: []
+  };
+
+  const marks = (standings) =>
+    Object.fromEntries(standings.divisions.flatMap((d) => d.teams.map((r) => [r.id, r.playoffStatus])));
+
+  const status = (mode, games, extra = {}) =>
+    marks(withPlayoffStatus(table, { mode, teams, games, year: 2026, regularSeasonWeeks: 14, ...extra }));
+
+  it('marks a clinch and an elimination on the official table', () => {
+    const result = status(OFFICIAL, seasonScoredThrough(12));
+
+    expect(result.t00).toBe('clinched');
+    expect(result.t13).toBe('eliminated');
+  });
+
+  it('marks nobody until something is settled', () => {
+    expect(Object.values(status(OFFICIAL, seasonScoredThrough(1))).every((s) => s === null)).toBe(true);
+  });
+
+  it('drops every mark once week 14 is scored', () => {
+    expect(Object.values(status(OFFICIAL, seasonScoredThrough(14))).every((s) => s === null)).toBe(true);
+  });
+
+  it('reads a week\'s view as it stood, with the weeks after it still to play', () => {
+    const games = seasonScoredThrough(14);
+
+    expect(status(WEEK, games, { week: 12 })).toMatchObject({ t00: 'clinched', t13: 'eliminated' });
+    expect(Object.values(status(WEEK, games, { week: 14 })).every((s) => s === null)).toBe(true);
+    expect(Object.values(status(WEEK, games, { week: 1 })).every((s) => s === null)).toBe(true);
+  });
+
+  it('plays the live week out for Live, as its table does', () => {
+    const games = seasonScoredThrough(13);
+    const live = {
+      games: Object.fromEntries(
+        games
+          .filter((g) => g.week === 14)
+          .map((g) => [g.id, { team1: { points: 90 }, team2: { points: 80 } }])
+      )
+    };
+
+    expect(status(OFFICIAL, games)).toMatchObject({ t00: 'clinched' });
+    // As if week 14 ended now, the regular season is over: no marks.
+    expect(Object.values(status(LIVE, games, { live })).every((s) => s === null)).toBe(true);
+  });
+
+  it('keeps every other field on the row, and marks the unassigned', () => {
+    const withLoose = { ...table, unassigned: [{ id: 't13', divisionRank: null }] };
+    const result = withPlayoffStatus(withLoose, {
+      mode: OFFICIAL,
+      teams,
+      games: seasonScoredThrough(12),
+      year: 2026,
+      regularSeasonWeeks: 14
+    });
+
+    expect(result.divisions[0].teams[0]).toMatchObject({ id: 't00', divisionRank: 1, playoffStatus: 'clinched' });
+    expect(result.unassigned[0]).toMatchObject({ id: 't13', playoffStatus: 'eliminated' });
+  });
+
+  it('passes no standings through untouched', () => {
+    expect(withPlayoffStatus(undefined, { mode: OFFICIAL, teams, games: [] })).toBeUndefined();
   });
 });

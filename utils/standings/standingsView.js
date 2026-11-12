@@ -9,6 +9,8 @@
  *   - **Week N** is the table as it stood after week N.
  */
 
+import { playoffStatus } from '../../services/playoffOddsCalculator.js';
+import { teamIdOf } from '../playoffSeeding.js';
 import { applyLiveScores } from '../liveOverlay.js';
 import { computeStandings } from './computeStandings.js';
 
@@ -93,4 +95,57 @@ export function standingsForView({ mode, week = null, official, teams, games, di
   });
 
   return mode === STANDINGS_VIEW.LIVE ? withMovement(standings, official) : standings;
+}
+
+/**
+ * The games a view's clinch and elimination marks are read from. The table's
+ * own games, except that a week's view keeps the weeks after it, unscored: the
+ * table stops at week N, but whether a team was out after week N depends on
+ * what was still to play.
+ */
+export function gamesForStatus({ mode, week = null, games = [], live = null }) {
+  if (mode === STANDINGS_VIEW.WEEK) {
+    return games.map((game) =>
+      game.week > week ? { ...game, team1Score: null, team2Score: null } : game
+    );
+  }
+  return gamesForView({ mode, week, games, live });
+}
+
+/**
+ * The view's rows with `playoffStatus` on each: `'clinched'`, `'eliminated'`
+ * or null, on the view's own results (`services/playoffOddsCalculator.js`
+ * `playoffStatus`, the odds model's arithmetic without the simulation).
+ *
+ * A mark lasts from the week it is earned until the last regular-season game
+ * is scored, and then every row's is null: the field is decided, and the
+ * table's playoff tints say who is in. Live counts this week's live scores, as
+ * its table does, and Week N stands after week N.
+ *
+ * @param {object} standings - `getStandingsByDivision`'s shape
+ * @param {object} input - the view, as `standingsForView` takes it
+ * @param {number} [input.regularSeasonWeeks]
+ */
+export function withPlayoffStatus(
+  standings,
+  { mode, week = null, teams = [], games = [], live = null, year, regularSeasonWeeks }
+) {
+  if (!standings) return standings;
+
+  const status = playoffStatus({
+    teams,
+    games: gamesForStatus({ mode, week, games, live }),
+    regularSeasonWeeks,
+    seasonYear: year
+  });
+  const mark = (row) => ({ ...row, playoffStatus: status.get(teamIdOf(row)) ?? null });
+
+  return {
+    ...standings,
+    divisions: (standings.divisions ?? []).map((division) => ({
+      ...division,
+      teams: (division.teams ?? []).map(mark)
+    })),
+    unassigned: (standings.unassigned ?? []).map(mark)
+  };
 }
