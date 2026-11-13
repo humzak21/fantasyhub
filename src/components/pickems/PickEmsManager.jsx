@@ -14,6 +14,7 @@ import PickEmsResults from './PickEmsResults';
 import PickEmsAdminSubmissions from './PickEmsAdminSubmissions';
 import PickEmsSeasonStandings from './PickEmsSeasonStandings';
 import PreviousWeekWinners from './PreviousWeekWinners';
+import TourneyWinners from './TourneyWinners';
 
 // The TD parlay board stays in its own chunk: most visits open Make Picks or
 // Results and never reach it, and its season grid is the heaviest thing on
@@ -33,7 +34,7 @@ import {
   useWeeklyPickEmScores
 } from '../../../hooks/queries/index.js';
 import { newestFinishedWeek } from '../../../services/notificationPlanner.js';
-import { defaultStandingsScopeId } from './tourneys.js';
+import { defaultStandingsScopeId, announcedTourney } from './tourneys.js';
 import { useViewer } from '../../contexts/ViewerContext.jsx';
 
 /** Shared empty defaults: a fresh `[]` per render is a new identity, and the
@@ -82,6 +83,8 @@ const PickEmsManager = ({
   const seasonPicksQuery = useAllSeasonPicks(seasonId, { enabled: hasWeek });
   const seasonGamesQuery = useSeasonGames(seasonId);
   const actualWeek = useActualWeek();
+  const finishedWeek = newestFinishedWeek(seasonGamesQuery.data ?? NONE);
+  const hasFinishedTourney = Boolean(announcedTourney({ finishedWeek, viewedWeek: currentWeek }));
   const allPicksQuery = useAllPicks(pickEmWeek?.id, { enabled: resultsAvailable });
   const scoresQuery = useWeeklyPickEmScores(pickEmWeek?.id, { enabled: resultsAvailable });
 
@@ -214,8 +217,13 @@ const PickEmsManager = ({
             gate is here as well as inside the strip because PageHeader wraps
             any children in a margin, and most weeks' unrevealed or missing
             previous week should not leave an empty gap under the title. */}
-        {previousWeekStatus?.resultsAvailable && (
-          <PreviousWeekWinners week={currentWeek - 1} status={previousWeekStatus} />
+        {(previousWeekStatus?.resultsAvailable || hasFinishedTourney) && (
+          <div className="flex flex-col gap-2">
+            {previousWeekStatus?.resultsAvailable && (
+              <PreviousWeekWinners week={currentWeek - 1} status={previousWeekStatus} />
+            )}
+            <TourneyWinners seasonId={seasonId} viewedWeek={currentWeek} finishedWeek={finishedWeek} />
+          </div>
         )}
       </PageHeader>
 
@@ -324,7 +332,7 @@ const PickEmsManager = ({
               seasonPicks={seasonPicksQuery.data ?? NONE}
               defaultScopeId={defaultStandingsScopeId({
                 actualWeek,
-                finishedWeek: newestFinishedWeek(seasonGamesQuery.data ?? NONE),
+                finishedWeek,
                 seasonCompleted: Boolean(season?.isCompleted)
               })}
               loading={seasonPicksQuery.isPending || seasonGamesQuery.isPending}

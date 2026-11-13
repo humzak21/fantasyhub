@@ -1,3 +1,5 @@
+import { buildPickEmStandings } from './pickEmStandings.js';
+
 /**
  * The two in-season pick'ems tourneys.
  *
@@ -185,4 +187,41 @@ export function tourneyWinners(standings = []) {
   const eligible = standings.filter((row) => row.eligible);
   const top = Math.max(0, ...eligible.map((row) => row.totalPoints));
   return top > 0 ? eligible.filter((row) => row.totalPoints === top) : [];
+}
+
+/**
+ * A tourney's standings from the season's picks (`getAllSeasonPicks`), in
+ * `tourneyStandings`' row shape, carrying each member's `displayName` for the
+ * page. The Standings tab already holds these picks, so the page names the
+ * winner from the same rows its table ranks, through the same
+ * `buildPickEmStandings`.
+ *
+ * @param {PickEmTourney} tourney
+ * @param {Array<{ weekNumber: number }>} picks
+ */
+export function tourneyStandingsFromPicks(tourney, picks = []) {
+  const scoped = picks.filter((pick) => pick.weekNumber >= tourney.startWeek && pick.weekNumber <= tourney.endWeek);
+  return buildPickEmStandings(scoped).map((row) => ({
+    userId: row.userId,
+    displayName: row.displayName,
+    totalPoints: row.totalPoints,
+    entered: row.totalWeeksParticipated,
+    eligible: row.totalWeeksParticipated >= tourney.minWeeks
+  }));
+}
+
+/**
+ * The tourney whose winner the Pick'ems header names, or null: weeks 1-8, in
+ * week 9 only, once week 8 is fully scored. One week of announcement, the way
+ * the week's winners line names last week and moves on.
+ *
+ * @param {object} input
+ * @param {number|null} input.finishedWeek - the newest fully scored week
+ * @param {number|null} input.viewedWeek
+ * @returns {PickEmTourney|null}
+ */
+export function announcedTourney({ finishedWeek, viewedWeek }) {
+  const tourney = PICK_EM_TOURNEYS[0];
+  const announces = (finishedWeek ?? 0) >= tourney.endWeek && viewedWeek === tourney.endWeek + 1;
+  return announces ? tourney : null;
 }
