@@ -54,6 +54,27 @@ export const QualifierKey = () => (
 );
 
 /**
+ * "– clinched" or "– eliminated" with a team's name, from the row's
+ * `playoffStatus` (`withPlayoffStatus` in `utils/standings/standingsView.js`).
+ * Only while the regular season has a game left; after it the row tints say
+ * who is in. After the name on the wide table; under it in the one-line-high
+ * phone rows, where beside it would truncate the name to a letter. Exported
+ * for the home page's standings card, which marks its rows the same way.
+ */
+export const PlayoffStatusTag = ({ status, className = '' }) => {
+  if (status !== 'clinched' && status !== 'eliminated') return null;
+  return (
+    <span
+      className={`shrink-0 whitespace-nowrap text-xs font-normal ${
+        status === 'clinched' ? 'text-success' : 'text-muted-foreground'
+      } ${className}`}
+    >
+      – {status}
+    </span>
+  );
+};
+
+/**
  * A row's place against the official table, as a soccer table shows it. Colour
  * is earned here: this number has a direction. `null` is a table with nothing
  * to compare against, which draws nothing, not a dash.
@@ -548,6 +569,7 @@ const DrawerStandingsTable = ({
   const teamCells = allTeams.map((team) => ({
     key: team.id ?? team.teamId ?? team.name,
     name: getMaskedTeamName(team, user, isAdmin, teamOwnerNames),
+    status: team.playoffStatus ?? null,
   }));
   // The words of every team name, for the floor: the column may wrap a name
   // but never break a word.
@@ -563,7 +585,11 @@ const DrawerStandingsTable = ({
   ].filter(Boolean);
   // The effect keys on the rendered text, not the arrays: the standings are
   // rebuilt every render, and only a change in what the cells say matters.
-  const nameKey = [...teamCells.map((c) => c.name), ...teamWords, ...ownerWords].join('|');
+  const nameKey = [
+    ...teamCells.map((c) => `${c.name}${c.status ? `:${c.status}` : ''}`),
+    ...teamWords,
+    ...ownerWords,
+  ].join('|');
 
   useLayoutEffect(() => {
     const measurer = measureRef.current;
@@ -739,6 +765,7 @@ const DrawerStandingsTable = ({
           <TeamLink franchiseId={franchiseIds.get(team.id)} onClick={onClose}>
             {getMaskedTeamName(team, user, isAdmin, teamOwnerNames)}
           </TeamLink>
+          <PlayoffStatusTag status={team.playoffStatus} className="ml-1 inline-block" />
           {team.isBye && <span className="sr-only">First-round bye</span>}
           {team.isWildcard && <span className="sr-only">Wild card</span>}
         </div>
@@ -750,14 +777,19 @@ const DrawerStandingsTable = ({
           return (
             <div className="flex min-w-0 items-center gap-2">
               <TeamAvatar team={team} size="xs" />
-              <TeamLink
-                franchiseId={franchiseIds.get(team.id)}
-                onClick={onClose}
-                title={name}
-                className="truncate text-sm font-medium"
-              >
-                {name}
-              </TeamLink>
+              {/* The status goes under the name, not after it: at phone
+                  width a name beside it would truncate to a letter. */}
+              <span className="flex min-w-0 flex-col">
+                <TeamLink
+                  franchiseId={franchiseIds.get(team.id)}
+                  onClick={onClose}
+                  title={name}
+                  className="truncate text-sm font-medium leading-tight"
+                >
+                  {name}
+                </TeamLink>
+                <PlayoffStatusTag status={team.playoffStatus} className="leading-tight" />
+              </span>
               {team.isBye && <span className="sr-only">First-round bye</span>}
               {team.isWildcard && <span className="sr-only">Wild card</span>}
             </div>
@@ -1012,6 +1044,7 @@ const DrawerStandingsTable = ({
           {teamCells.map((cell) => (
             <div key={cell.key} data-measure="team" className="w-max font-medium">
               {cell.name}
+              <PlayoffStatusTag status={cell.status} className="ml-1 inline-block" />
             </div>
           ))}
           {teamWords.map((word) => (

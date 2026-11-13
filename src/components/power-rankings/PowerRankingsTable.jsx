@@ -298,11 +298,16 @@ const PowerRankingsTable = ({
       header: 'Playoff odds',
       className: 'text-right',
       headerClassName: 'text-right',
+      // The figure is `OddsCell`, the phone's: 100 and 0 are the calculator's
+      // clinched and eliminated, and nothing else reads either, so they are
+      // words here too. The bar stays a share.
       cell: (team) => {
         const odds = Number(team.playoffOdds) || 0;
         return (
           <div className="ml-auto min-w-[4.5rem] space-y-1">
-            <NumberText value={odds} variant="percent" decimals={0} className="font-semibold" />
+            <div className="font-semibold">
+              <OddsCell odds={team.playoffOdds} />
+            </div>
             <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
               <div
                 className={

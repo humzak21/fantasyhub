@@ -40,6 +40,18 @@ test('the takes card fills the room it has', async ({ page }, testInfo) => {
   if (testInfo.project.name === 'desktop') {
     await expect.poll(() => items.count()).toBeGreaterThan(2);
 
+    // Measure at rest. Each card rises 8px as it is revealed, staggered, so
+    // two cards sampled mid-reveal disagree by a few pixels with nothing
+    // wrong. Only the reveal is awaited: the live dot pulses forever.
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((animation) => animation.animationName === 'home-reveal')
+          .map((animation) => animation.finished)
+      )
+    );
+
     // Every take shown is whole: none runs past the card's bottom edge.
     const cardBox = await card.boundingBox();
     const lastBox = await items.last().boundingBox();

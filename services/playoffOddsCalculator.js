@@ -103,6 +103,11 @@ const scoresOf = (game) => [
  * unknown, league-average opponent. When a schedule exists but misses some of
  * a team's weeks, those weeks are filled the same way.
  *
+ * `unscoredRemain` reads "still to play" off the scores instead of the week:
+ * every unscored game before `viewingWeek` is remaining rather than skipped.
+ * That is the standings' question (where things stand on the results in), as
+ * opposed to the rankings' (where things stood going into a week).
+ *
  * @returns {{
  *   ids: Array, divisions: Array, wins: number[], played: number[],
  *   pointsFor: number[], pointsAgainst: number[], scoredGames: number[],
@@ -110,7 +115,7 @@ const scoresOf = (game) => [
  *   unscheduled: number[]
  * }}
  */
-export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks }) {
+export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks, unscoredRemain = false }) {
   const ids = teams.map(teamIdOf);
   const divisions = teams.map(divisionIdOf);
   const indexOf = new Map(ids.map((id, index) => [id, index]));
@@ -183,7 +188,15 @@ export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks
     }
 
     const [scoreA, scoreB] = scoresOf(game);
-    if (scoreA === null || scoreB === null) continue; // a past week never scored
+    if (scoreA === null || scoreB === null) {
+      if (unscoredRemain) {
+        remaining.push([a, b]);
+        remainingGames.push(game);
+        scheduled[a] += 1;
+        scheduled[b] += 1;
+      }
+      continue; // otherwise, a past week never scored
+    }
 
     played[a] += 1;
     played[b] += 1;
@@ -212,7 +225,11 @@ export function buildSeasonState({ teams, games, viewingWeek, regularSeasonWeeks
     scoredGames,
     remaining,
     remainingGames,
-    unscheduled: scheduled.map((n) => Math.max(0, weeksLeft - n))
+    // Read off the scores, a team's unplayed weeks are whatever its scored and
+    // scheduled games do not cover.
+    unscheduled: unscoredRemain
+      ? scheduled.map((n, i) => Math.max(0, regularSeasonWeeks - played[i] - n))
+      : scheduled.map((n) => Math.max(0, weeksLeft - n))
   };
 }
 
@@ -623,6 +640,52 @@ export function calculatePlayoffOdds({
   });
 
   return odds;
+}
+
+/**
+ * Who has clinched a playoff spot and who is eliminated, on the results in.
+ *
+ * `mathematicalStatus` without the simulation, over every scored
+ * regular-season game, with every unscored one still to play. It says
+ * something only while the regular season has a game left: once the last one
+ * is scored the field is a fact, and the standings' own playoff tints say who
+ * is in. So the map is empty then, and empty before there is a schedule.
+ *
+ * @param {Object} input
+ * @param {Array} input.teams
+ * @param {Array} input.games              any type; scored or not
+ * @param {number} input.regularSeasonWeeks
+ * @param {number|null} [input.seasonYear] selects the qualification rule
+ * @returns {Map} team id -> 'clinched' | 'eliminated', for those two only
+ */
+export function playoffStatus({ teams, games, regularSeasonWeeks, seasonYear = null }) {
+  const status = new Map();
+  const roster = Array.isArray(teams) ? teams.filter(Boolean) : [];
+  const weeks = Number(regularSeasonWeeks) || 14;
+  if (roster.length === 0 || !Array.isArray(games) || games.length === 0) return status;
+
+  const state = buildSeasonState({
+    teams: roster,
+    games,
+    viewingWeek: weeks + 1,
+    regularSeasonWeeks: weeks,
+    unscoredRemain: true
+  });
+
+  // With no regular-season game on file, `buildSeasonState` reads the stored
+  // records and, at a viewing week past the season, leaves nothing to play:
+  // a schedule it cannot see says nothing either way.
+  const gamesLeft =
+    state.remaining.length + state.unscheduled.reduce((sum, n) => sum + n, 0);
+  if (gamesLeft === 0) return status;
+
+  const rule = buildRule(state.divisions, usesSeededPlayoffs(seasonYear));
+  const { clinched, eliminated } = mathematicalStatus(rule, state);
+  state.ids.forEach((id, i) => {
+    if (clinched[i]) status.set(id, 'clinched');
+    else if (eliminated[i]) status.set(id, 'eliminated');
+  });
+  return status;
 }
 
 /**

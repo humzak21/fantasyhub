@@ -325,3 +325,25 @@ describe('DrawerStandingsTable manage mode', () => {
     expect(screen.queryByRole('button', { name: /manage/i })).not.toBeInTheDocument();
   });
 });
+
+describe('DrawerStandingsTable, clinched and eliminated', () => {
+  const row = (t, divisionRank, playoffStatus) => ({ ...t, divisionRank, playoffStatus });
+  const marked = {
+    divisions: [
+      { divisionId: 1, teams: [row(teams[0], 1, 'clinched'), row(teams[1], 2, null), row(teams[4], 3, 'eliminated')] },
+      { divisionId: 2, teams: [row(teams[5], 1, undefined)] }
+    ],
+    unassigned: []
+  };
+
+  it('follows a settled name with its status, at both widths', () => {
+    render(<DrawerStandingsTable {...baseProps} standings={marked} seasonYear={2026} />);
+
+    for (const layout of ['wide', 'scroll']) {
+      expect(within(rowIn(layout, 'Alpha')).getByText('– clinched')).toBeInTheDocument();
+      expect(within(rowIn(layout, 'Echo')).getByText('– eliminated')).toBeInTheDocument();
+      expect(within(rowIn(layout, 'Bravo')).queryByText(/clinched|eliminated/)).not.toBeInTheDocument();
+      expect(within(rowIn(layout, 'Foxtrot')).queryByText(/clinched|eliminated/)).not.toBeInTheDocument();
+    }
+  });
+});
