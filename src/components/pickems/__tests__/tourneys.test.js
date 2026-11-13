@@ -4,7 +4,9 @@ import {
   PICK_EM_TOURNEYS,
   STANDINGS_SCOPES,
   defaultStandingsScopeId,
+  announcedTourney,
   picksInScope,
+  tourneyStandingsFromPicks,
   tourneyStandings,
   tourneyWinners
 } from '../tourneys.js';
@@ -99,5 +101,52 @@ describe('defaultStandingsScopeId', () => {
 
   it('opens on the season for a week past both tourneys', () => {
     expect(defaultStandingsScopeId({ actualWeek: 18 })).toBe('season');
+  });
+});
+
+// One correct pick per week entered, for a member, across a run of weeks.
+const correctPicks = (userId, displayName, fromWeek, toWeek) =>
+  Array.from({ length: toWeek - fromWeek + 1 }, (_, i) => ({
+    userId,
+    displayName,
+    weekNumber: fromWeek + i,
+    gameCompleted: true,
+    isCorrect: true,
+    pointsEarned: 1
+  }));
+
+describe('tourneyStandingsFromPicks', () => {
+  it('counts only the tourney weeks and applies the floor', () => {
+    const picks = [
+      ...correctPicks('a', 'Arya Shah', 1, 9),
+      ...correctPicks('b', 'Rohit Ramki', 1, 4)
+    ];
+    const rows = tourneyStandingsFromPicks(firstHalf, picks);
+
+    expect(rows).toEqual([
+      { userId: 'a', displayName: 'Arya Shah', totalPoints: 8, entered: 8, eligible: true },
+      { userId: 'b', displayName: 'Rohit Ramki', totalPoints: 4, entered: 4, eligible: false }
+    ]);
+  });
+
+  it('gives a member under the floor no prize, however they scored', () => {
+    const picks = [
+      ...correctPicks('a', 'Arya Shah', 1, 5),
+      ...correctPicks('b', 'Rohit Ramki', 1, 4),
+      ...correctPicks('b', 'Rohit Ramki', 1, 4)
+    ];
+    const winners = tourneyWinners(tourneyStandingsFromPicks(firstHalf, picks));
+    expect(winners.map((w) => w.userId)).toEqual(['a']);
+  });
+});
+
+describe('announcedTourney', () => {
+  it('names weeks 1-8 in week 9 only, once week 8 is scored', () => {
+    expect(announcedTourney({ finishedWeek: 7, viewedWeek: 9 })).toBeNull();
+    expect(announcedTourney({ finishedWeek: 8, viewedWeek: 8 })).toBeNull();
+    expect(announcedTourney({ finishedWeek: 8, viewedWeek: 9 })).toBe(firstHalf);
+    expect(announcedTourney({ finishedWeek: 9, viewedWeek: 10 })).toBeNull();
+    expect(announcedTourney({ finishedWeek: 17, viewedWeek: 18 })).toBeNull();
+    expect(announcedTourney({ finishedWeek: null, viewedWeek: 9 })).toBeNull();
   });
 });
