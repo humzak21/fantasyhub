@@ -294,7 +294,8 @@ const PowerRankingsVisualization = ({
       </div>
 
 
-      {/* Component Explanations, from the same source as the weights */}
+      {/* The "Component Calculation Guide" is hidden for now: it took a lot of
+          room. Uncomment to bring it back.
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -331,6 +332,7 @@ const PowerRankingsVisualization = ({
           </div>
         </CardContent>
       </Card>
+      */}
 
     </div>
   );

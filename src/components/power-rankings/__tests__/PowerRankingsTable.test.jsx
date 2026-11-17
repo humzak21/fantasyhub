@@ -158,7 +158,9 @@ describe('PowerRankingsTable', () => {
     expect(screen.getAllByRole('link', { name: /t1/ })).toHaveLength(2);
   });
 
-  it('labels every component from the weights, in the legend', () => {
+  // The legend ("How the rating is built") is commented out in
+  // PowerRankingsTable.jsx. Un-skip these three when it comes back.
+  it.skip('labels every component from the weights, in the legend', () => {
     renderWithProviders(
       <PowerRankingsTable rankings={[team()]} currentWeek={4} />
     );
@@ -170,7 +172,7 @@ describe('PowerRankingsTable', () => {
     }
   });
 
-  it('describes playoff odds by the field, not by a division place', () => {
+  it.skip('describes playoff odds by the field, not by a division place', () => {
     renderWithProviders(
       <PowerRankingsTable rankings={[team()]} currentWeek={4} />
     );
@@ -193,7 +195,7 @@ describe('PowerRankingsTable', () => {
     }
   });
 
-  it('explains that missing components are dropped rather than zeroed', () => {
+  it.skip('explains that missing components are dropped rather than zeroed', () => {
     renderWithProviders(
       <PowerRankingsTable rankings={[team()]} currentWeek={4} />
     );

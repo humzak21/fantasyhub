@@ -477,6 +477,8 @@ const PowerRankingsTable = ({
         }}
       />
 
+      {/* "How the rating is built" is hidden for now: it took a lot of room
+          under the table. Uncomment to bring it back.
       <Card>
         <CardContent className="pt-4 sm:pt-6">
           <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold">
@@ -504,7 +506,6 @@ const PowerRankingsTable = ({
               </dl>
             </div>
 
-            {/* Algorithm components, straight from the weights themselves */}
             <div>
               <h5 className="mb-2 text-sm font-medium">Components</h5>
               <div className="space-y-1 text-xs text-muted-foreground">
@@ -528,6 +529,7 @@ const PowerRankingsTable = ({
           </div>
         </CardContent>
       </Card>
+      */}
     </div>
   );
 };
